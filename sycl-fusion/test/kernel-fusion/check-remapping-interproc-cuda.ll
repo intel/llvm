@@ -1,7 +1,6 @@
 ; REQUIRES: cuda
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
-; RUN:   -passes=sycl-kernel-fusion --sycl-info-path %S/check-remapping.yaml \
-; RUN:   -S %s | FileCheck %s
+; RUN:   -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 ; This tests checks that PTX intrinsics are correctly remapped when fusing
 ; kernels with different ND-ranges.
@@ -318,3 +317,12 @@ attributes #2 = { nounwind }
 !44 = !{i64 100, i64 100, i64 100}
 !45 = !{i64 10, i64 10, i64 10}
 !46 = !{i64 0, i64 0, i64 0}
+!47 = !{
+  !"KernelOne",
+  !{!"Accessor", !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor",
+    !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
+    !"StdLayout", !"StdLayout"},
+  !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1},
+  !{!"work_group_size_hint", i32 1, i32 1, i32 64}
+}
+!sycl.moduleinfo = !{!47}

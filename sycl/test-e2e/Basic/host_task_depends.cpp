@@ -2,7 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 using namespace sycl;
 using namespace sycl::access;

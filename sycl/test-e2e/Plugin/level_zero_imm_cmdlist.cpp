@@ -9,7 +9,7 @@
 // This test checks that immediate commandlists are used and not regular ones on
 // PVC Linux.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, char **argv) {
   sycl::queue Q;

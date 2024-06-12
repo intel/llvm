@@ -5,15 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 20
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #define MAX_TS_WIDTH 1024
 // kernel can handle TUPLE_SZ 1, 2, or 4

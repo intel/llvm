@@ -3,114 +3,103 @@
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t_preview.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
-#include <CL/sycl.hpp>
-
-#define TEST(FUNC, TYPE, EXPECTED, N, ...)                                     \
-  {                                                                            \
-    {                                                                          \
-      TYPE result[N];                                                          \
-      {                                                                        \
-        sycl::buffer<TYPE> b(result, sycl::range{N});                          \
-        deviceQueue.submit([&](sycl::handler &cgh) {                           \
-          sycl::accessor res_access{b, cgh};                                   \
-          cgh.single_task([=]() {                                              \
-            sycl::marray<TYPE, N> res = FUNC(__VA_ARGS__);                     \
-            for (int i = 0; i < N; i++)                                        \
-              res_access[i] = res[i];                                          \
-          });                                                                  \
-        });                                                                    \
-      }                                                                        \
-      for (int i = 0; i < N; i++)                                              \
-        assert(result[i] == EXPECTED[i]);                                      \
-    }                                                                          \
-  }
-
-#define TEST2(FUNC, TYPE, EXPECTED, N, ...)                                    \
-  {                                                                            \
-    {                                                                          \
-      TYPE result[1];                                                          \
-      {                                                                        \
-        sycl::buffer<TYPE> b(result, sycl::range{1});                          \
-        deviceQueue.submit([&](sycl::handler &cgh) {                           \
-          sycl::accessor res_access{b, cgh};                                   \
-          cgh.single_task([=]() {                                              \
-            int res = FUNC(__VA_ARGS__);                                       \
-            for (int i = 0; i < N; i++)                                        \
-              res_access[0] = res;                                             \
-          });                                                                  \
-        });                                                                    \
-      }                                                                        \
-      assert(result[0] == EXPECTED[0]);                                        \
-    }                                                                          \
-  }
-
-#define EXPECTED(TYPE, ...) ((TYPE[]){__VA_ARGS__})
+#include "helpers.hpp"
 
 int main() {
-  sycl::device Dev;
-  sycl::queue deviceQueue(Dev);
+  using namespace sycl;
 
-  sycl::marray<sycl::half, 2> ma1_f16{1.f, 2.f};
-  sycl::marray<sycl::half, 2> ma2_f16{1.f, 2.f};
-  sycl::marray<sycl::half, 2> ma3_f16{2.f, 1.f};
-  sycl::marray<sycl::half, 2> ma4_f16{2.f, 2.f};
-  sycl::marray<sycl::half, 3> ma5_f16{2.f, 2.f, 1.f};
-  sycl::marray<sycl::half, 3> ma6_f16{1.f, 5.f, 8.f};
-  sycl::marray<sycl::half, 2> ma8_f16{1.f, 1.f};
-  sycl::marray<sycl::half, 2> ma9_f16{0.5f, 0.5f};
-  sycl::marray<sycl::half, 2> ma10_f16{2.f, 2.f};
+  marray<half, 2> ma1_f16{1.f, 2.f};
+  marray<half, 2> ma2_f16{1.f, 2.f};
+  marray<half, 2> ma3_f16{2.f, 1.f};
+  marray<half, 2> ma4_f16{2.f, 2.f};
+  marray<half, 3> ma5_f16{2.f, 2.f, 1.f};
+  marray<half, 3> ma6_f16{1.f, 5.f, 8.f};
+  marray<half, 2> ma8_f16{1.f, 1.f};
+  marray<half, 2> ma9_f16{0.5f, 0.5f};
+  marray<half, 2> ma10_f16{2.f, 2.f};
 
-  sycl::marray<float, 2> ma1{1.f, 2.f};
-  sycl::marray<float, 2> ma2{1.f, 2.f};
-  sycl::marray<float, 2> ma3{2.f, 1.f};
-  sycl::marray<float, 2> ma4{2.f, 2.f};
-  sycl::marray<float, 3> ma5{2.f, 2.f, 1.f};
-  sycl::marray<float, 3> ma6{1.f, 5.f, 8.f};
-  sycl::marray<int, 3> ma7{50, 2, 31};
-  sycl::marray<float, 2> ma8{1.f, 1.f};
-  sycl::marray<float, 2> ma9{0.5f, 0.5f};
-  sycl::marray<float, 2> ma10{2.f, 2.f};
-  sycl::marray<bool, 3> c(1, 0, 1);
+  marray<float, 2> ma1{1.f, 2.f};
+  marray<float, 2> ma2{1.f, 2.f};
+  marray<float, 2> ma3{2.f, 1.f};
+  marray<float, 2> ma4{2.f, 2.f};
+  marray<float, 3> ma5{2.f, 2.f, 1.f};
+  marray<float, 3> ma6{1.f, 5.f, 8.f};
+  marray<int, 3> ma7{50, 2, 31};
+  marray<float, 2> ma8{1.f, 1.f};
+  marray<float, 2> ma9{0.5f, 0.5f};
+  marray<float, 2> ma10{2.f, 2.f};
+  marray<bool, 3> c(1, 0, 1);
 
-  if (Dev.has(sycl::aspect::fp16)) {
-    TEST(sycl::isequal, bool, EXPECTED(bool, 1, 1), 2, ma1_f16, ma2_f16);
-    TEST(sycl::isnotequal, bool, EXPECTED(bool, 0, 0), 2, ma1_f16, ma2_f16);
-    TEST(sycl::isgreater, bool, EXPECTED(bool, 0, 1), 2, ma1_f16, ma3_f16);
-    TEST(sycl::isgreaterequal, bool, EXPECTED(bool, 0, 1), 2, ma1_f16, ma4_f16);
-    TEST(sycl::isless, bool, EXPECTED(bool, 0, 1), 2, ma3_f16, ma1_f16);
-    TEST(sycl::islessequal, bool, EXPECTED(bool, 0, 1), 2, ma4_f16, ma1_f16);
-    TEST(sycl::islessgreater, bool, EXPECTED(bool, 0, 0), 2, ma1_f16, ma2_f16);
-    TEST(sycl::isfinite, bool, EXPECTED(bool, 1, 1), 2, ma1_f16);
-    TEST(sycl::isinf, bool, EXPECTED(bool, 0, 0), 2, ma1_f16);
-    TEST(sycl::isnan, bool, EXPECTED(bool, 0, 0), 2, ma1_f16);
-    TEST(sycl::isnormal, bool, EXPECTED(bool, 1, 1), 2, ma1_f16);
-    TEST(sycl::isordered, bool, EXPECTED(bool, 1, 1), 2, ma1_f16, ma2_f16);
-    TEST(sycl::isunordered, bool, EXPECTED(bool, 0, 0), 2, ma1_f16, ma2_f16);
-    TEST(sycl::signbit, bool, EXPECTED(bool, 0, 0), 2, ma1_f16);
-    TEST(sycl::bitselect, sycl::half, EXPECTED(float, 1.0, 1.0), 2, ma8_f16,
-         ma9_f16, ma10_f16);
-    TEST(sycl::select, sycl::half, EXPECTED(float, 1.0, 2.0, 8.0), 3, ma5_f16,
-         ma6_f16, c);
+  bool has_fp16 = queue{}.get_device().has(sycl::aspect::fp16);
+  // clang-format off
+  test(has_fp16, F(isequal),        marray<bool, 2>(true,  true),  ma1_f16, ma2_f16);
+  test(has_fp16, F(isnotequal),     marray<bool, 2>{false, false}, ma1_f16, ma2_f16);
+  test(has_fp16, F(isgreater),      marray<bool, 2>{false, true},  ma1_f16, ma3_f16);
+  test(has_fp16, F(isgreaterequal), marray<bool, 2>{false, true},  ma1_f16, ma4_f16);
+  test(has_fp16, F(isless),         marray<bool, 2>{false, true},  ma3_f16, ma1_f16);
+  test(has_fp16, F(islessequal),    marray<bool, 2>{false, true},  ma4_f16, ma1_f16);
+  test(has_fp16, F(islessgreater),  marray<bool, 2>{false, false}, ma1_f16, ma2_f16);
+  test(has_fp16, F(isfinite),       marray<bool, 2>{true,  true},  ma1_f16);
+  test(has_fp16, F(isinf),          marray<bool, 2>{false, false}, ma1_f16);
+  test(has_fp16, F(isnan),          marray<bool, 2>{false, false}, ma1_f16);
+  test(has_fp16, F(isnormal),       marray<bool, 2>{true,  true},  ma1_f16);
+  test(has_fp16, F(isordered),      marray<bool, 2>{true,  true},  ma1_f16, ma2_f16);
+  test(has_fp16, F(isunordered),    marray<bool, 2>{false, false}, ma1_f16, ma2_f16);
+  test(has_fp16, F(signbit),        marray<bool, 2>{false, false}, ma1_f16);
+
+  test(has_fp16, F(bitselect), marray<half, 2>{1.0, 1.0},      ma8_f16, ma9_f16, ma10_f16);
+  test(has_fp16, F(select),    marray<half, 3>{1.0, 2.0, 8.0}, ma5_f16, ma6_f16, c);
+
+  test(F(isequal),        marray<bool, 2>{true,  true},  ma1, ma2);
+  test(F(isnotequal),     marray<bool, 2>{false, false}, ma1, ma2);
+  test(F(isgreater),      marray<bool, 2>{false, true},  ma1, ma3);
+  test(F(isgreaterequal), marray<bool, 2>{false, true},  ma1, ma4);
+  test(F(isless),         marray<bool, 2>{false, true},  ma3, ma1);
+  test(F(islessequal),    marray<bool, 2>{false, true},  ma4, ma1);
+  test(F(islessgreater),  marray<bool, 2>{false, false}, ma1, ma2);
+  test(F(isfinite),       marray<bool, 2>{true,  true},  ma1);
+  test(F(isinf),          marray<bool, 2>{false, false}, ma1);
+  test(F(isnan),          marray<bool, 2>{false, false}, ma1);
+  test(F(isnormal),       marray<bool, 2>{true,  true},  ma1);
+  test(F(isordered),      marray<bool, 2>{true,  true},  ma1, ma2);
+  test(F(isunordered),    marray<bool, 2>{false, false}, ma1, ma2);
+  test(F(signbit),        marray<bool, 2>{false, false}, ma1);
+
+  test(F(bitselect), marray<float, 2>{1.0, 1.0},      ma8, ma9, ma10);
+  test(F(select),    marray<float, 3>{1.0, 2.0, 8.0}, ma5, ma6, c);
+  // clang-format on
+
+  test(F(all), bool{false}, ma7);
+  test(F(any), bool{false}, ma7);
+
+  {
+    // Extra tests for select/bitselect due to special handling required for
+    // integer return types.
+
+    marray<char, 2> a{0b1100, 0b0011};
+    marray<char, 2> b{0b0011, 0b1100};
+    marray<char, 2> c{0b1010, 0b1010};
+    marray<char, 2> r{0b0110, 0b1001};
+
+    auto BitSelect = F(bitselect);
+    test(BitSelect, r, a, b, c);
+    // Input values/results above are positive, so use the same values for
+    // signed/unsigned char tests.
+    [&](auto... xs) { test(BitSelect, marray<signed char, 2>{xs}...); }(r, a, b,
+                                                                        c);
+    [&](auto... xs) { test(BitSelect, marray<unsigned char, 2>{xs}...); }(r, a,
+                                                                          b, c);
+
+    auto Select = F(select);
+    marray<bool, 2> c2{false, true};
+    marray<char, 2> r2{a[0], b[1]};
+    test(Select, r2, a, b, c2);
+    [&](auto... xs) { test(Select, marray<signed char, 2>{xs}..., c2); }(r2, a,
+                                                                         b);
+    [&](auto... xs) {
+      test(Select, marray<unsigned char, 2>{xs}..., c2);
+    }(r2, a, b);
   }
-
-  TEST(sycl::isequal, bool, EXPECTED(bool, 1, 1), 2, ma1, ma2);
-  TEST(sycl::isnotequal, bool, EXPECTED(bool, 0, 0), 2, ma1, ma2);
-  TEST(sycl::isgreater, bool, EXPECTED(bool, 0, 1), 2, ma1, ma3);
-  TEST(sycl::isgreaterequal, bool, EXPECTED(bool, 0, 1), 2, ma1, ma4);
-  TEST(sycl::isless, bool, EXPECTED(bool, 0, 1), 2, ma3, ma1);
-  TEST(sycl::islessequal, bool, EXPECTED(bool, 0, 1), 2, ma4, ma1);
-  TEST(sycl::islessgreater, bool, EXPECTED(bool, 0, 0), 2, ma1, ma2);
-  TEST(sycl::isfinite, bool, EXPECTED(bool, 1, 1), 2, ma1);
-  TEST(sycl::isinf, bool, EXPECTED(bool, 0, 0), 2, ma1);
-  TEST(sycl::isnan, bool, EXPECTED(bool, 0, 0), 2, ma1);
-  TEST(sycl::isnormal, bool, EXPECTED(bool, 1, 1), 2, ma1);
-  TEST(sycl::isordered, bool, EXPECTED(bool, 1, 1), 2, ma1, ma2);
-  TEST(sycl::isunordered, bool, EXPECTED(bool, 0, 0), 2, ma1, ma2);
-  TEST(sycl::signbit, bool, EXPECTED(bool, 0, 0), 2, ma1);
-  TEST2(sycl::all, int, EXPECTED(bool, false), 3, ma7);
-  TEST2(sycl::any, int, EXPECTED(bool, false), 3, ma7);
-  TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, ma8, ma9, ma10);
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0, 8.0), 3, ma5, ma6, c);
 
   return 0;
 }

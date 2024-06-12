@@ -8,8 +8,12 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -97,6 +101,44 @@ void xor_global_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void xor_global_test_usm_shared(queue q) {
+  const size_t N = 32;
+  const T initial = 0;
+  T *cum = malloc_shared<T>(1, q);
+  cum[0] = initial;
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  std::fill(output_begin, output_end, T(0));
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         size_t gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (cum[0]);
+         output[gid] = atm.fetch_xor(T(1ll << gid), order);
+       });
+     }).wait_and_throw();
+  }
+
+  // Final value should be equal to N ones.
+  assert(cum[0] == T((1ll << N) - 1));
+
+  // All other values should be unique; each work-item sets one bit to 1.
+  std::sort(output_begin, output_end);
+  assert(std::unique(output_begin, output_end) == output_end);
+
+  free(cum, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -108,6 +150,7 @@ void xor_test(queue q) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -123,9 +166,16 @@ void xor_test(queue q) {
     if constexpr (do_ext_tests) {
       xor_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q);
+      if (do_usm_tests) {
+        xor_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                   order, scope>(q);
+      }
     }
 #else
     xor_global_test<::sycl::atomic_ref, space, T, order, scope>(q);
+    if (do_usm_tests) {
+      xor_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(q);
+    }
 #endif
   }
 }

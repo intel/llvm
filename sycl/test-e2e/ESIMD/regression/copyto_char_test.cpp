@@ -1,4 +1,4 @@
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: opencl && gpu-intel-pvc
@@ -11,8 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #include <iostream>
 #include <memory>

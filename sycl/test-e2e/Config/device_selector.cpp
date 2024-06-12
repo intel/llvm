@@ -4,7 +4,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

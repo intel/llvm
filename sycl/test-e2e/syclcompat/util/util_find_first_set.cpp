@@ -33,7 +33,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 void find_first_set_test(int *test_result) {
@@ -104,8 +104,8 @@ void test_find_first_set() {
   sycl::queue q_ct1 = *dev_ct1.default_queue();
   int *test_result, host_test_result = 0;
 
-  test_result = sycl::malloc_shared<int>(sizeof(int), q_ct1);
-  *test_result = 0;
+  test_result = sycl::malloc_device<int>(1, q_ct1);
+  q_ct1.memcpy(test_result, &host_test_result, sizeof(int)).wait();
 
   q_ct1.parallel_for(
       sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
@@ -113,7 +113,8 @@ void test_find_first_set() {
 
   dev_ct1.queues_wait_and_throw();
   find_first_set_test(&host_test_result);
-  assert(*test_result == 0);
+  assert(host_test_result == 0);
+  q_ct1.memcpy(&host_test_result, test_result, sizeof(int)).wait();
   assert(host_test_result == 0);
 
   sycl::free(test_result, q_ct1);

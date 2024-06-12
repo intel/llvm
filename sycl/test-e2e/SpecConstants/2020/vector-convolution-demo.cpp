@@ -9,7 +9,9 @@
 // constants of the SYCL 2020 specification:
 // https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_example_usage
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 #include <array>
 #include <cmath>

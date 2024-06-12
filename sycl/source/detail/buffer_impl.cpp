@@ -84,7 +84,11 @@ buffer_impl::getNativeVector(backend BackendName) const {
     }
 
     pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+                                                     &Handle);
     Handles.push_back(Handle);
   }
 

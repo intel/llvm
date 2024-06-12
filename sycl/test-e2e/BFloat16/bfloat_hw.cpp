@@ -3,7 +3,7 @@
 
 // "Hello world" bfloat16 test which checks conversion algorithms on host.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cstdint>
 #include <type_traits>

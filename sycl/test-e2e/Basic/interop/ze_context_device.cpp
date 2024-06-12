@@ -5,7 +5,7 @@
 // This test checks that an interop Level Zero device is properly handled during
 // interop context construction.
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <level_zero/ze_api.h>
 

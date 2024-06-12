@@ -9,9 +9,10 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
-#include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
-#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
+#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
 #include <sycl/memory_enums.hpp>              // for memory_scope
@@ -142,7 +143,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_tangle_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   // All SPIR-V devices that we currently target execute in SIMD fashion,
   // and so the group of work-items in converged control flow is implicit.
   // We store the mask here because it is required to calculate IDs, not
@@ -153,9 +154,7 @@ get_tangle_group(Group group) {
   // TODO: Construct from compiler-generated mask. Return an invalid group in
   //       in the meantime. CUDA devices will report false for the tangle_group
   //       support aspect so kernels launch should ensure this is never run.
-  return tangle_group<sycl::sub_group>(
-      sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(0, 0));
+  return tangle_group<sycl::sub_group>(0);
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

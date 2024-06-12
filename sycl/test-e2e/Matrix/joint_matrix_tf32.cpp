@@ -6,16 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-tf32
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-#define SG_SZ 16
 constexpr size_t TN = 16;
 
 #include "joint_matrix_tf32_impl.hpp"

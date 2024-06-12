@@ -17,31 +17,36 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 
-struct ready_latency_key {
+struct ready_latency_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ReadyLatency> {
   template <int Latency>
   using value_t = oneapi::experimental::property_value<
       ready_latency_key, std::integral_constant<int, Latency>>;
 };
 
-struct bits_per_symbol_key {
+struct bits_per_symbol_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::BitsPerSymbol> {
   template <int Bits>
   using value_t =
       oneapi::experimental::property_value<bits_per_symbol_key,
                                            std::integral_constant<int, Bits>>;
 };
 
-struct uses_valid_key {
+struct uses_valid_key : oneapi::experimental::detail::compile_time_property_key<
+                            oneapi::experimental::detail::PropKind::UsesValid> {
   template <bool Valid>
   using value_t =
       oneapi::experimental::property_value<uses_valid_key,
                                            std::bool_constant<Valid>>;
 };
 
-struct first_symbol_in_high_order_bits_key {
+struct first_symbol_in_high_order_bits_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::FirstSymbolInHigherOrderBit> {
   template <bool HighOrder>
   using value_t =
       oneapi::experimental::property_value<first_symbol_in_high_order_bits_key,
@@ -55,7 +60,9 @@ enum class protocol_name : std::uint16_t {
   avalon_mm_uses_ready = 3
 };
 
-struct protocol_key {
+struct protocol_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::PipeProtocol> {
   template <protocol_name Protocol>
   using value_t = oneapi::experimental::property_value<
       protocol_key, std::integral_constant<protocol_name, Protocol>>;
@@ -92,65 +99,6 @@ inline constexpr protocol_key::value_t<protocol_name::avalon_mm>
 inline constexpr protocol_key::value_t<protocol_name::avalon_mm_uses_ready>
     protocol_avalon_mm_uses_ready;
 
-} // namespace experimental
-} // namespace intel
-
-namespace oneapi {
-namespace experimental {
-
-template <>
-struct is_property_key<intel::experimental::ready_latency_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::bits_per_symbol_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::uses_valid_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::first_symbol_in_high_order_bits_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::protocol_key> : std::true_type {};
-
-namespace detail {
-template <> struct PropertyToKind<intel::experimental::ready_latency_key> {
-  static constexpr PropKind Kind = PropKind::ReadyLatency;
-};
-template <> struct PropertyToKind<intel::experimental::bits_per_symbol_key> {
-  static constexpr PropKind Kind = PropKind::BitsPerSymbol;
-};
-template <> struct PropertyToKind<intel::experimental::uses_valid_key> {
-  static constexpr PropKind Kind = PropKind::UsesValid;
-};
-template <>
-struct PropertyToKind<
-    intel::experimental::first_symbol_in_high_order_bits_key> {
-  static constexpr PropKind Kind = PropKind::FirstSymbolInHigherOrderBit;
-};
-template <> struct PropertyToKind<intel::experimental::protocol_key> {
-  static constexpr PropKind Kind = PropKind::PipeProtocol;
-};
-
-template <>
-struct IsCompileTimeProperty<intel::experimental::ready_latency_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::bits_per_symbol_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::uses_valid_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<
-    intel::experimental::first_symbol_in_high_order_bits_key> : std::true_type {
-};
-template <>
-struct IsCompileTimeProperty<intel::experimental::protocol_key>
-    : std::true_type {};
-
-} // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::intel::experimental
 } // namespace _V1
 } // namespace sycl

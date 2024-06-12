@@ -3,7 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr int N = 10 * 1024 * 1024;
 

@@ -11,11 +11,9 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/device.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>

@@ -35,7 +35,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 void byte_perm_ref(unsigned int *d_data) {

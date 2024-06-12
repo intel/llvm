@@ -24,7 +24,8 @@
 
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 

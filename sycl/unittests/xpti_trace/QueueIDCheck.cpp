@@ -136,13 +136,15 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   checkTaskBeginEnd(QueueIDSTr);
 }
 
-TEST_F(QueueID, QueueCreationUSMOperations) {
+// Re-enable this test after fixing
+// https://github.com/intel/llvm/issues/12963
+TEST_F(QueueID, DISABLED_QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());
 
-  unsigned char *AllocSrc = (unsigned char *)sycl::malloc_shared(1, Q0);
-  unsigned char *AllocDst = (unsigned char *)sycl::malloc_shared(1, Q0);
+  unsigned char *AllocSrc = (unsigned char *)sycl::malloc_device(1, Q0);
+  unsigned char *AllocDst = (unsigned char *)sycl::malloc_device(1, Q0);
   Q0.memset(AllocSrc, 42, 1).wait();
   checkTaskBeginEnd(QueueIDSTr);
 

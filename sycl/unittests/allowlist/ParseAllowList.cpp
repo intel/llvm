@@ -157,6 +157,8 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
   }
 }
 
+// TODO: Remove esimd_emulator from ExpectedValue in the next ABI
+// breaking window.
 TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   std::string AllowList;
   for (const auto &SyclBe : sycl::detail::getSyclBeMap()) {
@@ -176,7 +178,8 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclDeviceType : sycl::detail::getSyclDeviceTypeMap()) {
+  for (const auto &SyclDeviceType :
+       sycl::detail::getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;

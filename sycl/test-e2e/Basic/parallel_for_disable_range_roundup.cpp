@@ -10,7 +10,7 @@
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-ENABLED
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 range<1> Range1 = {0};

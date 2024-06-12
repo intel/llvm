@@ -33,6 +33,10 @@ inline namespace _V1 {
 // Forward declarations
 class queue;
 
+namespace ext::oneapi::experimental::detail {
+class exec_graph_impl;
+}
+
 namespace detail {
 
 class event_impl;
@@ -74,6 +78,7 @@ public:
     CopyImage = 23,
     SemaphoreWait = 24,
     SemaphoreSignal = 25,
+    ProfilingTag = 26,
   };
 
   struct StorageInitHelper {
@@ -121,7 +126,7 @@ public:
   CG(CG &&CommandGroup) = default;
   CG(const CG &CommandGroup) = default;
 
-  CGTYPE getType() { return MType; }
+  CGTYPE getType() const { return MType; }
 
   std::vector<std::vector<char>> &getArgsStorage() {
     return MData.MArgsStorage;
@@ -172,6 +177,7 @@ public:
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
+  bool MKernelIsCooperative = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -182,14 +188,15 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-               detail::code_location loc = {})
+               bool KernelIsCooperative, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MKernelCacheConfig(std::move(KernelCacheConfig)) {
+        MKernelCacheConfig(std::move(KernelCacheConfig)),
+        MKernelIsCooperative(KernelIsCooperative) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
@@ -327,25 +334,6 @@ public:
   pi_mem_advice getAdvice() { return MAdvice; }
 };
 
-class CGHostTask : public CG {
-public:
-  std::unique_ptr<HostTask> MHostTask;
-  // queue for host-interop task
-  std::shared_ptr<detail::queue_impl> MQueue;
-  // context for host-interop task
-  std::shared_ptr<detail::context_impl> MContext;
-  std::vector<ArgDesc> MArgs;
-
-  CGHostTask(std::unique_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGTYPE Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
-};
-
 class CGBarrier : public CG {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
@@ -355,6 +343,12 @@ public:
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+};
+
+class CGProfilingTag : public CG {
+public:
+  CGProfilingTag(CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CG::ProfilingTag, std::move(CGData), std::move(loc)) {}
 };
 
 /// "Copy 2D USM" command group class.
@@ -573,11 +567,16 @@ public:
 class CGExecCommandBuffer : public CG {
 public:
   sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
+      MExecGraph;
 
-  CGExecCommandBuffer(const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
-                      CG::StorageInitHelper CGData)
+  CGExecCommandBuffer(
+      const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
+      const std::shared_ptr<
+          sycl::ext::oneapi::experimental::detail::exec_graph_impl> &ExecGraph,
+      CG::StorageInitHelper CGData)
       : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
-        MCommandBuffer(CommandBuffer) {}
+        MCommandBuffer(CommandBuffer), MExecGraph(ExecGraph) {}
 };
 
 } // namespace detail

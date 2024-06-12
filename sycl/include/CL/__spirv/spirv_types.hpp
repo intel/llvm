@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp> // for __has_builtin
-#include <sycl/half_type.hpp>      // for half
 
 #include <cstddef> // for size_t
 #include <cstdint> // for uint32_t
@@ -123,6 +122,8 @@ template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
+
+struct __spirv_TaskSequenceINTEL;
 
 } // namespace __spv
 

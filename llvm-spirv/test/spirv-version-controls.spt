@@ -32,4 +32,4 @@
 ; RUN: llvm-spirv -r %t.spv --spirv-max-version=1.1 -o %t
 ; RUN: not llvm-spirv -r %t.spv --spirv-max-version=1.0 -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ;
-; CHECK-ERROR: Invalid SPIR-V module: incorrect SPIR-V version number 1.1 (65792) - it conflicts with --spirv-max-version which is set to 1.0 (65536)
+; CHECK-ERROR: Invalid SPIR-V module: incorrect SPIR-V version number 1.1 (65792) - it conflicts with maximum allowed version which is set to 1.0 (65536)

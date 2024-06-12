@@ -7,7 +7,8 @@
 #include <complex>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 using namespace sycl;
 
 template <typename T> bool equal(const T &a, const T &b) { return a == b; }

@@ -108,6 +108,9 @@ ENUM_DEBUGOPT(DebugInfo, llvm::codegenoptions::DebugInfoKind, 4,
 /// Whether to generate macro debug info.
 DEBUGOPT(MacroDebugInfo, 1, 0)
 
+/// Whether to not generate debug info for system headers.
+DEBUGOPT(NoSystemDebug, 1, 0)
+
 /// Tune the debug info for this debugger.
 ENUM_DEBUGOPT(DebuggerTuning, llvm::DebuggerKind, 3,
                 llvm::DebuggerKind::Default)
@@ -128,6 +131,9 @@ DEBUGOPT(CodeViewCommandLine, 1, 0)
 
 /// Whether emit extra debug info for sample pgo profile collection.
 DEBUGOPT(DebugInfoForProfiling, 1, 0)
+
+/// Whether to emit DW_TAG_template_alias for template aliases.
+DEBUGOPT(DebugTemplateAlias, 1, 0)
 
 /// Whether to emit .debug_gnu_pubnames section instead of .debug_pubnames.
 DEBUGOPT(DebugNameTable, 2, 0)

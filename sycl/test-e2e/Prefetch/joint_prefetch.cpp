@@ -3,7 +3,9 @@
 // RUN: %{run} %t.out
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/prefetch.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -134,6 +136,8 @@ int main() {
         address_space_cast<
             access::address_space::global_space COMMA access::decorated::yes>(
             &dataChar[idx.get_local_linear_id() * arrSize]))
+
+    free(dataChar, q);
   }
   {
     std::vector<int> data(N);

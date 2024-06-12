@@ -5,7 +5,10 @@
 // to abort fusion due to constraint violations for fusion. Also check that
 // warnings are printed when SYCL_RT_WARNING_LEVEL=1.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -15,9 +18,18 @@ enum class Internalization { None, Local, Private };
 
 template <typename Range> size_t getSize(Range r);
 
-template <> size_t getSize(range<1> r) { return r.size(); }
-template <> size_t getSize(nd_range<1> r) {
+template <int Dimensions> size_t getSize(range<Dimensions> r) {
+  return r.size();
+}
+template <int Dimensions> size_t getSize(nd_range<Dimensions> r) {
   return r.get_global_range().size();
+}
+
+template <int N> auto global_linear_id(sycl::nd_item<N> ndi) {
+  return ndi.get_global_linear_id();
+}
+template <int N> auto global_linear_id(sycl::item<N> i) {
+  return i.get_linear_id();
 }
 
 template <typename Kernel1Name, typename Kernel2Name, typename Range1,
@@ -43,15 +55,19 @@ void performFusion(queue &q, Range1 R1, Range2 R2) {
     q.submit([&](handler &cgh) {
       auto accIn = bIn.get_access(cgh);
       auto accTmp = bTmp.get_access(cgh);
-      cgh.parallel_for<Kernel1Name>(
-          R1, [=](item<1> i) { accTmp[i] = accIn[i] + 5; });
+      cgh.parallel_for<Kernel1Name>(R1, [=](auto i) {
+        size_t j = global_linear_id(i);
+        accTmp[j] = accIn[j] + 5;
+      });
     });
 
     q.submit([&](handler &cgh) {
       auto accTmp = bTmp.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<Kernel2Name>(
-          R2, [=](id<1> i) { accOut[i] = accTmp[i] * 2; });
+      cgh.parallel_for<Kernel2Name>(R2, [=](auto i) {
+        size_t j = global_linear_id(i);
+        accOut[j] = accTmp[j] * 2;
+      });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
@@ -96,13 +112,15 @@ int main() {
       q, nd_range<1>{range<1>{dataSize}, range<1>{16}},
       nd_range<1>{range<1>{dataSize}, range<1>{8}});
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NEXT: Illegal ND-range combination
+  // CHECK-NEXT: Detailed information:
+  // CHECK-NEXT: Cannot fuse kernels with different local sizes
   // CHECK: COMPUTATION OK
 
   // Scenario: An empty fusion list should not be classified as having
   // incompatible ND ranges.
   emptyFusionList(q);
-  // CHECK-NOT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NOT: Illegal ND-range combination
   // CHECK: WARNING: Fusion list is empty
 
   // Scenario: Fusing two kernels that would lead to non-uniform work-group
@@ -110,7 +128,21 @@ int main() {
   performFusion<class Kernel1_4, class Kernel2_4>(
       q, nd_range<1>{range<1>{9}, range<1>{3}}, range<1>{dataSize});
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NEXT: Illegal ND-range combination
+  // CHECK-NEXT: Detailed information:
+  // CHECK-NEXT: Cannot fuse kernels whose fusion would yield non-uniform work-group sizes
+  // CHECK: COMPUTATION OK
+
+  // Scenario: Fusing two kernels that may lead to synchronization issues as two
+  // work-items in the same work-group may not be in the same work-group in the
+  // fused ND-range.
+  performFusion<class Kernel1_5, class Kernel2_5>(
+      q, nd_range<2>{range<2>{2, 2}, range<2>{2, 2}},
+      nd_range<2>{range<2>{4, 4}, range<2>{2, 2}});
+  // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
+  // CHECK-NEXT: Illegal ND-range combination
+  // CHECK-NEXT: Detailed information:
+  // CHECK-NEXT: Cannot fuse kernels when any of the fused kernels with a specific local size has different global sizes in dimensions [2, N) or different number of dimensions
   // CHECK: COMPUTATION OK
 
   return 0;

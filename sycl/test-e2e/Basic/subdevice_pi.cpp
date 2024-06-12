@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace sycl;

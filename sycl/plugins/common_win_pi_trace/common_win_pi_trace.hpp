@@ -33,7 +33,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL,  // handle to DLL module
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH " << __SYCL_PLUGIN_DLL_NAME << "\n"
                 << std::endl;
+    break;
   case DLL_THREAD_ATTACH:
+    break;
   case DLL_THREAD_DETACH:
     break;
   }

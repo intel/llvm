@@ -143,7 +143,8 @@ public:
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
     SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
-    ArmPL        // Arm Performance Libraries.
+    ArmPL,       // Arm Performance Libraries.
+    AMDLIBM      // AMD Math Vector library.
   };
 
   /// List of known alternate math libraries.
@@ -675,6 +676,10 @@ public:
   TargetLibraryInfoWrapperPass();
   explicit TargetLibraryInfoWrapperPass(const Triple &T);
   explicit TargetLibraryInfoWrapperPass(const TargetLibraryInfoImpl &TLI);
+
+  // FIXME: This should be removed when PlaceSafepoints is fixed to not create a
+  // PassManager inside a pass.
+  explicit TargetLibraryInfoWrapperPass(const TargetLibraryInfo &TLI);
 
   TargetLibraryInfo &getTLI(const Function &F) {
     FunctionAnalysisManager DummyFAM;

@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 
 #include "../joint_matrix_down_convert_impl.hpp"

@@ -8,10 +8,6 @@
 
 #include "common.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -395,16 +391,19 @@ template <class T, int N, class C, C Op> struct ImplLoadBase {
 template <class T, int N, class C, C Op> struct ImplStoreBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(2 + FPDELTA);
 
   static T init(int i) { return 0; }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(2 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }
 
-  static T arg0(int i) { return base; }
+  static T arg0(int i) {
+    T base = (T)(2 + FPDELTA);
+    return base;
+  }
 };
 
 template <class T, int N, class C, C Op> struct ImplAdd {
@@ -426,13 +425,14 @@ template <class T, int N, class C, C Op> struct ImplAdd {
 template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i) {
+    T base = (T)(5 + FPDELTA);
     return (T)(repeat * threads_per_group * n_groups * (T)(1 + FPDELTA) + base);
   }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(5 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }
@@ -589,18 +589,14 @@ template <int N, template <class, int> class Op, bool UseMask,
           TestFeatures Features, bool UseAcc>
 bool test_fp_types(queue q) {
   bool passed = true;
-  if constexpr (Features == TestFeatures::DG2 ||
-                Features == TestFeatures::PVC) {
-    if constexpr (std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFmax<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFmin<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFcmpwr<sycl::half, N>>) {
-      auto dev = q.get_device();
-      if (dev.has(sycl::aspect::fp16)) {
-        passed &= run_test<UseAcc, sycl::half, N, Op, UseMask>(q);
-      }
+
+  // TODO: Enable 'half' FADD/FSUB on DG2 when the error in GPU driver is fixed.
+  if constexpr (Features == TestFeatures::PVC ||
+                (Features == TestFeatures::DG2 &&
+                 !std::is_same_v<Op<sycl::half, N>, ImplFadd<sycl::half, N>> &&
+                 !std::is_same_v<Op<sycl::half, N>, ImplFsub<sycl::half, N>>)) {
+    if (q.get_device().has(sycl::aspect::fp16)) {
+      passed &= run_test<UseAcc, sycl::half, N, Op, UseMask>(q);
     }
   }
 
@@ -608,15 +604,9 @@ bool test_fp_types(queue q) {
 
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
-    // TODO: fmin/max for double does not pass validation likely due to
-    // a driver bug. fcmpwr is hanging.
-    if constexpr (!std::is_same_v<Op<double, N>, ImplLSCFmax<double, N>> &&
-                  !std::is_same_v<Op<double, N>, ImplLSCFmin<double, N>> &&
-                  !std::is_same_v<Op<double, N>, ImplLSCFcmpwr<double, N>>) {
-      if (q.get_device().has(sycl::aspect::atomic64) &&
-          q.get_device().has(sycl::aspect::fp64)) {
-        passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
-      }
+    if (q.get_device().has(sycl::aspect::atomic64) &&
+        q.get_device().has(sycl::aspect::fp64)) {
+      passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
     }
   }
   return passed;
@@ -630,7 +620,6 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<2, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<4, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<8, Op, UseMask, Features, UseAcc, SignMask>(q);
-  // TODO: N=16 and N=32 does not pass on Gen12 with mask due to older driver.
   if (UseMask && Features == TestFeatures::Generic &&
       esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "26918", "101.4953", false)) {
@@ -642,13 +631,8 @@ bool test_int_types_and_sizes(queue q) {
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
     passed &= test_int_types<64, Op, UseMask, Features, UseAcc, SignMask>(q);
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
     passed &= test_int_types<12, Op, UseMask, Features, UseAcc, SignMask>(q);
     passed &= test_int_types<33, Op, UseMask, Features, UseAcc, SignMask>(q);
-#endif
   }
 
   return passed;
@@ -669,13 +653,8 @@ bool test_fp_types_and_sizes(queue q) {
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
     passed &= test_fp_types<64, Op, UseMask, Features, UseAcc>(q);
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
     passed &= test_fp_types<33, Op, UseMask, Features, UseAcc>(q);
     passed &= test_fp_types<65, Op, UseMask, Features, UseAcc>(q);
-#endif
   }
   return passed;
 }
@@ -702,29 +681,33 @@ int test_with_mask(queue q) {
       test_int_types_and_sizes<ImplUMin, UseMask, Features, UseAcc, Unsigned>(
           q);
 
+  // Check load/store operations.
+  passed &= test_int_types_and_sizes<ImplLoad, UseMask, Features, UseAcc>(q);
+  passed &= test_int_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
+  // 'float' 'load' and 'store' do not require DG2/PVC.
+  passed &= test_fp_types_and_sizes<ImplLoad, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
+
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
     passed &=
         test_fp_types_and_sizes<ImplLSCFmax, UseMask, Features, UseAcc>(q);
     passed &=
         test_fp_types_and_sizes<ImplLSCFmin, UseMask, Features, UseAcc>(q);
-
-    // TODO: fadd/fsub are emulated in the newer driver, but do not pass
-    // validation.
-#if 0
+  }
+  // TODO: GPU driver promised to support FADD/FSUB on DG2, but it doesn't.
+  // Report the issue to driver, enable FADD/FSUB for DG2 when it is fixed.
+  if constexpr (Features == TestFeatures::PVC) {
     passed &= test_fp_types_and_sizes<ImplFadd, UseMask, Features, UseAcc>(q);
     passed &= test_fp_types_and_sizes<ImplFsub, UseMask, Features, UseAcc>(q);
-#endif
-
-    // Check load/store operations.
-    passed &= test_int_types_and_sizes<ImplLoad, UseMask, Features, UseAcc>(q);
-    passed &= test_int_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
-    passed &= test_fp_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
   }
 #else
   passed &= test_int_types_and_sizes<ImplCmpxchg, UseMask, Features, UseAcc>(q);
-  passed &=
-      test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, Features, UseAcc>(q);
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
+    passed &=
+        test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, Features, UseAcc>(q);
+  }
 #endif
   return passed;
 }

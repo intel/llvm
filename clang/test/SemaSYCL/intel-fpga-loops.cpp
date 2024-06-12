@@ -264,17 +264,25 @@ void zoo() {
   [[intel::ivdep(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::max_concurrency(2)]]
-  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
   [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::initiation_interval(2)]]
-  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'initiation_interval'}}
   [[intel::initiation_interval(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::initiation_interval(2)]]
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'initiation_interval'}}
   [[intel::max_concurrency(2)]]
   [[intel::initiation_interval(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::max_concurrency(10)]] // expected-note {{previous attribute is here}}
+  [[intel::max_concurrency(10)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'max_concurrency'}}
+  [[intel::max_concurrency(20)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::initiation_interval(10)]] // expected-note {{previous attribute is here}}
+  [[intel::initiation_interval(10)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'initiation_interval'}}
+  [[intel::initiation_interval(20)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::disable_loop_pipelining]]
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'disable_loop_pipelining'}}
@@ -285,14 +293,21 @@ void zoo() {
   [[intel::max_interleaving(1)]]
   [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  [[intel::max_interleaving(1)]]
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(1)]] // expected-note {{previous attribute is here}}
+  [[intel::max_interleaving(1)]] // OK.
+  // expected-error@+2 {{conflicting loop attribute 'max_interleaving'}}
   [[intel::speculated_iterations(1)]]
   [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  [[intel::speculated_iterations(1)]]
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'speculated_iterations'}}
+  [[intel::speculated_iterations(1)]] // expected-note {{previous attribute is here}}
+  // expected-error@+2 {{conflicting loop attribute 'speculated_iterations'}}
   [[intel::loop_coalesce]]
+  [[intel::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::speculated_iterations(1)]] // expected-note {{previous attribute is here}}
+  [[intel::speculated_iterations(1)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'speculated_iterations'}}
   [[intel::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -359,8 +374,13 @@ void zoo() {
       a[i] = 0;
 
   [[intel::max_reinvocation_delay(1)]]
-  // expected-error@+1{{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
   [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::max_reinvocation_delay(10)]] // expected-note {{previous attribute is here}}
+  [[intel::max_reinvocation_delay(10)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(20)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
   [[intel::enable_loop_pipelining]]
@@ -463,8 +483,12 @@ void ii_dependent() {
   [[intel::initiation_interval(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'initiation_interval'}}
   [[intel::initiation_interval(A)]]
+  [[intel::initiation_interval(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  	  
+  // expected-error@+2 {{conflicting loop attribute 'initiation_interval'}}
+  [[intel::initiation_interval(A)]] // expected-note {{previous attribute is here}}
   [[intel::initiation_interval(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
@@ -476,11 +500,18 @@ void max_concurrency_dependent() {
   [[intel::max_concurrency(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
-  [[intel::max_concurrency(A)]]
+  // expected-error@+2 {{conflicting loop attribute 'max_concurrency'}}
+  [[intel::max_concurrency(A)]] // expected-note {{previous attribute is here}}
   [[intel::max_concurrency(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+
+  [[intel::max_concurrency(A)]]
+  [[intel::max_concurrency(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+
+  [[intel::max_concurrency(D)]]
   // max_concurrency attribute accepts value 0.
   [[intel::max_concurrency(D)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -501,11 +532,14 @@ void max_interleaving_dependent() {
   [[intel::max_interleaving(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
-  [[intel::max_interleaving(C)]]
+  // expected-error@+2 {{conflicting loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(C)]] // expected-note {{previous attribute is here}}
   [[intel::max_interleaving(D)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  [[intel::max_interleaving(D)]]
+  [[intel::max_interleaving(D)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template <int A, int B, int C, int D>
@@ -515,13 +549,17 @@ void speculated_iterations_dependent() {
   [[intel::speculated_iterations(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'speculated_iterations'}}
-  [[intel::speculated_iterations(A)]]
+  // expected-error@+2 {{conflicting loop attribute 'speculated_iterations'}}
+  [[intel::speculated_iterations(A)]] // expected-note {{previous attribute is here}}
   [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
   // speculated_iterations attribute accepts value 0.
   [[intel::speculated_iterations(D)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::speculated_iterations(B)]]
+  [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -593,9 +631,13 @@ void max_reinvocation_delay_dependent() {
   [[intel::max_reinvocation_delay(C)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
-  [[intel::max_reinvocation_delay(A)]]
+  // expected-error@+2 {{conflicting loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(A)]] // expected-note {{previous attribute is here}}
   [[intel::max_reinvocation_delay(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::max_reinvocation_delay(A)]]
+  [[intel::max_reinvocation_delay(A)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 

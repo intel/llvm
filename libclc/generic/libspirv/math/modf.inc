@@ -23,7 +23,7 @@
 #endif
 
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(__CLC_GENTYPE x,
-                                                      __CLC_GENTYPE *iptr) {
+                                                      private __CLC_GENTYPE *iptr) {
   *iptr = __spirv_ocl_trunc(x);
   return __spirv_ocl_copysign(
       __CLC_CONVERT_NATN(__spirv_IsInf(x)) ? ZERO : x - *iptr, x);
@@ -32,7 +32,7 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(__CLC_GENTYPE x,
 #define MODF_DEF(addrspace)                                                    \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(                       \
       __CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) {                        \
-    __CLC_GENTYPE private_iptr;                                                \
+    private __CLC_GENTYPE private_iptr;                                        \
     __CLC_GENTYPE ret = __spirv_ocl_modf(x, &private_iptr);                    \
     *iptr = private_iptr;                                                      \
     return ret;                                                                \
@@ -40,6 +40,10 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(__CLC_GENTYPE x,
 
 MODF_DEF(local);
 MODF_DEF(global);
+
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
+MODF_DEF(generic);
+#endif
 
 #undef __CLC_CONVERT_NATN
 #undef ZERO

@@ -11,7 +11,7 @@
 // CHECK-OPT: ---> piProgramBuild(
 // CHECK-OPT: -ze-intel-enable-auto-large-GRF-mode
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::buffer<size_t, 1> Buffer(4);

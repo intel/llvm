@@ -80,7 +80,7 @@ template <typename dataT, int dimensions> class local_accessor;
 //       should be removed.
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress = access::decorated::legacy>
-class multi_ptr {
+class __SYCL_TYPE(multi_ptr) multi_ptr {
 private:
   using decorated_type =
       typename detail::DecoratedType<ElementType, Space>::type;
@@ -444,7 +444,7 @@ private:
 
 /// Specialization of multi_ptr for const void.
 template <access::address_space Space, access::decorated DecorateAddress>
-class multi_ptr<const void, Space, DecorateAddress> {
+class __SYCL_TYPE(multi_ptr) multi_ptr<const void, Space, DecorateAddress> {
 private:
   using decorated_type =
       typename detail::DecoratedType<const void, Space>::type;
@@ -592,7 +592,7 @@ private:
 
 // Specialization of multi_ptr for void.
 template <access::address_space Space, access::decorated DecorateAddress>
-class multi_ptr<void, Space, DecorateAddress> {
+class __SYCL_TYPE(multi_ptr) multi_ptr<void, Space, DecorateAddress> {
 private:
   using decorated_type = typename detail::DecoratedType<void, Space>::type;
 
@@ -1560,56 +1560,64 @@ template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator>(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
                std::nullptr_t) {
-  return lhs.get() != nullptr;
+  return lhs.get() >
+         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator>(std::nullptr_t,
-               const multi_ptr<ElementType, Space, DecorateAddress> &) {
-  return false;
+               const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
+  return multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get() >
+         rhs.get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
-bool operator<(const multi_ptr<ElementType, Space, DecorateAddress> &,
+bool operator<(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
                std::nullptr_t) {
-  return false;
+  return lhs.get() <
+         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator<(std::nullptr_t,
                const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
-  return rhs.get() != nullptr;
+  return multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get() <
+         rhs.get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
-bool operator>=(const multi_ptr<ElementType, Space, DecorateAddress> &,
+bool operator>=(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
                 std::nullptr_t) {
-  return true;
+  return lhs.get() >=
+         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator>=(std::nullptr_t,
                 const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
-  return rhs.get() == nullptr;
+  return multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get() >=
+         rhs.get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator<=(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
                 std::nullptr_t) {
-  return lhs.get() == nullptr;
+  return lhs.get() <=
+         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator<=(std::nullptr_t,
-                const multi_ptr<ElementType, Space, DecorateAddress> &) {
-  return true;
+                const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
+  return multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get() <=
+         rhs.get();
 }
 
 } // namespace _V1

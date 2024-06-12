@@ -93,6 +93,7 @@ public:
   bool isTypeOpaque() const;
   bool isTypePointer() const;
   bool isTypeSampler() const;
+  bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
   bool isTypeJointMatrixINTEL() const;
@@ -106,6 +107,7 @@ public:
   bool isTypeVectorPointer() const;
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
+  bool isTypeTaskSequenceINTEL() const;
 };
 
 class SPIRVTypeVoid : public SPIRVType {
@@ -389,13 +391,13 @@ class SPIRVTypeArray : public SPIRVType {
 public:
   // Complete constructor
   SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheElemType,
-                 SPIRVConstant *TheLength);
+                 SPIRVValue *TheLength);
   // Incomplete constructor
   SPIRVTypeArray()
       : SPIRVType(OpTypeArray), ElemType(nullptr), Length(SPIRVID_INVALID) {}
 
   SPIRVType *getElementType() const { return ElemType; }
-  SPIRVConstant *getLength() const;
+  SPIRVValue *getLength() const;
   SPIRVCapVec getRequiredCapability() const override {
     return getElementType()->getRequiredCapability();
   }
@@ -1153,6 +1155,25 @@ public:
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, CompType);
   }
+};
+
+class SPIRVTypeTaskSequenceINTEL : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeTaskSequenceINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, 2, internal::OpTypeTaskSequenceINTEL, TheId) {}
+  // Incomplete constructor
+  SPIRVTypeTaskSequenceINTEL() : SPIRVType(internal::OpTypeTaskSequenceINTEL) {}
+  // _SPIRV_DCL_ENCDEC
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityTaskSequenceINTEL);
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_task_sequence;
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC1(Id)
 };
 
 } // namespace SPIRV

@@ -11,7 +11,8 @@
 #include <cassert>
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/sycl_span.hpp>
 
 struct ACopyable {
   int i;

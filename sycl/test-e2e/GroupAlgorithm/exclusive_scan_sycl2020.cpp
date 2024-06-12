@@ -9,7 +9,8 @@
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <vector>
 using namespace sycl;
 

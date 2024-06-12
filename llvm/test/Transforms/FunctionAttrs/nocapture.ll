@@ -55,7 +55,7 @@ define void @c3(ptr %q) {
 
 define i1 @c4(ptr %q, i32 %bitno) {
 ; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-; FNATTRS-LABEL: define i1 @c4
+; FNATTRS-LABEL: define noundef i1 @c4
 ; FNATTRS-SAME: (ptr [[Q:%.*]], i32 [[BITNO:%.*]]) #[[ATTR0]] {
 ; FNATTRS-NEXT:    [[TMP:%.*]] = ptrtoint ptr [[Q]] to i32
 ; FNATTRS-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP]], [[BITNO]]
@@ -91,7 +91,7 @@ l1:
 ; c4b is c4 but without the escaping part
 define i1 @c4b(ptr %q, i32 %bitno) {
 ; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-; FNATTRS-LABEL: define i1 @c4b
+; FNATTRS-LABEL: define noundef i1 @c4b
 ; FNATTRS-SAME: (ptr [[Q:%.*]], i32 [[BITNO:%.*]]) #[[ATTR0]] {
 ; FNATTRS-NEXT:    [[TMP:%.*]] = ptrtoint ptr [[Q]] to i32
 ; FNATTRS-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP]], [[BITNO]]
@@ -160,27 +160,27 @@ declare void @throw_if_bit_set(ptr, i8) readonly
 
 define i1 @c6(ptr %q, i8 %bit) personality ptr @__gxx_personality_v0 {
 ; FNATTRS: Function Attrs: nofree memory(read)
-; FNATTRS-LABEL: define i1 @c6
+; FNATTRS-LABEL: define noundef i1 @c6
 ; FNATTRS-SAME: (ptr readonly [[Q:%.*]], i8 [[BIT:%.*]]) #[[ATTR5:[0-9]+]] personality ptr @__gxx_personality_v0 {
 ; FNATTRS-NEXT:    invoke void @throw_if_bit_set(ptr [[Q]], i8 [[BIT]])
-; FNATTRS-NEXT:    to label [[RET0:%.*]] unwind label [[RET1:%.*]]
+; FNATTRS-NEXT:            to label [[RET0:%.*]] unwind label [[RET1:%.*]]
 ; FNATTRS:       ret0:
 ; FNATTRS-NEXT:    ret i1 false
 ; FNATTRS:       ret1:
 ; FNATTRS-NEXT:    [[EXN:%.*]] = landingpad { ptr, i32 }
-; FNATTRS-NEXT:    cleanup
+; FNATTRS-NEXT:            cleanup
 ; FNATTRS-NEXT:    ret i1 true
 ;
 ; ATTRIBUTOR: Function Attrs: nosync memory(read)
 ; ATTRIBUTOR-LABEL: define i1 @c6
 ; ATTRIBUTOR-SAME: (ptr readonly [[Q:%.*]], i8 [[BIT:%.*]]) #[[ATTR4:[0-9]+]] personality ptr @__gxx_personality_v0 {
 ; ATTRIBUTOR-NEXT:    invoke void @throw_if_bit_set(ptr [[Q]], i8 [[BIT]]) #[[ATTR4]]
-; ATTRIBUTOR-NEXT:    to label [[RET0:%.*]] unwind label [[RET1:%.*]]
+; ATTRIBUTOR-NEXT:            to label [[RET0:%.*]] unwind label [[RET1:%.*]]
 ; ATTRIBUTOR:       ret0:
 ; ATTRIBUTOR-NEXT:    ret i1 false
 ; ATTRIBUTOR:       ret1:
 ; ATTRIBUTOR-NEXT:    [[EXN:%.*]] = landingpad { ptr, i32 }
-; ATTRIBUTOR-NEXT:    cleanup
+; ATTRIBUTOR-NEXT:            cleanup
 ; ATTRIBUTOR-NEXT:    ret i1 true
 ;
   invoke void @throw_if_bit_set(ptr %q, i8 %bit)
@@ -197,7 +197,7 @@ declare i32 @__gxx_personality_v0(...)
 
 define ptr @lookup_bit(ptr %q, i32 %bitno) readnone nounwind {
 ; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-; FNATTRS-LABEL: define nonnull ptr @lookup_bit
+; FNATTRS-LABEL: define ptr @lookup_bit
 ; FNATTRS-SAME: (ptr [[Q:%.*]], i32 [[BITNO:%.*]]) #[[ATTR0]] {
 ; FNATTRS-NEXT:    [[TMP:%.*]] = ptrtoint ptr [[Q]] to i32
 ; FNATTRS-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP]], [[BITNO]]
@@ -813,7 +813,7 @@ define i1 @nocaptureInboundsGEPICmpRev(ptr %x) {
 
 define i1 @nocaptureDereferenceableOrNullICmp(ptr dereferenceable_or_null(4) %x) {
 ; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-; FNATTRS-LABEL: define i1 @nocaptureDereferenceableOrNullICmp
+; FNATTRS-LABEL: define noundef i1 @nocaptureDereferenceableOrNullICmp
 ; FNATTRS-SAME: (ptr nocapture readnone dereferenceable_or_null(4) [[X:%.*]]) #[[ATTR0]] {
 ; FNATTRS-NEXT:    [[TMP1:%.*]] = icmp eq ptr [[X]], null
 ; FNATTRS-NEXT:    ret i1 [[TMP1]]
@@ -830,7 +830,7 @@ define i1 @nocaptureDereferenceableOrNullICmp(ptr dereferenceable_or_null(4) %x)
 
 define i1 @captureDereferenceableOrNullICmp(ptr dereferenceable_or_null(4) %x) null_pointer_is_valid {
 ; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind null_pointer_is_valid willreturn memory(none)
-; FNATTRS-LABEL: define i1 @captureDereferenceableOrNullICmp
+; FNATTRS-LABEL: define noundef i1 @captureDereferenceableOrNullICmp
 ; FNATTRS-SAME: (ptr readnone dereferenceable_or_null(4) [[X:%.*]]) #[[ATTR16:[0-9]+]] {
 ; FNATTRS-NEXT:    [[TMP1:%.*]] = icmp eq ptr [[X]], null
 ; FNATTRS-NEXT:    ret i1 [[TMP1]]

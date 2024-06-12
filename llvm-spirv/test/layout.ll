@@ -43,22 +43,27 @@
 ; CHECK-NOT: {{[0-9]*}} Variable
 ; CHECK-NOT: {{[0-9]*}} Function
 
-; CHECK: {{[0-9]*}} TypeInt [[TypeInt:[0-9]+]] 32
-; CHECK: {{[0-9]*}} TypeInt [[TypeI8:[0-9]+]] 8
-; CHECK: {{[0-9]*}} Constant [[TypeInt]] [[Two:[0-9]+]] 2
-; CHECK: {{[0-9]*}} TypePointer [[TPointer:[0-9]+]]
-; CHECK: {{[0-9]*}} TypePointer [[SConstOpType:[0-9]+]]
+; CHECK: {{[0-9]*}} TypeInt [[TypeInt32:[0-9]+]] 32
+; CHECK: {{[0-9]*}} TypeInt [[TypeInt8:[0-9]+]] 8
+; CHECK: {{[0-9]*}} Constant [[TypeInt32]] [[Int32Two:[0-9]+]] 2
+; CHECK: {{[0-9]*}} TypeArray [[TypeArrayInt32:[0-9]+]] [[TypeInt32]] [[Int32Two]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr5ArrayInt32:[0-9]+]] 5 [[TypeArrayInt32]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Int32:[0-9]+]] 5 [[TypeInt32]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Ptr5Int32:[0-9]+]] 5 [[TypePtr5Int32]]
 ; CHECK: {{[0-9]*}} TypeFloat [[TypeFloat:[0-9]+]]
-; CHECK: {{[0-9]*}} TypeArray [[TypeArray:[0-9]+]] [[TypeFloat]] [[Two]]
-; CHECK: {{[0-9]*}} TypeVector [[TypeVectorInt3:[0-9]+]] [[TypeInt]] 3
-; CHECK: {{[0-9]*}} TypePointer [[TPointerI8:[0-9]+]] 8 [[TypeI8]]
-; CHECK: {{[0-9]*}} TypeStruct [[BID:[0-9]+]] {{[0-9]+}} [[TPointerI8]]
+; CHECK: {{[0-9]*}} TypeArray [[TypeArrayFloat:[0-9]+]] [[TypeFloat]] [[Int32Two]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr8ArrayFloat:[0-9]+]] 0 [[TypeArrayFloat]]
+; CHECK: {{[0-9]*}} TypeVector [[TypeVectorInt32:[0-9]+]] [[TypeInt32]] 3
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr8VectorInt32:[0-9]+]] 0 [[TypeVectorInt32]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr0Int8:[0-9]+]] 8 [[TypeInt8]]
+; CHECK: {{[0-9]*}} TypeStruct [[BID:[0-9]+]] {{[0-9]+}} [[TypePtr0Int8]]
 ; CHECK: {{[0-9]*}} TypeStruct [[CID:[0-9]+]] {{[0-9]+}} [[BID]]
 ; CHECK: {{[0-9]*}} TypeStruct [[AID:[0-9]+]] {{[0-9]+}} [[CID]]
 ; CHECK: {{[0-9]*}} TypeVoid [[Void:[0-9]+]]
-; CHECK: {{[0-9]*}} TypeFunction [[TypeBar1:[0-9]+]] [[Void]] [[SConstOpType]]
-; CHECK: {{[0-9]*}} Variable [[TPointer]] [[Var:[0-9]+]]
-; CHECK: {{[0-9]*}} SpecConstantOp [[SConstOpType]] [[SConstOp:[0-9]+]] 70 [[Var]]
+; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Int8:[0-9]+]] 5 [[TypeInt8]]
+; CHECK: {{[0-9]*}} TypeFunction [[TypeBar1:[0-9]+]] [[Void]] [[TypePtr5Int8]]
+; CHECK: {{[0-9]*}} Variable [[TypePtr5ArrayInt32]] [[Var:[0-9]+]]
+; CHECK: {{[0-9]*}} SpecConstantOp [[TypePtr5Int32]] [[SConstOp:[0-9]+]] 70 [[Var]]
 ; CHECK: {{[0-9]*}} Variable {{[0-9]+}} {{[0-9]+}} 5 [[SConstOp]]
 
 ; CHECK-NOT: {{[0-9]*}} Capability

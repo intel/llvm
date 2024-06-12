@@ -4,7 +4,7 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR='*:cpu;level_zero:gpu' %{run-unfiltered-devices} %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:acc %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set
@@ -14,7 +14,8 @@
 // REQUIRES: cpu,gpu,accelerator
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -45,7 +46,7 @@ int main() {
     device d = cs.select_device();
   }
   if (!envVal || forcedPIs == "*" ||
-      forcedPIs.find("acc") != std::string::npos) {
+      forcedPIs.find("fpga") != std::string::npos) {
     accelerator_selector as;
     device d = as.select_device();
   }

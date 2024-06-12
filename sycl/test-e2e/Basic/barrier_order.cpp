@@ -8,11 +8,13 @@
 
 #include <iostream>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 int main() {
-  sycl::device dev{sycl::default_selector_v};
-  sycl::queue q{dev};
+  sycl::queue q;
 
   unsigned long long *x = sycl::malloc_shared<unsigned long long>(1, q);
 

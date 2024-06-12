@@ -56,8 +56,76 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name ur-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG 12c665daf87c5a72de37199705a0b0e574f85b19)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -113,10 +181,12 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -142,6 +212,10 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h
@@ -190,8 +264,25 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()

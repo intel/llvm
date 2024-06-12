@@ -8,8 +8,12 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -37,6 +41,33 @@ void store_global_test(queue q, size_t N) {
   // Atomicity isn't tested here, but support for store() is
   assert(store != initial);
   assert(store >= T(0) && store <= T(N - 1));
+}
+
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void store_global_test_usm_shared(queue q, size_t N) {
+  T initial = T(N);
+  T *st = malloc_shared<T>(1, q);
+  st[0] = initial;
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         size_t gid = it.get_id(0);
+         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(st[0]);
+         atm.store(T(gid), order);
+       });
+     }).wait_and_throw();
+  }
+
+  // The initial value should have been overwritten by a work-item ID.
+  // Atomicity isn't tested here, but support for store() is.
+  assert(st[0] != initial);
+  assert(st[0] >= T(0) && st[0] <= T(N - 1));
+
+  free(st, q);
 }
 
 template <template <typename, memory_order, memory_scope, access::address_space>
@@ -80,6 +111,7 @@ void store_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -95,9 +127,17 @@ void store_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       store_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order,
                         scope>(q, N);
+      if (do_usm_tests) {
+        store_global_test_shared_usm<::sycl::ext::oneapi::atomic_ref, space, T,
+                                     order, scope>(q, N);
+      }
     }
 #else
     store_global_test<::sycl::atomic_ref, space, T, order, scope>(q, N);
+    if (do_usm_tests) {
+      store_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(
+          q, N);
+    }
 #endif
   }
 }

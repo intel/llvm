@@ -5,7 +5,8 @@
 // UNSUPPORTED: ze_debug && windows
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 #include <typeinfo>
 
 using namespace sycl;

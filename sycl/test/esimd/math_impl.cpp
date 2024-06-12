@@ -31,13 +31,13 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> sycl_math(simd<float, 16> x) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math(simd<float, 16> x) {
   simd<float, 16> v = 0;
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_cos
+  //CHECK:  call spir_func noundef <16 x float> @_Z22__spirv_ocl_native_cos{{[^\(]*}}
   v = esimd::cos(x);
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_sin
+  //CHECK: call spir_func noundef <16 x float> @_Z22__spirv_ocl_native_sin{{[^\(]*}}
   v = esimd::sin(v);
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_log
+  //CHECK: call spir_func noundef <16 x float> @_Z23__spirv_ocl_native_log2{{[^\(]*}}
   v = esimd::log2(v);
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_exp
+  //CHECK: call spir_func noundef <16 x float> @_Z23__spirv_ocl_native_exp2{{[^\(]*}}
   v = esimd::exp2(v);
   return v;
 }
@@ -47,9 +47,9 @@ esimd_math(simd<float, 16> x) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math_emu(simd<float, 16> x) {
   simd<float, 16> v = 0;
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_log
+  //CHECK: call spir_func noundef <16 x float> @_Z23__spirv_ocl_native_log2{{[^\(]*}}
   v = esimd::log(x);
-  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_exp
+  //CHECK: call spir_func noundef <16 x float> @_Z23__spirv_ocl_native_exp2{{[^\(]*}}
   v = esimd::exp(v);
   return v;
 }

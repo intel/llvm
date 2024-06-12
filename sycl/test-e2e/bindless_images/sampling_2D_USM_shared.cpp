@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
@@ -7,7 +6,10 @@
 
 #include <cmath>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/usm.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -44,8 +46,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::r,
-        sycl::image_channel_type::fp32);
+        {width, height}, 1, sycl::image_channel_type::fp32);
 
     auto devicePitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
@@ -97,8 +98,8 @@ int main() {
             float fdim0 = float(dim0 + 0.5f) / (float)width;
             float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read image data from handle
-            float px = sycl::ext::oneapi::experimental::read_image<float>(
+            // Extension: sample image data from handle
+            float px = sycl::ext::oneapi::experimental::sample_image<float>(
                 imgHandle, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px;
