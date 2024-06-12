@@ -29,7 +29,7 @@ add_custom_target(check-sycl-unittests)
 option(SYCL_PI_TESTS "Enable PI-specific unit tests" OFF)
 
 if (SYCL_PI_TESTS)
-  add_subdirectory(pi)
+    add_subdirectory(pi)
 endif()
 
 add_subdirectory(allowlist)
@@ -55,5 +55,5 @@ add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
-  add_subdirectory(xpti_trace)
+    add_subdirectory(xpti_trace)
 endif()

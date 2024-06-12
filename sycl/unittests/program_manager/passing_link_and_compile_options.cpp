@@ -12,7 +12,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -85,51 +85,44 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   return Img;
 }
 
-inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
-                                      const char *_linkOpts, pi_uint32,
-                                      const pi_program *,
-                                      void (*)(pi_program, void *), void *,
-                                      pi_program *) {
-  assert(_linkOpts != nullptr);
-  auto add_link_opts = std::string(_linkOpts);
+inline ur_result_t redefinedProgramLink(void *pParams) {
+  auto params = *static_cast<ur_program_link_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  auto add_link_opts = std::string(*params.ppOptions);
   if (!add_link_opts.empty()) {
     if (!current_link_options.empty())
       current_link_options += " ";
-    current_link_options += std::string(_linkOpts);
+    current_link_options += std::string(*params.ppOptions);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
-                                         const pi_device *,
-                                         const char *_compileOpts, pi_uint32,
-                                         const pi_program *, const char **,
-                                         void (*)(pi_program, void *), void *) {
-  assert(_compileOpts != nullptr);
-  auto add_compile_opts = std::string(_compileOpts);
+inline ur_result_t redefinedProgramCompile(void *pParams) {
+  auto params = *static_cast<ur_program_compile_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  auto add_compile_opts = std::string(*params.ppOptions);
   if (!add_compile_opts.empty()) {
     if (!current_compile_options.empty())
       current_compile_options += " ";
-    current_compile_options += std::string(_compileOpts);
+    current_compile_options += std::string(*params.ppOptions);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-inline pi_result redefinedProgramBuild(
-    pi_program prog, pi_uint32, const pi_device *, const char *options,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-  assert(options != nullptr);
-  current_build_opts = std::string(options);
-  return PI_SUCCESS;
+inline ur_result_t redefinedProgramBuild(void *pParams) {
+  auto params = *static_cast<ur_program_build_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  current_build_opts = std::string(*params.ppOptions);
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -151,12 +144,12 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -186,14 +179,14 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
-      redefinedProgramBuild);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
+  mock::getCallbacks().set_before_callback("urProgramBuildExp",
+                                           &redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();

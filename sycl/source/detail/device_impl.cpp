@@ -734,11 +734,12 @@ bool device_impl::has(aspect Aspect) const {
       return false;
 
     typename sycl_to_ur<device>::type Result;
-    bool CallSuccessful = getPlugin()->call_nocheck(
-        urDeviceGetInfo, getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::composite_device>::value,
-        sizeof(Result), &Result, nullptr);
+    bool CallSuccessful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, getHandleRef(),
+            UrInfoCode<ext::oneapi::experimental::info::device::
+                           composite_device>::value,
+            sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
 
     return CallSuccessful && Result != nullptr;
   }

@@ -149,9 +149,6 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // Then check backend-specific plugins
   for (auto &Plugin : Plugins) {
-    if (Plugin->hasBackend(backend::all)) {
-      continue; // skip UR on this pass
-    }
     const auto &PluginPlatforms = getPluginPlatforms(Plugin);
     for (const auto &P : PluginPlatforms) {
       PlatformsWithPlugin.push_back({P, Plugin});

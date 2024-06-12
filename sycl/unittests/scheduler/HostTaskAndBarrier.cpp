@@ -9,9 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <vector>
 
@@ -35,7 +35,7 @@ enum TestCGType { KERNEL_TASK, HOST_TASK, BARRIER };
 class BarrierHandlingWithHostTask : public ::testing::Test {
 protected:
   void SetUp() {
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::platform Plt = sycl::platform();
 
     sycl::context SyclContext(Plt);
     sycl::device SyclDev =
@@ -78,7 +78,7 @@ protected:
         nullptr, {});
   }
 
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::unittest::ScopedEnvVar DisabledCleanup{
       DisableCleanupName, "1",
       sycl::detail::SYCLConfig<

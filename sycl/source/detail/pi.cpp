@@ -75,7 +75,8 @@ getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins);
+static void initializePlugins(std::vector<PluginPtr> &Plugins,
+                              ur_loader_config_handle_t = nullptr);
 
 bool XPTIInitDone = false;
 
@@ -289,12 +290,12 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-std::vector<PluginPtr> &initializeUr() {
+std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
   std::call_once(PluginsInitDone, [&]() {
-    initializePlugins(GlobalHandler::instance().getPlugins());
+    initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
   });
   return GlobalHandler::instance().getPlugins();
 }
@@ -306,15 +307,21 @@ std::vector<PluginPtr> &initializeUr() {
 std::vector<std::tuple<std::string, backend, void *>>
 loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins) {
+static void initializePlugins(std::vector<PluginPtr> &Plugins,
+                              ur_loader_config_handle_t LoaderConfig) {
   // TODO: error handling, could/should this throw?
-  ur_loader_config_handle_t config = nullptr;
-  if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
-      urLoaderConfigRelease(config);
-      std::cerr << "Failed to enable validation layer\n";
-      return;
+  // If we weren't provided with a custom config handle enable full validation
+  // by default.
+  bool OwnLoaderConfig = false;
+  if (!LoaderConfig) {
+    if (urLoaderConfigCreate(&LoaderConfig) == UR_RESULT_SUCCESS) {
+      if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_FULL_VALIDATION")) {
+        urLoaderConfigRelease(LoaderConfig);
+        std::cerr << "Failed to enable validation layer";
+        return;
+      }
     }
+    OwnLoaderConfig = true;
   }
 
   auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
@@ -327,23 +334,28 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   }
 
   if (std::getenv("UR_LOG_TRACING")) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_TRACING")) {
+    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING")) {
       std::cerr << "Warning: Failed to enable tracing layer\n";
     }
   }
 
-  urLoaderConfigSetCodeLocationCallback(config, codeLocationCallback, nullptr);
+  urLoaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
+                                        nullptr);
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(config);
+    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      urLoaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
   ur_device_init_flags_t device_flags = 0;
-  urLoaderInit(device_flags, config);
+  urLoaderInit(device_flags, LoaderConfig);
+
+  if (OwnLoaderConfig) {
+    urLoaderConfigRelease(LoaderConfig);
+  }
 
   uint32_t adapterCount = 0;
   urAdapterGet(0, nullptr, &adapterCount);

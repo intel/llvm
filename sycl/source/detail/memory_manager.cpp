@@ -1199,11 +1199,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
         "NULL pointer argument in 2D memory memset operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  // TODO: Implement this in terms of urEnqueueUSMFill2D? The old PI entry
-  // point for this was never implemented anywhere (pi2ur.hpp simply hit an
-  // abort if it was called).
-  throw runtime_error("2D memset is not current supported by any backends.",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height, {Value},
+                             DepEvents, OutEvent, nullptr);
 }
 
 // TODO: This function will remain until ABI-breaking change

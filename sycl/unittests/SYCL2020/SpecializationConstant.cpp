@@ -13,7 +13,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -67,8 +67,8 @@ static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(SpecializationConstant, DefaultValuesAreSet) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -96,8 +96,8 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
 }
 
 TEST(SpecializationConstant, DefaultValuesAreOverriden) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -132,8 +132,8 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
 }
 
 TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -175,8 +175,8 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
 }
 
 TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -219,8 +219,8 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
 }
 
 TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -262,8 +262,8 @@ TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
 }
 
 TEST(SpecializationConstant, NoKernel) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

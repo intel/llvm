@@ -17,7 +17,7 @@
 #include "sycl/detail/pi.h"
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -85,36 +85,33 @@ static sycl::unittest::PiImage Img = generateDefaultImage();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 struct TestCtx {
-  detail::pi::PiContext context;
+  ur_context_handle_t context;
 };
 
 std::unique_ptr<TestCtx> globalCtx;
 
-static pi_result redefinedKernelGetInfo(pi_kernel kernel,
-                                        pi_kernel_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_name == PI_KERNEL_INFO_CONTEXT) {
-    auto ctx = reinterpret_cast<detail::pi::PiContext *>(param_value);
+static ur_result_t redefinedKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_KERNEL_INFO_CONTEXT) {
+    auto ctx = reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue);
     *ctx = globalCtx->context;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
-  KernelAndProgramCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  KernelAndProgramCacheTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piKernelGetInfo>(
-        redefinedKernelGetInfo);
+    mock::getCallbacks().set_before_callback("urKernelGetInfo",
+                                             &redefinedKernelGetInfo);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 

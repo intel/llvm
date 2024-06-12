@@ -25,6 +25,8 @@
 #include <type_traits> // for false_type, true_type
 #include <vector>      // for vector
 
+#include <ur_api.h>
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
 namespace xpti {
@@ -143,7 +145,8 @@ std::string platformInfoToString(pi_platform_info info);
 template <class To, class From> To cast(From value);
 
 // Performs PI one-time initialization.
-std::vector<PluginPtr> &initializeUr();
+std::vector<PluginPtr> &
+initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
