@@ -1,7 +1,3 @@
-// REQUIRES: level_zero
-// RUN: %clangxx -fsycl --offload-new-driver %s -o %t.out
-// RUN: %{run} %t.out
-
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 //
 // A basic test using the --offload-new-driver flag
+
+// REQUIRES: level_zero
+// RUN: %clangxx -fsycl --offload-new-driver %s -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 
