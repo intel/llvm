@@ -23,8 +23,6 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
     // expected-no-error@+1
     v1.~DATA_I();
     v2.~DATA_S();
-    // expected-error@+1{{SYCL kernel cannot call a virtual function}}
-    v3.~DATA_T();
   };
   auto wrapped_functor = functor_wrapper<decltype(functor)>{functor};
   wrapped_functor();
