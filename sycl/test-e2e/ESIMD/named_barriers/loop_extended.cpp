@@ -17,10 +17,6 @@
 // producers. Producer stores data to SLM, then all threads read SLM and store
 // data to surface.
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
 
 #ifdef EXP

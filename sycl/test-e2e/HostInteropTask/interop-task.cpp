@@ -4,9 +4,11 @@
 // REQUIRES: opencl, opencl_icd
 
 #include <iostream>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 using namespace sycl;
 using namespace sycl::access;

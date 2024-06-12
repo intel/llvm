@@ -7,6 +7,9 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
+// Test is flaky on Windows, disable until it can be fixed
+// UNSUPPORTED: windows
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/host_task_multiple_deps.cpp"

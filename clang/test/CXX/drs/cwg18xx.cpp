@@ -56,7 +56,7 @@ namespace cwg1804 { // cwg1804: 2.7
 template <typename, typename>
 struct A {
   void f1();
-  
+
   template <typename V>
   void f2(V);
 
@@ -73,7 +73,7 @@ struct A {
 template <typename U>
 struct A<int, U> {
   void f1();
-  
+
   template <typename V>
   void f2(V);
 
@@ -97,7 +97,7 @@ class D {
 template <typename U>
 struct A<double, U> {
   void f1();
-  
+
   template <typename V>
   void f2(V);
 

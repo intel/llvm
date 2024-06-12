@@ -82,26 +82,34 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
 
   // 1) prefetch(usm, offsets): offsets is simd or simd_view
 
-  // CHECK-COUNT-6: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  // CHECK-COUNT-10: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
   prefetch(ptrf, ioffset_n32, props_cache_load);
   prefetch<float, 32>(ptrf, ioffset_n32_view, props_cache_load);
   prefetch<float, 32>(ptrf, ioffset_n32_view.select<32, 1>(), props_cache_load);
+  prefetch(ptrf, ioffset_n32_view, props_cache_load);
+  prefetch(ptrf, ioffset_n32_view.select<32, 1>(), props_cache_load);
 
   prefetch(ptrf, loffset_n32, props_cache_load);
   prefetch<float, 32>(ptrf, loffset_n32_view, props_cache_load);
   prefetch<float, 32>(ptrf, loffset_n32_view.select<32, 1>(), props_cache_load);
+  prefetch(ptrf, loffset_n32_view, props_cache_load);
+  prefetch(ptrf, loffset_n32_view.select<32, 1>(), props_cache_load);
 
   // 2) prefetch(usm, offsets, mask): offsets is simd or simd_view
-  // CHECK-COUNT-6: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  // CHECK-COUNT-10: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
   prefetch(ptrf, ioffset_n32, mask_n32, props_cache_load);
   prefetch<float, 32>(ptrf, ioffset_n32_view, mask_n32, props_cache_load);
   prefetch<float, 32>(ptrf, ioffset_n32_view.select<32, 1>(), mask_n32,
                       props_cache_load);
+  prefetch(ptrf, ioffset_n32_view, mask_n32, props_cache_load);
+  prefetch(ptrf, ioffset_n32_view.select<32, 1>(), mask_n32, props_cache_load);
 
   prefetch(ptrf, loffset_n32, mask_n32, props_cache_load);
   prefetch<float, 32>(ptrf, loffset_n32_view, mask_n32, props_cache_load);
   prefetch<float, 32>(ptrf, loffset_n32_view.select<32, 1>(), mask_n32,
                       props_cache_load);
+  prefetch(ptrf, loffset_n32_view, mask_n32, props_cache_load);
+  prefetch(ptrf, loffset_n32_view.select<32, 1>(), mask_n32, props_cache_load);
 
   // 3) prefetch(usm, offset): offset is scalar
   // CHECK-COUNT-16: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
@@ -128,27 +136,37 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
                                    props_cache_load_align);
 
   // 4) prefetch(usm, ...): same as (1), (2) above, but with VS > 1.
-  // CHECK-COUNT-6: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  // CHECK-COUNT-10: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
   prefetch<float, 32, 2>(ptrf, ioffset_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, ioffset_n16_view, props_cache_load);
   prefetch<float, 32, 2>(ptrf, ioffset_n16_view.select<16, 1>(),
                          props_cache_load);
+  prefetch<2>(ptrf, ioffset_n16_view, props_cache_load);
+  prefetch<2>(ptrf, ioffset_n16_view.select<16, 1>(), props_cache_load);
 
   prefetch<float, 32, 2>(ptrf, loffset_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, loffset_n16_view, props_cache_load);
   prefetch<float, 32, 2>(ptrf, loffset_n16_view.select<16, 1>(),
                          props_cache_load);
+  prefetch<2>(ptrf, loffset_n16_view, props_cache_load);
+  prefetch<2>(ptrf, loffset_n16_view.select<16, 1>(), props_cache_load);
 
-  // CHECK-COUNT-6: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  // CHECK-COUNT-10: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
   prefetch<float, 32, 2>(ptrf, ioffset_n16, mask_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, ioffset_n16_view.select<16, 1>(), mask_n16,
                          props_cache_load);
+  prefetch<2>(ptrf, ioffset_n16_view, mask_n16, props_cache_load);
+  prefetch<2>(ptrf, ioffset_n16_view.select<16, 1>(), mask_n16,
+              props_cache_load);
 
   prefetch<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, loffset_n16_view.select<16, 1>(), mask_n16,
                          props_cache_load);
+  prefetch<2>(ptrf, loffset_n16_view, mask_n16, props_cache_load);
+  prefetch<2>(ptrf, loffset_n16_view.select<16, 1>(), mask_n16,
+              props_cache_load);
 
   // CHECK-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   __ESIMD_NS::prefetch<float, 32>(ptrf, 0, props_cache_load);

@@ -4,7 +4,8 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

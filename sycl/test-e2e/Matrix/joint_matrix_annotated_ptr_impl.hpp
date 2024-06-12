@@ -11,16 +11,21 @@
 #define TM 8
 #define TK 16
 
+template <unsigned int vnniFactor> class mult;
+
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           unsigned int vnniFactor>
 void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
+  size_t sg_size = get_sg_size<mult<vnniFactor>>(q);
   q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+     cgh.parallel_for<mult<vnniFactor>>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
@@ -52,21 +57,23 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
                syclex::properties{syclintelex::read_hint<
                    syclintelex::cache_control<syclintelex::cache_mode::cached,
                                               syclex::cache_level::L2>>}};
-           joint_matrix_load(
-               sg, sub_c, C_ptr + (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-               N, layout::row_major);
+           joint_matrix_load(sg, sub_c,
+                             C_ptr + (sg_startx * TM) * N +
+                                 sg_starty / sg_size * TN,
+                             N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(sg, sub_a, A_ptr + (sg_startx * TM) * K + k * TK,
                                K);
              if constexpr (vnniFactor == 0) {
                joint_matrix_load(
-                   sg, sub_b, B_ptr + (k * TK) * N + sg_starty / SG_SZ * TN, N);
+                   sg, sub_b, B_ptr + (k * TK) * N + sg_starty / sg_size * TN,
+                   N);
                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
              } else {
                joint_matrix_load(sg, sub_bp,
                                  B_ptr +
                                      (k * TK / vnniFactor) * (N * vnniFactor) +
-                                     sg_starty / SG_SZ * TN * vnniFactor,
+                                     sg_starty / sg_size * TN * vnniFactor,
                                  N * vnniFactor);
 
                joint_matrix_mad(sg, sub_c, sub_a, sub_bp, sub_c);
@@ -79,7 +86,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
                                               syclex::cache_level::L2>>}};
            joint_matrix_store(sg, sub_c,
                               C_w_ptr + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
+                                  sg_starty / sg_size * TN,
                               N, layout::row_major);
          }); // parallel for
    }).wait();

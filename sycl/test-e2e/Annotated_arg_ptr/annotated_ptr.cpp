@@ -2,8 +2,10 @@
 // RUN: %{run} %t.out
 // REQUIRES: aspect-usm_shared_allocations
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/dealloc.hpp>
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;

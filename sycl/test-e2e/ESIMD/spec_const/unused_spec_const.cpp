@@ -9,8 +9,10 @@
 //    DAE (Dead Arguments Elimination) optimization is enabled for ESIMD.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 constexpr sycl::specialization_id<int> Spec;
 

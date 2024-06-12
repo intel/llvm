@@ -2,7 +2,7 @@
 // RUN: %t.out
 
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace sycl;

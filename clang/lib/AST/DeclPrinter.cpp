@@ -1889,7 +1889,8 @@ void DeclPrinter::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP) {
 
   if (TTP->hasDefaultArgument() && !Policy.SuppressDefaultTemplateArguments) {
     Out << " = ";
-    Out << TTP->getDefaultArgument().getAsString(Policy);
+    TTP->getDefaultArgument().getArgument().print(Policy, Out,
+                                                  /*IncludeType=*/false);
   }
 }
 
@@ -1903,7 +1904,7 @@ void DeclPrinter::VisitNonTypeTemplateParmDecl(
 
   if (NTTP->hasDefaultArgument() && !Policy.SuppressDefaultTemplateArguments) {
     Out << " = ";
-    NTTP->getDefaultArgument()->printPretty(Out, nullptr, Policy, Indentation,
-                                            "\n", &Context);
+    NTTP->getDefaultArgument().getArgument().print(Policy, Out,
+                                                   /*IncludeType=*/false);
   }
 }

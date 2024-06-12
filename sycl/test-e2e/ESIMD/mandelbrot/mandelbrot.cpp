@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %T/output.ppm %S/golden_hw.ppm
 
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
+
+#include <sycl/accessor_image.hpp>
+
 #include <array>
-#include <iostream>
 #include <memory>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

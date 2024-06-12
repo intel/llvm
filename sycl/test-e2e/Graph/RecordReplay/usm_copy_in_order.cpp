@@ -13,6 +13,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 int main() {
   property_list Properties{property::queue::in_order{}};
   queue Queue{Properties};

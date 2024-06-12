@@ -18,10 +18,6 @@
 // previous thread. Same as "exec_in_order.cpp", but each thread in separate
 // 'if' branch.
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
 
 #ifdef EXP

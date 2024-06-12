@@ -52,7 +52,7 @@ int main() {
         Failed = true;
       }
 
-    } catch (sycl::invalid_object_error &Error) {
+    } catch (sycl::exception &Error) {
       Error.what();
       std::cerr << "Error: exception was thrown in get_property method."
                 << std::endl;

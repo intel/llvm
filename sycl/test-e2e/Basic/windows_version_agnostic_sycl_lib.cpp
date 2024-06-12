@@ -7,7 +7,7 @@
 // It is expected to crash if correct dll can't be loaded.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

@@ -33,6 +33,32 @@
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 
+; RUN: sycl-module-split -split=auto -S %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K3,CHECK-IR-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefixes CHECK-IR-K1,CHECK-IR-K2 \
+; RUN: --implicit-check-not Kernel3 --implicit-check-not Kernel4 \
+; RUN:  --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.ll --check-prefixes CHECK-IR-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-SYMS-K3,CHECK-SYMS-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-SYMS-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefixes CHECK-SYMS-K1,CHECK-SYMS-K2 \
+; RUN: --implicit-check-not Kernel3 --implicit-check-not Kernel4 \
+; RUN:  --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.sym --check-prefixes CHECK-SYMS-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+
 ; RUN: sycl-post-link -split=source -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR-K3,CHECK-IR-K5 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
@@ -56,6 +82,32 @@
 ; RUN: --implicit-check-not Kernel3 --implicit-check-not Kernel4 \
 ; RUN:  --implicit-check-not Kernel5 --implicit-check-not Kernel6
 ; RUN: FileCheck %s -input-file=%t_3.sym --check-prefixes CHECK-SYMS-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+
+; RUN: sycl-module-split -split=source -S %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K3,CHECK-IR-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefixes CHECK-IR-K1,CHECK-IR-K2 \
+; RUN: --implicit-check-not Kernel3 --implicit-check-not Kernel4 \
+; RUN:  --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.ll --check-prefixes CHECK-IR-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-SYMS-K3,CHECK-SYMS-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-SYMS-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefixes CHECK-SYMS-K1,CHECK-SYMS-K2 \
+; RUN: --implicit-check-not Kernel3 --implicit-check-not Kernel4 \
+; RUN:  --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.sym --check-prefixes CHECK-SYMS-K4 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 
@@ -94,6 +146,44 @@
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel3 \
 ; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 ; RUN: FileCheck %s -input-file=%t_5.sym --check-prefixes CHECK-SYMS-K1 \
+; RUN: --implicit-check-not Kernel12 --implicit-check-not Kernel3 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+
+; RUN: sycl-module-split -split=kernel -S %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefixes CHECK-IR-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.ll --check-prefixes CHECK-IR-K3 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_4.ll --check-prefixes CHECK-IR-K2 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel3 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_5.ll --check-prefixes CHECK-IR-K1 \
+; RUN: --implicit-check-not Kernel12 --implicit-check-not Kernel3 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-SYMS-K6 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-SYMS-K5 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefixes CHECK-SYMS-K4 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_3.sym --check-prefixes CHECK-SYMS-K3 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_4.sym --check-prefixes CHECK-SYMS-K2 \
+; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel3 \
+; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
+; RUN: FileCheck %s -input-file=%t2_5.sym --check-prefixes CHECK-SYMS-K1 \
 ; RUN: --implicit-check-not Kernel12 --implicit-check-not Kernel3 \
 ; RUN:  --implicit-check-not Kernel4 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 

@@ -8,11 +8,13 @@
 // Test fails on hip flakily, disable temprorarily.
 // UNSUPPORTED: hip
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 int main(void) {
   sycl::queue q({sycl::property::queue::enable_profiling{}});
-  int *data = malloc_host<int>(1024, q);
+  int *data = sycl::malloc_host<int>(1024, q);
 
   for (int i = 0; i < 20; i++) {
     auto event = q.submit([&](sycl::handler &cgh) {

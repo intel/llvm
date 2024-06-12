@@ -331,8 +331,7 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
 
   // Extension: image descriptor - can use the same for both images
   sycl::ext::oneapi::experimental::image_descriptor Desc(
-      {Width, Height, Depth}, sycl::image_channel_order::rgba,
-      sycl::image_channel_type::fp32);
+      {Width, Height, Depth}, 4, sycl::image_channel_type::fp32);
 
   // Extension: allocate memory on device and create the handle
   // Input images memory

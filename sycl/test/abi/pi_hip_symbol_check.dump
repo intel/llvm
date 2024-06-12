@@ -33,6 +33,7 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
+piEnqueueTimestampRecordingExp
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo

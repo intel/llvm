@@ -11,11 +11,20 @@ constexpr sycl::specialization_id<int> isize(10);
 constexpr sycl::specialization_id<int16_t> ssize(100);
 
 int main() {
-  test<float, size, sycl::access::decorated::yes>();
-  test<int16_t, isize, sycl::access::decorated::legacy>();
-  test<int, ssize, sycl::access::decorated::no>();
+  constexpr std::size_t num_tests = 3;
+  std::array<std::size_t, num_tests> ns;
+  std::generate_n(ns.begin(), num_tests, []() {
+    std::size_t i = 0;
+    std::cin >> i;
+    return i;
+  });
 
-  test<float, size, sycl::access::decorated::yes, alignof(float) * 2>();
-  test<int16_t, isize, sycl::access::decorated::legacy, alignof(int16_t) * 2>();
-  test<int, ssize, sycl::access::decorated::no, alignof(int) * 2>();
+  test<float, size, sycl::access::decorated::yes>(ns[0]);
+  test<int16_t, isize, sycl::access::decorated::legacy>(ns[1]);
+  test<int, ssize, sycl::access::decorated::no>(ns[2]);
+
+  test<float, size, sycl::access::decorated::yes, alignof(float) * 2>(ns[0]);
+  test<int16_t, isize, sycl::access::decorated::legacy, alignof(int16_t) * 2>(
+      ns[1]);
+  test<int, ssize, sycl::access::decorated::no, alignof(int) * 2>(ns[2]);
 }

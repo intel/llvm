@@ -15,7 +15,7 @@
 
 // Check event caching modes in the L0 plugin.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue deviceQueue;

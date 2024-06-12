@@ -4,8 +4,11 @@
 // Test checks that queue::ext_oneapi_empty() returns status of the out-of-order
 // queue.
 
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/usm.hpp>
+
 #include <chrono>
-#include <sycl.hpp>
 #include <thread>
 
 static void CheckArray(int *x, size_t buffer_size, int expected) {

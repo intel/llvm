@@ -15,7 +15,7 @@
 // Note: the ocloc queries that are tested here are relatively new ( Dec 2023 )
 // if encountering many failures then an outdated ocloc is the likely culprit.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {

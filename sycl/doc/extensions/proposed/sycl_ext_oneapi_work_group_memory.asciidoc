@@ -1,0 +1,553 @@
+= sycl_ext_oneapi_work_group_memory
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be
+in a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds a lower overhead way to allocate device local memory,
+memory which is shared by all work-items in a work-group.
+The `local_accessor` class in the core SYCL specification provides a mechanism
+to do this also, but `local_accessor` has higher overhead because it
+encapsulates both a pointer to the memory and the size of that memory.
+When a `local_accessor` has multiple dimensions, it contains the size in
+each dimension.
+By comparison, the `work_group_memory` class in this extension encapsulates
+only a pointer to the memory without any size information.
+The functionality of `work_group_memory` is, of course, less than
+`local_accessor`, but many applications do not need the extra features.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_WORK_GROUP_MEMORY` to one of the values defined in the table
+below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New `work_group_memory` class
+
+This extension adds the following new class:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename DataT, typename PropertyListT = empty_properties_t>
+class work_group_memory {
+ public:
+  using value_type = std::remove_all_extents_t<DataT>;
+
+  work_group_memory();
+  work_group_memory(const work_group_memory& rhs);
+  work_group_memory(handler& cgh);
+  work_group_memory(size_t num, handler& cgh);
+  work_group_memory& operator=(const work_group_memory& rhs);
+
+  operator DataT&() const;
+  const work_group_memory& operator=(const DataT& value) const;
+  DataT* operator&() const;
+
+  template<access::decorated IsDecorated = access::decorated::no>
+  multi_ptr<value_type, access::address_space::local_space, IsDecorated> get_multi_ptr() const;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The `work_group_memory` class allocates device local memory and provides access
+to this memory from within a SYCL kernel function.
+The local memory that is allocated is shared between all work-items of a
+work-group.
+If multiple work-groups execute simultaneously, each of those work-group
+receives its own independent copy of the allocated local memory.
+
+The `work_group_memory` type is a legal kernel parameter type as defined in
+section 4.12.4 "Rules for parameter passing to kernels" of the core SYCL
+specification.
+Applications typically construct an object of type `work_group_memory` in
+command group scope, pass the object as a kernel parameter, and then reference
+the object inside the kernel in order to access the device local memory that it
+contains.
+
+The `work_group_memory` class may only be used in an nd-range kernel.
+If an application passes a `work_group_memory` object as an argument to a
+single-task kernel or to a simple "range" kernel, the implementation must throw
+a synchronous `exception` with the `errc::kernel_argument` error code when the
+kernel is enqueued.
+
+The `DataT` template parameter identifies the type of the objects created in
+device local memory, and this type must be one of the types that is supported
+in device code.
+In order to create an array of objects, `DataT` should be an array type.
+For example, `work_group_memory<float[10]>` creates an array of 10 `float`
+objects in device local memory.
+In order to create an array of objects where the number of elements is
+determined at runtime, specify an unbounded array type such as
+`work_group_memory<float[]>` and use the constructor overload that takes a
+`num` parameter.
+
+If `DataT` is an implicit-lifetime type as defined in the {cpp} core language,
+`work_group_memory` implicitly creates objects of that type with indeterminate
+values.
+For other types, `work_group_memory` merely allocates uninitialized memory, and
+the application is responsible for constructing objects in that memory (e.g. by
+calling placement-new).
+
+The `PropertyListT` template parameter currently has no meaning and must have
+its default value of `empty_properties_t`.
+This template parameter may be used in the future to associate compile-time
+properties with the `work_group_memory`.
+
+==== Type aliases
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+using value_type = std::remove_all_extents_t<DataT>;
+----
+!====
+
+This type alias provides the data type of the device local memory with all
+array extents removed.
+
+==== Constructors and copy assignment
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+work_group_memory();
+----
+!====
+
+_Effects:_ Constructs a "dummy" `work_group_memory` object that does not
+represent any device local memory.
+The only valid operation for a dummy object is the copy-assignment operator,
+which overwrites the object with the right-hand-side of the assignment.
+Passing a dummy object as a kernel argument or calling any of its other
+member functions or operators produces undefined behavior.
+
+[_Note:_ This constructor may be called in either host code or device code.
+_{endnote}_]
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+work_group_memory(const work_group_memory& rhs);
+----
+!====
+
+_Effects:_ Constructs a `work_group_memory` object which is a copy of the
+`rhs` object.
+The new object represents the same underlying device local memory as `rhs`.
+
+[_Note:_ This constructor may be called in either host code or device code.
+_{endnote}_]
+
+[_Note:_ The copied object does not always represent the same underlying device
+local memory when the copy constructor is called in host code.
+See the open issues.
+_{endnote}_]
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+work_group_memory(handler& cgh);              (1)
+work_group_memory(size_t num, handler& cgh);  (2)
+----
+!====
+
+_Preconditions:_ These constructors must be called from host code.
+
+_Constraints (1):_ Available only when `DataT` is not an unbounded array.
+
+_Constraints (2):_ Available only when `DataT` is an unbounded array.
+
+_Effects:_ Constructs a `work_group_memory` object which represents device
+local memory of type `DataT` in the kernel that is enqueued via the `cgh`
+handler.
+Overload (2) uses `num` to determine the number of elements in the unbounded
+array `DataT`.
+
+_Remarks:_ Attempting to pass the `work_group_memory` object as an argument
+to a kernel that is _not_ launched via the `cgh` handler produces undefined
+behavior.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+work_group_memory& operator=(const work_group_memory& rhs);
+----
+!====
+
+_Effects:_ Replaces the `work_group_memory` object with a copy of the `rhs` object.
+The replaced object represents the same underlying device local memory as `rhs`.
+
+_Returns:_ A reference to the `work_group_memory` object.
+
+[_Note:_ This operator may be called in either host code or device code.
+_{endnote}_]
+
+[_Note:_ The replaced object does not always represent the same underlying
+device local memory when the assignment operator is called in host code.
+See the open issues.
+_{endnote}_]
+
+==== Member functions and operators
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+operator DataT&() const;
+----
+!====
+
+_Preconditions:_ This operator must be called from device code.
+
+_Effects:_ Implicit conversion to the underlying `DataT`.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+const work_group_memory& operator=(const DataT& value) const;
+----
+!====
+
+_Preconditions:_ This operator must be called from device code.
+
+_Constraints:_ Available only when `DataT` is not an array.
+
+_Effects:_ Assigns the value `value` to the underlying device local memory
+object.
+
+_Returns:_ A reference to the `work_group_memory` object.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+DataT* operator&() const;
+----
+!====
+
+_Preconditions:_ This operator must be called from device code.
+
+_Returns:_ A pointer to the underlying device local memory object.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+template<access::decorated IsDecorated = access::decorated::no>
+multi_ptr<value_type, access::address_space::local_space, IsDecorated> get_multi_ptr() const;
+----
+!====
+
+_Preconditions:_ This function must be called from device code.
+
+_Returns:_ A `multi_ptr` to the underlying device local memory object.
+
+
+== Examples
+
+=== Basic usage
+
+The following example illustrates a typical use of the `work_group_memory`
+class.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+constexpr size_t SIZE = 4096;
+constexpr size_t WGSIZE = 256;
+
+int main() {
+  sycl::queue q;
+
+  q.submit([&](sycl::handler &cgh) {
+    // Allocate one element for each work-item in the work-group.
+    syclexp::work_group_memory<int[WGSIZE]> mem{cgh};
+
+    sycl::nd_range ndr{{SIZE}, {WGSIZE}};
+    cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
+      size_t id = it.get_local_linear_id();
+
+      // Each work-item has its own dedicated element of the array.
+      mem[id] = /*...*/;
+    });
+  }).wait();
+}
+----
+
+=== Operations on types
+
+The following example illustrates various operations that can be done with the
+`work_group_memory` class when it is templated with different `DataT` types.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+constexpr size_t SIZE = 4096;
+constexpr size_t WGSIZE = 256;
+
+struct point {
+  int x;
+  int y;
+};
+
+int main() {
+  sycl::queue q;
+
+  q.submit([&](sycl::handler &cgh) {
+    syclexp::work_group_memory<int>       mem1{cgh};    // scalar
+    syclexp::work_group_memory<int[10]>   mem2{cgh};    // bounded array
+    syclexp::work_group_memory<int[]>     mem3{5, cgh}; // unbounded array
+    syclexp::work_group_memory<int[][10]> mem4{2, cgh}; // multi-dimensional array
+    syclexp::work_group_memory<point[10]> mem5{cgh};    // array of struct
+
+    sycl::nd_range ndr{{SIZE}, {WGSIZE}};
+    cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
+      if (it.get_group().leader()) {
+        // A "work_group_memory" templated on a scalar type acts much like the
+        // enclosed scalar type.
+        ++mem1;
+        mem1++;
+        mem1 += 1;
+        mem1 = mem1 + 1;
+        int *p1 = &mem1;
+
+        // A "work_group_memory" templated on an array type (either bounded or
+        // unbounded) acts like an array.
+        ++mem2[4];
+        mem2[4]++;
+        mem2[4] = mem2[4] + 1;
+        int *p2 = &mem2[4];
+
+        // A multi-dimensional array works as expected.
+        mem4[1][5] = mem4[1][5] + 1;
+        mem4[1][7] = mem4[1][7] + 1;
+
+        // An array of structs works as expected too.
+        mem5[1].x++;
+        mem5[1].y = mem5[1].y + 1;
+      }
+    });
+  }).wait();
+}
+----
+
+=== Usage with a free function kernel
+
+The following example illustrates usage of `work_group_memory` in a free
+function kernel.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi;
+
+constexpr size_t SIZE = 4096;
+constexpr size_t WGSIZE = 256;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void mykernel(syclexp::work_group_memory<int[WGSIZE]> mem) {
+  size_t id = syclext::this_work_item::get_nd_item().get_local_linear_id();
+
+  // Each work-item has its own dedicated element of the device local memory
+  // array.
+  mem[id] = /*...*/;
+}
+
+int main() {
+  sycl::queue q;
+  sycl::context ctxt = q.get_context();
+
+  // Get the kernel object for the "mykernel" kernel.
+  auto exe_bndl =
+    syclexp::get_kernel_bundle<mykernel, sycl::bundle_state::executable>(ctxt);
+  sycl::kernel k_mykernel = exe_bndl.ext_oneapi_get_kernel<mykernel>();
+
+  q.submit([&](sycl::handler &cgh) {
+    // Allocate an array of device local memory with one element for each
+    // work-item in the work-group.
+    syclexp::work_group_memory<int[WGSIZE]> mem{cgh};
+    cgh.set_args(mem);
+
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, k_mykernel);
+  }).wait();
+}
+----
+
+
+== Issues
+
+* We have not agreed on the way in which `work_group_memory` should be created
+  when there is a property list.
+  One option is to add a new constructor that takes a `PropertyListT` parameter
+  and use CTAD to deduce the class template parameters.
+  However, we need some way to deduce `DataT` because CTAD does not work unless
+  it deduces all of the template parameters.
+  This leads to a constructor that requires a tag-type parameter like:
++
+[source,c++]
+----
+template<typename T>
+struct type_tag {};
+
+template<typename T>
+inline constexpr type_tag<T> type;
+
+template<typename DataT, typename PropertyListT = empty_properties_t>
+class work_group_memory {
+  work_group_memory(const type_tag<DataT>&, handler& cgh,
+                    const PropertyListT& props = {});
+};
+
+// Deduction guide for the constructor that takes "type_tag".
+template<typename DataT, typename PropertyListT>
+work_group_memory(const type_tag<DataT>&, handler&, const PropertyListT&) ->
+  work_group_memory<DataT, PropertyListT>;
+----
++
+Usage would be like:
++
+[source,c++]
+----
+syclexp::work_group_memory mem{syclexp::type<int[10]>, cgh, props};
+----
++
+Another option is to add a factory function like:
++
+[source,c++]
+----
+template<typename DataT, typename PropertyListT = empty_properties_t>
+work_group_memory<DataT, PropertyListT>
+make_work_group_memory(handler& cgh, const PropertyListT& props = {});
+----
++
+In which case, usage would be like:
++
+[source,c++]
+----
+auto mem = syclexp::make_work_group_memory<int[10]>(cgh, props);
+----
++
+We decided to defer this decision for now because we don't have any properties
+defined for this class yet anyways.
+
+* The copy constructor and copy assignment operator say that the copied object
+  "represents the same underlying device local memory as ``rhs``".
+  This is not currently the case in {dpcpp} when the copy happens in host code.
+  If you pass two `work_group_memory` objects as kernel parameters, each object
+  creates a unique device local memory region, even if one `work_group_memory`
+  object is a copy of the other.
+  The `local_accessor` class behaves the same way.
+  See https://github.com/KhronosGroup/SYCL-Docs/issues/552[this issue] against
+  the SYCL specification.

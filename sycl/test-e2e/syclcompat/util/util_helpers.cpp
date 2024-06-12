@@ -33,7 +33,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/util.hpp>
 
 void test_reinterpreted_queue_ptr() {

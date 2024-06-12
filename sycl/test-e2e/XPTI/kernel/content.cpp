@@ -12,7 +12,8 @@
 #else
 #include <array>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 int main() {

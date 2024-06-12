@@ -9,7 +9,6 @@
 // XFAIL: gpu
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
 #include <vector>
 
 using dataType = sycl::opencl::cl_int;

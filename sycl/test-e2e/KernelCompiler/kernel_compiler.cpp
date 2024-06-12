@@ -17,7 +17,7 @@
 // supported. This test is limited to that (thus the cm-compiler requirement)
 // but in the future it may need to broken out into other tests.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 auto constexpr CLSource = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {

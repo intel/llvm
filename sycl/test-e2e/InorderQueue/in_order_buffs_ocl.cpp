@@ -9,8 +9,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

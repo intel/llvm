@@ -9,8 +9,11 @@
 #pragma once
 
 #include <sycl/bit_cast.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #define NOMINMAX
 #include <algorithm>

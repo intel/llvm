@@ -1,21 +1,19 @@
 // UNSUPPORTED: hip
 // RUN: %{build} -fno-builtin -o %t.out
 // RUN: %{run} %t.out
-// TODO: Remove unsupported after fixing
-// https://github.com/intel/llvm/issues/12683
-// UNSUPPORTED: accelerator
 //
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 
 // FIXME: enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu
+// UNSUPPORTED: cpu || accelerator
 
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 enum USM_TEST_RES { USM_ALLOC_FAIL = -1, USM_TEST_PASS = 0, USM_TEST_FAIL = 1 };
 
 template <class DeviceMemcpyTest>

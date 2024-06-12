@@ -15,8 +15,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: switch to <sycl/detail/core.hpp> once we decide how feature macros
-// should work in that scenario.
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 

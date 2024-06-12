@@ -153,79 +153,103 @@ void checkExceptions() {
   std::vector<int> vec(1, 0);
   sycl::buffer<int, 2> buf2d(vec.data(), {row, col});
   sycl::buffer<int, 3> buf3d(vec.data(), {row / 2, col / 2, col / 2});
+  bool caughtException = false;
 
   // non-contiguous region
   try {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
                                  /*size*/ sycl::range<2>{2, 2}};
-    assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "non contiguous region exception wasn't caught");
 
+  caughtException = false;
   try {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 6}};
-    assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "non contiguous region exception wasn't caught");
 
+  caughtException = false;
   try {
     sycl::buffer<int, 3> sub_buf{buf3d,
                                  /*offset*/ sycl::range<3>{0, 2, 1},
                                  /*size*/ sycl::range<3>{1, 2, 3}};
-    assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "non contiguous region exception wasn't caught");
 
+  caughtException = false;
   try {
     sycl::buffer<int, 3> sub_buf{buf3d,
                                  /*offset*/ sycl::range<3>{0, 0, 0},
                                  /*size*/ sycl::range<3>{2, 3, 4}};
-    assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "non contiguous region exception wasn't caught");
 
   // out of bounds
+  caughtException = false;
   try {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 8}};
-    assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "out of bounds exception wasn't caught");
 
+  caughtException = false;
   try {
     sycl::buffer<int, 3> sub_buf{buf3d,
                                  /*offset*/ sycl::range<3>{1, 1, 1},
                                  /*size*/ sycl::range<3>{1, 1, 4}};
-    assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "out of bounds exception wasn't caught");
 
+  caughtException = false;
   try {
     sycl::buffer<int, 3> sub_buf{buf3d,
                                  /*offset*/ sycl::range<3>{3, 3, 0},
                                  /*size*/ sycl::range<3>{1, 2, 4}};
-    assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "out of bounds exception wasn't caught");
 
   // subbuffer from subbuffer
+  caughtException = false;
   try {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
                                  /*size*/ sycl::range<2>{2, 8}};
     sycl::buffer<int, 2> sub_sub_buf(sub_buf, sycl::range<2>{0, 0},
                                      /*size*/ sycl::range<2>{0, 0});
-    assert(!"invalid subbuffer exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
     std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
+  assert(caughtException && "invalid subbuffer exception wasn't caught");
 }
 
 void copyBlock() {

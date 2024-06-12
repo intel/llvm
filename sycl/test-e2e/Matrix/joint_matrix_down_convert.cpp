@@ -11,7 +11,4 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-constexpr size_t SG_SZ = 16;
-
 #include "joint_matrix_down_convert_impl.hpp"

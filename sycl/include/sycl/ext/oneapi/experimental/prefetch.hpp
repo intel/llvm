@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/types.hpp>
 
 namespace sycl {
 inline namespace _V1 {

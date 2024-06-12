@@ -6,12 +6,12 @@
 // This e2e test checks the alignment of the annotated USM allocation (host &
 // device) in various cases
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
 
 #include <complex>
 #include <numeric>
-
-// clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;

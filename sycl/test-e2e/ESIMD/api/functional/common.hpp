@@ -14,9 +14,6 @@
 
 #pragma once
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../../esimd_test_utils.hpp"
 #include "logger.hpp"
 #include "type_coverage.hpp"

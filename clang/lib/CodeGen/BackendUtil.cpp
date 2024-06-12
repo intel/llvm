@@ -53,6 +53,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
@@ -994,7 +995,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
-        MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
+        MPM.addPass(SYCLPropagateAspectsUsagePass(
+            /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+            /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
@@ -1130,8 +1133,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
       // Rerun aspect propagation without warning diagnostics.
-      MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
-                                                /*ValidateAspects=*/false));
+      MPM.addPass(
+          SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+                                        /*ExcludeAspects=*/{},
+                                        /*ValidateAspects=*/false));
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
@@ -1152,6 +1157,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
+
+      // Record SYCL aspect names (this should come after propagating aspects
+      // and before cleaning up metadata)
+      MPM.addPass(RecordSYCLAspectNamesPass());
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline

@@ -22,6 +22,8 @@ using ::testing::An;
 // Define type with the only methods called by finalizeHandler
 class LimitedHandler {
 public:
+  LimitedHandler(sycl::detail::CG::CGTYPE CGType) : MCGType(CGType) {}
+
   virtual ~LimitedHandler() {}
   virtual void depends_on(const sycl::detail::EventImplPtr &) {}
   virtual void depends_on(const std::vector<detail::EventImplPtr> &Events) {}
@@ -32,12 +34,19 @@ public:
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
+
+  sycl::detail::CG::CGTYPE getType() { return MCGType; }
+
+  sycl::detail::CG::CGTYPE MCGType;
 };
 
 // Needed to use EXPECT_CALL to verify depends_on that originally appends lst
 // event as dependency to the new CG
 class LimitedHandlerSimulation : public LimitedHandler {
 public:
+  LimitedHandlerSimulation(sycl::detail::CG::CGTYPE CGType)
+      : LimitedHandler(CGType) {}
+
   MOCK_METHOD1(depends_on, void(const sycl::detail::EventImplPtr &));
   MOCK_METHOD1(depends_on, void(event Event));
   MOCK_METHOD1(depends_on,
@@ -67,17 +76,15 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   // previous task, this is needed to properly sync blocking & blocked tasks.
   sycl::event Event;
   {
-    LimitedHandlerSimulation MockCGH;
+    LimitedHandlerSimulation MockCGH{detail::CG::CGTYPE::CodeplayHostTask};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
   {
-    LimitedHandlerSimulation MockCGH;
+    LimitedHandlerSimulation MockCGH{detail::CG::CGTYPE::CodeplayHostTask};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
 }

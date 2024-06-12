@@ -518,10 +518,8 @@ template <typename T, TestFeatures Features> bool testUSM(queue Q) {
 
     // Check VS > 1. GPU supports only dwords and qwords in this mode.
     if constexpr (sizeof(T) >= 4) {
-      // TODO: This test case causes flaky fail. Enable it after the issue
-      // in GPU driver is fixed.
-      // Passed &=
-      //     testUSM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps)
+      Passed &=
+          testUSM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
           testUSM<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
@@ -575,10 +573,8 @@ template <typename T, TestFeatures Features> bool testACC(queue Q) {
 
     // Check VS > 1. GPU supports only dwords and qwords in this mode.
     if constexpr (sizeof(T) >= 4) {
-      // TODO: This test case causes flaky fail. Enable it after the issue
-      // in GPU driver is fixed.
-      // Passed &=
-      //     testACC<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps)
+      Passed &=
+          testACC<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
           testACC<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
@@ -630,10 +626,8 @@ template <typename T, TestFeatures Features> bool testSLM(queue Q) {
 
     // Check VS > 1. GPU supports only dwords and qwords in this mode.
     if constexpr (sizeof(T) >= 4) {
-      // TODO: This test case causes flaky fail. Enable it after the issue
-      // in GPU driver is fixed.
-      // Passed &=
-      //     testSLM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps)
+      Passed &=
+          testSLM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
           testSLM<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
@@ -853,11 +847,8 @@ template <typename T, TestFeatures Features> bool testLACC(queue Q) {
 
     // Check VS > 1. GPU supports only dwords and qwords in this mode.
     if constexpr (sizeof(T) >= 4) {
-      // TODO: This test case causes flaky fail. Enable it after the issue
-      // in GPU driver is fixed.
-      // Passed &=
-      //     testLACC<T, 16, 2, CheckMask, CheckProperties>(Q, 2,
-      //     AlignElemProps)
+      Passed &=
+          testLACC<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
           testLACC<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=

@@ -17,10 +17,8 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/specialization_id.hpp>
 
-#include <iostream>
 #include <vector>
 
 using namespace sycl;

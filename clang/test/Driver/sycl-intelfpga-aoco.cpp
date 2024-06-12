@@ -46,19 +46,15 @@
 // CHK-FPGA-AOCO-PHASES: 28: linker, {0, 10, 27}, image, (host-sycl)
 
 /// aoco test, checking tools
-// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware -foffload-static-lib=%t_aoco.a -### %s 2>&1 \
-// RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO,CHK-FPGA-AOCO-LIN %s
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco.a -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO,CHK-FPGA-AOCO-LIN %s
-// RUN:  %clang_cl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware -foffload-static-lib=%t_aoco_cl.a -### %s 2>&1 \
-// RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO,CHK-FPGA-AOCO-WIN %s
 // RUN:  %clang_cl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco_cl.a -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO,CHK-FPGA-AOCO-WIN %s
 // CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-excluded-targets=sycl-fpga_aoco-intel-unknown" "-targets=sycl-spir64_fpga-unknown-unknown" "-input=[[INPUTLIB:.+\.a]]" "-output=[[LIBLIST:.+\.txt]]" "-unbundle"
 // CHK-FPGA-AOCO: spirv-to-ir-wrapper{{.*}} "[[LIBLIST]]" "-o" "[[LIBLIST2:.+\.txt]]"
 // CHK-FPGA-AOCO: llvm-link{{.*}} "-o" "[[LINKEDBC:.+\.bc]]"
 // CHK-FPGA-AOCO: llvm-link{{.*}} "--only-needed" "[[LINKEDBC]]" "@[[LIBLIST2]]" "-o" "[[LINKEDBC2:.+\.bc]]"
-// CHK-FPGA-AOCO: sycl-post-link{{.*}} "-spec-const=emulation" "-device-globals"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC2]]"
+// CHK-FPGA-AOCO: sycl-post-link{{.*}} "-device-globals"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC2]]"
 // CHK-FPGA-AOCO: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[SPLTABLE]]"
 // CHK-FPGA-AOCO: llvm-spirv{{.*}} "-o" "[[TARGSPV:.+\.txt]]" {{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-fpga_aoco-intel-unknown" "-input=[[INPUTLIB]]" "-output=[[AOCOLIST:.+\.txt]]" "-unbundle"
@@ -109,7 +105,7 @@
 // CHK-FPGA-AOCO-EMU: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_fpga-unknown-unknown" "-input=[[INPUTLIB:.+\.a]]" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // CHK-FPGA-AOCO-EMU: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[DEVICELIST:.+\.txt]]" "--out-replace=[[DEVICELIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[DEVICELIST]]"
 // CHK-FPGA-AOCO-EMU: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[LINKEDBC:.+\.bc]]"
-// CHK-FPGA-AOCO-EMU: sycl-post-link{{.*}} "-O2" "-spec-const=emulation" "-device-globals"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC]]"
+// CHK-FPGA-AOCO-EMU: sycl-post-link{{.*}} "-O2" "-device-globals"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC]]"
 // CHK-FPGA-AOCO-EMU: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[SPLTABLE]]"
 // CHK-FPGA-AOCO-EMU: llvm-spirv{{.*}} "-o" "[[TARGSPV:.+\.txt]]" {{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-AOCO-EMU: opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[TARGSPV]]" "-ir=[[AOCXOUT:.+\.aocx]]"

@@ -12,9 +12,7 @@ permissions: read-all
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
-    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
-    # we don't use it for anything right now.
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     timeout-minutes: 3
     outputs:
       filters: ${{ steps.result.outputs.result }}

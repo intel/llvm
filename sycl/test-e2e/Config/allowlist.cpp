@@ -17,7 +17,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character

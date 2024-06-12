@@ -17,8 +17,6 @@
 #include "../esimd_test_utils.hpp"
 
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

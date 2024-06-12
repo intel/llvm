@@ -3,9 +3,9 @@
 #include <cassert>
 #include <iostream>
 
-#include <sycl/detail/core.hpp>
-
 #include <sycl/detail/boolean.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 namespace s = sycl;

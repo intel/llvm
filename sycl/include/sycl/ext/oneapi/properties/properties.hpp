@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-#include <sycl/types.hpp>                                // for is_device_c...
 
 #include <tuple>       // for tuple, tupl...
 #include <type_traits> // for enable_if_t
@@ -82,41 +82,71 @@ struct RuntimePropertyStorage<std::tuple<T, Ts...>>
                                              std::tuple<Ts...>>::type>,
                          RuntimePropertyStorage<std::tuple<Ts...>>> {};
 
+// Count occurrences of a type in a tuple.
+template <typename T, typename Tuple> struct CountTypeInTuple;
+template <typename T, typename... TupleTs>
+struct CountTypeInTuple<T, std::tuple<TupleTs...>>
+    : std::integral_constant<
+          size_t, (0 + ... + static_cast<size_t>(std::is_same_v<T, TupleTs>))> {
+};
+
+// Helper for counting the number of properties that are also in PropertyArgsT.
+template <typename PropertyArgsT, typename Props> struct CountContainedProps;
+template <typename PropertyArgsT>
+struct CountContainedProps<PropertyArgsT, std::tuple<>>
+    : std::integral_constant<size_t, 0> {};
+template <typename PropertyArgsT, typename PropertyT, typename... PropertyTs>
+struct CountContainedProps<PropertyArgsT,
+                           std::tuple<PropertyT, PropertyTs...>> {
+  static constexpr size_t NumOccurrences =
+      CountTypeInTuple<PropertyT, PropertyArgsT>::value;
+  static_assert(NumOccurrences <= 1,
+                "Duplicate occurrences of property in constructor arguments.");
+  static constexpr size_t value =
+      CountContainedProps<PropertyArgsT, std::tuple<PropertyTs...>>::value +
+      NumOccurrences;
+};
+
 // Helper class to extract a subset of elements from a tuple.
 // NOTES: This assumes no duplicate properties and that all properties in the
 //        struct template argument appear in the tuple passed to Extract.
-template <typename PropertiesT> struct ExtractProperties {};
-template <typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT = std::tuple<>;
-
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...>) {
-    return {};
+template <typename PropertyArgsT, typename PropertiesT>
+struct ExtractProperties;
+template <typename PropertyArgsT>
+struct ExtractProperties<PropertyArgsT, std::tuple<>> {
+  static constexpr std::tuple<> Extract(const PropertyArgsT &) {
+    return std::tuple<>{};
   }
 };
-template <typename PropertyT, typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using NextExtractedPropertiesT =
-      typename ExtractProperties<std::tuple<PropertiesTs...>>::
-          template ExtractedPropertiesT<PropertyValueTs...>;
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT =
-      typename PrependTuple<PropertyT,
-                            NextExtractedPropertiesT<PropertyValueTs...>>::type;
+template <typename PropertyArgsT, typename PropertyT, typename... PropertiesTs>
+struct ExtractProperties<PropertyArgsT,
+                         std::tuple<PropertyT, PropertiesTs...>> {
+  static constexpr std::tuple<PropertyT, PropertiesTs...>
+  Extract(const PropertyArgsT &PropertyValues) {
+    // TODO: NumOccurrences and checks should be moved out of the function once
+    //       https://github.com/intel/llvm/issues/13677 has been fixed.
+    constexpr size_t NumOccurrences =
+        CountTypeInTuple<PropertyT, PropertyArgsT>::value;
+    static_assert(
+        NumOccurrences <= 1,
+        "Duplicate occurrences of property in constructor arguments.");
+    static_assert(NumOccurrences == 1 ||
+                      std::is_default_constructible_v<PropertyT>,
+                  "Each property in the property list must either be given an "
+                  "argument in the constructor or be default-constructible.");
 
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...> PropertyValues) {
-    PropertyT ThisExtractedProperty = std::get<PropertyT>(PropertyValues);
-    NextExtractedPropertiesT<PropertyValueTs...> NextExtractedProperties =
-        ExtractProperties<std::tuple<PropertiesTs...>>::template Extract<
-            PropertyValueTs...>(PropertyValues);
-    return std::tuple_cat(std::tuple<PropertyT>{ThisExtractedProperty},
-                          NextExtractedProperties);
+    auto NextExtractedProperties =
+        ExtractProperties<PropertyArgsT, std::tuple<PropertiesTs...>>::Extract(
+            PropertyValues);
+
+    if constexpr (NumOccurrences == 1) {
+      return std::tuple_cat(
+          std::tuple<PropertyT>{std::get<PropertyT>(PropertyValues)},
+          NextExtractedProperties);
+    } else {
+      return std::tuple_cat(std::tuple<PropertyT>{PropertyT{}},
+                            NextExtractedProperties);
+    }
   }
 };
 
@@ -135,10 +165,24 @@ template <typename PropertiesT> class properties {
                 "Conflicting properties in property list.");
 
 public:
-  template <typename... PropertyValueTs>
+  template <typename... PropertyValueTs,
+            std::enable_if_t<detail::AllPropertyValues<
+                                 std::tuple<PropertyValueTs...>>::value,
+                             int> = 0>
   constexpr properties(PropertyValueTs... props)
-      : Storage(detail::ExtractProperties<StorageT>::Extract(
-            std::tuple<PropertyValueTs...>{props...})) {}
+      : Storage(detail::ExtractProperties<std::tuple<PropertyValueTs...>,
+                                          StorageT>::Extract({props...})) {
+    // Default-constructible properties do not need to be in the arguments.
+    // For properties with a storage, default-constructibility is checked in
+    // ExtractProperties, while those without are so by default. As such, all
+    // arguments must be a unique property type and must be in PropertiesT.
+    constexpr size_t NumContainedProps =
+        detail::CountContainedProps<std::tuple<PropertyValueTs...>,
+                                    PropertiesT>::value;
+    static_assert(NumContainedProps == sizeof...(PropertyValueTs),
+                  "One or more property argument is not a property in the "
+                  "property list.");
+  }
 
   template <typename PropertyT>
   static constexpr std::enable_if_t<detail::IsProperty<PropertyT>::value, bool>

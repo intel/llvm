@@ -26,7 +26,7 @@
 #include <cassert>
 #include <numeric>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 
@@ -88,7 +88,7 @@ void test_non_templated_host() {
 void test_deduce() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  using memcpy_direction = syclcompat::detail::memcpy_direction;
+  using namespace syclcompat::experimental; // for memcpy_direction
   auto default_queue = syclcompat::get_default_queue();
   if (!default_queue.get_device().has(sycl::aspect::usm_host_allocations))
     return; // Skip unsupported

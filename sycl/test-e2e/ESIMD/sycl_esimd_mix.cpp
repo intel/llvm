@@ -14,10 +14,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 
 bool checkResult(const std::vector<float> &A, int Inc) {

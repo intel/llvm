@@ -14,10 +14,11 @@
 // This is basic test to test hardware dispatch functionality with ESIMD.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 #include <vector>
 
 using shared_allocator = sycl::usm_allocator<int32_t, sycl::usm::alloc::shared>;

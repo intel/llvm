@@ -86,7 +86,9 @@ bool test_accessor_array_in_struct(queue &myQueue) {
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
 
-template <typename T> struct S { T a[c_num_items]; };
+template <typename T> struct S {
+  T a[c_num_items];
+};
 bool test_templated_array_in_struct(queue &myQueue) {
   std::array<int, c_num_items> output;
   std::array<int, c_num_items> ref;
@@ -119,11 +121,11 @@ bool run_tests() {
     for (auto ep : L) {
       try {
         std::rethrow_exception(ep);
-      } catch (std::exception &E) {
-        std::cout << "*** std exception caught:\n";
-        std::cout << E.what();
-      } catch (sycl::exception const &E1) {
+      } catch (sycl::exception const &E) {
         std::cout << "*** SYCL exception caught:\n";
+        std::cout << E.what();
+      } catch (std::exception const &E1) {
+        std::cout << "*** std exception caught:\n";
         std::cout << E1.what();
       }
     }
@@ -147,8 +149,7 @@ bool run_tests() {
 
 int main(int argc, char *argv[]) {
   bool passed = true;
-  default_selector selector{};
-  auto D = selector.select_device();
+  device D{default_selector_v};
   const char *devType = D.is_cpu() ? "CPU" : "GPU";
   std::cout << "Running on device " << devType << " ("
             << D.get_info<sycl::info::device::name>() << ")\n";

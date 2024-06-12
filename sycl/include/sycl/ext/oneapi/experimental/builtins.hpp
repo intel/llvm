@@ -77,8 +77,12 @@ namespace ext::oneapi::experimental {
 //
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
+#else
+  return __builtin_printf(__format, args...);
+#endif
 #else
   return ::printf(__format, args...);
 #endif // defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) ||

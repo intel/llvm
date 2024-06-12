@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-fp16
-// REQUIRES: matrix,gpu
-// REQUIRES: matrix-fp16
+// REQUIRES: aspect-ext_intel_matrix, gpu
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
@@ -15,7 +16,6 @@
 
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 32;
-constexpr size_t TN = 16;
+#define SG_SZ 32
 
 #include "../element_wise_all_ops_half_impl.hpp"

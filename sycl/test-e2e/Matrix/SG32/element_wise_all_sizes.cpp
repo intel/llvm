@@ -13,6 +13,6 @@
 
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 
 #include "../element_wise_all_sizes_impl.hpp"

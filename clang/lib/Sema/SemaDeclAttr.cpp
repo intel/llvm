@@ -26,6 +26,7 @@
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/HLSLRuntime.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -53,6 +54,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 using namespace clang;
@@ -717,7 +719,7 @@ static void checkAttrArgsAreCapabilityObjs(Sema &S, Decl *D,
 
     if (const auto *StrLit = dyn_cast<StringLiteral>(ArgExp)) {
       if (StrLit->getLength() == 0 ||
-          (StrLit->isOrdinary() && StrLit->getString() == StringRef("*"))) {
+          (StrLit->isOrdinary() && StrLit->getString() == "*")) {
         // Pass empty strings to the analyzer without warnings.
         // Treat "*" as the universal lock.
         Args.push_back(ArgExp);
@@ -2575,7 +2577,7 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
     bool Implicit, VersionTuple Introduced, VersionTuple Deprecated,
     VersionTuple Obsoleted, bool IsUnavailable, StringRef Message,
     bool IsStrict, StringRef Replacement, AvailabilityMergeKind AMK,
-    int Priority) {
+    int Priority, IdentifierInfo *Environment) {
   VersionTuple MergedIntroduced = Introduced;
   VersionTuple MergedDeprecated = Deprecated;
   VersionTuple MergedObsoleted = Obsoleted;
@@ -2605,6 +2607,12 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
 
       IdentifierInfo *OldPlatform = OldAA->getPlatform();
       if (OldPlatform != Platform) {
+        ++i;
+        continue;
+      }
+
+      IdentifierInfo *OldEnvironment = OldAA->getEnvironment();
+      if (OldEnvironment != Environment) {
         ++i;
         continue;
       }
@@ -2727,7 +2735,7 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
       !OverrideOrImpl) {
     auto *Avail = ::new (Context) AvailabilityAttr(
         Context, CI, Platform, Introduced, Deprecated, Obsoleted, IsUnavailable,
-        Message, IsStrict, Replacement, Priority);
+        Message, IsStrict, Replacement, Priority, Environment);
     Avail->setImplicit(Implicit);
     return Avail;
   }
@@ -2786,13 +2794,34 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
+  if (S.getLangOpts().HLSL && IsStrict)
+    S.Diag(AL.getStrictLoc(), diag::err_availability_unexpected_parameter)
+        << "strict" << /* HLSL */ 0;
+
   int PriorityModifier = AL.isPragmaClangAttribute()
                              ? Sema::AP_PragmaClangAttribute
                              : Sema::AP_Explicit;
+
+  const IdentifierLoc *EnvironmentLoc = AL.getEnvironment();
+  IdentifierInfo *IIEnvironment = nullptr;
+  if (EnvironmentLoc) {
+    if (S.getLangOpts().HLSL) {
+      IIEnvironment = EnvironmentLoc->Ident;
+      if (AvailabilityAttr::getEnvironmentType(
+              EnvironmentLoc->Ident->getName()) ==
+          llvm::Triple::EnvironmentType::UnknownEnvironment)
+        S.Diag(EnvironmentLoc->Loc, diag::warn_availability_unknown_environment)
+            << EnvironmentLoc->Ident;
+    } else {
+      S.Diag(EnvironmentLoc->Loc, diag::err_availability_unexpected_parameter)
+          << "environment" << /* C/C++ */ 1;
+    }
+  }
+
   AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
       ND, AL, II, false /*Implicit*/, Introduced.Version, Deprecated.Version,
       Obsoleted.Version, IsUnavailable, Str, IsStrict, Replacement,
-      Sema::AMK_None, PriorityModifier);
+      Sema::AMK_None, PriorityModifier, IIEnvironment);
   if (NewAttr)
     D->addAttr(NewAttr);
 
@@ -2848,8 +2877,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
           ND, AL, NewII, true /*Implicit*/, NewIntroduced, NewDeprecated,
           NewObsoleted, IsUnavailable, Str, IsStrict, Replacement,
-          Sema::AMK_None,
-          PriorityModifier + Sema::AP_InferredFromOtherPlatform);
+          Sema::AMK_None, PriorityModifier + Sema::AP_InferredFromOtherPlatform,
+          IIEnvironment);
       if (NewAttr)
         D->addAttr(NewAttr);
     }
@@ -2890,8 +2919,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
           ND, AL, NewII, true /*Implicit*/, NewIntroduced, NewDeprecated,
           NewObsoleted, IsUnavailable, Str, IsStrict, Replacement,
-          Sema::AMK_None,
-          PriorityModifier + Sema::AP_InferredFromOtherPlatform);
+          Sema::AMK_None, PriorityModifier + Sema::AP_InferredFromOtherPlatform,
+          IIEnvironment);
       if (NewAttr)
         D->addAttr(NewAttr);
     }
@@ -2924,7 +2953,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
           MinMacCatalystVersion(Deprecated.Version),
           MinMacCatalystVersion(Obsoleted.Version), IsUnavailable, Str,
           IsStrict, Replacement, Sema::AMK_None,
-          PriorityModifier + Sema::AP_InferredFromOtherPlatform);
+          PriorityModifier + Sema::AP_InferredFromOtherPlatform, IIEnvironment);
       if (NewAttr)
         D->addAttr(NewAttr);
     } else if (II->getName() == "macos" && GetSDKInfo() &&
@@ -2967,7 +2996,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
               VersionOrEmptyVersion(NewObsoleted), /*IsUnavailable=*/false, Str,
               IsStrict, Replacement, Sema::AMK_None,
               PriorityModifier + Sema::AP_InferredFromOtherPlatform +
-                  Sema::AP_InferredFromOtherPlatform);
+                  Sema::AP_InferredFromOtherPlatform,
+              IIEnvironment);
           if (NewAttr)
             D->addAttr(NewAttr);
         }
@@ -5147,7 +5177,7 @@ bool Sema::checkTargetClonesAttrString(
         llvm::sort(CurFeatures);
         SmallString<64> Res;
         for (auto &CurFeat : CurFeatures) {
-          if (!Res.equals(""))
+          if (!Res.empty())
             Res.append("+");
           Res.append(CurFeat);
         }
@@ -8712,6 +8742,32 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                   CI))
     return;
   D->addAttr(Attr);
+
+  // There are compile-time SYCL properties which we would like to turn into
+  // attributes to enable compiler diagnostics.
+  // At the moment the only such property is related to virtual functions and
+  // it is turned into sycl_device attribute. This is a tiny optimization to
+  // avoid deep dive into the attribute if we already know that a declaration
+  // is a device declaration. It may have to be removed later if/when we add
+  // handling of more compile-time properties here.
+  if (D->hasAttr<SYCLDeviceAttr>())
+    return;
+
+  // SYCL Headers use template magic to pass key=value pairs to the attribute
+  // and we should make sure that all template instantiations are done before
+  // accessing attribute arguments.
+  if (hasDependentExpr(Attr->args_begin(), Attr->args_size()))
+    return;
+
+  SmallVector<std::pair<std::string, std::string>, 4> Pairs =
+      Attr->getFilteredAttributeNameValuePairs(Context);
+
+  for (const auto &[Key, Value] : Pairs) {
+    if (Key == "indirectly-callable") {
+      D->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+      break;
+    }
+  }
 }
 
 static void handleSYCLAddIRAttributesFunctionAttr(Sema &S, Decl *D,

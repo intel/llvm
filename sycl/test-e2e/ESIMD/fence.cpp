@@ -12,12 +12,8 @@
 // This test verifies the intrinsic fence.
 // It is based on https://en.wikipedia.org/wiki/Memory_barrier#Example
 
-#include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #include "esimd_test_utils.hpp"
 

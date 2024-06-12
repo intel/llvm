@@ -6,7 +6,6 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
-// end INTEL_CUSTOMIZATION
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

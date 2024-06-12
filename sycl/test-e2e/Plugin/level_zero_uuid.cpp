@@ -11,7 +11,8 @@
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sstream>
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::device dev;

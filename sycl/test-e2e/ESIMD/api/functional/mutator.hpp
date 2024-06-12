@@ -16,7 +16,7 @@
 
 #include "type_traits.hpp"
 #include "value.hpp"
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // for std::for_each
 #include <algorithm>

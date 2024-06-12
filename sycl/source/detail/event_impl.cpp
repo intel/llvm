@@ -290,7 +290,7 @@ void event_impl::checkProfilingPreconditions() const {
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
   }
-  if (!MIsProfilingEnabled) {
+  if (!MIsProfilingEnabled && !MProfilingTagEvent) {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
@@ -302,6 +302,12 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  if (isProfilingTagEvent()) {
+    // For profiling tag events we rely on the submission time reported as
+    // the start time has undefined behavior.
+    return get_event_profiling_info<info::event_profiling::command_submit>(
+        this->getHandleRef(), this->getPlugin());
+  }
 
   // The delay between the submission and the actual start of a CommandBuffer
   // can be short. Consequently, the submission time, which is based on
@@ -558,7 +564,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled)
+  if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {

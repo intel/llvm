@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/reduction.hpp>
 
@@ -163,6 +164,17 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
 
   // Use the maximum work-group size otherwise.
   return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+}
+
+__SYCL_EXPORT void
+addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
+               std::shared_ptr<int> &Counter) {
+  auto EventImpl = std::make_shared<detail::event_impl>(Queue);
+  EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
+  EventImpl->setStateIncomplete();
+  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), 0, {},
+                          &EventImpl->getHandleRef(), EventImpl);
+  CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
 }
 
 } // namespace detail

@@ -10,9 +10,6 @@
 #include <random>
 #include <sycl/usm.hpp>
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
 
@@ -27,12 +24,15 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B);
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
+  size_t sg_size = get_sg_size<class mult>(q);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+     cgh.parallel_for<class mult>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            auto pA =
                address_space_cast<sycl::access::address_space::global_space,
@@ -61,13 +61,13 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
            joint_matrix_fill(sg, sub_c, 1);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
-             joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN,
+             joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / sg_size * TN,
                                N);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::col_major);
+               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / sg_size * TN,
+               N, layout::col_major);
          }); // parallel for
    }).wait();
 }

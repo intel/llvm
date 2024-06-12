@@ -50,7 +50,7 @@
 // CHK-FPGA-AOCO: spirv-to-ir-wrapper{{.*}} "[[LIBLIST]]" "-o" "[[LIBLIST2:.+\.txt]]"
 // CHK-FPGA-AOCO: llvm-link{{.*}} "-o" "[[LINKEDBC:.+\.bc]]"
 // CHK-FPGA-AOCO: llvm-link{{.*}} "--only-needed" "[[LINKEDBC]]" "@[[LIBLIST2]]" "-o" "[[LINKEDBC2:.+\.bc]]"
-// CHK-FPGA-AOCO: sycl-post-link{{.*}} "-spec-const=emulation" "-device-globals"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC2]]"
+// CHK-FPGA-AOCO: sycl-post-link{{.*}} "-device-globals"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC2]]"
 // CHK-FPGA-AOCO: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[SPLTABLE]]"
 // CHK-FPGA-AOCO: llvm-spirv{{.*}} "-o" "[[TARGSPV:.+\.txt]]" {{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-fpga_aoco-intel-unknown" "-input=[[INPUTLIB]]" "-output=[[AOCOLIST:.+\.txt]]" "-unbundle"

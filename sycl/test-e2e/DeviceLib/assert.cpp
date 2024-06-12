@@ -95,7 +95,7 @@
 #include <assert.h>
 #include <iostream>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>

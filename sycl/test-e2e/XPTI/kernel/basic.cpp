@@ -11,7 +11,9 @@
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl::access;
 constexpr sycl::specialization_id<int> int_id(42);

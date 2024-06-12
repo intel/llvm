@@ -84,7 +84,8 @@
 #include "common.hpp"
 #include <iostream>
 #include <string.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
-  # Merge: fc9bb61b c893a3c4
+  # commit 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369
+  # Merge: 4f105262 2c3096a3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 20 15:50:02 2024 +0100
-  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
-  #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
+  # Date:   Mon Jun 10 16:02:26 2024 +0100
+  #     Merge pull request #1282 from al42and/fix-sub-group-size-info
+  #     Fix size confusion for several device property queries
+  set(UNIFIED_RUNTIME_TAG 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

@@ -256,7 +256,9 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
   auto BarrierWaitList = BarrierEventImpl->getWaitList();
   // Events to wait by barrier are stored in a separated vector. Here we are
   // interested in implicit deps only.
-  ASSERT_EQ(BarrierWaitList.size(), 0u);
+  // Host task in barrier wait list could not be handled by backend so it is
+  // added by RT to dependency list to initiate deps tracking by scheduler.
+  ASSERT_EQ(BarrierWaitList.size(), 1u);
   EXPECT_EQ(BarrierEventImpl->isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);

@@ -121,6 +121,7 @@ enum class architecture : uint64_t {
   nvidia_gpu_sm_87 = 0x0100000000008700,
   nvidia_gpu_sm_89 = 0x0100000000008900,
   nvidia_gpu_sm_90 = 0x0100000000009000,
+  nvidia_gpu_sm_90a = 0x01000000000090a0,
   //
   // AMD architectures
   //
@@ -231,7 +232,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =

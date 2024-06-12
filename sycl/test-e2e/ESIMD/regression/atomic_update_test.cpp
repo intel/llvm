@@ -13,10 +13,6 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 int main() {
   sycl::queue q{};
   auto int_sync = malloc_shared<uint32_t>(16, q);

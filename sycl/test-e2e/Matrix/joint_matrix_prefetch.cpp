@@ -13,6 +13,5 @@
 
 #include "common.hpp"
 
-#define SG_SZ 16
 constexpr size_t TN = 16;
 #include "joint_matrix_prefetch_impl.hpp"

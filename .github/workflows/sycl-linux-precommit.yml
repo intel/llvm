@@ -46,12 +46,13 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       changes: ${{ needs.detect_changes.outputs.filters }}
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab"
 
   determine_arc_tests:
     name: Decide which Arc tests to run
     needs: [build, detect_changes]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     timeout-minutes: 3
     outputs:
       arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
@@ -77,7 +78,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel

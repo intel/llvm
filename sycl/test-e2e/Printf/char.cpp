@@ -21,7 +21,8 @@
 // CHECK: literal strings: s=Hello World!
 // CHECK_DISABLED: non-literal strings: s=Hello, World! ls=
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstring>
 

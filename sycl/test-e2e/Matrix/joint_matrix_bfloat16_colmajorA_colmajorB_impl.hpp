@@ -19,15 +19,18 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class imatrix>(q);
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
@@ -48,7 +51,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
@@ -59,14 +62,14 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (sg_starty / SG_SZ * TN) * K + k * TK,
+                     (sg_starty / sg_size * TN) * K + k * TK,
                  K);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
          }); // parallel for
    }).wait();
