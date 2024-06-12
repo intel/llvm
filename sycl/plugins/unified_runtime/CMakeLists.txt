@@ -99,8 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG minimize-vector-allocations)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
+  # Merge: 8788bd13 61b42a3e
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jun 12 13:21:32 2024 +0100
+  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
+  #     [HIP][CUDA] Several changes to kernel launch
+  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
