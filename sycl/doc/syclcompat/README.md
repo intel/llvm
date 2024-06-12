@@ -2481,6 +2481,7 @@ inline constexpr unsigned extend_vcompare4(AT a, BT b, BinaryOperation cmp);
 template <typename AT, typename BT, typename BinaryOperation>
 inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
                                                BinaryOperation cmp);
+```
 
 The math header file provides APIs for bit-field insertion (`bfi_safe`) and
 bit-field extraction (`bfe_safe`). These are bounds-checked variants of
