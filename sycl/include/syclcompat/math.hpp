@@ -51,6 +51,10 @@ inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
   return sycl::clamp(val, min_val, max_val);
 }
 
+template <typename T>
+constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
+                               std::is_same_v<std::decay_t<T>, uint32_t>;
+
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
 // TODO: Follow the process to add this to the extension. If added,
 // remove this functionality from the header.
@@ -166,9 +170,7 @@ template <typename RetT, bool NeedSat, bool NeedAdd, typename AT, typename BT,
           typename BinaryOperation>
 inline constexpr RetT extend_vbinary2(AT a, BT b, RetT c,
                                       BinaryOperation binary_op) {
-  static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
-                std::is_integral_v<RetT> && sizeof(AT) == 4 &&
-                sizeof(BT) == 4 && sizeof(RetT) == 4);
+  static_assert(is_int32_type<AT> && is_int32_type<BT> && is_int32_type<RetT>);
   sycl::vec<int32_t, 2> extend_a = extract_and_extend2(a);
   sycl::vec<int32_t, 2> extend_b = extract_and_extend2(b);
   sycl::vec<int32_t, 2> temp{binary_op(extend_a[0], extend_b[0]),
@@ -192,9 +194,7 @@ template <typename RetT, bool NeedSat, bool NeedAdd, typename AT, typename BT,
           typename BinaryOperation>
 inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
                                       BinaryOperation binary_op) {
-  static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
-                std::is_integral_v<RetT> && sizeof(AT) == 4 &&
-                sizeof(BT) == 4 && sizeof(RetT) == 4);
+  static_assert(is_int32_type<AT> && is_int32_type<BT> && is_int32_type<RetT>);
   sycl::vec<int16_t, 4> extend_a = extract_and_extend4(a);
   sycl::vec<int16_t, 4> extend_b = extract_and_extend4(b);
   sycl::vec<int16_t, 4> temp{
@@ -860,10 +860,6 @@ template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
           std::conditional_t<std::is_signed_v<T>, int16_t, uint16_t>, 2>>()
       .template convert<T>();
 }
-
-template <typename T>
-constexpr bool is_int32_type =
-    std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>;
 
 } // namespace detail
 
