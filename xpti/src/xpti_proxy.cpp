@@ -271,7 +271,8 @@ XPTI_EXPORT_API xpti::uid_t xptiGetUniversalId() {
       return (*reinterpret_cast<xpti_get_universal_id_t>(f))();
     }
   }
-  return xpti::uid_t();
+  xpti::uid_t invalid_uid;
+  return invalid_uid;
 }
 
 XPTI_EXPORT_API void xptiSetUniversalId(xpti::uid_t &uid) {
@@ -377,7 +378,8 @@ XPTI_EXPORT_API xpti::uid_t xptiRegisterPayload(xpti::payload_t *payload) {
       return (*(xpti_register_payload_t)f)(payload);
     }
   }
-  return xpti::uid_t();
+  xpti::uid_t invalid_uid;
+  return invalid_uid;
 }
 
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {

@@ -36,26 +36,6 @@ struct uid_t {
   /// number of occurrences of a given UID
   uint64_t instance = 0;
 
-  uid_t() = default;
-
-  /// @brief Constructs a uid_t object with the given file ID, function ID, line
-  /// number, and column number.
-  ///
-  /// This constructor takes a file ID and a function ID, both as 64-bit values,
-  /// and a line number and a column number, both as integers. It then combines
-  /// the file ID and function ID into a single 64-bit value (p1), and the line
-  /// number and column number into another 64-bit value (p2).
-  ///
-  /// @param FileID A 64-bit value that represents the file ID.
-  /// @param FuncID A 64-bit value that represents the function ID.
-  /// @param Line An integer that represents the line number.
-  /// @param Col An integer that represents the column number.
-  uid_t(uint64_t FileID, uint64_t FuncID, int Line, int Col) {
-    p1 = (FileID << 32) | FuncID;
-    p2 = ((uint64_t)Col << 32) | Line;
-    instance = 1;
-  }
-
   /// @brief Compares two `uid_t` objects.
   ///
   /// This operator overload allows for the comparison of two `uid_t` objects.
@@ -136,9 +116,29 @@ struct uid_t {
     // equal. p1 contains the combined file ID and function ID, p2 contains the
     // combined line number and column number, and p3 contains the object
     // address or a unique 64-bit value.
-    return p1 == rhs.p1 && p2 == rhs.p2;
+    return (p1 == rhs.p1 && p2 == rhs.p2);
   }
 };
+
+/// @brief Constructs a uid_t object with the given file ID, function ID, line
+/// number, and column number.
+///
+/// This function takes a file ID and a function ID, both as 64-bit values,
+/// and a line number and a column number, both as integers. It then combines
+/// the file ID and function ID into a single 64-bit value (p1), and the line
+/// number and column number into another 64-bit value (p2).
+///
+/// @param FileID A 64-bit value that represents the file ID.
+/// @param FuncID A 64-bit value that represents the function ID.
+/// @param Line An integer that represents the line number.
+/// @param Col An integer that represents the column number.
+inline uid_t make_uid(uint64_t FileID, uint64_t FuncID, int Line, int Col) {
+  uid_t uid;
+  uid.p1 = (FileID << 32) | FuncID;
+  uid.p2 = ((uint64_t)Col << 32) | Line;
+  uid.instance = 1;
+  return uid;
+}
 
 /// @brief Hash generation helper
 /// @details The Universal ID concept in XPTI requires a good hashing function
@@ -1048,9 +1048,7 @@ template <> struct equal_to<xpti::uid_t> {
   }
 };
 
-template <>
-struct less<xpti::uid_t>
-    : public binary_function<xpti::uid_t, xpti::uid_t, bool> {
+template <> struct less<xpti::uid_t> {
   // Overload of operator() to compare two xpti::uid_t objects
   bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
     // Two uid_t objects are considered equal if their p1 & p2 fields are equal.

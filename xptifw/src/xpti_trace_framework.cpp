@@ -56,7 +56,7 @@ static thread_local stash_tuple_t g_tls_stash_tuple = stash_tuple_t(nullptr, 0);
 /// @brief A thread-local variable of type xpti::uid_t, default initialized.
 /// This variable is used to store a unique identifier within a program scope
 /// for each thread.
-static thread_local xpti::uid_t g_tls_uid = xpti::uid_t();
+static thread_local xpti::uid_t g_tls_uid;
 
 /// @brief A TLS of type xpti::trace_point_data_t, default initialized.
 /// This variable is used to store trace point data generated from code location
@@ -551,6 +551,7 @@ public:
   /// @return The UID for the given payload.
   ///
   xpti::uid_t makeUID(xpti::payload_t *Payload) {
+    xpti::uid_t invalid_uid;
     // Initialize identifiers for function name, source file, line number, and
     // column number
     uint32_t name_id = 0, source_id = 0, line_no = 0, col_no = 0;
@@ -558,7 +559,7 @@ public:
     // If the payload is not valid, return an empty uid, which is invalid by
     // default
     if (!Payload->isValid())
-      return xpti::uid_t();
+      return invalid_uid;
 
     // If the uid has already been generated and cached, return the cached
     // uid; this is the case when the payload from tracepoint map is stored
@@ -589,7 +590,7 @@ public:
     }
     // Generate a new uid based on the function name id, source file id, line
     // number, and column number and cache it in the payload
-    Payload->uid = xpti::uid_t(source_id, name_id, line_no, col_no);
+    Payload->uid = xpti::make_uid(source_id, name_id, line_no, col_no);
     // If the new uid is valid, update the flag to say it is cached
     if (Payload->uid.isValid())
       Payload->flags |= static_cast<uint64_t>(payload_flag_t::UIDAvailable);
@@ -1160,8 +1161,9 @@ public:
   }
 
   xpti::uid_t registerPayload(xpti::payload_t *payload) {
+    xpti::uid_t invalid_uid;
     if (!payload)
-      return xpti::uid_t();
+      return invalid_uid;
 
     return MTracepoints.registerPayload(payload).first;
   }

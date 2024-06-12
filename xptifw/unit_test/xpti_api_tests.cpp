@@ -157,7 +157,8 @@ TEST_F(xptiApiTest, xptiMakeEventGoodInput) {
 }
 
 TEST_F(xptiApiTest, xptiFindEventBadInput) {
-  xpti::uid_t Invalid, Fake(100, 100, 100, 100);
+  xpti::uid_t Invalid, Fake;
+  Fake = xpti::make_uid(100, 100, 100, 100);
   auto Result = xptiFindEvent(Invalid);
   EXPECT_EQ(Result, nullptr);
   Result = xptiFindEvent(Fake);

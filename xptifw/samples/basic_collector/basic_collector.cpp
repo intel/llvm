@@ -115,6 +115,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   auto TID = M.thread();
   uint32_t CPU = M.cpu();
   std::string Name;
+  xpti::uid_t invalid_uid;
 
   if ((int64_t)Payload->uid.functionId() != xpti::invalid_id) {
     Name = truncate(Payload->name);
@@ -122,7 +123,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
     Name = "<unknown>";
   }
 
-  xpti::uid_t ID = Event ? Event->uid : xpti::uid_t();
+  xpti::uid_t ID = Event ? Event->uid : invalid_uid;
   // Lock while we print information
   std::lock_guard<std::mutex> Lock(GIOMutex);
   // Print the record information; Windows complains about %lu and Linux
