@@ -183,9 +183,13 @@ public:
 
   bool native_specialization_constant() const noexcept;
 
-  bool ext_oneapi_has_kernel(const std::string &name);
+  bool ext_oneapi_has_kernel(const std::string &name) {
+    return ext_oneapi_has_kernel(detail::string_view{name});
+  }
 
-  kernel ext_oneapi_get_kernel(const std::string &name);
+  kernel ext_oneapi_get_kernel(const std::string &name) {
+    return ext_oneapi_get_kernel(detail::string_view{name});
+  }
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -211,6 +215,10 @@ protected:
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
+
+private:
+  bool ext_oneapi_has_kernel(detail::string_view name);
+  kernel ext_oneapi_get_kernel(detail::string_view name);
 };
 
 } // namespace detail
@@ -857,7 +865,14 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
-                                 const std::string &Source);
+                                 sycl::detail::string_view Source);
+__SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::string &Source) {
+  return create_kernel_bundle_from_source(SyclContext, Language,
+                                          sycl::detail::string_view(Source));
+}
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
@@ -874,8 +889,25 @@ namespace detail {
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
+                  const std::vector<sycl::detail::string_view> &BuildOptions,
+                  sycl::detail::string *LogPtr);
+__SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
+build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                  const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
-                  std::string *LogPtr);
+                  std::string *LogPtr) {
+  std::vector<sycl::detail::string_view> Options;
+  for (const std::string &opt : BuildOptions)
+    Options.push_back(sycl::detail::string_view{opt});
+
+  sycl::detail::string Log;
+  if (LogPtr) {
+    auto result = build_from_source(SourceKB, Devices, Options, &Log);
+    *LogPtr = Log.c_str();
+    return result;
+  }
+  return build_from_source(SourceKB, Devices, Options, nullptr);
+}
 
 } // namespace detail
 

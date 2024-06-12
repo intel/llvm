@@ -114,12 +114,12 @@ bool kernel_bundle_plain::is_specialization_constant_set(
   return impl->is_specialization_constant_set(SpecName);
 }
 
-bool kernel_bundle_plain::ext_oneapi_has_kernel(const std::string &name) {
-  return impl->ext_oneapi_has_kernel(name);
+bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
+  return impl->ext_oneapi_has_kernel(name.data());
 }
 
-kernel kernel_bundle_plain::ext_oneapi_get_kernel(const std::string &name) {
-  return impl->ext_oneapi_get_kernel(name, impl);
+kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
+  return impl->ext_oneapi_get_kernel(name.data(), impl);
 }
 
 //////////////////////////////////
@@ -391,9 +391,11 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 
-source_kb create_kernel_bundle_from_source(const context &SyclContext,
-                                           source_language Language,
-                                           const std::string &Source) {
+source_kb
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 sycl::detail::string_view SourceView) {
+  std::string Source{SourceView.data()};
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
@@ -426,16 +428,26 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 namespace detail {
 
-exe_kb build_from_source(source_kb &SourceKB,
-                         const std::vector<device> &Devices,
-                         const std::vector<std::string> &BuildOptions,
-                         std::string *LogPtr) {
+exe_kb
+build_from_source(source_kb &SourceKB, const std::vector<device> &Devices,
+                  const std::vector<sycl::detail::string_view> &BuildOptions,
+                  sycl::detail::string *LogView) {
+  std::vector<std::string> Options;
+  for (const sycl::detail::string_view view : BuildOptions)
+    Options.push_back(view.data());
+  std::string Log;
+  std::string *LogPtr = nullptr;
+  if (LogView)
+    LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl =
-      sourceImpl->build_from_source(UniqueDevices, BuildOptions, LogPtr);
-  return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
+      sourceImpl->build_from_source(UniqueDevices, Options, LogPtr);
+  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
+  if (LogView)
+    *LogView = Log;
+  return result;
 }
 
 } // namespace detail
