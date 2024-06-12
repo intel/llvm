@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-fp16
 

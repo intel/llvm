@@ -399,7 +399,7 @@ static void destroy_event(event_ptr event);
 } // syclcompat
 ```
 
-### Memory Allocation
+### Memory Operations
 
 This library provides interfaces to allocate memory to be accessed within kernel
 functions and on the host. The `syclcompat::malloc` function allocates device
@@ -508,6 +508,64 @@ public:
 };
 
 } // syclcompat
+```
+
+The `syclcompat::experimental` namespace contains currently unsupported `memcpy` overloads which take a `syclcompat::experimental::memcpy_parameter` argument. These are included for forwards compatibility and currently throw a `std::runtime_error`.
+
+```cpp
+namespace syclcompat {
+namespace experimental {
+// Forward declarations for types relating to unsupported memcpy_parameter API:
+
+enum memcpy_direction {
+  host_to_host,
+  host_to_device,
+  device_to_host,
+  device_to_device,
+  automatic
+};
+
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+class image_mem_wrapper;
+#endif
+class image_matrix;
+
+/// Memory copy parameters for 2D/3D memory data.
+struct memcpy_parameter {
+  struct data_wrapper {
+    pitched_data pitched{};
+    sycl::id<3> pos{};
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+    experimental::image_mem_wrapper *image_bindless{nullptr};
+#endif
+    image_matrix *image{nullptr};
+  };
+  data_wrapper from{};
+  data_wrapper to{};
+  sycl::range<3> size{};
+  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
+};
+
+/// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
+/// The function will return after the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy(const memcpy_parameter &param,
+                          sycl::queue q = get_default_queue());
+
+/// [UNSUPPORTED] Asynchronously copies 2D/3D memory data specified by \p param
+/// . The return of the function does NOT guarantee the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy_async(const memcpy_parameter &param,
+                                sycl::queue q = get_default_queue());
+
+} // namespace experimental
+} // namespace syclcompat
 ```
 
 Finally, the class `pitched_data`, which manages memory allocation for 3D
@@ -762,7 +820,9 @@ public:
   unsigned int get_global_mem_cache_size() const;
   int get_image1d_max() const;
   auto get_image2d_max() const;
+  auto get_image2d_max();
   auto get_image3d_max() const;
+  auto get_image3d_max();
 
   void set_name(const char *name);
   void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
@@ -1528,6 +1588,13 @@ without modulo overflow for vector types.
 The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math
 operations which accept `sycl::vec<T,2>` arguments representing complex values.
 
+The `dp4a` function returns the 4-way 8-bit dot product accumulate for unsigned
+and signed 32-bit integer values. The `dp2a_lo` and `dp2a_hi` functions return the
+two-way 16-bit to 8-bit dot product using the second and first 16 bits of the
+second operand, respectively. These three APIs return a single 32-bit value with
+the accumulated result, which is unsigned if both operands are `uint32_t` and
+signed otherwise.
+
 ```cpp
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
@@ -1709,6 +1776,24 @@ inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+
+
+template <typename T1, typename T2>
+using dot_product_acc_t =
+    std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
+                       uint32_t, int32_t>;
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
+                                      dot_product_acc_t<T1, T2> c);
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
@@ -1771,7 +1856,7 @@ struct sub_sat {
 } // namespace syclcompat
 ```
 
-Finally, the math header provides a set of functions to extend 32-bit operations
+The math header provides a set of functions to extend 32-bit operations
 to 33 bit, and handle sign extension internally. There is support for `add`,
 `sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
 to include a second, separate, `BinaryOperation` after the first, and include
@@ -1853,6 +1938,286 @@ template <typename RetT, typename AT, typename BT, typename CT,
           typename BinaryOperation>
 inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op);
+```
+
+Another set of vectorized extend 32-bit operations is provided in the math 
+header.These APIs treat each of the 32-bit operands as 2-elements vector 
+(16-bits each) while handling sign extension to 17-bits internally. There is 
+support for `add`, `sub`, `absdiff`, `min`, `max` and `avg` binary operations. 
+Each operation provides has a `_sat` variat which determines if the returning 
+value is saturated or not, and a `_add` variant that computes the binary sum 
+of the the initial operation outputs and a third operand. 
+
+```cpp
+/// Compute vectorized addition of \p a and \p b, with each value treated as a
+/// 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized addition of the two
+/// values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 2 elements vector type and extend each element to 17 bit. Then add each
+/// half of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized subtraction of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized abs_diff of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized minimum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized maximum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend average maximum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2_sat(AT a, BT b, RetT c);
+```
+
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and
+bit-field extraction (`bfe_safe`). These are bounds-checked variants of
+underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future
+releases, will be exposed to the user.
+
+```c++
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits);
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits);
 ```
 
 ## Sample Code
