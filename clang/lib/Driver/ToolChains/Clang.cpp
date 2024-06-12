@@ -5207,10 +5207,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
-      JA.isHostOffloading(Action::OFK_OpenMP) ||
-      (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
-       Args.hasFlag(options::OPT_offload_new_driver,
-                    options::OPT_no_offload_new_driver, false));
+      (JA.isHostOffloading(Action::OFK_OpenMP) ||
+       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
+        Args.hasFlag(options::OPT_offload_new_driver,
+                     options::OPT_no_offload_new_driver, false))) ||
+      (JA.isHostOffloading(Action::OFK_SYCL) &&
+       C.getDriver().GetUseNewOffloadDriverForSYCLOffload(C, Args));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -11073,6 +11075,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           LibList += AddLib;
         }
       }
+    }
+    SmallVector<std::string, 8> SYCLDeviceLibs;
+    auto IsSPIR = TargetTriple.isSPIROrSPIRV();
+    bool IsSpirvAOT = TargetTriple.isSPIRAOT();
+    bool UseJitLink =
+        IsSPIR &&
+        Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                     options::OPT_fno_sycl_device_lib_jit_link, false);
+    bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
+    SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+    // Create a comma separated list to pass along to the linker wrapper.
+    SmallString<256> LibList;
+    for (const auto &AddLib : SYCLDeviceLibs) {
+      if (LibList.size() > 0)
+        LibList += ",";
+      LibList += AddLib;
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
