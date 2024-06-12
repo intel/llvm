@@ -10699,7 +10699,7 @@ static void getTripleBasedSYCLPostLinkOpts(
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (!NewOffloadDriver && OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = !NewOffloadDriver && Triple.isSPIROrSPIRV();
+    bool SplitEsimdByDefault = NewOffloadDriver || Triple.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);

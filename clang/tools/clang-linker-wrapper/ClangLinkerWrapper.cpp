@@ -585,9 +585,12 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
   if (Triple.isSPIROrSPIRV()) {
     addArg("-symbols");
     addArg("-emit-exported-symbols");
-    addArg("-split-esimd");
+    auto SplitEsimdArg = getArg("-split-esimd");
+    if (!SplitEsimdArg.empty())
+      addArg("-split-esimd");
     addArg("-lower-esimd");
-  }
+  } else
+    removeArg("-split-esimd");
 
   // Here, IsAOT includes x86_64 device as well.
   bool IsAOT =
