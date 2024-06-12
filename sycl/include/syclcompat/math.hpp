@@ -186,7 +186,159 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 }
 #endif
 
+// FIXME(syclcompat-lib-reviewers): move bfe outside detail once perf is
+// improved & semantics understood
+/// Bitfield-extract.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline T bfe(const T source, const uint32_t bit_start,
+             const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
+  // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case
+  // which may be undefined anyway. Consider that we are losing perf here.
+  const T mask =
+      num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
+  return (source >> bit_start) & mask;
+}
+
 } // namespace detail
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits) {
+  static_assert(std::is_integral_v<T>);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
+                std::is_same_v<T, int32_t>) {
+    int32_t res{};
+    asm volatile("bfe.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"((int32_t)source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint8_t> ||
+                       std::is_same_v<T, uint16_t> ||
+                       std::is_same_v<T, uint32_t>) {
+    uint32_t res{};
+    asm volatile("bfe.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"((uint32_t)source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    T res{};
+    asm volatile("bfe.s64 %0, %1, %2, %3;"
+                 : "=l"(res)
+                 : "l"(source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    T res{};
+    asm volatile("bfe.u64 %0, %1, %2, %3;"
+                 : "=l"(res)
+                 : "l"(source), "r"(bit_start), "r"(num_bits));
+    return res;
+  }
+#endif
+  const uint32_t bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t pos = std::min(bit_start, bit_width);
+  const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
+  if constexpr (std::is_signed_v<T>) {
+    // FIXME(syclcompat-lib-reviewers): As above, catching a case whose result
+    // is undefined and likely losing perf.
+    const T mask = len >= bit_width ? T{-1} : static_cast<T>((T{1} << len) - 1);
+
+    // Find the sign-bit, the result is padded with the sign bit of the
+    // extracted field.
+    // Note if requested num_bits==0, we return zero via sign_bit=0
+    const uint32_t sign_bit_pos = std::min(pos + len - 1, bit_width - 1);
+    const T sign_bit = num_bits != 0 && ((source >> sign_bit_pos) & 1);
+    const T sign_bit_padding = (-sign_bit & ~mask);
+    return ((source >> pos) & mask) | sign_bit_padding;
+  } else {
+    return syclcompat::detail::bfe(source, pos, len);
+  }
+}
+
+namespace detail {
+// FIXME(syclcompat-lib-reviewers): move bfi outside detail once perf is
+// improved & semantics understood
+/// Bitfield-insert.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline T bfi(const T x, const T y, const uint32_t bit_start,
+             const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
+  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+
+  // if bit_start > bit_width || len == 0, should return y.
+  const T ignore_bfi = static_cast<T>(bit_start > bit_width || num_bits == 0);
+  T extract_bitfield_mask = (static_cast<T>(~T{0}) >> (bit_width - num_bits))
+                            << bit_start;
+  T clean_bitfield_mask = ~extract_bitfield_mask;
+  return (y & (-ignore_bfi | clean_bitfield_mask)) |
+         (~-ignore_bfi & ((x << bit_start) & extract_bitfield_mask));
+}
+} // namespace detail
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
+                std::is_same_v<T, uint32_t>) {
+    uint32_t res{};
+    asm volatile("bfi.b32 %0, %1, %2, %3, %4;"
+                 : "=r"(res)
+                 : "r"((uint32_t)x), "r"((uint32_t)y), "r"(bit_start),
+                   "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    uint64_t res{};
+    asm volatile("bfi.b64 %0, %1, %2, %3, %4;"
+                 : "=l"(res)
+                 : "l"(x), "l"(y), "r"(bit_start), "r"(num_bits));
+    return res;
+  }
+#endif
+  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t pos = std::min(bit_start, bit_width);
+  const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
+  return syclcompat::detail::bfi(x, y, pos, len);
+}
 
 /// Emulated function for __funnelshift_l
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
@@ -798,6 +950,120 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
       detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
+}
+
+template <typename T1, typename T2>
+using dot_product_acc_t =
+    std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
+                       uint32_t, int32_t>;
+
+namespace detail {
+
+template <typename T> sycl::vec<T, 4> extract_and_sign_or_zero_extend4(T val) {
+  return sycl::vec<T, 1>(val)
+      .template as<sycl::vec<
+          std::conditional_t<std::is_signed_v<T>, int8_t, uint8_t>, 4>>()
+      .template convert<T>();
+}
+
+template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
+  return sycl::vec<T, 1>(val)
+      .template as<sycl::vec<
+          std::conditional_t<std::is_signed_v<T>, int16_t, uint16_t>, 2>>()
+      .template convert<T>();
+}
+
+template <typename T>
+constexpr bool is_int32_type =
+    std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>;
+
+} // namespace detail
+
+/// Two-way dot product-accumulate. Calculate and return integer_vector2(
+/// \param a) dot product integer_vector2(low16_bit( \param b)) + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. It has type uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
+/// result.
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp2a_lo expects 32-bit integers as operands.");
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp2a_lo(a, b, c);
+#else
+  dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend2(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[0];
+  res += va[1] * vb[1];
+  return res;
+#endif
+}
+
+/// Two-way dot product-accumulate. Calculate and return integer_vector2(
+/// \param a) dot product integer_vector2(high_16bit( \param b)) + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
+/// result.
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp2a_hi expects 32-bit integers as operands.");
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp2a_hi(a, b, c);
+#else
+  dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend2(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[2];
+  res += va[1] * vb[3];
+  return res;
+#endif
+}
+
+/// Four-way byte dot product-accumulate. Calculate and return integer_vector4(
+/// \param a) dot product integer_vector4( \param b)  + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. It has type uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Four-way byte dot product which is accumulated in 32-bit result.
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b, dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp4a expects 32-bit integers as operands.");
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp4a(a, b, c);
+#else
+  dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend4(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[0];
+  res += va[1] * vb[1];
+  res += va[2] * vb[2];
+  res += va[3] * vb[3];
+  return res;
+#endif
 }
 
 /// Extend \p a and \p b to 33 bit and add them.

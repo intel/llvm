@@ -501,10 +501,16 @@ struct get_device_info_impl<std::vector<size_t>,
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         0, nullptr, &resultSize);
 
-    std::vector<size_t> result(resultSize / sizeof(size_t));
+    std::vector<uint32_t> result32(resultSize / sizeof(uint32_t));
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        resultSize, result.data(), nullptr);
+        resultSize, result32.data(), nullptr);
+
+    std::vector<size_t> result;
+    result.reserve(result32.size());
+    for (uint32_t value : result32) {
+      result.push_back(value);
+    }
     return result;
   }
 };

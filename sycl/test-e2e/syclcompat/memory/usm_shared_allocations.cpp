@@ -63,7 +63,7 @@ void test_non_templated_shared() {
 void test_deduce_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  using memcpy_direction = syclcompat::detail::memcpy_direction;
+  using namespace syclcompat::experimental;
   auto default_queue = syclcompat::get_default_queue();
 
   int *h_ptr = (int *)syclcompat::malloc_host(sizeof(int));
