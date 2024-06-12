@@ -125,11 +125,11 @@ template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
 protected:
   using vec_t = vec<DataT, NumElements>;
-  using ocl_t = rel_t<DataT>;
+  using ocl_t = detail::select_cl_scalar_integral_signed_t<DataT>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.
-  friend vec<rel_t<DataT>, NumElements> operator!(const vec_t &Rhs) {
+  friend vec<ocl_t, NumElements> operator!(const vec_t &Rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (!vec_t::IsBfloat16) {
       auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Rhs);
@@ -222,8 +222,6 @@ protected:
     /* we do element-by-element operation on the underlying std::array.  */    \
     if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        /* We cannot use SetValue here as the operator is not a friend of*/    \
-        /* Ret on Windows. */                                                  \
         Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
       }                                                                        \
     } else {                                                                   \

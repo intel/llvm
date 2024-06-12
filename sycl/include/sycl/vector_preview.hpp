@@ -88,18 +88,6 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
 
-// Element type for relational operator return value.
-template <typename DataT>
-using rel_t = typename std::conditional_t<
-    sizeof(DataT) == sizeof(opencl::cl_char), opencl::cl_char,
-    typename std::conditional_t<
-        sizeof(DataT) == sizeof(opencl::cl_short), opencl::cl_short,
-        typename std::conditional_t<
-            sizeof(DataT) == sizeof(opencl::cl_int), opencl::cl_int,
-            typename std::conditional_t<sizeof(DataT) ==
-                                            sizeof(opencl::cl_long),
-                                        opencl::cl_long, bool>>>>;
-
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
 template <typename T> class GetOp {
@@ -326,7 +314,8 @@ public:
   // with that of marray and buffer.
   using element_type = DataT;
   using value_type = DataT;
-  using rel_t = detail::rel_t<DataT>;
+  // Element type for relational operator return value.
+  using rel_t = detail::select_cl_scalar_integral_signed_t<DataT>;
 
   /****************** Constructors **************/
   vec() = default;
@@ -441,7 +430,7 @@ public:
     if constexpr (!std::is_same_v<DataT, convertT> &&
                   (std::is_same_v<OpenCLT, OpenCLR> || std::is_same_v<T, R>)) {
       for (size_t I = 0; I < NumElements; ++I)
-        Result.setValue(I, static_cast<convertT>(getValue(I)));
+        Result[I] = static_cast<convertT>(getValue(I));
       return Result;
     } else if constexpr (std::is_same_v<DataT, convertT>) {
       return *this;
@@ -457,7 +446,7 @@ public:
       // Whole vector conversion can only be done, if:
       constexpr bool canUseNativeVectorConvert =
 #ifdef __NVPTX__
-          // - we are not on CUDA, see intel/llvm#11840
+          //  TODO: Likely unnecessary as https://github.com/intel/llvm/issues/11840 has been closed already.
           false &&
 #endif
           NumElements > 1 &&
@@ -488,10 +477,7 @@ public:
           auto val =
               detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                   getValue(I));
-          if constexpr (detail::is_byte_v<convertT>)
-            Result.setValue(I, static_cast<convertT>(val));
-          else
-            Result.setValue(I, val);
+          Result[I] = static_cast<convertT>(val);
         }
       }
     }
@@ -550,8 +536,8 @@ public:
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
-      setValue(I, *multi_ptr<const DataT, Space, DecorateAddress>(
-                      Ptr + Offset * NumElements + I));
+      m_Data[I] = *multi_ptr<const DataT, Space, DecorateAddress>(
+                      Ptr + Offset * NumElements + I);
     }
   }
   template <access::address_space Space, access::decorated DecorateAddress>
@@ -592,7 +578,7 @@ public:
   }
 
 private:
-  // setValue and getValue should be able to operate on different underlying
+  // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
 
@@ -611,15 +597,6 @@ private:
     else
 #endif
       return static_cast<RetType>(m_Data[Index]);
-  }
-
-  constexpr void setValue(int Index, const DataT &Value) {
-#ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
-      m_Data[Index] = sycl::bit_cast<DataT>(Value);
-    else
-#endif
-      m_Data[Index] = Value;
   }
 
   // fields
@@ -1052,7 +1029,7 @@ public:
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      m_Vector->setValue(Idxs[I], Rhs.getValue(I));
+      m_Vector[Idxs[I]] = Rhs.getValue(I);
     }
     return *this;
   }
@@ -1060,7 +1037,7 @@ public:
   template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
-    m_Vector->setValue(Idxs[0], Rhs);
+    m_Vector[Idxs[0]] = Rhs;
     return *this;
   }
 
@@ -1069,7 +1046,7 @@ public:
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (auto Idx : Idxs) {
-      m_Vector->setValue(Idx, Rhs);
+      m_Vector[Idx] = Rhs;
     }
     return *this;
   }
@@ -1077,7 +1054,7 @@ public:
   template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
-    m_Vector->setValue(Idxs[0], Rhs);
+    m_Vector[Idxs[0]] = Rhs;
     return *this;
   }
 
@@ -1230,7 +1207,7 @@ public:
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      m_Vector->setValue(Idxs[I], Rhs.getValue(I));
+      m_Vector[Idxs[I]] = Rhs.getValue(I);
     }
     return *this;
   }
@@ -1242,7 +1219,7 @@ public:
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      m_Vector->setValue(Idxs[I], Rhs.getValue(I));
+      m_Vector[Idxs[I]] = Rhs.getValue(I);
     }
     return *this;
   }
@@ -1457,7 +1434,7 @@ private:
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       DataT Res = Op(m_Vector->getValue(Idxs[I]), Rhs.getValue(I));
-      m_Vector->setValue(Idxs[I], Res);
+      m_Vector[Idxs[I]] = Res;
     }
   }
 
