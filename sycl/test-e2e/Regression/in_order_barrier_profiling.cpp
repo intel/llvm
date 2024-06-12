@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Level Zero adapter has a similar in-order queue barrier optimization that
+// leads to incorrect profiling values.
+// UNSUPPORTED: level_zero
 #include <sycl/detail/core.hpp>
 
 #include <sycl/properties/all_properties.hpp>
