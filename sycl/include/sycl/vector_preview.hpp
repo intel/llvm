@@ -446,7 +446,9 @@ public:
       // Whole vector conversion can only be done, if:
       constexpr bool canUseNativeVectorConvert =
 #ifdef __NVPTX__
-          //  TODO: Likely unnecessary as https://github.com/intel/llvm/issues/11840 has been closed already.
+          //  TODO: Likely unnecessary as
+          //  https://github.com/intel/llvm/issues/11840 has been closed
+          //  already.
           false &&
 #endif
           NumElements > 1 &&
@@ -537,7 +539,7 @@ public:
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
       m_Data[I] = *multi_ptr<const DataT, Space, DecorateAddress>(
-                      Ptr + Offset * NumElements + I);
+          Ptr + Offset * NumElements + I);
     }
   }
   template <access::address_space Space, access::decorated DecorateAddress>

@@ -3,6 +3,12 @@
 
 // RUN: %clangxx -I %sycl_include -fpreview-breaking-changes -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
 
+// Windows/linux have some slight differences in IR generation (function
+// arguments passing and long/long long differences/mangling) that could
+// complicate test updates while not improving test coverage. Limiting to linux
+// should be fine.
+// REQUIRES: linux
+
 // This test checks
 // (1) the storage type of sycl::vec on device for all data types, and
 // (2) the device code for various math operations on sycl::vec.
