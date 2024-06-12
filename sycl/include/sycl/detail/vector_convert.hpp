@@ -558,6 +558,15 @@ NativeToT convertImpl(NativeFromT Value) {
   }
 }
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename FromT, typename ToT, sycl::rounding_mode RoundingMode,
+          int VecSize, typename NativeFromT, typename NativeToT>
+auto ConvertImpl(std::byte val) {
+  return convertImpl<FromT, ToT, RoundingMode, VecSize, NativeFromT, NativeToT>(
+      (std::int8_t)val);
+}
+#endif
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
