@@ -375,12 +375,3 @@ static inline void roundToHighestFactorOfGlobalSizeIn3d(
                MaxBlockDim[2]));
   roundToHighestFactorOfGlobalSize(ThreadsPerBlock[2], GlobalSize[2]);
 }
-
-template <typename T>
-inline bool listContainsElem(uint32_t numEventsInList, const T *phList,
-                             const T Elem) {
-  for (auto i = 0u; i < numEventsInList; ++i)
-    if (phList[i] == Elem)
-      return true;
-  return false;
-}
