@@ -41,7 +41,6 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
   uint64_t Value;
   bool HaveKeyValue =
       (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
-
   if (TraceType == xpti::trace_diagnostics) {
     std::string AggregatedData;
     if (Event && Event->reserved.payload && Event->reserved.payload->name &&

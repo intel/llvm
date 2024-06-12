@@ -94,10 +94,14 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
     // set and not UID and (2) UID set
     detail::tls_code_loc_t Tls;
     auto CodeLocation = Tls.query();
-    // Creating a tracepoint will convert a CodeLocation to UID, if not set
-    xpti::framework::tracepoint_scope_t TP(
-        CodeLocation.fileName(), CodeLocation.functionName(),
-        CodeLocation.lineNumber(), CodeLocation.columnNumber());
+    // We create a payload from the code location in TLS and bridge the data
+    // between SYCL runtime and XPTI TLS
+    xpti::payload_t Payload(CodeLocation.functionName(),
+                            CodeLocation.fileName(), CodeLocation.lineNumber(),
+                            CodeLocation.columnNumber());
+    // Bidge the data between SYCL runtime and XPTI TLS by using the
+    // tracepoint_scope_t object
+    xpti::framework::tracepoint_scope_t TP(Payload);
 
     // The call to notify will have the signature of:
     // (1) the stream defined in .stream()

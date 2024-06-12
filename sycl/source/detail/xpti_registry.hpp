@@ -291,7 +291,7 @@ private:
 
 #if XPTI_ENABLE_INSTRUMENTATION
 #define XPTI_TRACE_POINT_SCOPE(CL)                                             \
-  xpti::framework::tracepoint_scope_t TP(CL.functionName(), CL.fileName(),     \
+  xpti::framework::tracepoint_scope_t TP(CL.fileName(), CL.functionName(),     \
                                          CL.lineNumber(), CL.columnNumber(),   \
                                          sycl::detail::GTracepointSelfNotify)
 #else

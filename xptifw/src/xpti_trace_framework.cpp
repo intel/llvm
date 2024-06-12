@@ -589,7 +589,7 @@ public:
     }
     // Generate a new uid based on the function name id, source file id, line
     // number, and column number and cache it in the payload
-    Payload->uid = uid_t(source_id, name_id, line_no, col_no);
+    Payload->uid = xpti::uid_t(source_id, name_id, line_no, col_no);
     // If the new uid is valid, update the flag to say it is cached
     if (Payload->uid.isValid())
       Payload->flags |= static_cast<uint64_t>(payload_flag_t::UIDAvailable);

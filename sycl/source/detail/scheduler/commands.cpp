@@ -2061,11 +2061,17 @@ void instrumentationFillCommonData(const std::string &KernelName,
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
-    // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in this case, we will skip sending a notification to create a
-    // node as this node has already been created.
-    if (CGKernelInstanceNo > 1)
-      return;
+    // In current implementation, the node create is similar to a dependency
+    // graph, representing an unrolled data flow graph. So, each instance will
+    // have its own metadata that is mutable. To accommodate this, we will
+    // remove the constraint of checking the instance value and setting metadata
+    // only for the first instance, like show below:
+    //
+    // if (CGKernelInstanceNo > 1)
+    //   return;
+    //
+    // This condition is checked by NodeCreation.QueueParallelForWithNoGraphNode
+    // unit test in XptiTraceTests
 
     xpti::addMetadata(CmdTraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));

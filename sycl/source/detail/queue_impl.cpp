@@ -620,6 +620,67 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
+void queue_impl::constructorNotification() {
+#if XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    MStreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+      xpti::utils::StringHelper SH;
+      std::string AddrStr = SH.addressAsString<size_t>(MQueueID);
+      std::string QueueName = SH.nameWithAddressString("queue", AddrStr);
+      // Create a payload for the queue create event as we do not get code
+      // location for the queue create event
+      xpti::payload_t QPayload(QueueName.c_str());
+      MInstanceID = xptiGetUniqueId();
+      uint64_t RetInstanceNo;
+      xpti_td *TEvent =
+          xptiMakeEvent("queue_create", &QPayload,
+                        (uint16_t)xpti::trace_event_type_t::algorithm,
+                        xpti_at::active, &RetInstanceNo);
+      // Cache the trace event, stream id and instance IDs for the destructor
+      MTraceEvent = (void *)TEvent;
+
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            TEvent, "sycl_device",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      xpti::addMetadata(TEvent, "queue_id", MQueueID);
+      if (!MHostQueue)
+        xpti::addMetadata(TEvent, "queue_handle",
+                          reinterpret_cast<size_t>(getHandleRef()));
+      // Also publish to TLS before notification
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
+      xptiNotifySubscribers(
+          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_create, nullptr,
+          TEvent, MInstanceID, static_cast<const void *>("queue_create"));
+    }
+  }
+#endif
+}
+
+void queue_impl::destructorNotification() {
+#if XPTI_ENABLE_INSTRUMENTATION
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+  if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+    // Use the cached trace event, stream id and instance IDs for the
+    // destructor
+    xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+                          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
+                          static_cast<const void *>("queue_destroy"));
+    xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
+  }
+#endif
+}
+
 pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
