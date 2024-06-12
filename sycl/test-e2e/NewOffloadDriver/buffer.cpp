@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A basic test using the --offload-new-driver flag
+// A basic test using the --offload-new-driver flag.
 
 // REQUIRES: level_zero
 // RUN: %clangxx -fsycl --offload-new-driver %s -o %t.out
@@ -15,20 +15,20 @@
 #include <sycl/detail/core.hpp>
 
 int main() {
-  // Creating buffer of 4 elements to be used inside the kernel code
+  // Creating buffer of 4 elements to be used inside the kernel code.
   sycl::buffer<size_t, 1> Buffer(4);
 
-  // Creating SYCL queue
+  // Creating SYCL queue.
   sycl::queue Queue;
 
-  // Size of index space for kernel
+  // Size of index space for kernel.
   sycl::range<1> NumOfWorkItems{Buffer.size()};
 
-  // Submitting command group(work) to queue
+  // Submitting command group(work) to queue.
   Queue.submit([&](sycl::handler &cgh) {
     // Getting write only access to the buffer on a device.
     sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
-    // Executing kernel
+    // Executing kernel.
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
       // Fill buffer with indexes.
       Accessor[WIid] = WIid.get(0);
@@ -39,7 +39,7 @@ int main() {
   // Implicit barrier waiting for queue to complete the work.
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
-  // Check the results
+  // Check the results.
   bool MismatchFound = false;
   for (size_t I = 0; I < Buffer.size(); ++I) {
     if (HostAccessor[I] != I) {
