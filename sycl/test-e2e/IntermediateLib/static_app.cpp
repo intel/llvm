@@ -1,4 +1,4 @@
-// REQUIRES: level_zero
+// REQUIRES: level_zero && linux
 
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // build static library
