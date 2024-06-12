@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
-  # Merge: 0f118d75 92fce2ee
+  # commit 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369
+  # Merge: 4f105262 2c3096a3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 10 13:23:16 2024 +0100
-  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
-  #     [CTS] Add CTS tests for urMemImageCreate entry-point
-  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
+  # Date:   Mon Jun 10 16:02:26 2024 +0100
+  #     Merge pull request #1282 from al42and/fix-sub-group-size-info
+  #     Fix size confusion for several device property queries
+  set(UNIFIED_RUNTIME_TAG 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
