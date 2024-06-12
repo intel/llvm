@@ -202,7 +202,15 @@ template <>
 template <>
 __SYCL_EXPORT std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(
-    const std::string &Source, const std::vector<std::string> &UserArgs) {
+    sycl::detail::string_view SourceView,
+    const std::vector<sycl::detail::string_view> &UserArgs) {
+  const std::string Source{SourceView.data()};
+  std::cout << Source << std::endl;
+  std::vector<std::string> Args;
+  for (const sycl::detail::string_view &arg : UserArgs) {
+    Args.push_back(arg.data());
+    std::cout << Args.back() << std::endl;
+  }
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
@@ -213,13 +221,19 @@ online_compiler<source_language::opencl_c>::compile(
 
   return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
                                 DeviceStepping, CompileToSPIRVHandle,
-                                FreeSPIRVOutputsHandle, UserArgs);
+                                FreeSPIRVOutputsHandle, Args);
 }
 
 template <>
 template <>
 __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
-    const std::string &Source, const std::vector<std::string> &UserArgs) {
+    sycl::detail::string_view SourceView,
+    const std::vector<sycl::detail::string_view> &UserArgs) {
+
+  const std::string Source{SourceView.data()};
+  std::vector<std::string> Args;
+  for (const sycl::detail::string_view &arg : UserArgs)
+    Args.push_back(arg.data());
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
@@ -228,11 +242,10 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                Version + ") is not supported yet");
   }
 
-  std::vector<std::string> CMUserArgs = UserArgs;
-  CMUserArgs.push_back("-cmc");
+  Args.push_back("-cmc");
   return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
                                 DeviceStepping, CompileToSPIRVHandle,
-                                FreeSPIRVOutputsHandle, CMUserArgs);
+                                FreeSPIRVOutputsHandle, Args);
 }
 } // namespace ext::intel::experimental
 

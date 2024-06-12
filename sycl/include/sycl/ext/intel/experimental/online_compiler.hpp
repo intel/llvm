@@ -9,7 +9,8 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/string_view.hpp>
 #include <sycl/device.hpp>
 
 #include <string>
@@ -117,6 +118,8 @@ public:
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
   std::vector<byte> compile(const std::string &src, const Tys &...args);
+  template <typename... Tys>
+  std::vector<byte> compile(sycl::detail::string_view src, const Tys &...args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {
@@ -189,15 +192,32 @@ private:
 // Specializations of the online_compiler class and 'compile' function for
 // particular languages and parameter types.
 
+template <>
+template <>
+std::vector<byte> online_compiler<source_language::opencl_c>::compile(
+    sycl::detail::string_view src,
+    const std::vector<sycl::detail::string_view> &options);
+
+template <>
+template <>
+std::vector<byte> online_compiler<source_language::cm>::compile(
+    sycl::detail::string_view src,
+    const std::vector<sycl::detail::string_view> &options);
+
 /// Compiles the given OpenCL source. May throw \c online_compile_error.
 /// @param src - contents of the source.
 /// @param options - compilation options (implementation defined); standard
 ///   OpenCL JIT compiler options must be supported.
 template <>
 template <>
-__SYCL_EXPORT std::vector<byte>
+__SYCL_EXPORT inline std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(
-    const std::string &src, const std::vector<std::string> &options);
+    const std::string &src, const std::vector<std::string> &options) {
+  std::vector<sycl::detail::string_view> opts;
+  for (const std::string &opt : options)
+    opts.push_back(sycl::detail::string_view{opt});
+  return compile(sycl::detail::string_view(src), opts);
+}
 
 /// Compiles the given OpenCL source. May throw \c online_compile_error.
 /// @param src - contents of the source.
@@ -205,7 +225,8 @@ template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(const std::string &src) {
-  return compile(src, std::vector<std::string>{});
+  return compile(sycl::detail::string_view(src),
+                 std::vector<sycl::detail::string_view>{});
 }
 
 /// Compiles the given CM source \p src.
@@ -213,15 +234,22 @@ online_compiler<source_language::opencl_c>::compile(const std::string &src) {
 /// @param options - compilation options (implementation defined).
 template <>
 template <>
-__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
-    const std::string &src, const std::vector<std::string> &options);
+__SYCL_EXPORT inline std::vector<byte>
+online_compiler<source_language::cm>::compile(
+    const std::string &src, const std::vector<std::string> &options) {
+  std::vector<sycl::detail::string_view> opts;
+  for (const std::string &opt : options)
+    opts.push_back(sycl::detail::string_view{opt});
+  return compile(sycl::detail::string_view(src), opts);
+}
 
 /// Compiles the given CM source \p src.
 template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::cm>::compile(const std::string &src) {
-  return compile(src, std::vector<std::string>{});
+  return compile(sycl::detail::string_view(src),
+                 std::vector<sycl::detail::string_view>{});
 }
 
 } // namespace ext::intel::experimental
