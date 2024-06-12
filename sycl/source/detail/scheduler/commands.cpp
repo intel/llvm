@@ -679,17 +679,12 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
   xpti_td *CmdTraceEvent =
       xptiMakeEvent(CommandString.c_str(), &p, xpti::trace_graph_event,
                     xpti_at::active, &CommandInstanceNo);
-  MInstanceID = CommandInstanceNo;
+  MInstanceID = xptiGetUniqueId();
   if (CmdTraceEvent) {
     MTraceEvent = (void *)CmdTraceEvent;
-    // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in this case, we must skip sending a notification to create a
-    // node as this node has already been created. We return this value so the
-    // epilog method can be called selectively.
-    MFirstInstance = (CommandInstanceNo == 1);
   }
 #endif
-  return CommandInstanceNo;
+  return MInstanceID;
 }
 
 void Command::makeTraceEventEpilog() {
@@ -1001,7 +996,7 @@ void AllocaCommandBase::emitInstrumentationData() {
   MAddress = MRequirement.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
   // Set the relevant meta data properties for this command
-  if (MTraceEvent && MFirstInstance) {
+  if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
     xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
     xpti::addMetadata(TE, "sycl_device_type",
@@ -1046,10 +1041,7 @@ void AllocaCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  // Only if it is the first event, we emit a node create event
-  if (MFirstInstance) {
-    makeTraceEventEpilog();
-  }
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1122,19 +1114,15 @@ void AllocaSubBufCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  // Only if it is the first event, we emit a node create event and any meta
-  // data that is available for the command
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
-    xpti::addMetadata(TE, "access_range_start",
-                      this->MRequirement.MAccessRange[0]);
-    xpti::addMetadata(TE, "access_range_end",
-                      this->MRequirement.MAccessRange[1]);
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  // Metadata is added to all instances as they can be mutable
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
+  xpti::addMetadata(TE, "access_range_start",
+                    this->MRequirement.MAccessRange[0]);
+  xpti::addMetadata(TE, "access_range_end", this->MRequirement.MAccessRange[1]);
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1201,21 +1189,19 @@ void ReleaseCommand::emitInstrumentationData() {
   MAddress = MAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "allocation_type",
-                      commandToName(MAllocaCmd->getType()));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(TE, "allocation_type",
+                    commandToName(MAllocaCmd->getType()));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1325,20 +1311,18 @@ void MapMemObject::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1390,20 +1374,18 @@ void UnMapMemObject::emitInstrumentationData() {
   MAddress = MDstAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(TE, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1487,28 +1469,26 @@ void MemCpyCommand::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
-                      reinterpret_cast<size_t>(
-                          getSyclObjImpl(MSrcQueue->get_device()).get()));
-    xpti::addMetadata(
-        CmdTraceEvent, "copy_to",
-        reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToID(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  xpti::addMetadata(
+      CmdTraceEvent, "copy_from",
+      reinterpret_cast<size_t>(getSyclObjImpl(MSrcQueue->get_device()).get()));
+  xpti::addMetadata(
+      CmdTraceEvent, "copy_to",
+      reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1665,28 +1645,26 @@ void MemCpyCommandHost::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
-                      reinterpret_cast<size_t>(
-                          getSyclObjImpl(MSrcQueue->get_device()).get()));
-    xpti::addMetadata(
-        CmdTraceEvent, "copy_to",
-        reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToID(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  xpti::addMetadata(
+      CmdTraceEvent, "copy_from",
+      reinterpret_cast<size_t>(getSyclObjImpl(MSrcQueue->get_device()).get()));
+  xpti::addMetadata(
+      CmdTraceEvent, "copy_to",
+      reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1764,22 +1742,20 @@ void EmptyCommand::emitInstrumentationData() {
   MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToID(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1838,22 +1814,20 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue->getQueueID());
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToID(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                    deviceToString(MQueue->get_device()));
+  xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                    getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                               MQueue->getQueueID());
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -2059,7 +2033,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
       xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
                     xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
   if (CmdTraceEvent) {
-    OutInstanceID = CGKernelInstanceNo;
+    OutInstanceID = xptiGetUniqueId();
     OutTraceEvent = CmdTraceEvent;
     // In current implementation, the node create is similar to a dependency
     // graph, representing an unrolled data flow graph. So, each instance will
@@ -3384,32 +3358,25 @@ void KernelFusionCommand::emitInstrumentationData() {
   xpti_td *CmdTraceEvent =
       xptiMakeEvent(MCommandName.c_str(), &Payload, xpti::trace_graph_event,
                     xpti_at::active, &CommandInstanceNo);
-
-  MInstanceID = CommandInstanceNo;
+  // With the new UID approach, trace events have an implicit instance ID that
+  // keeps track of the number of times a payload is encountered. However, there
+  // could be instances of other payloads with the same value. To remove any
+  // ambiguity, we will generate a unique correlation ID.
+  MInstanceID = xptiGetUniqueId();
   if (CmdTraceEvent) {
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
-    // If we are seeing this event again, then the instance ID
-    // will be greater
-    // than 1; in this case, we must skip sending a
-    // notification to create a node as this node has already
-    // been created. We return this value so the epilog method
-    // can be called selectively.
-    // See makeTraceEventProlog.
-    MFirstInstance = (CommandInstanceNo == 1);
   }
 
   // This function is called in the constructor of the command. At this point
   // the kernel fusion list is still empty, so we don't have a terrible lot of
   // information we could attach to this node here.
-  if (MFirstInstance && CmdTraceEvent) {
+  if (CmdTraceEvent) {
     xpti::addMetadata(CmdTraceEvent, "sycl_device",
                       deviceToID(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
                       deviceToString(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-  }
-  if (MFirstInstance) {
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
     xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
@@ -3419,7 +3386,6 @@ void KernelFusionCommand::emitInstrumentationData() {
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,
                           static_cast<const void *>(MCommandNodeType.c_str()));
   }
-
 #endif
 }
 

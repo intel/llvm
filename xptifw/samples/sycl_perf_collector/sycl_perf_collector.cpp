@@ -816,9 +816,18 @@ XPTI_CALLBACK_API void syclMemCallback(uint16_t TraceType,
                                        const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save(GStreamMemory, (Event ? Event : Parent), TraceType, Instance,
-                  (TraceType & 0x0001) ? "memory_allocation_end"
-                                       : "memory_allocation_begin");
+  if (TraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin ||
+      TraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin) {
+    record_and_save(
+        GStreamMemory, (Event ? Event : Parent), TraceType, Instance,
+        (TraceType & 0x0001) ? "memory_allocation" : "memory_allocation");
+  } else if (TraceType ==
+                 (uint16_t)xpti::trace_point_type_t::mem_release_begin ||
+             TraceType == (uint16_t)xpti::trace_point_type_t::mem_release_end) {
+    record_and_save(GStreamMemory, (Event ? Event : Parent), TraceType,
+                    Instance,
+                    (TraceType & 0x0001) ? "memory_release" : "memory_release");
+  }
 }
 
 XPTI_CALLBACK_API void syclImageCallback(uint16_t TraceType,
