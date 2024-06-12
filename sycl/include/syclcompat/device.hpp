@@ -195,7 +195,9 @@ public:
   }
   int get_image1d_max() const { return _image1d_max; }
   auto get_image2d_max() const { return _image2d_max; }
+  auto get_image2d_max() { return _image2d_max; }
   auto get_image3d_max() const { return _image3d_max; }
+  auto get_image3d_max() { return _image3d_max; }
 
   // set interface
   void set_name(const char *name) {
