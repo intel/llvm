@@ -53,6 +53,8 @@ static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
       return std::uniform_real_distribution<float>(0.0, 100.0);
     } else if constexpr (std::is_floating_point_v<DType>) {
       return std::uniform_real_distribution<DType>(0.0, 100.0);
+    } else if constexpr (sizeof(DType) == 1) {
+      return std::uniform_int_distribution<unsigned short>(0, 100);
     } else {
       return std::uniform_int_distribution<DType>(0, 100);
     }
@@ -61,7 +63,7 @@ static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
     sycl::vec<DType, NChannels> temp;
 
     for (int j = 0; j < NChannels; j++) {
-      temp[j] = distribution(generator);
+      temp[j] = static_cast<DType>(distribution(generator));
     }
 
     v[i] = temp;

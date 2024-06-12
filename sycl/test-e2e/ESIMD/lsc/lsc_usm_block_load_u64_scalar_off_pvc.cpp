@@ -1,22 +1,17 @@
-//==----------- get_coord_int8_matB.cpp  - DPC++ joint_matrix---------==//
+//==---- lsc_usm_load_u64_scalar_off_pvc.cpp - DPC++ ESIMD on-device test-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-xmx8
-
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: *
 
-#include "../common.hpp"
-#include <iostream>
+// PVC variant of the test
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
+#define USE_SCALAR_OFFSET
+#define USE_PVC
 
-constexpr size_t TN = 8;
-
-#include "../get_coord_int8_matB_impl.hpp"
+#include "lsc_usm_block_load_u64.cpp"

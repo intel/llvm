@@ -126,6 +126,7 @@ sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 sycl/include/sycl/ext/oneapi/matrix/ @intel/sycl-matrix-reviewers
 sycl/test-e2e/Matrix @intel/sycl-matrix-reviewers
 sycl/test/matrix @intel/sycl-matrix-reviewers
+sycl/test/check_device_code/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 

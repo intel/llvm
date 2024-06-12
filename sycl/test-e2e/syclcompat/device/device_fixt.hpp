@@ -50,3 +50,32 @@ public:
 
   syclcompat::device_ext &get_dev_ext() { return dev_; }
 };
+
+// Helper for counting the output lines of syclcompat::list_devices
+// Used to override std::cout
+class CountingStream : public std::streambuf {
+public:
+  CountingStream(std::streambuf *buf) : buf(buf), line_count(0) {}
+
+  int overflow(int c) override {
+    if (c == '\n') {
+      ++line_count;
+    }
+    return buf->sputc(c);
+  }
+
+  std::streamsize xsputn(const char_type *s, std::streamsize count) override {
+    for (std::streamsize i = 0; i < count; ++i) {
+      if (s[i] == '\n') {
+        ++line_count;
+      }
+    }
+    return buf->sputn(s, count);
+  }
+
+  int get_line_count() const { return line_count; }
+
+private:
+  std::streambuf *buf;
+  int line_count;
+};
