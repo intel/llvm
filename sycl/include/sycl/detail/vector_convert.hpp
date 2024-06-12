@@ -57,7 +57,7 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/exception.hpp>                  // for errc
 
-#include <sycl/ext/oneapi/bfloat16.hpp>        // bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv> // for fesetround, fegetround
@@ -128,13 +128,11 @@ using is_float_to_float =
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 template <typename T, typename R>
 using is_bf16_to_float =
-    std::bool_constant<std::is_same_v<T, bfloat16> &&
-                       std::is_same_v<R, float>>;
+    std::bool_constant<std::is_same_v<T, bfloat16> && std::is_same_v<R, float>>;
 
 template <typename T, typename R>
 using is_float_to_bf16 =
-    std::bool_constant<std::is_same_v<R, bfloat16> &&
-                       std::is_same_v<T, float>>;
+    std::bool_constant<std::is_same_v<R, bfloat16> && std::is_same_v<T, float>>;
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename From, typename To, int VecSize,
@@ -217,7 +215,7 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT val) {
 }
 
 // Create a bfloat16 from float.
-template <typename NativeFloatT, typename NativeBFT,int VecSize>
+template <typename NativeFloatT, typename NativeBFT, int VecSize>
 inline NativeBFT ConvertFToBF16(NativeFloatT val) {
   static_assert(VecSize == 1);
   return NativeBFT(val);
@@ -529,7 +527,8 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
   if constexpr (VecSize == 1)
     return (float)vec;
   else {
-    uint16_t *src = sycl::bit_cast<uint16_t*>(&vec);
+    sycl::ext::oneapi::bfloat16 *src =
+        sycl::bit_cast<sycl::ext::oneapi::bfloat16 *>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
     // the size of data type.
@@ -546,12 +545,12 @@ inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
   if constexpr (VecSize == 1)
     return sycl::ext::oneapi::bfloat16(vec);
   else {
-    float *src = sycl::bit_cast<float*>(&vec);
+    float *src = sycl::bit_cast<float *>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
     // the size of data type.
     constexpr int AdjustedSize = (VecSize == 3) ? 4 : VecSize;
-    uint16_t dst[AdjustedSize];
+    sycl::ext::oneapi::bfloat16 dst[AdjustedSize];
 
     sycl::ext::oneapi::detail::FloatVecToBF16Vec<VecSize>(src, dst);
     return sycl::bit_cast<NativeBFT>(dst);
