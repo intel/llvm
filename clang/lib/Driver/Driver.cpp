@@ -1244,23 +1244,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             ArgStringList TargetArgs;
             DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
                                                  C.getInputArgs(), TargetArgs);
-            // Capture the argument for '-device'
-            bool DeviceSeen = false;
-            StringRef DeviceArg;
-            for (StringRef ArgString : TargetArgs) {
-              // Look for -device <string> and use that as the known arch to
-              // be associated with the current spir64_gen entry.  Continue
-              // scanning until we hit the last one.
-              if (DeviceSeen) {
-                DeviceArg = ArgString;
-                DeviceSeen = false;
-                continue;
+            // Look for -device <string> and use that as the known arch to
+            // be associated with the current spir64_gen entry.  Grab the
+            // right most entry.
+            for (int i = TargetArgs.size() - 2; i >= 0; --i) {
+              if (StringRef(TargetArgs[i]) == "-device") {
+                Arch = TargetArgs[i+1];
+                break;
               }
-              if (ArgString == "-device")
-                DeviceSeen = true;
             }
-            if (!DeviceArg.empty())
-              Arch = DeviceArg;
           }
 
           // Make sure we don't have a duplicate triple.
