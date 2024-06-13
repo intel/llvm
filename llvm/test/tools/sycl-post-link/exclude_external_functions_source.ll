@@ -1,10 +1,10 @@
-; Test that when the -exclude-external-functions option is used with source splitting,
+; Test that when the -support-dynamic-linking option is used with source splitting,
 ; dependencies to SYCL External functions do not cause a SYCL External function
 ; to be added to a device image.
 ; Also ensure that SYCL External functions in the same source do not get split into
 ; different images.
 
-; RUN: sycl-post-link -symbols -exclude-external-functions -split=source -S < %s -o %t.table
+; RUN: sycl-post-link -symbols -support-dynamic-linking -split=source -S < %s -o %t.table
 
 target triple = "spir64-unknown-unknown"
 
