@@ -47,8 +47,8 @@ using rel_t = typename std::conditional_t<
 #ifdef __SYCL_DEVICE_ONLY__
 #define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
   template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t &Lhs,      \
-                                                        const vec_t &Rhs) {    \
+  friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
+                                                        const vec_t & Rhs) {   \
     vec_t Ret;                                                                 \
     if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
