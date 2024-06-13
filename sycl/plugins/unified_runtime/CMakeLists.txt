@@ -131,7 +131,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    # Merge: abe85cc9 3e011c70
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Jun 13 10:22:34 2024 +0100
+    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
+    #     [HIP] Enable more ordering and scope capabilities for atomic fences
+    2c4303c25b026f7edb215accdccb1bc5ae2e237b
   )
 
   fetch_adapter_source(native_cpu
