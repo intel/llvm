@@ -19,30 +19,12 @@ using namespace ext::intel::experimental;
 using ann_ptr_t1 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, alignment<8>))>;
 
-struct MyIP {
-  ann_ptr_t1 a;
-
-  MyIP(int *a_) : a(a_) {}
-
-  void operator()() const {
-    // CHECK: %ptr.addr = alloca ptr addrspace(4), align 8
-    // CHECK: store ptr addrspace(4) %ptr, ptr %ptr.addr, align 8
-    // CHECK: %[[LoadPtr:.*]] = load ptr addrspace(4), ptr %ptr.addr, align 8
-    // CHECK: %[[AnnPtr:.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %[[LoadPtr]], ptr addrspace(1) @[[AnnStr]]
-    // CHECK: ret ptr addrspace(4) %[[AnnPtr]]
-    int *ptr = a.get(); // llvm.ptr.annotation is inserted
-    *ptr = 15;
-  }
-};
-
-void TestVectorAddWithAnnotatedMMHosts() {
-  sycl::queue q;
-  auto raw = malloc_shared<int>(5, q);
-  q.submit([&](handler &h) { h.single_task(MyIP{raw}); }).wait();
-  free(raw, q);
-}
-
-int main() {
-  TestVectorAddWithAnnotatedMMHosts();
-  return 0;
+SYCL_EXTERNAL void foo(ann_ptr_t1 a) {
+  // CHECK: %ptr.addr = alloca ptr addrspace(4), align 8
+  // CHECK: store ptr addrspace(4) %ptr, ptr %ptr.addr, align 8
+  // CHECK: %[[LoadPtr:.*]] = load ptr addrspace(4), ptr %ptr.addr, align 8
+  // CHECK: %[[AnnPtr:.*]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %[[LoadPtr]], ptr addrspace(1) @[[AnnStr]]
+  // CHECK: ret ptr addrspace(4) %[[AnnPtr]]
+  int *ptr = a.get(); // llvm.ptr.annotation is inserted
+  *ptr = 15;
 }
