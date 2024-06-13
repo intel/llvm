@@ -497,6 +497,13 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
+  // Pure virtual functions may be defined in a derived class. Therefore, do not
+  // diagnose missing SYCL_EXTERNAL macro on pure virtual functions. Please note
+  // that even if a definition is not provided by the derived class, the compiler
+  // will not diagnose the missing SYCL_EXTERNAL macro.
+  if (Callee->isPure())
+    return true;
+
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
