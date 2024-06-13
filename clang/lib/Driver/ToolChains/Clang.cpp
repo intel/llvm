@@ -10700,7 +10700,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
-  if (!Triple.isAMDGCN())
+  if (!NewOffloadDriver && !Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
   if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
