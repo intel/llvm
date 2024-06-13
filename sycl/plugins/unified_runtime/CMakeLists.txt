@@ -100,11 +100,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e5baa6f0652f9581b2111eb2059c37a3a29e1ce2)
+  set(UNIFIED_RUNTIME_TAG 58f685183fbf5500d3c50809b4d457262350e894)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -114,17 +114,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
