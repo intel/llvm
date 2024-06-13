@@ -100,17 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 78d02039b038197475658e5be8659fde3403bf7d
-  # Merge: ba369ea0 41763be1
+  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
+  # Merge: 8788bd13 61b42a3e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 10:19:29 2024 +0100
-  #     Merge pull request #1128 from aarongreig/aaron/clarifyQueueInfoSize
-  #     Clarify spec for QUEUE_INFO_SIZE and change testing for it accordingly.
-  set(UNIFIED_RUNTIME_TAG 78d02039b038197475658e5be8659fde3403bf7d)
+  # Date:   Wed Jun 12 13:21:32 2024 +0100
+  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
+  #     [HIP][CUDA] Several changes to kernel launch
+  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
   )
 
   fetch_adapter_source(opencl
