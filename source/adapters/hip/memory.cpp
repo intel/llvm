@@ -133,9 +133,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
     auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
         new ur_mem_handle_t_{hContext, flags, AllocMode, HostPtr, size});
-    if (URMemObj == nullptr) {
-      throw UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     // First allocation will be made at urMemBufferCreate if context only
     // has one device
@@ -157,6 +154,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     RetMemObj = URMemObj.release();
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &Err) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -383,10 +382,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
     auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
         hContext, flags, *pImageFormat, *pImageDesc, pHost});
-
-    if (URMemObj == nullptr) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     if (PerformInitialCopy) {
       for (const auto &Dev : hContext->getDevices()) {
