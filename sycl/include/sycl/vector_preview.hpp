@@ -601,7 +601,7 @@ private:
       return static_cast<RetType>(m_Data[Index]);
   }
 
-  // Required by swizzles whenworking with sycl::vec pointers.
+  // Required by swizzles when working with sycl::vec pointers.
   constexpr void setValue(int Index, const DataT &Value) {
       m_Data[Index] = Value;
   }
