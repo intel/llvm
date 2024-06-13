@@ -22,7 +22,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>

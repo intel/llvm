@@ -17,7 +17,6 @@
 #include <sycl/backend.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
