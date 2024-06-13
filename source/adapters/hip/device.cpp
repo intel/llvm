@@ -478,10 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
-    // The mandated minimum capability:
-    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    return ReturnValue(Capability);
+    return ReturnValue(0);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
