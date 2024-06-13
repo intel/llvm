@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "sycl/detail/pi.h"
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/context.hpp>

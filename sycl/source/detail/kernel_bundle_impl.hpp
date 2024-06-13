@@ -15,7 +15,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 

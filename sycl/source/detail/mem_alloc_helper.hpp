@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h>
 #include <ur_api.h>
 
 namespace sycl {

@@ -13,7 +13,6 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
