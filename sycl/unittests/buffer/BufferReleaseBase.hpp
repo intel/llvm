@@ -58,9 +58,8 @@ protected:
   template <typename Buffer>
   MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
     sycl::detail::Requirement MockReq = getMockRequirement(Buf);
-    std::vector<sycl::detail::Command *> AuxCmds;
     sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-        sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+        sycl::detail::getSyclObjImpl(Q), &MockReq);
     MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
         sycl::detail::getSyclObjImpl(Q), MockReq);
     std::vector<sycl::detail::Command *> ToEnqueue;
