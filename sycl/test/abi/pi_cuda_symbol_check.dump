@@ -170,3 +170,4 @@ piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
 piextWaitExternalSemaphore
+piextEnqueueKernelLaunchCustom

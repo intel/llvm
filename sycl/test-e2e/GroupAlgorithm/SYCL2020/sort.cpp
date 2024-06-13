@@ -87,14 +87,10 @@ template <> struct RadixSorterType<std::greater<CustomType>, CustomType> {
       oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::descending>;
 };
 #else
-template <class T> struct ConvertToSimpleType {
-  using Type = T;
-};
+template <class T> struct ConvertToSimpleType { using Type = T; };
 
 // Dummy overloads for CustomType which is not supported by radix sorter
-template <> struct ConvertToSimpleType<CustomType> {
-  using Type = int;
-};
+template <> struct ConvertToSimpleType<CustomType> { using Type = int; };
 
 template <class SorterT> struct ConvertToSortingOrder;
 
