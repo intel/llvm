@@ -211,7 +211,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ReductionsT>(Reductions)...);
+    nd_launch<KernelName>(CGH, Range, KernelObj,
+                          std::forward<ReductionsT>(Reductions)...);
   });
 }
 
@@ -234,7 +235,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Config, KernelObj, std::forward<ReductionsT>(Reductions)...);
+    nd_launch<KernelName>(CGH, Config, KernelObj,
+                          std::forward<ReductionsT>(Reductions)...);
   });
 }
 

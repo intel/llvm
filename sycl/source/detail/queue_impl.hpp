@@ -791,12 +791,12 @@ protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
 
-  EventImplPtr insertHelperBarrier() {
-    const PluginPtr &Plugin = getPlugin();
-    pi_event BarrierPiEvent = 0;
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        getHandleRef(), 0, nullptr, &BarrierPiEvent);
-    return std::make_shared<detail::event_impl>(BarrierPiEvent, get_context());
+  template <typename HandlerType = handler>
+  EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
+    auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    getPlugin()->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+        Handler.MQueue->getHandleRef(), 0, nullptr, &ResEvent->getHandleRef());
+    return ResEvent;
   }
 
   // template is needed for proper unit testing
@@ -825,7 +825,7 @@ protected:
         // insert barriers between host_task enqueues.
         if (EventToBuildDeps->isDiscarded() &&
             Handler.getType() == CG::CodeplayHostTask)
-          EventToBuildDeps = insertHelperBarrier();
+          EventToBuildDeps = insertHelperBarrier(Handler);
 
         if (!EventToBuildDeps->isDiscarded())
           Handler.depends_on(EventToBuildDeps);

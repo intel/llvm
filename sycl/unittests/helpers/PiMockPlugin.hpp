@@ -1004,7 +1004,8 @@ inline pi_result mock_piEnqueueKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1013,7 +1014,8 @@ inline pi_result mock_piextEnqueueCooperativeKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1021,14 +1023,16 @@ inline pi_result mock_piEnqueueEventsWait(pi_queue command_queue,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
                                           pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piEnqueueEventsWaitWithBarrier(
     pi_queue command_queue, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1037,7 +1041,8 @@ mock_piEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
                             pi_bool blocking_read, size_t offset, size_t size,
                             void *ptr, pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1048,7 +1053,8 @@ inline pi_result mock_piEnqueueMemBufferReadRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1057,7 +1063,8 @@ mock_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                              pi_bool blocking_write, size_t offset, size_t size,
                              const void *ptr, pi_uint32 num_events_in_wait_list,
                              const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1068,7 +1075,8 @@ inline pi_result mock_piEnqueueMemBufferWriteRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     const void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1078,7 +1086,8 @@ mock_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
                             size_t dst_offset, size_t size,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1089,7 +1098,8 @@ inline pi_result mock_piEnqueueMemBufferCopyRect(
     size_t dst_row_pitch, size_t dst_slice_pitch,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1100,7 +1110,8 @@ inline pi_result mock_piEnqueueMemBufferFill(pi_queue command_queue,
                                              pi_uint32 num_events_in_wait_list,
                                              const pi_event *event_wait_list,
                                              pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1109,7 +1120,8 @@ inline pi_result mock_piEnqueueMemImageRead(
     pi_image_offset origin, pi_image_region region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1120,7 +1132,8 @@ mock_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1130,7 +1143,8 @@ mock_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                            pi_image_offset dst_origin, pi_image_region region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1140,7 +1154,8 @@ mock_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
                            const size_t *region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1151,7 +1166,8 @@ inline pi_result mock_piEnqueueMemBufferMap(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
                                             pi_event *event, void **ret_map) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
 
   auto parentDummyHandle = reinterpret_cast<DummyHandlePtrT>(buffer);
   *ret_map = (void *)(parentDummyHandle->MData);
@@ -1163,7 +1179,8 @@ inline pi_result mock_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                         pi_uint32 num_events_in_wait_list,
                                         const pi_event *event_wait_list,
                                         pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1228,7 +1245,8 @@ inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
                                             pi_uint32 num_events_in_waitlist,
                                             const pi_event *events_waitlist,
                                             pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1238,7 +1256,8 @@ inline pi_result mock_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                             pi_uint32 num_events_in_waitlist,
                                             const pi_event *events_waitlist,
                                             pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1248,7 +1267,8 @@ inline pi_result mock_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                               pi_uint32 num_events_in_waitlist,
                                               const pi_event *events_waitlist,
                                               pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1256,7 +1276,8 @@ inline pi_result mock_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                                size_t length,
                                                pi_mem_advice advice,
                                                pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1299,7 +1320,8 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableWrite(
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1307,7 +1329,8 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1507,7 +1530,8 @@ inline pi_result mock_piextEnqueueReadHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1515,7 +1539,8 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
