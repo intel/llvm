@@ -131,13 +131,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
-    # Merge: 39cb69ab 10b04891
+    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    # Merge: abe85cc9 3e011c70
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:15:33 2024 +0100
-    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
-    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
-    3e011c7000b1c833a6843fa08f9257fc82045d7c
+    # Date:   Thu Jun 13 10:22:34 2024 +0100
+    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
+    #     [HIP] Enable more ordering and scope capabilities for atomic fences
+    2c4303c25b026f7edb215accdccb1bc5ae2e237b
   )
 
   fetch_adapter_source(native_cpu
