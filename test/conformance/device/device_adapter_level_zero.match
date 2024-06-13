@@ -1,4 +1,5 @@
 urDeviceCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle
+{{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_GLOBAL_MEM_FREE
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_ASYNC_BARRIER

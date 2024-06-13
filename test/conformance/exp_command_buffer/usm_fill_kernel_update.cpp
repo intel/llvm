@@ -142,6 +142,59 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
     Validate((uint32_t *)new_shared_ptr, new_global_size, new_val);
 }
 
+// Test updating a command-buffer which hasn't been enqueued yet
+TEST_P(USMFillCommandTest, UpdateBeforeEnqueue) {
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, &new_shared_ptr));
+    ASSERT_NE(new_shared_ptr, nullptr);
+    std::memset(new_shared_ptr, 0, allocation_size);
+
+    // Set new USM pointer as kernel output at index 0
+    ur_exp_command_buffer_update_pointer_arg_desc_t new_output_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC, // stype
+        nullptr,                                                      // pNext
+        0,               // argIndex
+        nullptr,         // pProperties
+        &new_shared_ptr, // pArgValue
+    };
+
+    // Set new value to use for fill at kernel index 1
+    uint32_t new_val = 33;
+    ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
+        nullptr,                                                    // pNext
+        1,                                                          // argIndex
+        sizeof(new_val),                                            // argSize
+        nullptr,  // pProperties
+        &new_val, // hArgValue
+    };
+
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        0,                // numNewMemObjArgs
+        1,                // numNewPointerArgs
+        1,                // numNewValueArgs
+        0,                // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        &new_output_desc, // pNewPointerArgList
+        &new_input_desc,  // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        nullptr,          // pNewGlobalWorkSize
+        nullptr,          // pNewLocalWorkSize
+    };
+
+    // Update kernel and enqueue command-buffer
+    ASSERT_SUCCESS(
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // Verify that update occurred correctly
+    Validate((uint32_t *)new_shared_ptr, global_size, new_val);
+}
+
 // Test updating a command-buffer with multiple USM fill kernel commands
 struct USMMultipleFillCommandTest
     : uur::command_buffer::urUpdatableCommandBufferExpExecutionTest {
