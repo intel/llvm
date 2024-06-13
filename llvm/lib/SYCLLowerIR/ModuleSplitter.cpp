@@ -158,7 +158,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M, bool ExcludeExternalFunctions) {
+  DependencyGraph(const Module &M, bool SupportDynamicLinking) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -176,10 +176,10 @@ public:
     }
 
     // We add every function into the graph except if
-    // ExcludeExternalFunctions is true
+    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
 
-      if (ExcludeExternalFunctions &&
+      if (SupportDynamicLinking &&
           llvm::sycl::utils::isSYCLExternalFunction(&F))
         continue;
 
@@ -423,9 +423,9 @@ public:
 class ModuleSplitter : public ModuleSplitterBase {
 public:
   ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
-                 bool ExcludeExternalFunctions)
+                 bool SupportDynamicLinking)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule(), ExcludeExternalFunctions) {}
+        CG(Input.getModule(), SupportDynamicLinking) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -998,7 +998,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints,
-                      bool ExcludeExternalFunctions) {
+                      bool SupportDynamicLinking) {
   FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
@@ -1072,7 +1072,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
   if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
-                                            ExcludeExternalFunctions);
+                                            SupportDynamicLinking);
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
@@ -1098,7 +1098,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
                                         bool EmitOnlyKernelsAsEntryPoints,
-                                        bool ExcludeExternalFunctions) {
+                                        bool SupportDynamicLinking) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1141,7 +1141,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule(), ExcludeExternalFunctions);
+  DependencyGraph CG(MD.getModule(), SupportDynamicLinking);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
@@ -1203,7 +1203,7 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
                                         /*EmitOnlyKernelsAsEntryPoints=*/false,
-                                        /*ExcludeExternalFunctions=*/false);
+                                        /*SupportDynamicLinking=*/false);
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
