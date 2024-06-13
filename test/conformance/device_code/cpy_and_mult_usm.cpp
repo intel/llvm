@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
     size_t array_size = 16;
