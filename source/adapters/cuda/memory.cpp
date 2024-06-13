@@ -71,7 +71,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     MemObj = URMemObj.release();
   } catch (ur_result_t Err) {
     return Err;
-  } catch (std::bad_alloc &Err) {
+  } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -98,10 +98,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 
     // Do nothing if there are other references
     if (hMem->decrementReferenceCount() > 0) {
-      return UR_RESULT_SUCCESS;
-    }
-
-    if (hMem->isSubBuffer()) {
       return UR_RESULT_SUCCESS;
     }
 
@@ -247,7 +243,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     *phMem = URMemObj.release();
   } catch (ur_result_t Err) {
     return Err;
-  } catch (std::bad_alloc &Err) {
+  } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;

@@ -68,10 +68,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    if (hMem->isSubBuffer()) {
-      return UR_RESULT_SUCCESS;
-    }
-
     // Call destructor
     std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
 
