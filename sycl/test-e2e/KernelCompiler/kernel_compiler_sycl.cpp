@@ -24,7 +24,7 @@ auto constexpr SYCLSource = R"===(
 #include <sycl/sycl.hpp>
 #include "AddEm.h"
 
-SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_cp(int *ptr) {
 
   // intentionally using deprecated routine, as opposed to this_work_item::get_nd_item<1>()
@@ -38,7 +38,7 @@ void ff_cp(int *ptr) {
 auto constexpr BadSource = R"===(
 #include <sycl/sycl.hpp>
 
-SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_cp(int *ptr) {
 
   sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
@@ -117,12 +117,11 @@ void test_build_and_run() {
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
-  // amend __free_function_  to kernel f name.
-  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("__free_function_ff_cp");
+  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("_Z19__sycl_kernel_ff_cp");
 
-  // NOTE THIS NOISE
-  // sycl::kernel_bundle<sycl::bundle_state::executable> kb =
-  // syclexp::build(kb_src,
+  // COMING SOON
+  // sycl::kernel_bundle<sycl::bundle_state::executable> kb
+  //    = syclexp::build(kb_src,
   // syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
   // sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
 
