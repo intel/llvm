@@ -13,7 +13,7 @@
 #include <sycl/range.hpp>
 
 namespace sycl {
-namespace _V1 {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace cuda {

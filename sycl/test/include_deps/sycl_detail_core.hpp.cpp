@@ -177,6 +177,7 @@
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
+// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
