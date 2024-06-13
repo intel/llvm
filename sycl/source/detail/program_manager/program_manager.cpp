@@ -1578,7 +1578,9 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
 
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
   if (KernelID == m_KernelName2KernelIDs.end())
-    throw runtime_error("No kernel found with the specified name",
+    //throw runtime_error("No kernel found with the specified name",
+    //                    PI_ERROR_INVALID_KERNEL_NAME);
+    throw runtime_error("No kernel named " + KernelName + " was found",
                         PI_ERROR_INVALID_KERNEL_NAME);
 
   return KernelID->second;
