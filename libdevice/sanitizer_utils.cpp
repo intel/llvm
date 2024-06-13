@@ -588,22 +588,7 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   return 0;
 }
 
-constexpr size_t AlignMask(size_t n) {
-  switch (n) {
-  case 1:
-    return 0;
-  case 2:
-    return 1;
-  case 4:
-    return (1 << 2) - 1;
-  case 8:
-    return (1 << 3) - 1;
-  case 16:
-    return (1 << 4) - 1;
-  default:
-    return 0;
-  }
-}
+constexpr size_t AlignMask(size_t n) { return n - 1; }
 
 } // namespace
 
