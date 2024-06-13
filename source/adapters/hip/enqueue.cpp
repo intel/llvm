@@ -789,21 +789,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_event_handle_t *phEvent) {
   UR_ASSERT(size + offset <= std::get<BufferMem>(hBuffer->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-  auto ArgsAreMultiplesOfPatternSize =
-      (offset % patternSize == 0) || (size % patternSize == 0);
-
-  auto PatternIsValid = (pPattern != nullptr);
-
-  auto PatternSizeIsValid =
-      ((patternSize & (patternSize - 1)) == 0) && // is power of two
-      (patternSize > 0) && (patternSize <= 128);  // falls within valid range
-
-  UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
-                PatternSizeIsValid,
-            UR_RESULT_ERROR_INVALID_VALUE);
-  std::ignore = ArgsAreMultiplesOfPatternSize;
-  std::ignore = PatternIsValid;
-  std::ignore = PatternSizeIsValid;
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   hBuffer->setLastQueueWritingToMemObj(hQueue);

@@ -21,7 +21,6 @@ urUSMDeviceAllocAlignmentTest.SuccessAlignedAllocations/AMD_HIP_BACKEND___{{.*}}
 urUSMDeviceAllocAlignmentTest.SuccessAlignedAllocations/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled_64_8
 urUSMDeviceAllocAlignmentTest.SuccessAlignedAllocations/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled_64_512
 urUSMDeviceAllocAlignmentTest.SuccessAlignedAllocations/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled_64_2048
-urUSMGetMemAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_BASE_PTR
 urUSMGetMemAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_POOL
 urUSMHostAllocTest.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 urUSMHostAllocTest.SuccessWithDescriptors/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
