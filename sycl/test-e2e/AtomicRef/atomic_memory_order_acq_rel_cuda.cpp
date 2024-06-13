@@ -1,3 +1,4 @@
+// REQUIRES: cuda
 // RUN: %{build} -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
 // RUN: %{run} %t.out
 
