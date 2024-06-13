@@ -41,7 +41,7 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(__CLC_GENTYPE x,
 MODF_DEF(local);
 MODF_DEF(global);
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 MODF_DEF(generic);
 #endif
 

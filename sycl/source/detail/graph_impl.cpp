@@ -1303,6 +1303,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto NDRDesc = ExecCG.MNDRDesc;
 
   pi_kernel PiKernel = nullptr;
+  pi_program PiProgram = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
   std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
@@ -1326,7 +1327,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     PiKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, std::ignore) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
   }
@@ -1449,6 +1450,12 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   pi_result Res = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferUpdateKernelLaunch>(
       Command, &UpdateDesc);
+
+  if (PiProgram) {
+    // We retained these objects by calling getOrCreateKernel()
+    Plugin->call<sycl::detail::PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<sycl::detail::PiApiKind::piProgramRelease>(PiProgram);
+  }
 
   if (Res != PI_SUCCESS) {
     throw sycl::exception(errc::invalid, "Error updating command_graph");
@@ -1699,22 +1706,22 @@ node node::get_node_from_event(event nodeEvent) {
       GraphImpl->getNodeForEvent(EventImpl));
 }
 
-template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<2>(nd_range<2> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<2>(nd_range<2> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<3>(nd_range<3> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<3>(nd_range<3> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_range<1>(range<1> Range) {
+template <> __SYCL_EXPORT void node::update_range<1>(range<1> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<2>(range<2> Range) {
+template <> __SYCL_EXPORT void node::update_range<2>(range<2> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<3>(range<3> Range) {
+template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
   impl->updateRange(Range);
 }
 } // namespace experimental

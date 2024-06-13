@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fcd3693d1b54ddad1fcbe9e2c749c01628739346
-  # Merge: c8a0d84b 5d51c9a1
+  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
+  # Merge: 8788bd13 61b42a3e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 3 19:12:25 2024 +0100
-  #    Merge pull request #1513 from aarongreig/aaron/minorL0DeviceInfoFixes
-  #    Fix some minor bugs in L0 urDeviceGetInfo revealed by PI->UR port
-  set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
+  # Date:   Wed Jun 12 13:21:32 2024 +0100
+  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
+  #     [HIP][CUDA] Several changes to kernel launch
+  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
   )
 
   fetch_adapter_source(opencl

@@ -20,6 +20,35 @@ DEVICE_EXTERN_C_INLINE
 double fabs(double x) { return __devicelib_fabs(x); }
 
 DEVICE_EXTERN_C_INLINE
+double ceil(double x) { return __devicelib_ceil(x); }
+
+DEVICE_EXTERN_C_INLINE
+double copysign(double x, double y) { return __devicelib_copysign(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+double cospi(double x) { return __devicelib_cospi(x); }
+
+extern "C" SYCL_EXTERNAL double __devicelib_fmax(double, double);
+DEVICE_EXTERN_C_INLINE
+double fmax(double x, double y) { return __devicelib_fmax(x, y); }
+
+extern "C" SYCL_EXTERNAL double __devicelib_fmin(double, double);
+DEVICE_EXTERN_C_INLINE
+double fmin(double x, double y) { return __devicelib_fmin(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+double trunc(double x) { return __devicelib_trunc(x); }
+
+DEVICE_EXTERN_C_INLINE
+double sinpi(double x) { return __devicelib_sinpi(x); }
+
+DEVICE_EXTERN_C_INLINE
+double rsqrt(double x) { return __devicelib_rsqrt(x); }
+
+DEVICE_EXTERN_C_INLINE
+double exp10(double x) { return __devicelib_exp10(x); }
+
+DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
 
 DEVICE_EXTERN_C_INLINE

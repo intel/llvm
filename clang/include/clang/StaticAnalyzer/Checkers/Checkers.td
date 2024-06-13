@@ -1011,6 +1011,11 @@ def FloatLoopCounter : Checker<"FloatLoopCounter">,
   Dependencies<[SecuritySyntaxChecker]>,
   Documentation<HasDocumentation>;
 
+def SetgidSetuidOrderChecker : Checker<"SetgidSetuidOrder">,
+  HelpText<"Warn on possible reversed order of 'setgid(getgid()))' and "
+           "'setuid(getuid())' (CERT: POS36-C)">,
+  Documentation<HasDocumentation>;
+
 } // end "security"
 
 let ParentPackage = ENV in {
@@ -1397,7 +1402,7 @@ def CastValueChecker : Checker<"CastValue">,
   Documentation<NotDocumented>;
 
 def ReturnValueChecker : Checker<"ReturnValue">,
-  HelpText<"Model the guaranteed boolean return value of function calls">,
+  HelpText<"Model certain Error() methods that always return true by convention">,
   Documentation<NotDocumented>;
 
 } // end "apiModeling.llvm"

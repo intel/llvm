@@ -8,7 +8,8 @@
 //
 // With immediate command lists the command lists are recycled between queues in
 // a context.
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 void test(sycl::context &C, sycl::device &D, sycl::property_list Props) {
   sycl::queue Q(C, D, Props);

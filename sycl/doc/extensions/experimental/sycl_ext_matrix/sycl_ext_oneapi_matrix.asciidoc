@@ -467,6 +467,10 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> it) {
   }
 });
 ```
+The `Rows` and `Cols` template parameters represent the logical shape
+of the matrix, which is not necessarily the way the matrix is layed
+out in memory. Thus, these template parameters have the same meaning
+in `joint_matrix_prefetch` as they do for `joint_matrix_load`.
 
 === Support for Machine Learning Types
 Some devices support special matrix element types that are commonly

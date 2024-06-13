@@ -18,7 +18,7 @@
 //===------------------------------------------------------------------------===//
 
 #include "../../SubGroup/helper.hpp"
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include <cassert>
 #include <iostream>
