@@ -207,16 +207,13 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
       int DeviceIdx = hipPointerAttributeType.device;
 
-      // currently each device is in its own platform, so find the platform at
-      // the same index
-      std::vector<ur_platform_handle_t> Platforms;
-      Platforms.resize(DeviceIdx + 1);
+      // hip backend has only one platform containing all devices
+      ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, DeviceIdx + 1, Platforms.data(),
-                             nullptr);
+      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
 
       // get the device from the platform
-      ur_device_handle_t Device = Platforms[DeviceIdx]->Devices[0].get();
+      ur_device_handle_t Device = platform->Devices[DeviceIdx].get();
       return ReturnValue(Device);
     }
     case UR_USM_ALLOC_INFO_POOL: {
@@ -230,8 +227,12 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       }
       return ReturnValue(Pool);
     }
+    case UR_USM_ALLOC_INFO_SIZE: {
+      size_t RangeSize = 0;
+      UR_CHECK_ERROR(hipMemPtrGetInfo(const_cast<void *>(pMem), &RangeSize));
+      return ReturnValue(RangeSize);
+    }
     case UR_USM_ALLOC_INFO_BASE_PTR:
-    case UR_USM_ALLOC_INFO_SIZE:
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;

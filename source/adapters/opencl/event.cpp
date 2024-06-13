@@ -46,7 +46,8 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
     return CL_PROFILING_COMMAND_SUBMIT;
   case UR_PROFILING_INFO_COMMAND_START:
     return CL_PROFILING_COMMAND_START;
-  // TODO(ur) add UR_PROFILING_INFO_COMMAND_COMPLETE once spec has been updated
+  case UR_PROFILING_INFO_COMMAND_COMPLETE:
+    return CL_PROFILING_COMMAND_COMPLETE;
   case UR_PROFILING_INFO_COMMAND_END:
     return CL_PROFILING_COMMAND_END;
   default:

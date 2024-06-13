@@ -15,10 +15,6 @@ struct NDRangeUpdateTest
         UUR_RETURN_ON_FATAL_FAILURE(
             urUpdatableCommandBufferExpExecutionTest::SetUp());
 
-        if (!updatable_execution_range_support) {
-            GTEST_SKIP() << "Execution range update is not supported.";
-        }
-
         ur_device_usm_access_capability_flags_t shared_usm_flags;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));

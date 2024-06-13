@@ -583,6 +583,12 @@ etors:
 - name: ENQUEUE_TIMESTAMP_RECORDING_EXP
   desc: Enumerator for $xEnqueueTimestampRecordingExp
   value: '223'
+- name: ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP
+  desc: Enumerator for $xEnqueueKernelLaunchCustomExp
+  value: '224'
+- name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
+  desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
+  value: '225'
 ---
 type: enum
 desc: Defines structure types

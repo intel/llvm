@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include <cassert>
@@ -16,12 +17,11 @@
 #include <unordered_map>
 #include <variant>
 
-#include "common.hpp"
-
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
                                            const ur_device_handle_t);
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
-                                          const ur_device_handle_t);
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                                 const ur_device_handle_t,
+                                                 hipStream_t);
 
 // Handler for plain, pointer-based HIP allocations
 struct BufferMem {
@@ -95,15 +95,7 @@ public:
 
   // This will allocate memory on device with index Index if there isn't already
   // an active allocation on the device
-  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return reinterpret_cast<native_type>(
-        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex()]) + Offset);
-  }
+  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset);
 
   // This will allocate memory on device if there isn't already an active
   // allocation on the device
@@ -224,6 +216,7 @@ public:
       ArrayDesc.Format = HIP_AD_FORMAT_UNSIGNED_INT8;
       PixelTypeSizeBytes = 1;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
       ArrayDesc.Format = HIP_AD_FORMAT_SIGNED_INT8;
       PixelTypeSizeBytes = 1;
@@ -233,6 +226,7 @@ public:
       ArrayDesc.Format = HIP_AD_FORMAT_UNSIGNED_INT16;
       PixelTypeSizeBytes = 2;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
       ArrayDesc.Format = HIP_AD_FORMAT_SIGNED_INT16;
       PixelTypeSizeBytes = 2;
@@ -260,24 +254,10 @@ public:
   }
 
   // Will allocate a new array on device if not already allocated
-  hipArray *getArray(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return Arrays[Device->getIndex()];
-  }
+  hipArray *getArray(const ur_device_handle_t Device);
 
   // Will allocate a new surface on device if not already allocated
-  hipSurfaceObject_t getSurface(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return SurfObjs[Device->getIndex()];
-  }
+  hipSurfaceObject_t getSurface(const ur_device_handle_t Device);
 
   ur_mem_type_t getImageType() const noexcept { return ImageDesc.type; }
 
@@ -306,7 +286,7 @@ public:
 ///
 /// The ur_mem_handle_t is responsible for memory allocation and migration
 /// across devices in the same ur_context_handle_t. If a kernel writes to a
-/// ur_mem_handle_t then it will write to LastEventWritingToMemObj. Then all
+/// ur_mem_handle_t then it will write to LastQueueWritingToMemObj. Then all
 /// subsequent operations that want to read from the ur_mem_handle_t must wait
 /// on the event referring to the last write.
 ///
@@ -325,61 +305,7 @@ public:
 ///   2. urEnqueueMem(Buffer|Image)Read(Rect)
 ///
 /// Migrations will occur in both cases if the most recent version of data
-/// is on a different device, marked by LastEventWritingToMemObj->getDevice().
-///
-/// Example trace:
-/// ~~~~~~~~~~~~~~
-///
-/// =====> urContextCreate([device0, device1], ...) // associated with [q0, q1]
-///             -> OUT: hContext
-///
-/// =====> urMemBufferCreate(hContext,...);
-///             -> No native allocations made
-///             -> OUT: hBuffer
-///
-/// =====> urEnqueueMemBufferWrite(q0, hBuffer,...);
-///             -> Allocation made on q0 ie device0
-///             -> New allocation initialized with host data.
-///
-/// =====> urKernelSetArgMemObj(hKernel0, hBuffer, ...);
-///             -> ur_kernel_handle_t associated with a ur_program_handle_t,
-///                which is in turn unique to a device. So we can set the kernel
-///                arg with the ptr of the device specific allocation.
-///             -> hKernel0->getProgram()->getDevice() == device0
-///             -> allocateMemObjOnDeviceIfNeeded(device0);
-///                   -> Native allocation already made on device0, continue.
-///
-/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
-///             -> Suppose that hKernel0 writes to hBuffer.
-///             -> Call hBuffer->setLastEventWritingToMemObj with return event
-///                from this operation
-///             -> Enqueue native kernel launch
-///
-/// =====> urKernelSetArgMemObj(hKernel1, hBuffer, ...);
-///             -> hKernel1->getProgram()->getDevice() == device1
-///             -> New allocation will be made on device1 when calling
-///                getPtr(device1)
-///                   -> No native allocation on device1
-///                   -> Make native allocation on device1
-///
-/// =====> urEnqueueKernelLaunch(q1, hKernel1, ...);
-///             -> Suppose hKernel1 wants to read from hBuffer and not write.
-///             -> migrateMemoryToDeviceIfNeeded(device1);
-///                   -> hBuffer->LastEventWritingToMemObj is not nullptr
-///                   -> Check if memory has been migrated to device1 since the
-///                      last write
-///                        -> Hasn't been migrated
-///                   -> Wait on LastEventWritingToMemObj.
-///                   -> Migrate memory from device0's native allocation to
-///                      device1's native allocation.
-///             -> Enqueue native kernel launch
-///
-/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
-///             -> migrateMemoryToDeviceIfNeeded(device0);
-///                   -> hBuffer->LastEventWritingToMemObj refers to an event
-///                      from q0
-///                        -> Migration not necessary
-///             -> Enqueue native kernel launch
+/// is on a different device, marked by LastQueueWritingToMemObj->getDevice().
 ///
 struct ur_mem_handle_t_ {
 
@@ -403,15 +329,13 @@ struct ur_mem_handle_t_ {
   // Has the memory been migrated to a device since the last write?
   std::vector<bool> HaveMigratedToDeviceSinceLastWrite;
 
-  // We should wait on this event prior to migrating memory across allocations
-  // in this ur_mem_handle_t_
-  ur_event_handle_t LastEventWritingToMemObj{nullptr};
+  // Queue with most up to date data of ur_mem_handle_t_
+  ur_queue_handle_t LastQueueWritingToMemObj{nullptr};
 
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
 
   ur_mutex MemoryAllocationMutex; // A mutex for allocations
-  ur_mutex MemoryMigrationMutex;  // A mutex for memory transfers
 
   /// A UR Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
@@ -500,18 +424,18 @@ struct ur_mem_handle_t_ {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
-    assert(NewEvent && "Invalid event!");
-    // This entry point should only ever be called when using multi device ctx
-    assert(Context->Devices.size() > 1);
-    if (LastEventWritingToMemObj != nullptr) {
-      urEventRelease(LastEventWritingToMemObj);
+  void setLastQueueWritingToMemObj(ur_queue_handle_t WritingQueue) {
+    if (LastQueueWritingToMemObj != nullptr) {
+      urQueueRelease(LastQueueWritingToMemObj);
     }
-    urEventRetain(NewEvent);
-    LastEventWritingToMemObj = NewEvent;
+    urQueueRetain(WritingQueue);
+    LastQueueWritingToMemObj = WritingQueue;
     for (const auto &Device : Context->getDevices()) {
-      HaveMigratedToDeviceSinceLastWrite[Device->getIndex()] =
-          Device == NewEvent->getQueue()->getDevice();
+      HaveMigratedToDeviceSinceLastWrite[Context->getDeviceIndex(Device)] =
+          Device == WritingQueue->getDevice();
     }
   }
 };
+
+ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                          const ur_device_handle_t);

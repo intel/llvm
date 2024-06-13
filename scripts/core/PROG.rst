@@ -277,6 +277,39 @@ native handle to a driver handle. For example, OpenCL platform
 may expose an extension ${x}ProgramCreateWithNativeHandle to retrieve
 a cl_program.
 
+Memory
+======
+
+UR Mem Handles
+--------------
+
+A ${x}_mem_handle_t can represent an untyped memory buffer object, created by
+${x}MemBufferCreate, or a memory image object, created by ${x}MemImageCreate.
+A ${x}_mem_handle_t manages the internal allocation and deallocation of native
+memory objects across all devices in a ${x}_context_handle_t. A
+${x}_mem_handle_t may only be used by queues that share the same
+${x}_context_handle_t. 
+
+If multiple queues in the same ${x}_context_handle_t use the same
+${x}_mem_handle_t across dependent commands, a dependency must be defined by the
+user using the enqueue entry point's phEventWaitList parameter. Provided that
+dependencies are explicitly passed to UR entry points, a UR adapter will manage
+memory migration of native memory objects across all devices in a context, if
+memory migration is indeed necessary in the backend API.
+
+.. parsed-literal::
+
+    // Q1 and Q2 are both in hContext
+    ${x}_mem_handle_t hBuffer;
+    ${x}MemBufferCreate(hContext,,,,&hBuffer);
+    ${x}EnqueueMemBufferWrite(Q1, hBuffer,,,,,,, &outEv);
+    ${x}EnqueueMemBufferRead(Q2, hBuffer,,,,, 1, &outEv /*phEventWaitList*/, );
+
+As such, the buffer written to in ${x}EnqueueMemBufferWrite can be
+successfully read using ${x}EnqueueMemBufferRead from another queue in the same
+context, since the event associated with the write operation has been passed as
+a dependency to the read operation.
+
 Memory Pooling
 ----------------------------------
 

@@ -90,6 +90,9 @@ public:
     const bool RequiresTimings =
         Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
         Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+    if (RequiresTimings) {
+      Queue->createHostSubmitTimeStream();
+    }
     native_type EvEnd = nullptr, EvQueued = nullptr, EvStart = nullptr;
     UR_CHECK_ERROR(cuEventCreate(
         &EvEnd, RequiresTimings ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
