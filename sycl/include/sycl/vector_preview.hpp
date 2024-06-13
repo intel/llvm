@@ -601,6 +601,11 @@ private:
       return static_cast<RetType>(m_Data[Index]);
   }
 
+  // Required by swizzles whenworking with sycl::vec pointers.
+  constexpr void setValue(int Index, const DataT &Value) {
+      m_Data[Index] = Value;
+  }
+
   // fields
   // Alignment is the same as size, to a maximum size of 64. SPEC requires
   // "The elements of an instance of the SYCL vec class template are stored
@@ -1031,7 +1036,7 @@ public:
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      m_Vector[Idxs[I]] = Rhs.getValue(I);
+      m_Vector->setValue(Idxs[I], Rhs.getValue(I));
     }
     return *this;
   }
@@ -1039,7 +1044,7 @@ public:
   template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
-    m_Vector[Idxs[0]] = Rhs;
+    m_Vector->setValue(Idxs[0], Rhs);
     return *this;
   }
 
@@ -1048,7 +1053,7 @@ public:
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (auto Idx : Idxs) {
-      m_Vector[Idx] = Rhs;
+      m_Vector->setValue(Idx, Rhs);
     }
     return *this;
   }
@@ -1056,7 +1061,7 @@ public:
   template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
-    m_Vector[Idxs[0]] = Rhs;
+    m_Vector->setValue(Idxs[0], Rhs);
     return *this;
   }
 
@@ -1209,7 +1214,7 @@ public:
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      m_Vector[Idxs[I]] = Rhs.getValue(I);
+      m_Vector->setValue(Idxs[I], Rhs.getValue(I));
     }
     return *this;
   }
@@ -1436,7 +1441,7 @@ private:
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       DataT Res = Op(m_Vector->getValue(Idxs[I]), Rhs.getValue(I));
-      m_Vector[Idxs[I]] = Res;
+      m_Vector->setValue(Idxs[I], Res);
     }
   }
 
