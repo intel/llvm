@@ -178,12 +178,12 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
-/// Check selective passing of -exclude-external-functions to sycl-post-link tool
+/// Check selective passing of -support-dynamic-linking to sycl-post-link tool
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
-// CHECK_SYCL_POST_LINK_SHARED_PASS: sycl-post-link{{.*}}exclude-external-functions
+// CHECK_SYCL_POST_LINK_SHARED_PASS: sycl-post-link{{.*}}support-dynamic-linking
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_NO_PASS %s
-// CHECK_SYCL_POST_LINK_SHARED_NO_PASS-NOT: sycl-post-link{{.*}}exclude-external-functions
+// CHECK_SYCL_POST_LINK_SHARED_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
 
 /// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s

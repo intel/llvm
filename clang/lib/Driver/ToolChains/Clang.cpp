@@ -10700,6 +10700,9 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
+  if (TCArgs.hasArg(options::OPT_shared))
+    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+
   if (!NewOffloadDriver && !Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata

@@ -1,8 +1,8 @@
-; Test that when the -exclude-exernal-funtions option is used,
+; Test that when the -support-dynamic-linking option is used,
 ; dependencies to SYCL External functions do not cause the SYCL External function
 ; to be added to a device image.
 
-; RUN: sycl-post-link -symbols -exclude-external-functions -split=kernel -S < %s -o %t.table
+; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
 
 
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0
