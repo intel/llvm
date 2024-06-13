@@ -603,7 +603,7 @@ private:
 
   // Required by swizzles when working with sycl::vec pointers.
   constexpr void setValue(int Index, const DataT &Value) {
-      m_Data[Index] = Value;
+    m_Data[Index] = Value;
   }
 
   // fields
