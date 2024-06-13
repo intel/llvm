@@ -507,7 +507,6 @@ public:
 
   Value *VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E);
   Value *VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E);
-  Value *VisitEmbedExpr(EmbedExpr *E);
 
   Value *VisitOpaqueValueExpr(OpaqueValueExpr *E) {
     if (E->isGLValue())
@@ -1815,12 +1814,6 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   llvm::PointerType *NewPtrTy = llvm::PointerType::get(VMContext, ExprAS);
   return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
                                      "usid_addr_cast");
-}
-
-Value *ScalarExprEmitter::VisitEmbedExpr(EmbedExpr *E) {
-  assert(E->getDataElementCount() == 1);
-  auto It = E->begin();
-  return Builder.getInt((*It)->getValue());
 }
 
 Value *ScalarExprEmitter::VisitShuffleVectorExpr(ShuffleVectorExpr *E) {

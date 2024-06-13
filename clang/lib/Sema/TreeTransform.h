@@ -12991,11 +12991,6 @@ ExprResult TreeTransform<Derived>::TransformSourceLocExpr(SourceLocExpr *E) {
                                            getSema().CurContext);
 }
 
-template <typename Derived>
-ExprResult TreeTransform<Derived>::TransformEmbedExpr(EmbedExpr *E) {
-  return E;
-}
-
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCUDAKernelCallExpr(CUDAKernelCallExpr *E) {

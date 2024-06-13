@@ -5310,7 +5310,7 @@ public:
     enum ExpressionKind {
       EK_Decltype,
       EK_TemplateArgument,
-      EK_BoundsAttrArgument,
+      EK_AttrArgument,
       EK_Other
     } ExprContext;
 
@@ -5417,10 +5417,9 @@ public:
     return const_cast<Sema *>(this)->parentEvaluationContext();
   };
 
-  bool isBoundsAttrContext() const {
+  bool isAttrContext() const {
     return ExprEvalContexts.back().ExprContext ==
-           ExpressionEvaluationContextRecord::ExpressionKind::
-               EK_BoundsAttrArgument;
+           ExpressionEvaluationContextRecord::ExpressionKind::EK_AttrArgument;
   }
 
   /// Increment when we find a reference; decrement when we find an ignored
@@ -5896,10 +5895,6 @@ public:
   ExprResult ActOnSourceLocExpr(SourceLocIdentKind Kind,
                                 SourceLocation BuiltinLoc,
                                 SourceLocation RPLoc);
-
-  // #embed
-  ExprResult ActOnEmbedExpr(SourceLocation EmbedKeywordLoc,
-                            StringLiteral *Filename, StringLiteral *BinaryData);
 
   // Build a potentially resolved SourceLocExpr.
   ExprResult BuildSourceLocExpr(SourceLocIdentKind Kind, QualType ResultTy,
