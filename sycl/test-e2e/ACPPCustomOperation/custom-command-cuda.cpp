@@ -47,11 +47,6 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
                         Stream) != CUDA_SUCCESS) {
         throw;
       }
-
-      if (cuStreamSynchronize(Stream) != CUDA_SUCCESS) {
-        throw;
-      }
-
       if (Q.get_backend() != IH.get_backend())
         throw;
     };
