@@ -19,7 +19,6 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>         // for createSyclObjFr...
-#include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/device.hpp>                    // for device, get_native
 #include <sycl/event.hpp>                     // for event, get_native
 #include <sycl/exception.hpp>                 // for make_error_code

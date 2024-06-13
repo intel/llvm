@@ -13,7 +13,6 @@
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
-#include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
 #include <sycl/detail/string_view.hpp>
 #include <sycl/device.hpp>              // for device

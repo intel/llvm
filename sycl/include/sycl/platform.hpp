@@ -15,7 +15,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>

@@ -18,7 +18,6 @@
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
@@ -28,7 +27,6 @@
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-
 #include <ur_api.h>
 
 #include <cstddef>     // for size_t, nullptr_t
@@ -441,15 +439,16 @@ public:
 
     if (b.is_sub_buffer())
       throw sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.", PI_ERROR_INVALID_VALUE);
+          "Cannot create sub buffer from sub buffer.",
+          UR_RESULT_ERROR_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
       throw sycl::invalid_object_error(
           "Requested sub-buffer size exceeds the size of the parent buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
       throw sycl::invalid_object_error(
           "Requested sub-buffer region is not contiguous",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
   }
 
   buffer(const buffer &rhs,
@@ -537,7 +536,7 @@ public:
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
@@ -560,7 +559,7 @@ public:
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
@@ -659,7 +658,7 @@ public:
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -691,7 +690,7 @@ public:
       throw sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
           "the reinterpreted type",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
@@ -843,14 +842,14 @@ template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
     -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
-buffer(Container &,
-       const property_list & = {}) -> buffer<typename Container::value_type, 1>;
+buffer(Container &, const property_list & = {})
+    -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
        const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
-buffer(const T *, const range<dimensions> &,
-       const property_list & = {}) -> buffer<T, dimensions>;
+buffer(const T *, const range<dimensions> &, const property_list & = {})
+    -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace _V1

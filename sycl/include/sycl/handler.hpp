@@ -18,7 +18,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -49,6 +48,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <ur_api.h>
 
 #include <assert.h>
 #include <functional>
@@ -891,7 +891,7 @@ private:
     if (IsCallableWithKernelHandler && MIsHost) {
       throw sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
     }
 
     KernelType *KernelPtr =
@@ -1598,7 +1598,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void
+  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1616,8 +1617,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
-                                               kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void
+  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1635,7 +1636,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void
+  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1652,8 +1654,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
-                                                kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void
+  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -2789,7 +2791,7 @@ public:
     if (Dst.get_size() < Src.get_size())
       throw sycl::invalid_object_error(
           "The destination accessor size is too small to copy the memory into.",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     if (copyAccToAccHelper(Src, Dst))
       return;

@@ -20,7 +20,6 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
 #include <sycl/detail/type_list.hpp>                  // for is_contained

@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
 #include <ur_api.h>
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
@@ -56,8 +55,8 @@ enum class device_type : pi_uint32 {
   cpu = UR_DEVICE_TYPE_CPU,
   gpu = UR_DEVICE_TYPE_GPU,
   accelerator = UR_DEVICE_TYPE_FPGA,
-  // TODO: figure out if we need all the below in PI
-  // custom = PI_DEVICE_TYPE_CUSTOM,
+  // TODO: figure out if we need all the below in UR
+  // custom = UR_DEVICE_TYPE_CUSTOM,
   custom,
   automatic,
   host,
@@ -125,12 +124,12 @@ ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
 enum class local_mem_type : int { none, local, global };
 
 enum class fp_config : pi_device_fp_config {
-  denorm = PI_FP_DENORM,
-  inf_nan = PI_FP_INF_NAN,
-  round_to_nearest = PI_FP_ROUND_TO_NEAREST,
-  round_to_zero = PI_FP_ROUND_TO_ZERO,
-  round_to_inf = PI_FP_ROUND_TO_INF,
-  fma = PI_FP_FMA,
+  denorm = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM,
+  inf_nan = UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN,
+  round_to_nearest = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST,
+  round_to_zero = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO,
+  round_to_inf = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF,
+  fma = UR_DEVICE_FP_CAPABILITY_FLAG_FMA,
   correctly_rounded_divide_sqrt,
   soft_float
 };

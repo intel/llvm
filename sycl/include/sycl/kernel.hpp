@@ -16,7 +16,6 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>

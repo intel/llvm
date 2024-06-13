@@ -23,7 +23,6 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_mem_advice
 #include <sycl/device.hpp>                    // for device
 #include <sycl/device_selector.hpp>           // for device_selector
 #include <sycl/event.hpp>                     // for event

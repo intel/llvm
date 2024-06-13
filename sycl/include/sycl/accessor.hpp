@@ -22,7 +22,6 @@
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
 #include <sycl/detail/helpers.hpp>                    // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -38,6 +37,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 #include <sycl/sampler.hpp>                           // for addressing_mode
+#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_VALUE
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
@@ -1450,7 +1450,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1494,7 +1494,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1565,7 +1565,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1609,7 +1609,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1961,7 +1961,7 @@ private:
         AccessMode == access::mode::read) {
       throw sycl::invalid_object_error(
           "accessor would cannot be both read_only and no_init",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
     }
   }
 
@@ -2281,10 +2281,10 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
-        local_accessor_base(handler &, const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
+  local_accessor_base(
+      handler &, const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2316,12 +2316,11 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions,
-                  typename = std::enable_if_t<(Dims > 0)>>
-        local_accessor_base(range<Dimensions> AllocationSize, handler &,
-                            const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  local_accessor_base(
+      range<Dimensions> AllocationSize, handler &,
+      const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;

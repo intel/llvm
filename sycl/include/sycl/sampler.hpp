@@ -12,8 +12,8 @@
 #include <sycl/detail/defines.hpp>    // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
-#include <sycl/detail/pi.h>           // for PI_SAMPLER_ADDRESSING_MODE_CLAMP
 #include <sycl/property_list.hpp>     // for property_list
+#include <ur_api.h>
 
 #include <cstddef> // for size_t
 #include <memory>  // for shared_ptr, hash
@@ -22,16 +22,16 @@
 namespace sycl {
 inline namespace _V1 {
 enum class addressing_mode : unsigned int {
-  mirrored_repeat = PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
-  repeat = PI_SAMPLER_ADDRESSING_MODE_REPEAT,
-  clamp_to_edge = PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
-  clamp = PI_SAMPLER_ADDRESSING_MODE_CLAMP,
-  none = PI_SAMPLER_ADDRESSING_MODE_NONE
+  mirrored_repeat = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
+  repeat = UR_SAMPLER_ADDRESSING_MODE_REPEAT,
+  clamp_to_edge = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
+  clamp = UR_SAMPLER_ADDRESSING_MODE_CLAMP,
+  none = UR_SAMPLER_ADDRESSING_MODE_NONE
 };
 
 enum class filtering_mode : unsigned int {
-  nearest = PI_SAMPLER_FILTER_MODE_NEAREST,
-  linear = PI_SAMPLER_FILTER_MODE_LINEAR
+  nearest = UR_SAMPLER_FILTER_MODE_NEAREST,
+  linear = UR_SAMPLER_FILTER_MODE_LINEAR
 };
 
 enum class coordinate_normalization_mode : unsigned int {

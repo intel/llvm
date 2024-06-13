@@ -13,7 +13,6 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
