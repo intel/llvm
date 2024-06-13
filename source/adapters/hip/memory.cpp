@@ -150,7 +150,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     RetMemObj = URMemObj.release();
   } catch (ur_result_t Err) {
     Result = Err;
-  } catch (std::bad_alloc &Err) {
+  } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -213,9 +213,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   } catch (ur_result_t Err) {
     *phMem = nullptr;
     return Err;
-  } catch (...) {
+  } catch (std::bad_alloc &) {
     *phMem = nullptr;
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    *phMem = nullptr;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   ReleaseGuard.dismiss();
@@ -391,7 +394,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     *phMem = URMemObj.release();
   } catch (ur_result_t Err) {
     return Err;
-  } catch (std::bad_alloc &Err) {
+  } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;

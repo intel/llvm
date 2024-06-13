@@ -50,8 +50,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     RetErr = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return RetErr;
 }
