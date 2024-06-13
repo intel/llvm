@@ -48,6 +48,7 @@ struct ur_loader_config_handle_t_ {
     std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
 
     codeloc_data codelocData;
+    bool enableMock;
 };
 
 namespace ur_lib {
@@ -104,6 +105,9 @@ ur_result_t
 urLoaderConfigSetCodeLocationCallback(ur_loader_config_handle_t hLoaderConfig,
                                       ur_code_location_callback_t pfnCodeloc,
                                       void *pUserData);
+ur_result_t
+urLoaderConfigSetMockingEnabled(ur_loader_config_handle_t hLoaderConfig,
+                                ur_bool_t enable);
 
 ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 ur_device_type_t DeviceType,

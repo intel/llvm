@@ -1,4 +1,3 @@
-#
 # Copyright (C) 2022-2023 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -52,7 +51,7 @@ details:
 params:
     - type: $x_loader_config_handle_t
       name: hLoaderConfig
-      desc: "[in] loader config handle to retain"
+      desc: "[in][retain] loader config handle to retain"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Release config handle."
@@ -186,6 +185,31 @@ params:
     - type: void*
       name: pUserData
       desc: "[in][out][optional] pointer to data to be passed to callback."
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Callback to replace or instrument generic mock functionality in the mock adapter."
+name: $x_mock_callback_t
+return: $x_result_t
+params:
+    - type: void*
+      name: pParams
+      desc: "[in][out] Pointer to the appropriate param struct for the function"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "The only adapter reported with mock enabled will be the mock adapter."
+details:
+    - "The mock adapter will default to returning $X_RESULT_SUCCESS for all entry points. It will also create and correctly reference count dummy handles where appropriate. Its behaviour can be modified by linking the $x_mock_headers library and using the callbacks object."
+class: $xLoaderConfig
+loader_only: True
+name: "SetMockingEnabled"
+decl: static
+params:
+    - type: $x_loader_config_handle_t
+      name: hLoaderConfig
+      desc: "[in] Handle to config object mocking will be enabled for."
+    - type: $x_bool_t
+      name: enable
+      desc: "[in] Handle to config object the layer will be enabled for."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Initialize the $OneApi loader"

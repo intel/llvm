@@ -122,6 +122,9 @@ class AdapterRegistry {
         MAKE_LIBRARY_NAME("ur_adapter_native_cpu", "0"),
     };
 
+    static constexpr const char *mockAdapterName =
+        MAKE_LIBRARY_NAME("ur_adapter_mock", "0");
+
     std::optional<std::vector<fs::path>> getEnvAdapterSearchPaths() {
         std::optional<std::vector<std::string>> pathStringsOpt;
         try {
@@ -178,6 +181,21 @@ class AdapterRegistry {
 
             adaptersLoadPaths.emplace_back(loadPaths);
         }
+    }
+
+  public:
+    void enableMock() {
+        adaptersLoadPaths.clear();
+
+        std::vector<fs::path> loadPaths;
+        auto adapterNamePathOpt = getAdapterNameAsPath(mockAdapterName);
+        auto loaderLibPathOpt = getLoaderLibPath();
+        if (adapterNamePathOpt.has_value() && loaderLibPathOpt.has_value()) {
+            const auto &adapterNamePath = adapterNamePathOpt.value();
+            const auto &loaderLibPath = loaderLibPathOpt.value();
+            loadPaths.emplace_back(loaderLibPath / adapterNamePath);
+        }
+        adaptersLoadPaths.emplace_back(loadPaths);
     }
 };
 

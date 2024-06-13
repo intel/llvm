@@ -21,7 +21,7 @@ function(set_validation_test_properties name)
     set_tests_properties(${name} PROPERTIES LABELS "validation")
     set_property(TEST ${name} PROPERTY ENVIRONMENT
         "UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION"
-        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
+        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\""
         "UR_LOG_VALIDATION=level:debug\;flush:debug\;output:stdout")
 endfunction()
 

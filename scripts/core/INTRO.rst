@@ -256,6 +256,37 @@ Currently, UR looks for these adapter libraries:
 
 For more information about the usage of mentioned environment variables see `Environment Variables`_ section.
 
+Mocking
+---------------------
+A mock UR adapter can be accessed for test purposes by enabling the ``MOCK``
+layer as described below. When the mock layer is enabled, calls to the API will
+still be intercepted by other layers (e.g. validation, tracing), but they will
+stop short of the loader - the call chain will end in either a generic fallback
+behavior defined by the mock layer itself, or a user defined replacement
+callback.
+
+The default fallback behavior for entry points in the mock layer is to simply
+return ``UR_RESULT_SUCCESS``. For entry points concerning handles, i.e. those
+that create a new handle or modify the reference count of an existing one, a
+dummy handle mechanism is used. This means the layer will return generic
+handles that track a reference count, and ``Retain``/``Release`` entry points will
+function as expected when used with these handles.
+
+During global setup the behavior of the mock layer can be customized by setting
+chain of structs, with each registering a callback with a given entry point in
+the API. Callbacks can be registered to be called ``BEFORE`` or ``AFTER`` the
+generic implementation, or they can be registered to entirely ``REPLACE`` it. A
+given entry point can only have one of each kind of callback associated with
+it, multiple structs with the same function/mode combination will override
+eachother.
+
+The callback signature defined by ``${x}_mock_callback_t`` takes a single
+``void *`` parameter. When calling a user callback the layer will pack the
+entry point's parameters into the appropriate ``_params_t`` struct (e.g.
+``ur_adapter_get_params_t``) and pass a pointer to that struct into the
+callback. This allows parameters to be accessed and modified. The definitions
+for these parameter structs can be found in the main API header.
+
 Layers
 ---------------------
 UR comes with a mechanism that allows various API intercept layers to be enabled, either through the API or with an environment variable (see `Environment Variables`_).
@@ -278,6 +309,8 @@ Layers currently included with the runtime are as follows:
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
    * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN
      - Enables the device-side sanitizer layer, see Sanitizers_ for more detail.
+   * - UR_LAYER_MOCK
+     - Enables adapter mocking for test purposes. Similar behavior to the null adapter except entry points can be overridden or instrumented with callbacks. See Mocking_ for more detail.
 
 Environment Variables
 ---------------------
