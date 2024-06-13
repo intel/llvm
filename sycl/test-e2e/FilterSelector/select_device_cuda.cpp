@@ -8,7 +8,6 @@
 //
 // REQUIRES: cuda,gpu
 
-#include "sycl/device_selector.hpp"
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
