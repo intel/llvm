@@ -1249,7 +1249,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             // right most entry.
             for (int i = TargetArgs.size() - 2; i >= 0; --i) {
               if (StringRef(TargetArgs[i]) == "-device") {
-                Arch = TargetArgs[i+1];
+                Arch = TargetArgs[i + 1];
                 break;
               }
             }
