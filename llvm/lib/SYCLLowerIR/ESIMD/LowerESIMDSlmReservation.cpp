@@ -67,6 +67,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 
 #include <set>
 #include <unordered_map>
@@ -81,11 +82,19 @@ namespace {
 constexpr int DebugLevel = 0;
 #endif
 
+bool isGenXSLMInit(const Function &F) {
+  constexpr char SLM_INIT_PREFIX[] = "llvm.genx.slm.init";
+  return F.getName().starts_with(SLM_INIT_PREFIX);
+}
+
 bool isSlmInitCall(const CallInst *CI) {
   if (!CI)
     return false;
   Function *F = CI->getCalledFunction();
-  return F && esimd::isSlmInit(*F);
+  if (!F)
+    return false;
+  assert(!esimd::isSlmInit(*F) && "Should have been translated already");
+  return isGenXSLMInit(*F);
 }
 
 bool isSlmAllocCall(const CallInst *CI) {
@@ -543,7 +552,8 @@ TraversalResult findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
   return Res;
 }
 
-size_t lowerSLMReservationCalls(Module &M) {
+PreservedAnalyses
+ESIMDLowerSLMReservationCalls::run(Module &M, ModuleAnalysisManager &MAM) {
   // Create a detailed "scoped" call graph. Scope start/end is marked with
   // x = __esimd_slm_alloc / __esimd_slm_free(x)
   //
@@ -567,7 +577,7 @@ size_t lowerSLMReservationCalls(Module &M) {
 #endif
   if (SCG.getNumSLMScopes() == 0) {
     // Early bail out if nothing to analyze.
-    return 0;
+    return PreservedAnalyses::none();
   }
   // Use the detailed call graph nodes to calculate maximum possible SLM usage
   // at any "scope start" node, and record this info in the result map.
@@ -669,7 +679,8 @@ size_t lowerSLMReservationCalls(Module &M) {
 #endif
   }
   // Return the number of API calls transformed.
-  return SLMAllocCallCnt;
+  return SLMAllocCallCnt == 0 ? PreservedAnalyses::none()
+                              : PreservedAnalyses::all();
 }
 
 } // namespace llvm

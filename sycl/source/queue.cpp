@@ -207,30 +207,14 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 
 static event
 getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
-  // The last command recorded in the graph is not tracked by the queue but by
-  // the graph itself. We must therefore search for the last node/event in the
+  // This function should not be called when a queue is recording to a graph,
+  // as a graph can record from multiple queues and we cannot guarantee the
+  // last node added by an in-order queue will be the last node added to the
   // graph.
-  if (auto Graph = QueueImpl->getCommandGraph()) {
-    auto LastEvent =
-        Graph->getEventForNode(Graph->getLastInorderNode(QueueImpl));
-    return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
-  }
-  auto LastEvent = QueueImpl->getLastEvent();
-  if (QueueImpl->MDiscardEvents) {
-    std::cout << "Discard event enabled" << std::endl;
-    return LastEvent;
-  }
+  assert(!QueueImpl->getCommandGraph() &&
+         "Should not be called in on graph recording.");
 
-  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
-  // If last event is default constructed event then we want to associate it
-  // with the queue and record submission time if profiling is enabled. Such
-  // event corresponds to NOP and its submit time is same as start time and
-  // end time.
-  if (!LastEventImpl->isContextInitialized()) {
-    LastEventImpl->associateWithQueue(QueueImpl);
-    LastEventImpl->setSubmissionTime();
-  }
-  return detail::createSyclObjFromImpl<event>(LastEventImpl);
+  return QueueImpl->getLastEvent();
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -241,7 +225,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order())
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -260,10 +244,11 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        return !detail::getSyclObjImpl(Event)->isContextInitialized() ||
-               detail::getSyclObjImpl(Event)->isNOP();
+        auto EventImpl = detail::getSyclObjImpl(Event);
+        return !EventImpl->isContextInitialized() || EventImpl->isNOP();
       });
-  if (is_in_order() && AllEventsEmptyOrNop)
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled &&
+      AllEventsEmptyOrNop)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
@@ -280,6 +265,20 @@ queue::get_info() const {
   template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
 
 #include <sycl/info/queue_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+queue::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  queue::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -310,15 +309,11 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
+void queue::ext_oneapi_prod() { impl->flush(); }
+
 pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
-  return impl->getAssertHappenedBuffer();
-}
-#endif
 
 event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   bool IsDeviceImageScope, size_t NumBytes,

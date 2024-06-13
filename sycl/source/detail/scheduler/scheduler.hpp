@@ -396,7 +396,12 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(const EventImplPtr &Event);
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+
+  void waitForEvent(const EventImplPtr &Event, bool *Success = nullptr);
 
   /// Removes buffer from the graph.
   ///
@@ -485,6 +490,13 @@ public:
           Nodes,
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
+
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                  ContextImplPtr Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
+                                  ContextImplPtr Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -637,8 +649,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          const Requirement *Req,
-                                          std::vector<Command *> &ToEnqueue);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -886,13 +897,17 @@ protected:
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param LockTheLock selects if graph lock should be locked upon return
+    /// \param Success is an optional parameter that, when set to a non-null
+    ///        pointer, indicates that failure is a valid outcome for this wait
+    ///        (e.g., in case of a non-blocking read from a pipe), and the value
+    ///        it's pointing to is then set according to the outcome.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
     static void waitForEvent(const EventImplPtr &Event,
                              ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
-                             bool LockTheLock = true);
+                             bool LockTheLock = true, bool *Success = nullptr);
 
     /// Enqueues the command and all its dependencies.
     ///

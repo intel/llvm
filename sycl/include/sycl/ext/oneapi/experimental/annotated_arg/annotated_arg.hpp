@@ -13,6 +13,7 @@
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
 #include <cstddef>
 #include <type_traits>
@@ -113,7 +114,7 @@ public:
   annotated_arg &operator=(annotated_arg &) = default;
 
   annotated_arg(T *_ptr,
-                const property_list_t &PropList = properties{}) noexcept
+                const property_list_t &PropList = property_list_t{}) noexcept
       : obj(_ptr) {
     (void)PropList;
   }
@@ -249,7 +250,7 @@ public:
   annotated_arg &operator=(annotated_arg &) = default;
 
   annotated_arg(const T &_obj,
-                const property_list_t &PropList = properties{}) noexcept
+                const property_list_t &PropList = property_list_t{}) noexcept
       : obj(_obj) {
     (void)PropList;
   }

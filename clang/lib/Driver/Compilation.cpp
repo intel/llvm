@@ -99,7 +99,7 @@ static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D,
               OffloadArgList->MakeArgStringRef(XarchVecs[Index]));
       }
     } else
-      XarchValueRefs.push_back(StringRef(XarchV));
+      XarchValueRefs.push_back(OffloadArgList->MakeArgString(XarchV));
   }
 
   if (NeedHandle) {
@@ -198,7 +198,7 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
       // when the nvptx*-nvidia-cuda is passed to -fsycl-targets.
       if (DefaultToolChain.getTriple().isNVPTX())
         return false;
-      if (llvm::sys::path::extension(ActualFile).equals(".spv"))
+      if (llvm::sys::path::extension(ActualFile) == ".spv")
         return false;
     }
   }

@@ -4,7 +4,7 @@
 
 // REQUIRES: x86-registered-target
 
-/// Test behaviors of -foffload-static-lib=<lib> with single object.
+/// Test behaviors of using a static library with single object.
 // Build the offload library that is used for the tests.
 // RUN: echo "void foo() {}" > %t.c
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -c -Fo%t-orig.obj %t.c
@@ -41,7 +41,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors of -foffload-static-lib=<lib> with multiple objects.
+/// Test behaviors of using a static library with multiple objects.
 // RUN: touch %t-orig.lib
 // RUN: touch %t-1.obj
 // RUN: touch %t-2.obj
@@ -60,7 +60,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors with multiple -foffload-static-lib=<lib> options.
+/// Test behaviors with multiple static libraries.
 // RUN: cp %t-orig.lib %t1.lib
 // RUN: cp %t-orig.lib %t2.lib
 // RUN: touch %t-orig.obj
@@ -78,7 +78,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors of -foffload-static-lib=<lib> from source.
+/// Test behaviors of using static libraries from source.
 // RUN: touch %t-orig.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
@@ -113,8 +113,6 @@
 
 // RUN: touch %t-orig.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t-orig.lib %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"

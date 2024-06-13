@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -o %t.out
+// Add "-options -vc-codegen" explicitly to workaround bug in dev igc package.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -Xs "-options -vc-codegen" -o %t.out
 // RUN: %t.out
 // TODO: remove XFAIL when the fix in GPU RT for Windows is updated on CI
 // machines
@@ -13,10 +14,11 @@
 // This is basic test to test hardware dispatch functionality with ESIMD.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 #include <vector>
 
 using shared_allocator = sycl::usm_allocator<int32_t, sycl::usm::alloc::shared>;

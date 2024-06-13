@@ -89,21 +89,22 @@ public:
     }
   }
 
-  SPIRVWord getRequiredSPIRVVersion() const override {
+  VersionNumber getRequiredSPIRVVersion() const override {
     switch (Dec) {
     case DecorationSpecId:
       if (getModule()->hasCapability(CapabilityKernel))
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+        return VersionNumber::SPIRV_1_1;
       else
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+        return VersionNumber::SPIRV_1_0;
 
     case DecorationMaxByteOffset:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+      return VersionNumber::SPIRV_1_1;
     case DecorationUserSemantic:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4);
+    case DecorationCounterBuffer:
+      return VersionNumber::SPIRV_1_4;
 
     default:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+      return VersionNumber::SPIRV_1_0;
     }
   }
 

@@ -43,3 +43,5 @@ void instantiate_all_types(Functor &&f) {
 using value_type_list =
     std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
                long long, unsigned long long, float, double, sycl::half>;
+
+using fp_type_list = std::tuple<float, double, sycl::half>;

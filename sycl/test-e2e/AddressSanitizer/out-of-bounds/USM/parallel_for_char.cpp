@@ -1,12 +1,14 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
+// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
 
 #include <sycl/detail/core.hpp>
 
@@ -19,12 +21,8 @@ int main() {
   auto *array = sycl::malloc_host<char>(N, Q);
 #elif defined(MALLOC_SHARED)
   auto *array = sycl::malloc_shared<char>(N, Q);
-#elif defined(MALLOC_DEVICE)
+#else // defined(MALLOC_DEVICE)
   auto *array = sycl::malloc_device<char>(N, Q);
-#elif defined(MALLOC_SYSTEM)
-  auto *array = new char[N];
-#else
-#error "Must provide malloc type to run the test"
 #endif
 
   Q.submit([&](sycl::handler &h) {
@@ -39,5 +37,6 @@ int main() {
   // CHECK: {{READ of size 1 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(12345, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_char.cpp:}}[[@LINE-7]]
 
+  sycl::free(array, Q);
   return 0;
 }

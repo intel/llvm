@@ -234,7 +234,9 @@ yet been implemented.
 
 ### Design Challenges
 
-Graph update faces significant design challenges in SYCL:
+#### Explicit Update
+
+Explicit updates of individual nodes faces significant design challenges in SYCL:
 
 * Lambda capture order is explicitly undefined in C++, so the user cannot reason
   about the indices of arguments captured by kernel lambdas.
@@ -256,9 +258,18 @@ can be used:
   extension](../extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc)
 * OpenCL interop kernels created from SPIR-V source at runtime.
 
-A possible future workaround lambda capture issues could be "Whole-Graph Update"
-where if we can guarantee that lambda capture order is the same across two
-different recordings we can then match parameter order when updating.
+A workaround for the lambda capture issues is the "Whole-Graph Update" feature.
+Since the lambda capture order is the same across two different recordings, we
+can match the parameter order when updating.
+
+#### Whole-Graph Update
+
+The current implementation of the whole-graph update feature relies on the
+assumption that both graphs should have a similar topology. Currently, the
+implementation only checks that both graphs have an identical number of nodes
+and that each node contains the same number of edges. Further investigation
+should be done to see if it is possible to add extra checks (e.g. check that the
+nodes and edges were added in the same order).
 
 ### Scheduler Integration
 
@@ -270,6 +281,28 @@ yet have been lazily initialized on device we schedule a new command which has
 requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
+
+## Optimizations
+### Interactions with Profiling
+
+Enabling profiling on a graph may disable optimizations from being performed on
+the graph if they are incompatible with profiling. For example, enabling
+profiling prevents the in-order optimization since the removal of events would
+prevent collecting profiling information.
+
+### In-Order Graph Partitions
+
+On finalization graph partitions are checked to see if they are in-order, i.e.
+the graph follows a single path where each node depends on the previous node. If
+so a hint is provided to the backend that it may create the command-buffers in
+an in-order fashion. Support for this is backend specific but it may provide
+benefits through the removal of the need for synchronization primitives between
+kernels.
+
+This optimization is only performed in this very limited case where it can be
+safely assumed to be more performant. It is not likely we'll try to allow
+in-order execution in more scenarios through a complicated (and imperfect)
+heuristic but rather expose this as a hint the user can provide.
 
 ## Backend Implementation
 
@@ -526,9 +559,18 @@ adapter where there is matching support for each function in the list.
 |  | clGetCommandBufferInfoKHR | No |
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
+| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Yes[1] |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
+
+[1] Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
+configuration of kernel commands requires an OpenCL implementation with the
+[cl_khr_command_buffer_mutable_dispatch](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer_mutable_dispatch)
+extension. The optional capabilities that are reported by this extension must
+include all of of `CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR`,
+`CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR`, `CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR`,
+`CL_MUTABLE_DISPATCH_ARGUMENTS_KHR`, and `CL_MUTABLE_DISPATCH_EXEC_INFO_KHR`.
 
 #### UR Command-Buffer Implementation
 

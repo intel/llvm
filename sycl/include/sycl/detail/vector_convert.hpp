@@ -55,11 +55,9 @@
 #pragma once
 
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
+#include <sycl/exception.hpp>                  // for errc
 
 #ifndef __SYCL_DEVICE_ONLY__
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/builtins_legacy_scalar.hpp> // for ceil, floor, rint, trunc
-#endif
 #include <cfenv> // for fesetround, fegetround
 #endif
 
@@ -70,7 +68,6 @@ namespace sycl {
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifndef __SYCL_DEVICE_ONLY__
 // TODO: Refactor includes so we can just "#include".
 inline float ceil(float);
@@ -81,7 +78,6 @@ inline float rint(float);
 inline double rint(double);
 inline float trunc(float);
 inline double trunc(double);
-#endif
 #endif
 namespace detail {
 
@@ -561,6 +557,15 @@ NativeToT convertImpl(NativeFromT Value) {
     return static_cast<NativeToT>(Value);
   }
 }
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename FromT, typename ToT, sycl::rounding_mode RoundingMode,
+          int VecSize, typename NativeFromT, typename NativeToT>
+auto ConvertImpl(std::byte val) {
+  return convertImpl<FromT, ToT, RoundingMode, VecSize, NativeFromT, NativeToT>(
+      (std::int8_t)val);
+}
+#endif
 
 } // namespace detail
 } // namespace _V1

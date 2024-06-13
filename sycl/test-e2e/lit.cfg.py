@@ -5,9 +5,8 @@ import platform
 import copy
 import re
 import subprocess
-import tempfile
 import textwrap
-from distutils.spawn import find_executable
+import shutil
 
 import lit.formats
 import lit.util
@@ -377,6 +376,11 @@ else:
     )
     config.substitutions.append(("%shared_lib", "-shared"))
 
+# Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
+if "verbose-print" in lit_config.params:
+    config.substitutions.append(("%verbose_print", "-DVERBOSE_PRINT"))
+else:
+    config.substitutions.append(("%verbose_print", ""))
 
 config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
 config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
@@ -418,6 +422,8 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
+        if "Intel(R) Data Center GPU Max 1100" in line:
+            config.available_features.add("gpu-intel-pvc-1T")
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
@@ -458,10 +464,69 @@ if config.hip_platform not in supported_hip_platforms:
     )
 
 if "cuda:gpu" in config.sycl_devices:
+    if "CUDA_PATH" not in os.environ:
+        if platform.system() == "Windows":
+            cuda_root = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
+            cuda_versions = []
+            if os.path.exists(cuda_root):
+                for entry in os.listdir(cuda_root):
+                    if os.path.isdir(
+                        os.path.join(cuda_root, entry)
+                    ) and entry.startswith("v"):
+                        version = entry[1:]  # Remove the leading 'v'
+                        if re.match(
+                            r"^\d+\.\d+$", version
+                        ):  # Match version pattern like 12.3
+                            cuda_versions.append(version)
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"v{latest_cuda_version}"
+                )
+        else:
+            cuda_root = "/usr/local"
+            cuda_versions = []
+            if os.path.exists(cuda_root):
+                for entry in os.listdir(cuda_root):
+                    if os.path.isdir(
+                        os.path.join(cuda_root, entry)
+                    ) and entry.startswith("cuda-"):
+                        version = entry.split("-")[1]
+                        if re.match(
+                            r"^\d+\.\d+$", version
+                        ):  # Match version pattern like 12.3
+                            cuda_versions.append(version)
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"cuda-{latest_cuda_version}"
+                )
+
+    if "CUDA_PATH" not in os.environ:
+        lit_config.error("Cannot run tests for CUDA without valid CUDA_PATH.")
+
     llvm_config.with_system_environment("CUDA_PATH")
+    if platform.system() == "Windows":
+        config.cuda_libs_dir = (
+            '"' + os.path.join(os.environ["CUDA_PATH"], r"lib\x64") + '"'
+        )
+        config.cuda_include = (
+            '"' + os.path.join(os.environ["CUDA_PATH"], "include") + '"'
+        )
+    else:
+        config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
+        config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    if not config.amd_arch:
+        lit_config.error(
+            "Cannot run tests for HIP without an offload-arch. Please "
+            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
+            + "variable."
+        )
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
     arch_flag = (
@@ -509,10 +574,11 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.available_features.add("xptifw")
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
+        xptifw_lib_name = os.path.normpath(os.path.join(xptifw_lib_dir, "xptifw.lib"))
         config.substitutions.append(
             (
                 "%xptifw_lib",
-                " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes),
+                " {} /I{} ".format(xptifw_lib_name, xptifw_includes),
             )
         )
     else:
@@ -552,7 +618,7 @@ for tool in feature_tools:
     else:
         lit_config.warning("Can't find " + tool.key)
 
-if find_executable("cmc"):
+if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
 
 # Device AOT compilation tools aren't part of the SYCL project,
@@ -560,7 +626,7 @@ if find_executable("cmc"):
 aot_tools = ["ocloc", "opencl-aot"]
 
 for aot_tool in aot_tools:
-    if find_executable(aot_tool) is not None:
+    if shutil.which(aot_tool) is not None:
         lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
         config.available_features.add(aot_tool)
     else:
@@ -696,7 +762,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
-)

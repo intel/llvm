@@ -19,19 +19,8 @@ inline namespace _V1 {
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-exception::exception(std::error_code EC, const std::string &Msg)
-    : exception(EC, nullptr, Msg) {}
-#endif
-
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-exception::exception(int EV, const std::error_category &ECat,
-                     const std::string &WhatArg)
-    : exception({EV, ECat}, nullptr, WhatArg) {}
-#endif
 
 exception::exception(int EV, const std::error_category &ECat,
                      const char *WhatArg)
@@ -40,6 +29,7 @@ exception::exception(int EV, const std::error_category &ECat,
 exception::exception(int EV, const std::error_category &ECat)
     : exception({EV, ECat}, nullptr, "") {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(context Ctx, std::error_code EC,
                      const std::string &WhatArg)
     : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
@@ -60,23 +50,19 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat,
 
 exception::exception(context Ctx, int EV, const std::error_category &ECat)
     : exception(Ctx, EV, ECat, "") {}
+#endif
 
 // protected base constructor for all SYCL 2020 constructors
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
-    : MMsg(std::make_shared<std::string>(WhatArg)),
-      MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
-  detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
-}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    : MMsg(std::make_shared<detail::string>(WhatArg)),
 #else
-exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
-                     const std::string &WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
+#endif
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
-#endif
 
 exception::~exception() {}
 
@@ -107,6 +93,25 @@ const std::error_category &sycl_category() noexcept {
 std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
+
+namespace detail {
+const char *stringifyErrorCode(pi_int32 error) {
+  switch (error) {
+#define _PI_ERRC(NAME, VAL)                                                    \
+  case NAME:                                                                   \
+    return #NAME;
+#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
+  case NAME:                                                                   \
+    return MSG;
+#include <sycl/detail/pi_error.def>
+#undef _PI_ERRC
+#undef _PI_ERRC_WITH_MSG
+
+  default:
+    return "Unknown error code";
+  }
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

@@ -32,11 +32,12 @@ void enqueueKernel_1_fromFile1(queue *Q) {
 
     CGH.parallel_for<class Kernel_1>(
         sycl::nd_range(Buf.get_range(), sycl::range<1>(4)),
-        [=](sycl::id<1> wiID) {
+        [=](sycl::nd_item<1> ndi) {
+          auto gid = ndi.get_global_id(0);
           int X = 0;
-          if (wiID == 5)
+          if (gid == 5)
             X = checkFunction();
-          Acc[wiID] = X;
+          Acc[gid] = X;
         });
   });
 }

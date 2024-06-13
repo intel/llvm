@@ -157,9 +157,28 @@
 // 15.46 Add piextGetGlobalVariablePointer
 // 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
 // 15.48 Add CommandBuffer update definitions
+// 15.49 Added cubemap support:
+//        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
+//        - Added cubemap sampling capabilities
+//          - _pi_sampler_cubemap_filter_mode
+//          - PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE
+//        - Added device queries for cubemap support
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
+// 15.50 Added device queries for sampled image fetch support
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
+// 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
+// 15.52 Added piEnqueueTimestampRecordingExp and
+//       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 48
+#define _PI_H_VERSION_MINOR 52
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -422,7 +441,12 @@ typedef enum {
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
   PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT = 0x2000A,
-
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000B,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000C,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000D,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000E,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000F,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_SUB_GROUP_LEVEL = 0x20010,
   // Bindless images, mipmaps, interop
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x20101,
@@ -450,6 +474,21 @@ typedef enum {
   // Command Buffers
   PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT = 0x20113,
   PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT = 0x20114,
+
+  // Bindless images cubemaps
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20115,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20116,
+
+  // Bindless images sampled image fetch
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM = 0x20117,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D = 0x20118,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM = 0x20119,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D = 0x2011A,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM = 0x2011B,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D = 0x2011C,
+
+  // Timestamp enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
 } _pi_device_info;
 
 typedef enum {
@@ -580,7 +619,8 @@ typedef enum {
   PI_MEM_TYPE_IMAGE2D_ARRAY = 0x10F3,
   PI_MEM_TYPE_IMAGE1D = 0x10F4,
   PI_MEM_TYPE_IMAGE1D_ARRAY = 0x10F5,
-  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6
+  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6,
+  PI_MEM_TYPE_IMAGE_CUBEMAP = 0x10F7,
 } _pi_mem_type;
 
 typedef enum {
@@ -695,6 +735,11 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR = 0x1141,
 } _pi_sampler_filter_mode;
 
+typedef enum {
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED = 0x1142,
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 0x1143,
+} _pi_sampler_cubemap_filter_mode;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -709,6 +754,8 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS =
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE = 0x1153;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE = 0x1154;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE = 0x1155;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE =
+    0x1156;
 
 using pi_memory_order_capabilities = pi_bitfield;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
@@ -817,6 +864,7 @@ using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
 using pi_sampler_addressing_mode = _pi_sampler_addressing_mode;
 using pi_sampler_filter_mode = _pi_sampler_filter_mode;
+using pi_sampler_cubemap_filter_mode = _pi_sampler_cubemap_filter_mode;
 using pi_sampler_info = _pi_sampler_info;
 using pi_event_status = _pi_event_status;
 using pi_program_build_info = _pi_program_build_info;
@@ -957,8 +1005,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
-#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
-  "pi_ext_intel_devicelib_assert"
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -1732,6 +1779,10 @@ __SYCL_EXPORT pi_result piEventRetain(pi_event event);
 
 __SYCL_EXPORT pi_result piEventRelease(pi_event event);
 
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue queue, pi_bool blocking, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
 /// Gets the native handle of a PI event object.
 ///
 /// \param event is the PI event to get the native handle of.
@@ -2338,6 +2389,8 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
+  pi_bool is_in_order;
+  pi_bool enable_profiling;
   pi_bool is_updatable;
 };
 
@@ -2738,7 +2791,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2754,7 +2807,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///

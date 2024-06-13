@@ -60,13 +60,31 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -82,13 +100,50 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ff276ab1cd584557f8ed4d176109057684a5f4ca
-  # Merge: ed949ecd 2968cc14
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Mar 27 11:28:34 2024 +0000
-  #     Merge pull request #1363 from hdelan/refactor-device-initialization
-  #     [CUDA] Refactor device initialization
-  set(UNIFIED_RUNTIME_TAG ff276ab1cd584557f8ed4d176109057684a5f4ca)
+  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
+  # Merge: 8788bd13 61b42a3e
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jun 12 13:21:32 2024 +0100
+  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
+  #     [HIP][CUDA] Several changes to kernel launch
+  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    # Merge: abe85cc9 3e011c70
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Jun 13 10:22:34 2024 +0100
+    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
+    #     [HIP] Enable more ordering and scope capabilities for atomic fences
+    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

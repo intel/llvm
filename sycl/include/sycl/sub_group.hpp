@@ -18,7 +18,6 @@
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
-#include <sycl/types.hpp>                      // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
@@ -33,7 +32,7 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-
+template <typename Type, int NumElements> class vec;
 namespace detail {
 
 namespace sub_group {
@@ -132,12 +131,9 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 } // namespace detail
 
 struct sub_group;
-namespace ext::oneapi {
-inline sycl::sub_group this_sub_group();
-namespace experimental {
-inline sycl::sub_group this_sub_group();
-} // namespace experimental
-} // namespace ext::oneapi
+namespace ext::oneapi::this_work_item {
+inline sycl::sub_group get_sub_group();
+} // namespace ext::oneapi::this_work_item
 
 struct sub_group {
 
@@ -615,7 +611,9 @@ struct sub_group {
   }
 
   /* --- synchronization functions --- */
-  __SYCL_DEPRECATED("Sub-group barrier with no arguments is deprecated.")
+  __SYCL_DEPRECATED(
+      "Sub-group barrier with no arguments is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
@@ -630,8 +628,9 @@ struct sub_group {
 #endif
   }
 
-  __SYCL_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
-                    "Use barrier() without a fence_space instead.")
+  __SYCL_DEPRECATED(
+      "Sub-group barrier accepting fence_space is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
@@ -815,33 +814,8 @@ struct sub_group {
 
 protected:
   template <int dimensions> friend class sycl::nd_item;
-  friend sub_group ext::oneapi::this_sub_group();
-  friend sub_group ext::oneapi::experimental::this_sub_group();
+  friend sub_group ext::oneapi::this_work_item::get_sub_group();
   sub_group() = default;
 };
-
-namespace ext::oneapi {
-__SYCL_DEPRECATED(
-    "use sycl::ext::oneapi::experimental::this_sub_group() instead")
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host.");
-#endif
-}
-namespace experimental {
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host.");
-#endif
-}
-} // namespace experimental
-} // namespace ext::oneapi
-
 } // namespace _V1
 } // namespace sycl

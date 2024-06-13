@@ -10,9 +10,9 @@ SYCLcompat provides:
 
 * A high-level API that provides closer semantics to other programming models,
 simplifying line by line conversions.
-* Alternative submission APIs that encapusulate SYCL-specific "queue" and
+* Alternative submission APIs that encapsulate SYCL-specific "queue" and
 "event" APIs for easier reference.
-* Ability to gradually introduce other SYCL concepts as the user familiarises
+* Ability to gradually introduce other SYCL concepts as the user familiarizes
 themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
@@ -43,7 +43,7 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_complex](
     ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](
-    ../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+    ../extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
@@ -53,6 +53,10 @@ Specifically, this library depends on the following SYCL extensions:
 If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
+* [sycl_ext_oneapi_max_work_group_query](
+  https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
+  \[Optional\]
 
 ## Usage
 
@@ -291,6 +295,40 @@ This `launch` interface allows users to define an internal memory pool, or
 scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
 
+To launch a kernel with a specified sub-group size, overloads similar to above
+`launch` functions are present in the `syclcompat::experimental` namespace,
+which accept SubgroupSize as a template parameter and can be called as
+`launch<Function, SubgroupSize>`
+
+```cpp
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
+       sycl::queue queue, Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       std::size_t local_memory_size, Args... args);
+
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       Args... args);
+
+```
+
 ### Utilities
 
 SYCLcompat introduces a set of utility functions designed to streamline the
@@ -361,7 +399,7 @@ static void destroy_event(event_ptr event);
 } // syclcompat
 ```
 
-### Memory Allocation
+### Memory Operations
 
 This library provides interfaces to allocate memory to be accessed within kernel
 functions and on the host. The `syclcompat::malloc` function allocates device
@@ -451,10 +489,12 @@ sycl::event memset_async(pitched_data pitch, int val,
                          sycl::range<3> size,
                          sycl::queue q = get_default_queue()); // 3D matrix
 
+// Free
+void wait_and_free(void *ptr, sycl::queue q = get_default_queue());
 void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+sycl::event enqueue_free(const std::vector<void *> &pointers,
+                         const std::vector<sycl::event> &events,
+                         sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {
@@ -468,6 +508,64 @@ public:
 };
 
 } // syclcompat
+```
+
+The `syclcompat::experimental` namespace contains currently unsupported `memcpy` overloads which take a `syclcompat::experimental::memcpy_parameter` argument. These are included for forwards compatibility and currently throw a `std::runtime_error`.
+
+```cpp
+namespace syclcompat {
+namespace experimental {
+// Forward declarations for types relating to unsupported memcpy_parameter API:
+
+enum memcpy_direction {
+  host_to_host,
+  host_to_device,
+  device_to_host,
+  device_to_device,
+  automatic
+};
+
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+class image_mem_wrapper;
+#endif
+class image_matrix;
+
+/// Memory copy parameters for 2D/3D memory data.
+struct memcpy_parameter {
+  struct data_wrapper {
+    pitched_data pitched{};
+    sycl::id<3> pos{};
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+    experimental::image_mem_wrapper *image_bindless{nullptr};
+#endif
+    image_matrix *image{nullptr};
+  };
+  data_wrapper from{};
+  data_wrapper to{};
+  sycl::range<3> size{};
+  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
+};
+
+/// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
+/// The function will return after the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy(const memcpy_parameter &param,
+                          sycl::queue q = get_default_queue());
+
+/// [UNSUPPORTED] Asynchronously copies 2D/3D memory data specified by \p param
+/// . The return of the function does NOT guarantee the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy_async(const memcpy_parameter &param,
+                                sycl::queue q = get_default_queue());
+
+} // namespace experimental
+} // namespace syclcompat
 ```
 
 Finally, the class `pitched_data`, which manages memory allocation for 3D
@@ -681,17 +779,18 @@ class device_info {
 public:
   const char *get_name();
   char *get_name();
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
             std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                  std::is_same_v<WorkItemSizesTy, int *>,
                              int> = 0>
   auto get_max_work_item_sizes() const;
 
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
           std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                 std::is_same_v<WorkItemSizesTy, int *>,
                             int> = 0>
   auto get_max_work_item_sizes() const;
+  bool get_host_unified_memory() const;
   int get_major_version() const;
   int get_minor_version() const;
   int get_integrated() const;
@@ -700,6 +799,7 @@ public:
   int get_max_work_group_size() const;
   int get_max_sub_group_size() const;
   int get_max_work_items_per_compute_unit() const;
+  int get_max_register_size_per_work_group() const;
   template <typename NDRangeSizeTy = size_t *,
             std::enable_if_t<std::is_same_v<NDRangeSizeTy, size_t *> ||
                                  std::is_same_v<NDRangeSizeTy, int *>,
@@ -713,8 +813,22 @@ public:
   size_t get_global_mem_size() const;
   size_t get_local_mem_size() const;
 
-void set_name(const char *name);
-  void set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  unsigned int get_memory_clock_rate() const;
+  unsigned int get_memory_bus_width() const;
+  uint32_t get_device_id() const;
+  std::array<unsigned char, 16> get_uuid() const;
+  unsigned int get_global_mem_cache_size() const;
+  int get_image1d_max() const;
+  auto get_image2d_max() const;
+  auto get_image2d_max();
+  auto get_image3d_max() const;
+  auto get_image3d_max();
+
+  void set_name(const char *name);
+  void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
+  [[deprecated]] void
+  set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  void set_host_unified_memory(bool host_unified_memory);
   void set_major_version(int major);
   void set_minor_version(int minor);
   void set_integrated(int integrated);
@@ -727,6 +841,20 @@ void set_name(const char *name);
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_max_nd_range_size(sycl::id<3> max_nd_range_size);
+  void set_memory_clock_rate(unsigned int memory_clock_rate);
+  void set_memory_bus_width(unsigned int memory_bus_width);
+  void 
+  set_max_register_size_per_work_group(int max_register_size_per_work_group);
+  void set_device_id(uint32_t device_id);
+  void set_uuid(std::array<unsigned char, 16> uuid);
+  void set_global_mem_cache_size(unsigned int global_mem_cache_size);
+  void set_image1d_max(size_t image_max_buffer_size);
+  void set_image2d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size);
+  void set_image3d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size,
+                       size_t image_max_depth_buffer_size);
 };
 ```
 
@@ -778,6 +906,15 @@ static inline sycl::context get_default_context();
 // Util function to get a CPU device.
 static inline device_ext &cpu_device();
 
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames);
+
+/// Print all the devices (and their IDs) in the dev_mgr
+static inline void list_devices();
+
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
 
@@ -788,26 +925,36 @@ The exposed functionalities include creation and destruction of queues, through
 `syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
 ability to wait for submitted kernels using `syclcompat::wait` or
 `syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
-`print_on_async_exceptions`, and will have the default behavior otherwise, which calls `std:terminate`. Synchronous exceptions have to be managed
-by users independently of what is set in this parameter.
+`print_on_async_exceptions`, and will have the default behavior otherwise, which
+calls `std:terminate`. Synchronous exceptions have to be managed by users
+independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
-`add_event`. This is used, for example, to implement `syclcompat::free_async` to
+`add_event`. This is used, for example, to implement `syclcompat::enqueue_free` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
+`device_ext` also provides the `has_capability_or_fail` member function, which
+throws a `sycl::exception` if the device does not have the specified list of
+`sycl::aspect`.
 
-Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
-free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
+Devices can be listed and filtered using `syclcompat::list_devices()` and
+`syclcompat::filter_device()`. If `SYCLCOMPAT_VERBOSE` is defined at compile
+time, the available SYCL devices are printed to the standard output both at
+initialization time, and when the device list is filtered using
+`syclcompat::filter_device`.
+
+Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
+q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
 and `get_saved_queue` member functions.
-`set_default_queue` is blocking, and
-overwrites the previous default queue with a user defined one, waiting for any
-submitted kernels to finish.
+`set_default_queue` is blocking, and overwrites the previous default queue with
+a user defined one, waiting for any submitted kernels to finish.
 The `device_ext` automatically sets the saved queue to the default queue.
 Therefore, it's important to note that if the previous default queue was the
 device's saved queue, setting a new default queue will update the reference of
-the saved queue to the new default one to keep the state of the class consistent.
+the saved queue to the new default one to keep the state of the class
+consistent.
 
 The class is exposed as follows:
 
@@ -816,19 +963,26 @@ namespace syclcompat {
 
 class device_ext : public sycl::device {
   device_ext();
-  device_ext(const sycl::device &base);
+  device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
+             bool in_order = true);
   ~device_ext();
 
   bool is_native_host_atomic_supported();
-  int get_major_version();
-  int get_minor_version();
-  int get_max_compute_units();
-  int get_max_clock_frequency();
-  int get_integrated();
-  void get_device_info(device_info &out);
+  int get_major_version() const;
+  int get_minor_version() const;
+  int get_max_compute_units() const;
+  int get_max_clock_frequency() const;
+  int get_integrated() const;
+  int get_max_sub_group_size() const;
+  int get_max_register_size_per_work_group() const;
+  int get_max_work_group_size() const;
+  int get_mem_base_addr_align() const;
+  size_t get_global_mem_size() const;
+  void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
-  device_info get_device_info();
-  void reset();
+  void get_device_info(device_info &out) const;
+  device_info get_device_info() const;
+  void reset(bool print_on_async_exceptions = false, bool in_order = true);
 
   sycl::queue *default_queue();
   void set_default_queue(const sycl::queue &q);
@@ -839,9 +993,19 @@ class device_ext : public sycl::device {
   void set_saved_queue(sycl::queue *q);
   sycl::queue *get_saved_queue();
   sycl::context get_context();
+
+  void
+  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props) const;
 };
 
 } // syclcompat
+```
+
+Free functions are provided for querying major and minor version directly from a `sycl::device`, equivalent to the methods of `device_ext` described above:
+
+```c++
+static int get_major_version(const sycl::device &dev);
+static int get_minor_version(const sycl::device &dev);
 ```
 
 #### Multiple devices
@@ -881,7 +1045,7 @@ atomic operations is defined as `syclcompat::type_identity_t<T>` to avoid
 template deduction issues when an operand of a different type (e.g. double
 literal) is supplied. Atomic addition and subtraction free functions make use of
 `syclcompat::arith_t<T>` to differentiate between numeric and pointer
-arithmetics.
+arithmetic.
 
 The available operations are exposed as follows:
 
@@ -974,8 +1138,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
@@ -1077,16 +1241,28 @@ low 32-bits back into an integer.
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
 with bytes selected according to a third unsigned integer argument.
+`match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of
+values across work-items within a sub-group.
 
-There is also an `experimental::logical_group` class which allows
-`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
-sub-group level operations. This class provides methods to get the local & group
-id and range. The functions `select_from_sub_group`, `shift_sub_group_left`,
+The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
 functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 `sycl::shift_group_right` and `sycl::permute_group_by_xor`, respectively.
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
+
+`int_as_queue_ptr` helps with translation of code by reinterpret casting an
+address to `sycl::queue *`, or returning a pointer to SYCLcompat's default queue
+if the address is <= 2.
+`args_selector` is a helper class for extracting arguments from an array of
+pointers to arguments or buffer of arguments to pass to a kernel function.
+The class allows users to exclude parameters such as `sycl::nd_item`.
+Experimental support for masked versions of `select_from_sub_group`,
+`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor`
+is provided only for SPIRV or CUDA devices.
+
+As part of the compatibility utilities to facilitate machine translation to
+SYCL, two aliases for errors are provided, `err0` and `err1`.
 
 ```c++
 namespace syclcompat {
@@ -1099,6 +1275,14 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
 
 template <typename ValueT> inline int ffs(ValueT a);
+
+template <typename T>
+unsigned int match_any_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value);
+
+template <typename T>
+unsigned int match_all_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value, int *pred);
 
 template <typename ValueT>
 ValueT select_from_sub_group(sycl::sub_group g, ValueT x, int remote_local_id,
@@ -1116,6 +1300,54 @@ template <typename ValueT>
 ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
+namespace experimental {
+
+template <typename ValueT>
+ValueT select_from_sub_group(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             int remote_local_id, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                            unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(unsigned int member_mask, sycql::sub_group g, ValueT x,
+                                unsigned int mask, int logical_sub_group_size = 32);
+
+} // namespace experimental
+
+inline sycl::queue *int_as_queue_ptr(uintptr_t x);
+
+using err0 = detail::generic_error_type<struct err0_tag, int>;
+using err1 = detail::generic_error_type<struct err1_tag, int>;
+
+template <int n_nondefault_params, int n_default_params, typename T>
+class args_selector;
+
+template <int n_nondefault_params, int n_default_params, typename R,
+          typename... Ts>
+class args_selector<n_nondefault_params, n_default_params, R(Ts...)> {
+public:
+  // Get the type of the ith argument of R(Ts...)
+  template <int i>
+  using arg_type =
+      std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
+
+  // If kernel_params is nonnull, then args_selector will
+  // extract arguments from kernel_params. Otherwise, it
+  // will extract them from extra.
+  args_selector(void **kernel_params, void **extra)
+      : kernel_params(kernel_params), args_buffer(get_args_buffer(extra)) {}
+
+  // Get a reference to the i-th argument extracted from kernel_params
+  // or extra.
+  template <int i> arg_type<i> &get();
+};
+
 } // namespace syclcompat
 ```
 
@@ -1124,28 +1356,41 @@ work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
 `experimental::calculate_max_active_wg_per_xecore` and
 `experimental::calculate_max_potential_wg` are used for occupancy calculation.
+There is also an `experimental::logical_group` class which allows
+`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
+sub-group level operations. This class provides methods to get the local & group
+id and range. `experimental::group_type`, `experimental::group` and
+`experimental::group_base` are helper classes to manage the supported group
+types.
 
 ```c++
 namespace syclcompat {
 namespace experimental {
 
+#if defined(__AMDGPU__) || defined(__NVPTX__)
+// seq_cst currently not working for AMD nor Nvidia
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
+#else
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
+#endif
+
 template <int dimensions = 3>
 inline void nd_range_barrier(
     sycl::nd_item<dimensions> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
 template <>
 inline void nd_range_barrier(
     sycl::nd_item<1> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
-class logical_group {
+template <int dimensions = 3> class logical_group {
 public:
-  logical_group(sycl::nd_item<3> item, sycl::group<3> parent_group,
+  logical_group(sycl::nd_item<dimensions> item, sycl::group<dimensions> parent_group,
                 uint32_t size);
   uint32_t get_local_linear_id() const;
   uint32_t get_group_linear_id() const;
@@ -1164,6 +1409,31 @@ inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
                                       int slm_size = 0, int sg_size = 32,
                                       bool used_barrier = false,
                                       bool used_large_grf = false);
+// Supported group types
+enum class group_type { work_group, sub_group, logical_group, root_group };
+
+// The group_base will dispatch the function call to the specific interface
+// based on the group type.
+template <int dimensions = 3> class group_base {
+public:
+  group_base(sycl::nd_item<dimensions> item);
+
+  // Returns the number of work-items in the group.
+  size_t get_local_linear_range();
+  // Returns the index of the work-item within the group.
+  size_t get_local_linear_id();
+
+  // Wait for all the elements within the group to complete their execution
+  // before proceeding.
+  void barrier();
+};
+
+// Container type that can store supported group_types.
+template <typename GroupT, int dimensions = 3>
+class group : public group_base<dimensions> {
+public:
+  group(GroupT g, sycl::nd_item<dimensions> item);
+};
 
 } // namespace experimental
 } // namespace syclcompat
@@ -1177,16 +1447,48 @@ kernel names during machine translation.
 `get_sycl_language_version` returns an integer representing the version of the
 SYCL spec supported by the current SYCL compiler.
 
+The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
+expressions that might throw `sycl::exception` and `std::runtime_error`. If no
+exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+If a `std::runtime_error` exception is caught,
+`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+prints the error message to the standard error stream.
+
 ``` c++
 namespace syclcompat {
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
-#define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
+template <class... Args> class syclcompat_kernel_name;
+template <int Arg> class syclcompat_kernel_scalar;
 
-#define __sycl_compat_noinline__ __attribute__((noinline))
+#if defined(_MSC_VER)
+#define __syclcompat_align__(n) __declspec(align(n))
+#define __syclcompat_inline__ __forceinline
+#else
+#define __syclcompat_align__(n) __attribute__((aligned(n)))
+#define __syclcompat_inline__ __inline__ __attribute__((always_inline))
+#endif
 
-template <class... Args> class sycl_compat_kernel_name;
-template <int Arg> class sycl_compat_kernel_scalar;
+#if defined(_MSC_VER)
+#define __syclcompat_noinline__ __declspec(noinline)
+#else
+#define __syclcompat_noinline__ __attribute__((noinline))
+#endif
+
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+
+#ifdef _WIN32
+#define SYCLCOMPAT_EXPORT __declspec(dllexport)
+#else
+#define SYCLCOMPAT_EXPORT
+#endif
+
+
+namespace syclcompat {
+enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+}
+
+#define SYCLCOMPAT_CHECK_ERROR(expr)
 
 int get_sycl_language_version();
 
@@ -1201,6 +1503,15 @@ to get the kernel information. Overloads are provided to allow either returning
 a `kernel_function_info` object, or to return by pointer argument. In the
 current version, `kernel_function_info` describes only maximum work-group size.
 
+SYCLcompat also provides the `kernel_library` and `kernel_function` classes.
+`kernel_library` facilitates the loading and unloading of kernel libraries.
+`kernel_function` represents a specific kernel function within a loaded library
+and can be invoked with specified arguments.
+`load_kernel_library`, `load_kernel_library_mem`, and `unload_kernel_library`
+are free functions to handle the loading and unloading of `kernel_library`
+objects. `get_kernel_function`, and `invoke_kernel_function` offer a similar
+functionality for `kernel_function` objects.
+
 ``` c++
 namespace syclcompat {
 
@@ -1211,15 +1522,60 @@ struct kernel_function_info {
 static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
+
+class kernel_library {
+  constexpr kernel_library();
+  constexpr kernel_library(void *ptr);
+  operator void *() const;
+};
+
+static kernel_library load_kernel_library(const std::string &name);
+static kernel_library load_kernel_library_mem(char const *const image);
+static void unload_kernel_library(const kernel_library &library);
+
+class kernel_function {
+    constexpr kernel_function();
+    constexpr kernel_function(kernel_functor ptr);
+    operator void *() const;
+    void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
+                    unsigned int local_mem_size, void **args, void **extra);
+};
+
+static kernel_function get_kernel_function(kernel_library &library,
+                                           const std::string &name);
+static void invoke_kernel_function(kernel_function &function,
+                                   sycl::queue &queue,
+                                   sycl::range<3> group_range,
+                                   sycl::range<3> local_range,
+                                   unsigned int local_mem_size,
+                                   void **kernel_params, void **extra);
+
 } // namespace syclcompat
 ```
 
 ### Math Functions
 
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
+`funnelshift_rc` shift the result by `min(shift, 32)` bits.
+
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
 length. `syclcompat::length` provides a templated version that wraps over
-`sycl::length`.
+`sycl::length`. There are wrappers for `clamp`, `isnan`, `cbrt`, `min`, `max`,
+`fmax_nan`, `fmin_nan`, and `pow`, as well as an implementation of `relu`
+saturation is also provided.
+
+`compare`, `unordered_compare`, `compare_both`, `unordered_compare_both`,
+`compare_mask`, and `unordered_compare_mask`, handle both ordered and unordered
+comparisons.
 
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
@@ -1229,14 +1585,162 @@ as a vector of elements, and returning `0` for vector components for which
 `vectorized_sum_abs_diff` calculates the absolute difference for two values
 without modulo overflow for vector types.
 
-The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
-which accept `sycl::vec<T,2>` arguments representing complex values.
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math
+operations which accept `sycl::vec<T,2>` arguments representing complex values.
+
+The `dp4a` function returns the 4-way 8-bit dot product accumulate for unsigned
+and signed 32-bit integer values. The `dp2a_lo` and `dp2a_hi` functions return the
+two-way 16-bit to 8-bit dot product using the second and first 16 bits of the
+second operand, respectively. These three APIs return a single 32-bit value with
+the accumulated result, which is unsigned if both operands are `uint32_t` and
+signed otherwise.
 
 ```cpp
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift); 
+
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift); 
+
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift);
+
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift);
+
 inline float fast_length(const float *a, int len);
 
 template <typename ValueT>
 inline ValueT length(const ValueT *a, const int len);
+
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val);
+
+// Determine whether 2 element value is NaN.
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
+
+// cbrt function wrapper.
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
+}
+
+// For floating-point types, `float` or `double` arguments are acceptable.
+// For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
+// `std::int64_t` type arguments are acceptable.
+// sycl::half supported as well.
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+
+sycl::half min(sycl::half a, sycl::half b);
+
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+
+sycl::half max(sycl::half a, sycl::half b);
+
+// Performs 2 elements comparison and returns the bigger one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+// Performs 2 elements comparison and returns the smaller one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b);
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+inline float pow(const float a, const int b) { return sycl::pown(a, b); }
+inline double pow(const double a, const int b) { return sycl::pown(a, b); }
+
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const ValueU b);
+
+// Requires aspect::fp64, as it casts to double internally.
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const ValueU b);
+
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool 
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1259,9 +1763,37 @@ sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
 
 template <typename T> T cabs(sycl::vec<T, 2> x);
 
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c);
+
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c);
+
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+
+
+template <typename T1, typename T2>
+using dot_product_acc_t =
+    std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
+                       uint32_t, int32_t>;
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
+                                      dot_product_acc_t<T1, T2> c);
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
@@ -1322,6 +1854,608 @@ struct sub_sat {
 };
 
 } // namespace syclcompat
+```
+
+The math header provides a set of functions to extend 32-bit operations
+to 33 bit, and handle sign extension internally. There is support for `add`,
+`sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
+to include a second, separate, `BinaryOperation` after the first, and include
+the `_sat` variation, determines if the returning value is saturated or not.
+
+```cpp
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b, CT c,
+                                         BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+```
+
+Another set of vectorized extend 32-bit operations is provided in the math 
+header.These APIs treat each of the 32-bit operands as 2-elements vector 
+(16-bits each) while handling sign extension to 17-bits internally. There is 
+support for `add`, `sub`, `absdiff`, `min`, `max` and `avg` binary operations. 
+Each operation provides has a `_sat` variat which determines if the returning 
+value is saturated or not, and a `_add` variant that computes the binary sum 
+of the the initial operation outputs and a third operand. 
+
+```cpp
+/// Compute vectorized addition of \p a and \p b, with each value treated as a
+/// 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized addition of the two
+/// values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 2 elements vector type and extend each element to 17 bit. Then add each
+/// half of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized subtraction of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized abs_diff of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b with saturation, with each
+/// value treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized minimum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized maximum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax2_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 2
+/// elements vector type and extend each element to 17 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend average maximum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2_add(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b with saturation, with each value
+/// treated as a 2 elements vector type and extend each element to 17 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg2_sat(AT a, BT b, RetT c);
+```
+
+Similarly, a set of vectorized extend 32-bit operations is provided in the math 
+header treating each of the 32-bit operands as 4-elements vector (8-bits each) 
+while handling sign extension to 9-bits internally. There is support for `add`,
+`sub`, `absdiff`, `min`, `max` and `avg` binary operations. 
+Each operation provides has a `_sat` variat which determines if the returning 
+value is saturated or not, and a `_add` variant that computes the binary sum 
+of the the initial operation outputs and a third operand. 
+
+```cpp
+/// Compute vectorized addition of \p a and \p b, with each value treated as a
+/// 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd4(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized addition of the two
+/// values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized addition of \p a and \p b with saturation, with each
+/// value treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized addition of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vadd4_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub4(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b, with each value treated as
+/// a 4 elements vector type and extend each element to 9 bit. Then add each
+/// half of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized subtraction of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized subtraction of \p a and \p b with saturation, with each
+/// value treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized subtraction of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vsub4_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff4(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized abs_diff of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized abs_diff of \p a and \p b with saturation, with each
+/// value treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized abs_diff of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vabsdiff4_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin4(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized minimum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized minimum of \p a and \p b with saturation, with each value
+/// treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized minimum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmin4_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax4(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized maximum of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized maximum of \p a and \p b with saturation, with each value
+/// treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized maximum of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vmax4_sat(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg4(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b, with each value treated as a 4
+/// elements vector type and extend each element to 9 bit. Then add each half
+/// of the result and add with \p c.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The addition of each half of extend vectorized average of the
+/// two values and the third value
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg4_add(AT a, BT b, RetT c);
+
+/// Compute vectorized average of \p a and \p b with saturation, with each value
+/// treated as a 4 elements vector type and extend each element to 9 bit.
+/// \tparam [in] RetT The type of the return value, can only be 32 bit integer
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns The extend vectorized average of the two values with saturation
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_vavrg4_sat(AT a, BT b, RetT c);
+```
+
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and
+bit-field extraction (`bfe_safe`). These are bounds-checked variants of
+underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future
+releases, will be exposed to the user.
+
+```c++
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits);
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits);
 ```
 
 ## Sample Code

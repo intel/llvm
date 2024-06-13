@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #define SPIR_GLOBAL __attribute__((opencl_global))
 
@@ -111,4 +111,4 @@ static inline void atomicStore(int *Ptr, int V) {
                       __spv::MemorySemanticsMask::SequentiallyConsistent, V);
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

@@ -266,13 +266,13 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event) {
+void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
-                               /*LockTheLock=*/false);
+                               /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
 
@@ -478,6 +478,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Thus we employ read-lock of graph.
 
   std::vector<Command *> ToCleanUp;
+  auto CmdEvent = Cmd->getEvent();
+  auto QueueImpl = Cmd->getQueue();
   {
     ReadLockT Lock = acquireReadLock();
 
@@ -487,14 +489,15 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
-
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
-      Cmd->getEvent()->setComplete();
+      CmdEvent->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
+  QueueImpl->revisitUnenqueuedCommandsState(CmdEvent);
+
   cleanupCommands(ToCleanUp);
 }
 
@@ -714,6 +717,48 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
 
   cleanupCommands(ToCleanUp);
   return NewCmdEvent;
+}
+
+bool CheckEventReadiness(const ContextImplPtr &Context,
+                         const EventImplPtr &SyclEventImplPtr) {
+  // Events that don't have an initialized context are throwaway events that
+  // don't represent actual dependencies. Calling getContextImpl() would set
+  // their context, which we wish to avoid as it is expensive.
+  // NOP events also don't represent actual dependencies.
+  if ((!SyclEventImplPtr->isContextInitialized() &&
+       !SyclEventImplPtr->is_host()) ||
+      SyclEventImplPtr->isNOP()) {
+    return true;
+  }
+  if (SyclEventImplPtr->is_host()) {
+    return SyclEventImplPtr->isCompleted();
+  }
+  // Cross-context dependencies can't be passed to the backend directly.
+  if (SyclEventImplPtr->getContextImpl() != Context)
+    return false;
+
+  // A nullptr here means that the commmand does not produce a PI event or it
+  // hasn't been enqueued yet.
+  return SyclEventImplPtr->getHandleRef() != nullptr;
+}
+
+bool Scheduler::areEventsSafeForSchedulerBypass(
+    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {
+
+  return std::all_of(
+      DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
+        const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
+        return CheckEventReadiness(Context, SyclEventImplPtr);
+      });
+}
+
+bool Scheduler::areEventsSafeForSchedulerBypass(
+    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
+
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context](const EventImplPtr &SyclEventImplPtr) {
+                       return CheckEventReadiness(Context, SyclEventImplPtr);
+                     });
 }
 
 } // namespace detail

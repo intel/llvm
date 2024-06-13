@@ -10,8 +10,6 @@
 
 #include "helper.hpp"
 
-#include <sycl/sycl.hpp>
-
 #define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
   class KernelFunctor##SIZE {                                                  \
   public:                                                                      \
