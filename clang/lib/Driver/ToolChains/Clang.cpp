@@ -10657,6 +10657,9 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  if (TCArgs.hasArg(options::OPT_shared))
+    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10699,9 +10702,6 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
        !isSYCLNativeCPU(TC)) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
-
-  if (TCArgs.hasArg(options::OPT_shared))
-    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
 
   if (!NewOffloadDriver && !Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
