@@ -29,7 +29,7 @@ int main() {
   }
   {
     try {
-      device d(gpu_selector_v); 
+      device d(gpu_selector_v);
       std::cerr << "GPU Device is found in error: " << std::boolalpha
                 << d.is_gpu() << std::endl;
       return -1;
@@ -46,7 +46,7 @@ int main() {
     }
   }
   {
-    device d(accelerator_selector_v); 
+    device d(accelerator_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos &&
            "accelerator_selector failed to find acc device");
