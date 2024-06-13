@@ -131,10 +131,10 @@ public:
 
   /// \return a reference to a raw PI program handle. PI program is not
   /// retained before return.
-  sycl::detail::pi::PiProgram &getHandleRef() { return MProgram; }
+  pi_program &getHandleRef() { return MProgram; }
   /// \return a constant reference to a raw PI program handle. PI program is
   /// not retained before return.
-  const sycl::detail::pi::PiProgram &getHandleRef() const { return MProgram; }
+  const pi_program &getHandleRef() const { return MProgram; }
 
   const ur_program_handle_t &getUrHandleRef() const { return MURProgram; }
 
@@ -344,7 +344,7 @@ private:
   void build(const std::string &Options);
 
   /// \return a vector of devices managed by the plugin.
-  std::vector<sycl::detail::pi::PiDevice> get_pi_devices() const;
+  std::vector<pi_device> get_pi_devices() const;
 
   /// \return a vector of devices managed by the plugin.
   std::vector<ur_device_handle_t> get_ur_devices() const;
@@ -380,7 +380,7 @@ private:
   /// \param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
-  sycl::detail::pi::PiProgram MProgram = nullptr;
+  pi_program MProgram = nullptr;
   ur_program_handle_t MURProgram = nullptr;
   program_state MState = program_state::none;
   std::mutex MMutex;

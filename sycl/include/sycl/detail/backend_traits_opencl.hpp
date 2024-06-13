@@ -152,11 +152,11 @@ template <class To> inline To cast(std::vector<cl_event> value) {
 
 // These conversions should use PI interop API.
 template <>
-inline PiProgram
+inline pi_program
     cast(cl_program) = delete; // Use piextCreateProgramWithNativeHandle
 
 template <>
-inline PiDevice
+inline pi_device
     cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail

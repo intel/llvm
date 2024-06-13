@@ -172,7 +172,7 @@ public:
   }
 
   /// Returns the format of the binary image
-  pi::PiDeviceBinaryType getFormat() const {
+  pi_device_binary_type getFormat() const {
     assert(Bin && "binary image data not set");
     return Format;
   }
@@ -235,7 +235,7 @@ protected:
 
   pi_device_binary Bin;
 
-  pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
+  pi_device_binary_type Format = PI_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;

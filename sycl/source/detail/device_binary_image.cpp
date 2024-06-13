@@ -186,7 +186,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   // which can't be modified (easily).
   // TODO clang driver + ClangOffloadWrapper can figure out the format and set
   // it when invoking the offload wrapper job
-  Format = static_cast<pi::PiDeviceBinaryType>(Bin->Format);
+  Format = static_cast<pi_device_binary_type>(Bin->Format);
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"

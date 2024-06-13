@@ -340,7 +340,7 @@ int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library,
-                const std::shared_ptr<PiPlugin> &PluginInformation) {
+                const std::shared_ptr<pi_plugin> &PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction =
       (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
@@ -607,8 +607,8 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
-sycl::detail::pi::PiDeviceBinaryType
-getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
+pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
+                                           size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   auto MatchMagicNumber = [&](auto Number) {
     return ImgSize >= sizeof(Number) &&
@@ -654,7 +654,7 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 
-} // namespace pi
 } // namespace detail
 } // namespace _V1
+} // namespace sycl
 } // namespace sycl

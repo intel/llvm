@@ -118,10 +118,10 @@ template <> struct sycl_to_pi<bool> {
   using type = pi_bool;
 };
 template <> struct sycl_to_pi<device> {
-  using type = sycl::detail::pi::PiDevice;
+  using type = pi_device;
 };
 template <> struct sycl_to_pi<platform> {
-  using type = sycl::detail::pi::PiPlatform;
+  using type = pi_platform;
 };
 
 template <typename T> struct sycl_to_ur {
@@ -410,8 +410,8 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     const auto &Plugin = Dev->getPlugin();
 
     size_t resultSize;
-    Plugin->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(), info_partition, 0, nullptr, &resultSize);
+    Plugin->call(urDeviceGetInfo, Dev->getUrHandleRef(), info_partition, 0,
+                 nullptr, &resultSize);
 
     size_t arrayLength = resultSize / sizeof(ur_device_partition_property_t);
     if (arrayLength == 0) {
@@ -419,9 +419,8 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     }
     std::unique_ptr<ur_device_partition_t[]> arrayResult(
         new ur_device_partition_t[arrayLength]);
-    Plugin->call(urDeviceGetInfo,Dev->getUrHandleRef(),
-                                             info_partition, resultSize,
-                                             arrayResult.get(), nullptr);
+    Plugin->call(urDeviceGetInfo, Dev->getUrHandleRef(), info_partition,
+                 resultSize, arrayResult.get(), nullptr);
 
     std::vector<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {

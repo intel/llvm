@@ -212,8 +212,7 @@ public:
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
-  DeviceImplPtr
-  findMatchingDeviceImpl(sycl::detail::pi::PiDevice &DevicePI) const;
+  DeviceImplPtr findMatchingDeviceImpl(pi_device &DevicePI) const;
 
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.

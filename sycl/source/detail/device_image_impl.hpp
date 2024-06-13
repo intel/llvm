@@ -243,9 +243,7 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
-  const sycl::detail::pi::PiProgram &get_program_ref() const noexcept {
-    return MProgram;
-  }
+  const pi_program &get_program_ref() const noexcept { return MProgram; }
 
   const ur_program_handle_t &get_ur_program_ref() const noexcept {
     return MURProgram;
@@ -396,7 +394,7 @@ private:
   std::vector<device> MDevices;
   bundle_state MState;
   // Native program handler which this device image represents
-  sycl::detail::pi::PiProgram MProgram = nullptr;
+  pi_program MProgram = nullptr;
   ur_program_handle_t MURProgram = nullptr;
 
   // List of kernel ids available in this image, elements should be sorted

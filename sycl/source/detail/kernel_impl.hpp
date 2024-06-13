@@ -32,7 +32,6 @@ class kernel_bundle_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using ProgramImplPtr = std::shared_ptr<program_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
-using sycl::detail::pi::PiProgram;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
@@ -48,7 +47,7 @@ public:
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
-  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr Context,
+  kernel_impl(pi_kernel Kernel, ContextImplPtr Context,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
@@ -189,7 +188,7 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
-  PiProgram getProgramRef() const { return MProgram; }
+  pi_program getProgramRef() const { return MProgram; }
   ur_program_handle_t getUrProgramRef() const { return MURProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
@@ -203,7 +202,7 @@ public:
 private:
   ur_kernel_handle_t MURKernel = nullptr;
   const ContextImplPtr MContext;
-  const PiProgram MProgram = nullptr;
+  const pi_program MProgram = nullptr;
   const ur_program_handle_t MURProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;

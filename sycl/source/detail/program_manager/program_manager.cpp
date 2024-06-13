@@ -112,9 +112,8 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
 }
 
 // TODO replace this with a new PI API function
-static bool
-isDeviceBinaryTypeSupported(const context &C,
-                            sycl::detail::pi::PiDeviceBinaryType Format) {
+static bool isDeviceBinaryTypeSupported(const context &C,
+                                        pi_device_binary_type Format) {
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -156,7 +155,7 @@ isDeviceBinaryTypeSupported(const context &C,
   return true;
 }
 
-static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
+static const char *getFormatStr(pi_device_binary_type Format) {
   switch (Format) {
   case PI_DEVICE_BINARY_TYPE_NONE:
     return "none";
@@ -197,7 +196,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   //   implementation, so will be implemented together with it.
   //   Img->Format can't be updated as it is inside of the in-memory
   //   OS module binary.
-  sycl::detail::pi::PiDeviceBinaryType Format = Img.getFormat();
+  pi_device_binary_type Format = Img.getFormat();
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
     Format = pi::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
@@ -1488,7 +1487,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
     Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
 
-  sycl::detail::pi::PiDeviceBinaryType Format = Img.getFormat();
+  pi_device_binary_type Format = Img.getFormat();
   if (Format == PI_DEVICE_BINARY_TYPE_SPIRV)
     Ext = ".spv";
   else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)

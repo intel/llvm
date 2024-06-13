@@ -33,19 +33,19 @@ print(T val) {
             << std::endl;
 }
 
-template <> inline void print<>(PiPlatform val) {
+template <> inline void print<>(pi_platform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
-template <> inline void print<>(PiEvent val) {
+template <> inline void print<>(pi_event val) {
   std::cout << "pi_event : " << val << std::endl;
 }
 
-template <> inline void print<>(PiMem val) {
+template <> inline void print<>(pi_mem val) {
   std::cout << "pi_mem : " << val << std::endl;
 }
 
-template <> inline void print<>(PiEvent *val) {
+template <> inline void print<>(pi_event *val) {
   std::cout << "pi_event * : " << val;
   if (val)
     std::cout << "[ " << *val << " ... ]";
@@ -54,7 +54,7 @@ template <> inline void print<>(PiEvent *val) {
   std::cout << std::endl;
 }
 
-template <> inline void print<>(const PiEvent *val) {
+template <> inline void print<>(const pi_event *val) {
   std::cout << "const pi_event * : " << val;
   if (val)
     std::cout << "[ " << *val << " ... ]";
@@ -99,7 +99,7 @@ template <> inline void print<>(const pi_image_desc *desc) {
             << desc->image_type << std::endl;
 }
 
-template <> inline void print<>(PiResult val) {
+template <> inline void print<>(pi_result val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
     std::cout << "PI_SUCCESS" << std::endl;
@@ -132,8 +132,8 @@ template <typename T> struct printOut {
   printOut(T) {}
 }; // Do nothing
 
-template <> struct printOut<PiEvent *> {
-  printOut(PiEvent *val) {
+template <> struct printOut<pi_event *> {
+  printOut(pi_event *val) {
     std::cout << "\t[out]pi_event * : " << val;
     if (val)
       std::cout << "[ " << *val << " ... ]";
@@ -143,8 +143,8 @@ template <> struct printOut<PiEvent *> {
   }
 };
 
-template <> struct printOut<PiMem *> {
-  printOut(PiMem *val) {
+template <> struct printOut<pi_mem *> {
+  printOut(pi_mem *val) {
     std::cout << "\t[out]pi_mem * : " << val;
     if (val)
       std::cout << "[ " << *val << " ... ]";

@@ -108,48 +108,6 @@ bool trace(TraceLevel level);
 
 __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
-using PiPlugin = ::pi_plugin;
-using PiResult = ::pi_result;
-using PiPlatform = ::pi_platform;
-using PiPlatformBackend = ::pi_platform_backend;
-using PiDevice = ::pi_device;
-using PiDeviceType = ::pi_device_type;
-using PiDeviceInfo = ::pi_device_info;
-using PiDeviceBinaryType = ::pi_device_binary_type;
-using PiContext = ::pi_context;
-using PiContextInfo = ::pi_context_info;
-using PiProgram = ::pi_program;
-using PiKernel = ::pi_kernel;
-using PiQueue = ::pi_queue;
-using PiQueueProperties = ::pi_queue_properties;
-using PiMem = ::pi_mem;
-using PiMemFlags = ::pi_mem_flags;
-using PiEvent = ::pi_event;
-using PiSampler = ::pi_sampler;
-using PiSamplerInfo = ::pi_sampler_info;
-using PiSamplerProperties = ::pi_sampler_properties;
-using PiSamplerAddressingMode = ::pi_sampler_addressing_mode;
-using PiSamplerFilterMode = ::pi_sampler_filter_mode;
-using PiMemImageFormat = ::pi_image_format;
-using PiMemImageDesc = ::pi_image_desc;
-using PiMemImageInfo = ::pi_image_info;
-using PiMemObjectType = ::pi_mem_type;
-using PiMemImageChannelOrder = ::pi_image_channel_order;
-using PiMemImageChannelType = ::pi_image_channel_type;
-using PiKernelCacheConfig = ::pi_kernel_cache_config;
-using PiExtSyncPoint = ::pi_ext_sync_point;
-using PiExtCommandBuffer = ::pi_ext_command_buffer;
-using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
-using PiExtCommandBufferCommand = ::pi_ext_command_buffer_command;
-using PiPeerAttr = ::pi_peer_attr;
-using PiImageHandle = ::pi_image_handle;
-using PiImageMemHandle = ::pi_image_mem_handle;
-using PiImageCopyFlags = ::pi_image_copy_flags;
-using PiInteropMemHandle = ::pi_interop_mem_handle;
-using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
-using PiImageOffset = ::pi_image_offset_struct;
-using PiImageRegion = ::pi_image_region_struct;
-
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
@@ -230,8 +188,8 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
 
 /// Tries to determine the device binary image foramat. Returns
 /// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.
-PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
-                                        size_t ImgSize);
+pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
+                                           size_t ImgSize);
 
 } // namespace pi
 

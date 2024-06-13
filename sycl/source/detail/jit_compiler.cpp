@@ -70,7 +70,7 @@ jit_compiler::jit_compiler() {
 }
 
 static ::jit_compiler::BinaryFormat
-translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
+translateBinaryImageFormat(pi_device_binary_type Type) {
   switch (Type) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
     return ::jit_compiler::BinaryFormat::SPIRV;
