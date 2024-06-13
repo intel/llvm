@@ -102,14 +102,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    // make sure hMem is released in case checkErrorUR throws
-    std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
-
     if (hMem->isSubBuffer()) {
       return UR_RESULT_SUCCESS;
     }
 
-    UR_CHECK_ERROR(hMem->clear());
+    // Call destructor
+    std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -230,13 +228,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
             UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
-  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
-      new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});
-
-  UR_ASSERT(std::get<SurfaceMem>(URMemObj->Mem).PixelTypeSizeBytes,
-            UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
-
   try {
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, flags, *pImageFormat, *pImageDesc, pHost});
+    UR_ASSERT(std::get<SurfaceMem>(URMemObj->Mem).PixelTypeSizeBytes,
+              UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
+
     if (PerformInitialCopy) {
       for (const auto &Device : hContext->getDevices()) {
         // Synchronous behaviour is best in this case
@@ -254,10 +251,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
     *phMem = URMemObj.release();
   } catch (ur_result_t Err) {
-    (*phMem)->clear();
     return Err;
+  } catch (std::bad_alloc &Err) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    (*phMem)->clear();
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
