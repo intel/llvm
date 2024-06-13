@@ -3459,8 +3459,8 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 pi_int32 UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  Command::waitForEvents(MQueue, EventImpls, Event);
 
   for (auto &Node : MNodes) {
     auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
