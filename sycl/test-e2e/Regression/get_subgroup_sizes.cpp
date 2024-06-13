@@ -17,7 +17,7 @@ using namespace sycl;
 int main() {
   queue Q;
   auto Dev = Q.get_device();
-  if (Dev.get_info<info::device::max_num_sub_groups>()>1) {
+  if (Dev.get_info<info::device::max_num_sub_groups>() > 1) {
     std::vector<size_t> SubGroupSizes =
         Dev.get_info<sycl::info::device::sub_group_sizes>();
     std::vector<size_t>::const_iterator MaxIter =

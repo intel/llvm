@@ -183,7 +183,7 @@ int main() {
   }
   targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::gpu);
   if (targetDevIndex >= 0) {
-    device d(gpu_selector_v); 
+    device d(gpu_selector_v);
     std::cout << "gpu_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
