@@ -28,7 +28,7 @@ function(add_ur_adapter name)
     endif()
 endfunction()
 
-add_subdirectory(null)
+add_subdirectory(mock)
 
 function(add_ur_adapter_subdirectory name)
     string(TOUPPER ${name} NAME)

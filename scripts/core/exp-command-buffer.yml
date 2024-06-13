@@ -252,7 +252,7 @@ name: RetainExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
-      desc: "[in] Handle of the command-buffer object."
+      desc: "[in][retain] Handle of the command-buffer object."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

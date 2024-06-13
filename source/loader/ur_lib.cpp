@@ -23,6 +23,7 @@
 
 #include <cstring> // for std::memcpy
 #include <regex>
+#include <stdlib.h>
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
@@ -80,6 +81,12 @@ void context_t::tearDownLayers() const {
 //////////////////////////////////////////////////////////////////////////
 __urdlllocal ur_result_t context_t::Init(
     ur_device_init_flags_t, ur_loader_config_handle_t hLoaderConfig) {
+    if (hLoaderConfig->enableMock) {
+        // This clears default known adapters and replaces them with the mock
+        // adapter.
+        ur_loader::context->adapter_registry.enableMock();
+    }
+
     ur_result_t result;
     const char *logger_name = "loader";
     logger::init(logger_name);
@@ -212,6 +219,13 @@ urLoaderConfigSetCodeLocationCallback(ur_loader_config_handle_t hLoaderConfig,
     hLoaderConfig->codelocData.codelocCb = pfnCodeloc;
     hLoaderConfig->codelocData.codelocUserdata = pUserData;
 
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urLoaderConfigSetMockingEnabled(ur_loader_config_handle_t hLoaderConfig,
+                                ur_bool_t enable) {
+    hLoaderConfig->enableMock = enable;
     return UR_RESULT_SUCCESS;
 }
 

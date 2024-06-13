@@ -10,13 +10,11 @@
  *
  */
 #include "ur_api.h"
-#ifndef UR_ADAPTER_NULL_H
-#define UR_ADAPTER_NULL_H 1
+#ifndef UR_ADAPTER_MOCK_H
+#define UR_ADAPTER_MOCK_H 1
 
 #include "ur_ddi.h"
 #include "ur_util.hpp"
-#include <stdlib.h>
-#include <vector>
 
 namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,6 +35,7 @@ class __urdlllocal context_t {
 };
 
 extern context_t d_context;
+
 } // namespace driver
 
-#endif /* UR_ADAPTER_NULL_H */
+#endif /* UR_ADAPTER_MOCK_H */

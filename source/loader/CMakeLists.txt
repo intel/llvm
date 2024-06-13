@@ -159,7 +159,6 @@ if(UR_ENABLE_SANITIZER)
     )
 endif()
 
-
 # link validation backtrace dependencies
 if(UNIX)
     find_package(Libbacktrace)

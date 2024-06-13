@@ -592,6 +592,9 @@ etors:
 - name: ENQUEUE_NATIVE_COMMAND_EXP
   desc: Enumerator for $xEnqueueNativeCommandExp
   value: '228'
+- name: LOADER_CONFIG_SET_MOCKING_ENABLED
+  desc: Enumerator for $xLoaderConfigSetMockingEnabled
+  value: '231'
 ---
 type: enum
 desc: Defines structure types
