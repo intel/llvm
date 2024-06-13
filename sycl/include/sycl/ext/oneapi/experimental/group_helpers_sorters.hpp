@@ -281,8 +281,7 @@ public:
   }
 
   template <typename T>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
+  static size_t memory_required(sycl::memory_scope, size_t range_size) {
     return range_size * sizeof(T) + alignof(T);
   }
 };
@@ -336,13 +335,47 @@ public:
     return val;
   }
 
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                               size_t range_size) {
+  static std::size_t memory_required(sycl::memory_scope scope,
+                                     size_t range_size) {
     return 2 * joint_sorter<>::template memory_required<T>(
                    scope, range_size * ElementsPerWorkItem);
   }
 };
 
+template <typename KeyTy, typename ValueTy, typename CompareT = std::less<>,
+          std::size_t ElementsPerWorkItem = 1>
+class group_key_value_sorter {
+  CompareT comp;
+  sycl::span<std::byte> scratch;
+
+public:
+  template <std::size_t Extent>
+  group_key_value_sorter(sycl::span<std::byte, Extent> scratch_,
+                         CompareT comp_ = {})
+      : comp(comp_), scratch(scratch_) {}
+
+  template <typename Group>
+  std::tuple<KeyTy, ValueTy> operator()(Group g, KeyTy key, ValueTy value) {
+    static_assert(ElementsPerWorkItem == 1,
+                  "ElementsPerWorkItem must be equal 1");
+
+    using KeyValue = std::tuple<KeyTy, ValueTy>;
+    auto comp_key_value = [this_comp = this->comp](const KeyValue &lhs,
+                                                   const KeyValue &rhs) {
+      return this_comp(std::get<0>(lhs), std::get<0>(rhs));
+    };
+    return group_sorter<KeyValue, decltype(comp_key_value),
+                        ElementsPerWorkItem>(scratch, comp_key_value)(
+        g, KeyValue(key, value));
+  }
+
+  static std::size_t memory_required(sycl::memory_scope scope,
+                                     std::size_t range_size) {
+    return group_sorter<std::tuple<KeyTy, ValueTy>, CompareT,
+                        ElementsPerWorkItem>::memory_required(scope,
+                                                              range_size);
+  }
+};
 } // namespace default_sorters
 
 // Radix sorters provided by the second version of the extension specification.
@@ -455,6 +488,57 @@ public:
   }
 };
 
+template <typename KeyTy, typename ValueTy,
+          sorting_order Order = sorting_order::ascending,
+          size_t ElementsPerWorkItem = 1, unsigned int BitsPerPass = 4>
+class group_key_value_sorter {
+  sycl::span<std::byte> scratch;
+  uint32_t first_bit;
+  uint32_t last_bit;
+
+  static constexpr uint32_t bits = BitsPerPass;
+  using bitset_t = std::bitset<sizeof(KeyTy) * CHAR_BIT>;
+
+public:
+  template <std::size_t Extent>
+  group_key_value_sorter(sycl::span<std::byte, Extent> scratch_,
+                         const bitset_t mask = bitset_t{}.set())
+      : scratch(scratch_) {
+    static_assert((std::is_arithmetic<KeyTy>::value ||
+                   std::is_same<KeyTy, sycl::half>::value),
+                  "radix sort is not usable");
+    for (first_bit = 0; first_bit < mask.size() && !mask[first_bit];
+         ++first_bit)
+      ;
+    for (last_bit = first_bit; last_bit < mask.size() && mask[last_bit];
+         ++last_bit)
+      ;
+  }
+
+  template <typename Group>
+  std::tuple<KeyTy, ValueTy> operator()([[maybe_unused]] Group g, KeyTy key,
+                                        ValueTy val) {
+    static_assert(ElementsPerWorkItem == 1, "ElementsPerWorkItem must be 1");
+    KeyTy key_result[]{key};
+    ValueTy val_result[]{val};
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::detail::privateStaticSort<
+        /*is_key_value=*/true,
+        /*is_blocked=*/true, Order == sorting_order::ascending, 1, bits>(
+        g, key_result, val_result, scratch.data(), first_bit, last_bit);
+#endif
+    key = key_result[0];
+    val = val_result[0];
+    return {key, val};
+  }
+
+  static constexpr std::size_t memory_required(sycl::memory_scope,
+                                               std::size_t range_size) {
+    return (std::max)(range_size * ElementsPerWorkItem *
+                          (sizeof(KeyTy) + sizeof(ValueTy)),
+                      range_size * (1 << bits) * sizeof(uint32_t));
+  }
+};
 } // namespace radix_sorters
 
 } // namespace ext::oneapi::experimental
