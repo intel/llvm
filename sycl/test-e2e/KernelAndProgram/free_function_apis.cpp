@@ -3,7 +3,7 @@
 
 // The name mangling for free function kernels currently does not work with PTX.
 // Support for HIP is deferred.
-// UNSUPPORTED: cuda && hip
+// UNSUPPORTED: cuda || hip
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
