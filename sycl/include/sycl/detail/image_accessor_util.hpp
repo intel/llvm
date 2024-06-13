@@ -18,7 +18,6 @@
 #include <sycl/detail/array.hpp>               // for array
 #include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
 #include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/type_list.hpp>           // for is_contained, type_list
 #include <sycl/exception.hpp>                  // for invalid_parameter_error
 #include <sycl/id.hpp>                         // for id
@@ -772,9 +771,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                ImgChannelType);
     break;
   case image_channel_type::fp16:
-    writePixel(
-        convertWriteData<half>(Color, ImgChannelType),
-        reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
+    writePixel(convertWriteData<half>(Color, ImgChannelType),
+               reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::fp32:
     writePixel(convertWriteData<float>(Color, ImgChannelType),

@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_device_info
 #include <ur_api.h>
 
 #include <type_traits> // for true_type

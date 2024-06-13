@@ -13,6 +13,7 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
+#include <ur_api.h>
 
 #include <cstring>
 
@@ -392,12 +393,12 @@ group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
 #else
 template <typename... Args> void group_load(Args...) {
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group loads/stores are not supported on host.");
 }
 template <typename... Args> void group_store(Args...) {
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group loads/stores are not supported on host.");
 }
 #endif
