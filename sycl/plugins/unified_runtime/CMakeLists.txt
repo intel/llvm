@@ -110,7 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
   )
 
   fetch_adapter_source(opencl
