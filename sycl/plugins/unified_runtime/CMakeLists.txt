@@ -100,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
-  # Merge: 6469b890 5593d84c
+  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
+  # Merge: 8788bd13 61b42a3e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jun 4 10:34:57 2024 +0100
-  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
-  #     Implement urKernelGetSuggestedLocalWorkSize
-  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
+  # Date:   Wed Jun 12 13:21:32 2024 +0100
+  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
+  #     [HIP][CUDA] Several changes to kernel launch
+  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8e47ab5057458c5522ce5d86f7996b2882020220
-    # Merge: b816fe82 3d3aba65
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:28:43 2024 +0100
-    #     Merge pull request #1694 from Bensuo/ewan/L0_update_query
-    #     Set minimum L0 device support to support UR kernel update
-    8e47ab5057458c5522ce5d86f7996b2882020220
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
   )
 
   fetch_adapter_source(opencl
@@ -126,35 +126,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0e38fda02ca00aaab28018240eb526da7dd08f56
-    # Merge: f4968809 b7c8ac18
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 14:18:15 2024 +0100
-    #     Merge pull request #1552 from mmoadeli/atomic-access-on-host-malloc
-    #     [CUDA] Remove the support of concurrent atomic access to host allocated pinned memory.
-    0e38fda02ca00aaab28018240eb526da7dd08f56
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
-    # Merge: 39cb69ab 10b04891
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:15:33 2024 +0100
-    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
-    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
-    399430da9613269a0dc8ddf605415942e0a37e9c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
-    # Merge: ab151e98 53e43466
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 14:10:39 2024 +0100
-    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
-    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
-    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

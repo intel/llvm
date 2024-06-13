@@ -829,8 +829,8 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // SPIR/SPIRV arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
   if (T.getSubArch() == llvm::Triple::NoSubArch &&
-      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
-       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+      ((T.getArch() == llvm::Triple::spir && A != "spir") ||
+       (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
   return true;
 }
@@ -1149,7 +1149,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     const char *ArgValue = A->getValue();
     for (const StringRef AllowedValue : AllowedValues)
-      if (AllowedValue.equals(ArgValue))
+      if (AllowedValue == ArgValue)
         return;
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
@@ -1182,6 +1182,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
+      llvm::StringSet<> SYCLTriples;
       if (SYCLTargetsValues->getNumValues()) {
 
         // Multiple targets are currently not supported when using
@@ -1220,7 +1221,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             const ToolChain *HostTC =
                 C.getSingleOffloadToolChain<Action::OFK_Host>();
             llvm::Triple HostTriple = HostTC->getTriple();
-            UniqueSYCLTriplesVec.push_back(HostTriple);
+            SYCLTriples.insert(HostTriple.normalize());
             continue;
           }
 
@@ -1242,9 +1243,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
           llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
-          UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          SYCLTriples.insert(DeviceTriple.normalize());
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
+        }
+        if (!SYCLTriples.empty()) {
+          for (const auto &SYCLTriple : SYCLTriples) {
+            llvm::Triple Triple(SYCLTriple.getKey());
+            UniqueSYCLTriplesVec.push_back(Triple);
+          }
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1891,7 +1898,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       // an external option setting is required to target hardware.
       setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
-        if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+        if (ArgString == "-hardware" || ArgString == "-simulation") {
           setOffloadCompileMode(FPGAHWMode);
           break;
         }
@@ -5031,17 +5038,16 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      auto TC = ToolChains.begin();
-      for (Action *&A : SYCLDeviceActions) {
-        if ((*TC)->getTriple().isNVPTX() && CurPhase >= phases::Backend) {
+      for (auto TargetActionInfo :
+           llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+        auto &TargetInfo = std::get<1>(TargetActionInfo);
+        if (TargetInfo.TC->getTriple().isNVPTX() && CurPhase >= phases::Backend)
           // For CUDA, stop to emit LLVM IR so it can be linked later on.
-          ++TC;
           continue;
-        }
 
+        Action *&A = std::get<0>(TargetActionInfo);
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
-        ++TC;
       }
 
       return ABRT_Success;
@@ -6250,12 +6256,12 @@ class OffloadingActionBuilder final {
             using namespace tools::SYCL;
             StringRef Device{Value.first};
             if (Device.consume_front(gen::AmdGPU))
-              return TargetArch.equals(Device) && TargetTriple.isAMDGCN();
+              return TargetArch == Device && TargetTriple.isAMDGCN();
             if (Device.consume_front(gen::NvidiaGPU))
-              return TargetArch.equals(Device) && TargetTriple.isNVPTX();
+              return TargetArch == Device && TargetTriple.isNVPTX();
             if (Device.consume_front(gen::IntelGPU))
-              return TargetArch.equals(Device) && TargetTriple.isSPIRAOT();
-            return TargetArch.equals(Device) && isValidSYCLTriple(TargetTriple);
+              return TargetArch == Device && TargetTriple.isSPIRAOT();
+            return TargetArch == Device && isValidSYCLTriple(TargetTriple);
           });
         } else {
           TargetIt = TargetTable.find(TargetTriple.str());
@@ -9710,7 +9716,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     const auto &ResultFiles = C.getResultFiles();
     const auto CollidingFilenameIt =
         llvm::find_if(ResultFiles, [NamedOutput](const auto &It) {
-          return StringRef(NamedOutput).equals(It.second);
+          return StringRef(NamedOutput) == It.second;
         });
     if (CollidingFilenameIt != ResultFiles.end()) {
       // Upon any collision, a unique hash will be appended to the filename,

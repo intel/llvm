@@ -464,7 +464,60 @@ if config.hip_platform not in supported_hip_platforms:
     )
 
 if "cuda:gpu" in config.sycl_devices:
+    if "CUDA_PATH" not in os.environ:
+        if platform.system() == "Windows":
+            cuda_root = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
+            cuda_versions = []
+            if os.path.exists(cuda_root):
+                for entry in os.listdir(cuda_root):
+                    if os.path.isdir(
+                        os.path.join(cuda_root, entry)
+                    ) and entry.startswith("v"):
+                        version = entry[1:]  # Remove the leading 'v'
+                        if re.match(
+                            r"^\d+\.\d+$", version
+                        ):  # Match version pattern like 12.3
+                            cuda_versions.append(version)
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"v{latest_cuda_version}"
+                )
+        else:
+            cuda_root = "/usr/local"
+            cuda_versions = []
+            if os.path.exists(cuda_root):
+                for entry in os.listdir(cuda_root):
+                    if os.path.isdir(
+                        os.path.join(cuda_root, entry)
+                    ) and entry.startswith("cuda-"):
+                        version = entry.split("-")[1]
+                        if re.match(
+                            r"^\d+\.\d+$", version
+                        ):  # Match version pattern like 12.3
+                            cuda_versions.append(version)
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"cuda-{latest_cuda_version}"
+                )
+
+    if "CUDA_PATH" not in os.environ:
+        lit_config.error("Cannot run tests for CUDA without valid CUDA_PATH.")
+
     llvm_config.with_system_environment("CUDA_PATH")
+    if platform.system() == "Windows":
+        config.cuda_libs_dir = (
+            '"' + os.path.join(os.environ["CUDA_PATH"], r"lib\x64") + '"'
+        )
+        config.cuda_include = (
+            '"' + os.path.join(os.environ["CUDA_PATH"], "include") + '"'
+        )
+    else:
+        config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
+        config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
