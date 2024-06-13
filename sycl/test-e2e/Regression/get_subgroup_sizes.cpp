@@ -9,7 +9,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/info/info_desc.hpp"
 #include <algorithm>
 #include <sycl/detail/core.hpp>
 
