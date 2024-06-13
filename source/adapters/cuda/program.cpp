@@ -187,23 +187,30 @@ ur_result_t createProgram(ur_context_handle_t hContext,
             UR_RESULT_ERROR_INVALID_CONTEXT);
   UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::unique_ptr<ur_program_handle_t_> RetProgram{
-      new ur_program_handle_t_{hContext, hDevice}};
+  try {
+    std::unique_ptr<ur_program_handle_t_> RetProgram{
+        new ur_program_handle_t_{hContext, hDevice}};
 
-  if (pProperties) {
-    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
+    if (pProperties) {
+      if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+      } else if (pProperties->count == 0 &&
+                 pProperties->pMetadatas != nullptr) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+      UR_CHECK_ERROR(
+          RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
     }
-    UR_CHECK_ERROR(
-        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
+
+    auto pBinary_string = reinterpret_cast<const char *>(pBinary);
+
+    UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
+    *phProgram = RetProgram.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-
-  auto pBinary_string = reinterpret_cast<const char *>(pBinary);
-
-  UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
-  *phProgram = RetProgram.release();
 
   return UR_RESULT_SUCCESS;
 }
@@ -317,6 +324,8 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
   return Result;
 }
