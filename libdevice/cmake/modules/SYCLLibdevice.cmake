@@ -219,7 +219,8 @@ set(imf_host_cxx_flags -c
 )
 
 if (NOT WIN32)
-  list(APPEND imf_host_cxx_flags -fPIC)
+  list(APPEND imf_host_cxx_flags -fPIC -fcf-protection=full)
+  list(APPEND imf_host_cxx_flags -fcf-protection=full)
 endif()
 
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}
