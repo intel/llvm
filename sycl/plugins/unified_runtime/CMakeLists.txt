@@ -130,14 +130,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(hip
-    https://github.com/GeorgeWeb/unified-runtime.git
-    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
-    # Merge: 39cb69ab 10b04891
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0e32bb59e0846cbe8153c294da6d8f1cfa88075b
+    # Merge: 2c4303c2 08b19b22
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:15:33 2024 +0100
-    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
-    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
-    08b19b224c0be9cdd2073de080a3e654600007f1
+    # Date:   Thu Jun 13 14:15:42 2024 +0100
+    #     Merge pull request #1415 from GeorgeWeb/georgi/hip-atomic-memory-caps
+    #     [HIP] Enable more ordering and scope capabilities for atomic memory ops
+    0e32bb59e0846cbe8153c294da6d8f1cfa88075b
   )
 
   fetch_adapter_source(native_cpu
