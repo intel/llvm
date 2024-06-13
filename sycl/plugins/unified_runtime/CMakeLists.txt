@@ -130,7 +130,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(hip
-    https://github.com/GeorgeWeb/unified-runtime.git
+    ${UNIFIED_RUNTIME_REPO}
     # commit 399430da9613269a0dc8ddf605415942e0a37e9c
     # Merge: 39cb69ab 10b04891
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
