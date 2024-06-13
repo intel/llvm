@@ -6,9 +6,7 @@
 // CHECK-NOT: br i1
 using namespace sycl;
 
-SYCL_EXTERNAL void accessor_index(
-  accessor<int, 3, access::mode::write> Acc,
-  local_accessor<int, 3> LocAcc,
-  item<3> It) {
+SYCL_EXTERNAL void accessor_index(accessor<int, 3, access::mode::write> Acc,
+                                  local_accessor<int, 3> LocAcc, item<3> It) {
   LocAcc[It] = Acc[It];
 }
