@@ -68,14 +68,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    // make sure memObj is released in case UR_CHECK_ERROR throws
-    std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
-
     if (hMem->isSubBuffer()) {
       return UR_RESULT_SUCCESS;
     }
 
-    UR_CHECK_ERROR(hMem->clear());
+    // Call destructor
+    std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -380,25 +378,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
             UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
-  UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
+  try {
+    UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
 
-  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
-      new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, flags, *pImageFormat, *pImageDesc, pHost});
 
-  if (URMemObj == nullptr) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  if (PerformInitialCopy) {
-    for (const auto &Dev : hContext->getDevices()) {
-      ScopedContext Active(Dev);
-      hipStream_t Stream{0}; // Use default stream
-      UR_CHECK_ERROR(
-          enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
-      UR_CHECK_ERROR(hipStreamSynchronize(Stream));
+    if (URMemObj == nullptr) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
+
+    if (PerformInitialCopy) {
+      for (const auto &Dev : hContext->getDevices()) {
+        ScopedContext Active(Dev);
+        hipStream_t Stream{0}; // Use default stream
+        UR_CHECK_ERROR(
+            enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
+        UR_CHECK_ERROR(hipStreamSynchronize(Stream));
+      }
+    }
+    *phMem = URMemObj.release();
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (std::bad_alloc &Err) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-  *phMem = URMemObj.release();
   return UR_RESULT_SUCCESS;
 }
 
