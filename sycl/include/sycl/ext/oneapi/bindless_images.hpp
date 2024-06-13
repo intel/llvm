@@ -10,7 +10,6 @@
 
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                               // for pi_uint64
 #include <sycl/device.hpp>                                // for device
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
@@ -686,7 +685,9 @@ get_image_num_channels(const image_mem_handle memHandle,
 namespace detail {
 
 // is sycl::vec
-template <typename T> struct is_vec { static constexpr bool value = false; };
+template <typename T> struct is_vec {
+  static constexpr bool value = false;
+};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> {
   static constexpr bool value = true;
 };

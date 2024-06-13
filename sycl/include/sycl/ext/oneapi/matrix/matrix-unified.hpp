@@ -20,7 +20,6 @@
 
 #include <sycl/access/access.hpp>             // for address_space
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
 #include <sycl/exception.hpp>                 // for runtime_error
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseEnumToString
 #include <sycl/ext/oneapi/matrix/query-types.hpp> // for convertTypeToMatrixTypeString

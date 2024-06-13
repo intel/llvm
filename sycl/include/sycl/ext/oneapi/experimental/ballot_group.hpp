@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
 #include <sycl/exception.hpp>          // for runtime_error
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for GetMask
@@ -33,8 +32,8 @@ template <typename Group>
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        ballot_group<Group>> get_ballot_group(Group group,
-                                                              bool predicate);
+                        ballot_group<Group>>
+get_ballot_group(Group group, bool predicate);
 
 template <typename ParentGroup> class ballot_group {
 public:

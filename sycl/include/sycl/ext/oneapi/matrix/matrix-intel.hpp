@@ -15,7 +15,6 @@
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/builtins.hpp>                  // for fabs
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>                 // for runtime_error
 #include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp> // for annotated_ptr

@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_uint64
 #include <ur_api.h>
 
 #include <stddef.h> // for size_t

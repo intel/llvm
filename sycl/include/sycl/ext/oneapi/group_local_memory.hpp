@@ -9,7 +9,6 @@
 
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERA...
 #include <sycl/detail/type_traits.hpp>        // for is_group
 #include <sycl/exception.hpp>                 // for exception
 #include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr

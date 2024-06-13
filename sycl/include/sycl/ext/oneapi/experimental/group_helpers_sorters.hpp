@@ -12,7 +12,6 @@
 
 #include <sycl/aliases.hpp>             // for half
 #include <sycl/builtins.hpp>            // for min
-#include <sycl/detail/pi.h>             // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>           // for sycl_category, exception
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
 #include <sycl/memory_enums.hpp>        // for memory_scope
