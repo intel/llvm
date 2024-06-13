@@ -82,7 +82,6 @@ class TypeSwitch;
 
 // Other common classes.
 class APInt;
-class DynamicAPInt;
 class APSInt;
 class APFloat;
 template <typename Fn>
@@ -147,7 +146,6 @@ using TypeSwitch = llvm::TypeSwitch<T, ResultT>;
 using llvm::APFloat;
 using llvm::APInt;
 using llvm::APSInt;
-using llvm::DynamicAPInt;
 template <typename Fn>
 using function_ref = llvm::function_ref<Fn>;
 using llvm::iterator_range;
