@@ -4,7 +4,7 @@
 // RUN: %clangxx -fsycl -fPIC -shared -o %T/simple_lib.so %S/Inputs/simple_lib.cpp
 
 // build app
-// RUN: %clangxx -o %t.out %s
+// RUN: %clangxx -DSO_PATH="%T/simple_lib.so" -o %t.out %s
 
 // RUN: %{run} %t.out
 // RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
@@ -19,7 +19,7 @@
     clang++ -fsycl  -fPIC -shared -o simple_lib.so Inputs/simple_lib.cpp
 
     //app
-    clang++ -fsycl -o dynamic_app.bin dynamic_app_linux.cpp
+    clang++ -DSO_PATH="simple_lib.so" -o dynamic_app.bin dynamic_app_linux.cpp
 
     UR_L0_LEAKS_DEBUG=1 ./dynamic_app.bin
 
@@ -40,9 +40,13 @@ __attribute__((destructor(101))) static void Unload101() {
   }
 }
 
+#define STRINGIFY_HELPER(A) #A
+#define STRINGIFY(A) STRINGIFY_HELPER(A)
+#define SO_FNAME "" STRINGIFY(SO_PATH) ""
+
 int main() {
 
-  handle = dlopen("simple_lib.so", RTLD_NOW);
+  handle = dlopen(SO_FNAME, RTLD_NOW);
   if (!handle) {
     std::cout << "failed to load" << std::endl;
     return 1;
