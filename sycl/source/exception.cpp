@@ -95,7 +95,7 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-const char *stringifyErrorCode(pi_int32 error) {
+const char *stringifyErrorCode(int32_t error) {
   switch (error) {
 #define _PI_ERRC(NAME, VAL)                                                    \
   case NAME:                                                                   \

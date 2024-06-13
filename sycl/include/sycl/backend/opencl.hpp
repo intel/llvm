@@ -13,7 +13,6 @@
 #include <sycl/detail/backend_traits.hpp>     // for interop
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for ur_native_handle_t
 #include <sycl/device.hpp>                    // for device
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/queue.hpp>                     // for queue
