@@ -201,6 +201,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
       UR_CHECK_ERROR(cuStreamDestroy(S));
     });
 
+    if (hQueue->getHostSubmitTimeStream() != CUstream{0}) {
+      UR_CHECK_ERROR(cuStreamSynchronize(hQueue->getHostSubmitTimeStream()));
+      UR_CHECK_ERROR(cuStreamDestroy(hQueue->getHostSubmitTimeStream()));
+    }
+
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t Err) {
     return Err;

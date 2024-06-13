@@ -10,7 +10,13 @@ add_conformance_test_with_devices_environment(memory
     urMemGetInfo.cpp 
     urMemGetNativeHandle.cpp 
     urMemImageCreate.cpp
+    urMemImageCreateWithImageFormatParam.cpp
     urMemImageCreateWithNativeHandle.cpp 
     urMemImageGetInfo.cpp 
     urMemRelease.cpp 
     urMemRetain.cpp)
+
+if (UR_DPCXX)
+    add_conformance_test_with_kernels_environment(memory-migrate
+        urMemBufferMigrateAcrossDevices.cpp)
+endif()

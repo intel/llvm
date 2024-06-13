@@ -16,23 +16,13 @@
 ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
                                        ur_queue_handle_t Queue,
-                                       hipStream_t Stream, uint32_t StreamToken)
+                                       hipEvent_t EvEnd, hipEvent_t EvQueued,
+                                       hipEvent_t EvStart, hipStream_t Stream,
+                                       uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EventId{0}, EvEnd{nullptr}, EvStart{nullptr},
-      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
-
-  bool ProfilingEnabled =
-      Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent();
-
-  UR_CHECK_ERROR(hipEventCreateWithFlags(
-      &EvEnd, ProfilingEnabled ? hipEventDefault : hipEventDisableTiming));
-
-  if (ProfilingEnabled) {
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&EvQueued, hipEventDefault));
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&EvStart, hipEventDefault));
-  }
-
+      StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvStart{EvStart},
+      EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
   urQueueRetain(Queue);
   urContextRetain(Context);
 }
@@ -60,9 +50,9 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-      // NOTE: This relies on the default stream to be unused.
-      UR_CHECK_ERROR(hipEventRecord(EvQueued, 0));
-      UR_CHECK_ERROR(hipEventRecord(EvStart, Queue->get()));
+      UR_CHECK_ERROR(
+          hipEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
+      UR_CHECK_ERROR(hipEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Error) {
     Result = Error;
@@ -90,44 +80,18 @@ bool ur_event_handle_t_::isCompleted() const {
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
-  float MilliSeconds = 0.0f;
   assert(isStarted());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
-  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
-
-  UR_CHECK_ERROR(hipEventElapsedTime(&MilliSeconds, EvStart, EvEnd));
-  return static_cast<uint64_t>(MilliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvQueued);
 }
 
 uint64_t ur_event_handle_t_::getStartTime() const {
-  float MiliSeconds = 0.0f;
   assert(isStarted());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
-  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
-
-  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds,
-                                     ur_platform_handle_t_::EvBase, EvStart));
-  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvStart);
 }
 
 uint64_t ur_event_handle_t_::getEndTime() const {
-  float MiliSeconds = 0.0f;
   assert(isStarted() && isRecorded());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
-  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
-
-  UR_CHECK_ERROR(
-      hipEventElapsedTime(&MiliSeconds, ur_platform_handle_t_::EvBase, EvEnd));
-  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {
@@ -327,8 +291,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_event_handle_t *phEvent) {
   std::ignore = pProperties;
 
-  *phEvent = ur_event_handle_t_::makeWithNative(
-      hContext, reinterpret_cast<hipEvent_t>(hNativeEvent));
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
+
+  try {
+    EventPtr =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
+            hContext, reinterpret_cast<hipEvent_t>(hNativeEvent)));
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  *phEvent = EventPtr.release();
 
   return UR_RESULT_SUCCESS;
 }

@@ -112,11 +112,6 @@ struct urUpdatableCommandBufferExpExecutionTest
             GTEST_SKIP() << "Updating EXP command-buffers is not supported.";
         }
 
-        // Currently level zero driver doesn't support updating execution range.
-        if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-            updatable_execution_range_support = false;
-        }
-
         // Create a command-buffer with update enabled.
         ur_exp_command_buffer_desc_t desc{
             UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, true};
@@ -154,7 +149,6 @@ struct urUpdatableCommandBufferExpExecutionTest
     }
 
     ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-    ur_bool_t updatable_execution_range_support = true;
     ur_queue_handle_t queue = nullptr;
 };
 
