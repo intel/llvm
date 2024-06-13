@@ -1309,12 +1309,15 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
         continue;
       }
+      std::cerr << "Here's an offload_entry: " << EntriesIt->name << std::endl;
 
       // Skip creating unique kernel ID if it is an exported device
       // function. Exported device functions appear in the offload entries
       // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbols.find(EntriesIt->name) != m_ExportedSymbols.end())
+      if (m_ExportedSymbols.find(EntriesIt->name) != m_ExportedSymbols.end()) {
+        std::cerr << "Skipping because exported device function" << std::endl;
         continue;
+      }
 
       // ... and create a unique kernel ID for the entry
       auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
@@ -1325,6 +1328,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
         It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        std::cerr << "Added to map" << std::endl;
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -1576,13 +1580,17 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
+  for (auto X : m_KernelName2KernelIDs) {
+    std::cerr << "Kernel name: " << X.first << "\n";
+  }
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
   if (KernelID == m_KernelName2KernelIDs.end())
-    //throw runtime_error("No kernel found with the specified name",
-    //                    PI_ERROR_INVALID_KERNEL_NAME);
+    // throw runtime_error("No kernel found with the specified name",
+    //                     PI_ERROR_INVALID_KERNEL_NAME);
     throw runtime_error("No kernel named " + KernelName + " was found",
                         PI_ERROR_INVALID_KERNEL_NAME);
 
+  std::cerr << "Kernel named " << KernelName << " was found\n";
   return KernelID->second;
 }
 
