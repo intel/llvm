@@ -5846,12 +5846,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       bool IsUsingOffloadNewDriver =
           Args.hasFlag(options::OPT_offload_new_driver,
                        options::OPT_no_offload_new_driver, false);
+      Arg *SYCLSplitMode =
+          Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      bool IsDeviceCodeSplitDisabled =
+          SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
       bool IsSYCLLTOSupported = JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                                Triple.isSPIROrSPIRV() &&
-                                IsUsingOffloadNewDriver;
-      if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-          !IsUsingOffloadNewDriver && !Triple.isAMDGPU() &&
-          !IsSYCLLTOSupported) {
+                                IsUsingOffloadNewDriver &&
+                                !IsDeviceCodeSplitDisabled;
+      if ((IsDeviceOffloadAction &&
+           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
+           !IsUsingOffloadNewDriver) ||
+          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)
