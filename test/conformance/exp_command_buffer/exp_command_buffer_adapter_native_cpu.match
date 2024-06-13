@@ -4,9 +4,12 @@
 {{OPT}}BufferFillCommandTest.OverrideUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}BufferFillCommandTest.OverrideArgList/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}USMFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMFillCommandTest.UpdateBeforeEnqueue/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}BufferSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}USMSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMMultiSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMMultiSaxpyKernelTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}NDRangeUpdateTest.Update3D/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}NDRangeUpdateTest.Update2D/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}NDRangeUpdateTest.Update1D/SYCL_NATIVE_CPU___SYCL_Native_CPU_

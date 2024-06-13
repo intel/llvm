@@ -900,7 +900,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Update a kernel launch command in a finalized command-buffer."
+desc: "Update a kernel launch command in a finalized command-buffer. This entry-point is synchronous and may block if the command-buffer is executing when the entry-point is called."
 class: $xCommandBuffer
 name: UpdateKernelLaunchExp
 params:
