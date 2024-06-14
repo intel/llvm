@@ -249,11 +249,14 @@ using StorageT = _Float16;
 using BIsRepresentationT = _Float16;
 using VecElemT = _Float16;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using Vec2StorageT = VecElemT __attribute__((ext_vector_type(2)));
 using Vec3StorageT = VecElemT __attribute__((ext_vector_type(3)));
 using Vec4StorageT = VecElemT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = VecElemT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = VecElemT __attribute__((ext_vector_type(16)));
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else // SYCL_DEVICE_ONLY
 using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on
@@ -261,6 +264,7 @@ using StorageT = detail::host_half_impl::half;
 using BIsRepresentationT = half;
 using VecElemT = half;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // On the host side we cannot use OpenCL cl_half# types as an underlying type
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
@@ -270,6 +274,8 @@ using Vec3StorageT = std::array<VecElemT, 3>;
 using Vec4StorageT = std::array<VecElemT, 4>;
 using Vec8StorageT = std::array<VecElemT, 8>;
 using Vec16StorageT = std::array<VecElemT, 16>;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #endif // SYCL_DEVICE_ONLY
 
 #ifndef __SYCL_DEVICE_ONLY__

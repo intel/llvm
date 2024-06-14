@@ -1,4 +1,4 @@
-// REQUIRES: linux,cuda,aspect-ext_oneapi_cubemap
+// REQUIRES: cuda,aspect-ext_oneapi_cubemap
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
