@@ -110,13 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
+    # commit 2c86cd84a86761204f302a1c5148a8455561b8e6
+    # Merge: f23ee23a a4617787
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    # Date:   Fri Jun 14 10:54:08 2024 +0100
+    #     Merge pull request #1749 from nrspruit/fix_NonBlocking_LastCommand
+    #     [L0] Maintain Lock of Queue while syncing the Last Command Event and update Last Command Event only if matching
+    2c86cd84a86761204f302a1c5148a8455561b8e6
   )
 
   fetch_adapter_source(opencl
