@@ -136,10 +136,10 @@ class vec : public detail::vec_arith<DataT, NumElements> {
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
       std::byte, /*->*/ std::uint8_t,
 #endif
-      bool, /*->*/ std::int8_t,
-      sycl::half, /*->*/ sycl::detail::half_impl::StorageT,
-      sycl::ext::oneapi::bfloat16, /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT,
-      DataT, /*->*/ DataT>::type;
+      bool, /*->*/ std::int8_t, sycl::half,
+      /*->*/ sycl::detail::half_impl::StorageT, sycl::ext::oneapi::bfloat16,
+      /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, DataT,
+      /*->*/ DataT>::type;
   // clang-format: on
 
 public:
@@ -150,6 +150,7 @@ public:
       typename std::conditional_t<NumElements == 1, element_type_for_vector_t,
                                   element_type_for_vector_t __attribute__((
                                       ext_vector_type(NumElements)))>;
+
 private:
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -505,9 +506,7 @@ public:
     return Result;
   }
 
-  template <typename asT> asT as() const {
-    return sycl::bit_cast<asT>(*this);
-  }
+  template <typename asT> asT as() const { return sycl::bit_cast<asT>(*this); }
 
   template <int... SwizzleIndexes> Swizzle<SwizzleIndexes...> swizzle() {
     return this;
@@ -587,7 +586,6 @@ public:
   }
 
 private:
-
   // fields
   // Alignment is the same as size, to a maximum size of 64. SPEC requires
   // "The elements of an instance of the SYCL vec class template are stored
