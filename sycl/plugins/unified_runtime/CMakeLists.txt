@@ -110,13 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c86cd84a86761204f302a1c5148a8455561b8e6
-    # Merge: f23ee23a a4617787
+    # commit b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
+    # Merge: 0cd127ad 30f8ac50
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Jun 14 10:54:08 2024 +0100
-    #     Merge pull request #1749 from nrspruit/fix_NonBlocking_LastCommand
-    #     [L0] Maintain Lock of Queue while syncing the Last Command Event and update Last Command Event only if matching
-    2c86cd84a86761204f302a1c5148a8455561b8e6
+    # Date:   Fri Jun 14 14:26:17 2024 +0100
+    #     Merge pull request #1738 from Bensuo/cmd-buf-copy-queue
+    #     [CMDBUF][L0] Use copy engine to optimize cmd-buffer usage
+    b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
   )
 
   fetch_adapter_source(opencl
