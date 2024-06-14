@@ -130,17 +130,17 @@ class vec : public detail::vec_arith<DataT, NumElements> {
   using DataType = std::array<DataT, AdjustedNum>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // clang-format: off
   using element_type_for_vector_t = typename detail::map_type<
       DataT,
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      std::byte, /*->*/ std::uint8_t,
+      std::byte, /*->*/ std::uint8_t, //
 #endif
-      bool, /*->*/ std::int8_t, sycl::half,
-      /*->*/ sycl::detail::half_impl::StorageT, sycl::ext::oneapi::bfloat16,
-      /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, DataT,
-      /*->*/ DataT>::type;
-  // clang-format: on
+      bool, /*->*/ std::int8_t,                             //
+      sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
+      sycl::ext::oneapi::bfloat16,
+      /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
+      DataT, /*->*/ DataT                                 //
+      >::type;
 
 public:
   // Type used for passing sycl::vec to SPIRV builtins.
@@ -399,16 +399,15 @@ public:
 private:
   // We interpret bool as int8_t, std::byte as uint8_t for conversion to other
   // types.
-  // clang-format off
   template <typename T>
-  using ConvertBoolAndByteT = typename detail::map_type<
-      T,
+  using ConvertBoolAndByteT =
+      typename detail::map_type<T,
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      std::byte, /*->*/ std::uint8_t,
+                                std::byte, /*->*/ std::uint8_t, //
 #endif
-      bool, /*->*/ std::int8_t,
-      T, /*->*/ T>::type;
-  // clang-format on
+                                bool, /*->*/ std::int8_t, //
+                                T, /*->*/ T               //
+                                >::type;
 
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
