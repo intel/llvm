@@ -1696,15 +1696,9 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // If event is discarded then it can be in reset state or underlying level
     // zero handle can have device scope, so we can't synchronize the last
     // event.
+    auto savedLastCommandEvent = LastCommandEvent;
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
-      if (UrL0QueueSyncNonBlocking) {
-        auto SyncZeEvent = LastCommandEvent->ZeEvent;
-        this->Mutex.unlock();
-        ZE2UR_CALL(zeHostSynchronize, (SyncZeEvent));
-        this->Mutex.lock();
-      } else {
-        ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
-      }
+      ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
 
       // clean up all events known to have been completed as well,
       // so they can be reused later
@@ -1744,7 +1738,12 @@ ur_result_t ur_queue_handle_t_::synchronize() {
         }
       }
     }
-    LastCommandEvent = nullptr;
+    // If the current version of the LastCommandEvent == savedLastCommandEvent,
+    // then LastCommandEvent = nullptr; Otherwise, if LastCommandEvent !=
+    // savedLastCommandEvent, then LastCommandEvent is unchanged.
+    if (LastCommandEvent == savedLastCommandEvent) {
+      LastCommandEvent = nullptr;
+    }
   }
 
   // Since all timestamp recordings should have finished with the

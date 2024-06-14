@@ -480,7 +480,7 @@ struct urEnqueueKernelLaunchUSMLinkedList
     const int num_nodes = 4;
     bool use_pool = false;
     ur_usm_pool_handle_t pool = nullptr;
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 UUR_TEST_SUITE_P(

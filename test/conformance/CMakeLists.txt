@@ -5,6 +5,10 @@
 
 set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/device_binaries" CACHE INTERNAL
+    "Internal cache variable for device binaries directory")
+
 function(add_test_adapter name adapter)
     set(TEST_TARGET_NAME test-${name})
     set(TEST_NAME ${name}-${adapter})
@@ -140,6 +144,7 @@ if(UR_DPCXX)
     add_subdirectory(exp_command_buffer)
     add_subdirectory(exp_usm_p2p)
     add_subdirectory(exp_launch_properties)
+    add_subdirectory(memory-migrate)
 else()
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \
