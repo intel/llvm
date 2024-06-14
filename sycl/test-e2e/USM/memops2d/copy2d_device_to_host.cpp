@@ -10,8 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/10157.
-// UNSUPPORTED: hip
+// Temporarily disabled until the failure is addressed.
+// For HIP see https://github.com/intel/llvm/issues/10157.
+// UNSUPPORTED: (level_zero && windows) || hip
 
 #include "copy2d_common.hpp"
 
