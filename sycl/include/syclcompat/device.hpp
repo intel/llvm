@@ -195,7 +195,9 @@ public:
   }
   int get_image1d_max() const { return _image1d_max; }
   auto get_image2d_max() const { return _image2d_max; }
+  auto get_image2d_max() { return _image2d_max; }
   auto get_image3d_max() const { return _image3d_max; }
+  auto get_image3d_max() { return _image3d_max; }
 
   // set interface
   void set_name(const char *name) {
@@ -664,8 +666,9 @@ private:
     std::lock_guard<std::mutex> lock(m_mutex);
     _events.push_back(event);
   }
-  friend sycl::event free_async(const std::vector<void *> &,
-                                const std::vector<sycl::event> &, sycl::queue);
+  friend sycl::event enqueue_free(const std::vector<void *> &,
+                                  const std::vector<sycl::event> &,
+                                  sycl::queue);
   queue_ptr _default_queue;
   queue_ptr _saved_queue;
   sycl::context _ctx;
@@ -726,14 +729,64 @@ public:
   unsigned int device_count() { return _devs.size(); }
 
   unsigned int get_device_id(const sycl::device &dev) {
+    if (!_devs.size()) {
+      throw std::runtime_error(
+          "[SYCLcompat] No SYCL devices found in the device list. Device list "
+          "may have been filtered by syclcompat::filter_device");
+    }
     unsigned int id = 0;
     for (auto dev_item : _devs) {
       if (*dev_item == dev) {
-        break;
+        return id;
       }
       id++;
     }
-    return id;
+    throw std::runtime_error("[SYCLcompat] The device[" +
+                             dev.get_info<sycl::info::device::name>() +
+                             "] is filtered out by syclcompat::filter_device "
+                             "in current device list!");
+  }
+
+  /// List all the devices with its id in dev_mgr.
+  void list_devices() const {
+    for (size_t i = 0; i < _devs.size(); ++i) {
+      std::cout << "Device " << i << ": "
+                << _devs[i]->get_info<sycl::info::device::name>() << std::endl;
+    }
+  }
+
+  /// Filter out devices; only keep the device whose name contains one of the
+  /// subname in \p dev_subnames.
+  /// May break device id mapping and change current device. It's better to be
+  /// called before other SYCLcompat/SYCL APIs.
+  void filter(const std::vector<std::string> &dev_subnames) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto iter = _devs.begin();
+    while (iter != _devs.end()) {
+      std::string dev_name = (*iter)->get_info<sycl::info::device::name>();
+      bool matched = false;
+      for (const auto &name : dev_subnames) {
+        if (dev_name.find(name) != std::string::npos) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched)
+        ++iter;
+      else
+        iter = _devs.erase(iter);
+    }
+    _cpu_device = -1;
+    for (unsigned i = 0; i < _devs.size(); ++i) {
+      if (_devs[i]->is_cpu()) {
+        _cpu_device = i;
+        break;
+      }
+    }
+    _thread2dev_map.clear();
+#ifdef SYCLCOMPAT_VERBOSE
+    list_devices();
+#endif
   }
 
   /// Select device with a Device Selector
@@ -779,6 +832,9 @@ private:
         _cpu_device = _devs.size() - 1;
       }
     }
+#ifdef SYCLCOMPAT_VERBOSE
+    list_devices();
+#endif
   }
   void check_id(unsigned int id) const {
     if (id >= _devs.size()) {
@@ -851,6 +907,19 @@ static inline sycl::context get_default_context() {
 /// Util function to get a CPU device.
 static inline device_ext &cpu_device() {
   return detail::dev_mgr::instance().cpu_device();
+}
+
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames) {
+  detail::dev_mgr::instance().filter(dev_subnames);
+}
+
+/// List all the devices with its id in dev_mgr.
+static inline void list_devices() {
+  detail::dev_mgr::instance().list_devices();
 }
 
 static inline unsigned int select_device(unsigned int id) {
