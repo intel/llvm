@@ -92,8 +92,8 @@ int main() {
             out << "subtraction.     ref: " << subtraction_ref0    << " vec: " << device_subtraction[0] << sycl::endl;
             out << "multiplication.  ref: " << multiplication_ref0 << " vec: " << device_multiplication[0] << sycl::endl;
             out << "division.        ref: " << division_ref0       << " vec: " << device_division[0] << sycl::endl;
-            out << "float conv.      ref: " << (float)dev_float[0]<< " vec: " << fConv[0] << sycl::endl;
-            out << "bf16 conv.       ref: " << dev_float[0]       << " vec: " << brev[0] << sycl::endl;
+            out << "float conv.      ref: " << (float)dev_float[0] << " vec: " << fConv[0] << sycl::endl;
+            out << "bf16 conv.       ref: " << dev_float[0]        << " vec: " << brev[0] << sycl::endl;
 
             acc[0] = (oneA[0] == dev_float[0]);
             acc[1] = (addition_ref0 == device_addition[0]);
@@ -190,12 +190,13 @@ int main() {
             acc[13] = (brev2[0] == device_float[0]) && (brev2[1] == device_float[1]);
         }); 
     }).wait();
-
-    sycl::host_accessor h_acc(buf, sycl::read_only);
-    for(unsigned i = 0; i < N; i++){
-        assert(h_acc[i]);
-    }
-
   // clang-format on
+
+  sycl::host_accessor h_acc(buf, sycl::read_only);
+  for(unsigned i = 0; i < N; i++){
+      assert(h_acc[i]);
+  }
+
+  std::cout<< "Test Passed."<<std::endl;
   return 0;
 }

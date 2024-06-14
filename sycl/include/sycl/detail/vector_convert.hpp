@@ -211,6 +211,9 @@ To ConvertFToU(From Value) {
 template <typename NativeBFT, typename NativeFloatT, int VecSize>
 inline NativeFloatT ConvertBF16ToF(NativeBFT val) {
   static_assert(VecSize == 1);
+  // On host, ensure that we don't convert BF16 to uint16 for conversion.
+  static_assert(std::is_same_v<NativeBFT, sycl::ext::oneapi::bfloat16>);
+
   return (NativeFloatT)val;
 }
 
@@ -218,6 +221,9 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT val) {
 template <typename NativeFloatT, typename NativeBFT, int VecSize>
 inline NativeBFT ConvertFToBF16(NativeFloatT val) {
   static_assert(VecSize == 1);
+  // On host, ensure that we don't convert BF16 to uint16 for conversion.
+  static_assert(std::is_same_v<NativeBFT, sycl::ext::oneapi::bfloat16>);
+
   return NativeBFT(val);
 }
 
@@ -524,11 +530,18 @@ __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE(double)
 
 template <typename NativeBFT, typename NativeFloatT, int VecSize>
 inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
-  if constexpr (VecSize == 1)
-    return (float)vec;
+  using bfloat16 = sycl::ext::oneapi::bfloat16;
+  if constexpr (VecSize == 1) {
+    // On device, we interpret bfloat16 as a uint16_t scalar or vector.
+    static_assert(std::is_same_v<NativeBFT,
+      sycl::ext::oneapi::detail::Bfloat16StorageT>);
+    
+    // Bitcast to BF16 and typecast to float.
+    bfloat16 convertedBF = sycl::bit_cast<bfloat16>(vec);
+    return (float)convertedBF;
+  }
   else {
-    sycl::ext::oneapi::bfloat16 *src =
-        sycl::bit_cast<sycl::ext::oneapi::bfloat16 *>(&vec);
+    bfloat16 *src = sycl::bit_cast<bfloat16*>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
     // the size of data type.
@@ -542,15 +555,22 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
 
 template <typename NativeFloatT, typename NativeBFT, int VecSize>
 inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
-  if constexpr (VecSize == 1)
-    return sycl::ext::oneapi::bfloat16(vec);
+  using bfloat16 = sycl::ext::oneapi::bfloat16;
+  if constexpr (VecSize == 1) {
+    // On device, we interpret bfloat16 as a uint16_t scalar or vector.
+    static_assert(std::is_same_v<NativeBFT,
+      sycl::ext::oneapi::detail::Bfloat16StorageT>);
+
+    auto bf16Val = bfloat16(vec);
+    return sycl::bit_cast<NativeBFT>(bf16Val);
+  }
   else {
     float *src = sycl::bit_cast<float *>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
     // the size of data type.
     constexpr int AdjustedSize = (VecSize == 3) ? 4 : VecSize;
-    sycl::ext::oneapi::bfloat16 dst[AdjustedSize];
+    bfloat16 dst[AdjustedSize];
 
     sycl::ext::oneapi::detail::FloatVecToBF16Vec<VecSize>(src, dst);
     return sycl::bit_cast<NativeBFT>(dst);
@@ -620,6 +640,15 @@ NativeToT convertImpl(NativeFromT Value) {
     return static_cast<NativeToT>(Value);
   }
 }
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename FromT, typename ToT, sycl::rounding_mode RoundingMode,
+          int VecSize, typename NativeFromT, typename NativeToT>
+auto ConvertImpl(std::byte val) {
+  return convertImpl<FromT, ToT, RoundingMode, VecSize, NativeFromT, NativeToT>(
+      (std::int8_t)val);
+}
+#endif
 
 } // namespace detail
 } // namespace _V1

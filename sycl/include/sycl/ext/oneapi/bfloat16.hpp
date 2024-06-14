@@ -76,32 +76,9 @@ template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #endif
 }
 
-template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  uint16_t *dst_i16 = sycl::bit_cast<uint16_t *>(dst);
-  if constexpr (N == 1)
-    __devicelib_ConvertFToBF16INTELVec1(src, dst_i16);
-  else if constexpr (N == 2)
-    __devicelib_ConvertFToBF16INTELVec2(src, dst_i16);
-  else if constexpr (N == 3)
-    __devicelib_ConvertFToBF16INTELVec3(src, dst_i16);
-  else if constexpr (N == 4)
-    __devicelib_ConvertFToBF16INTELVec4(src, dst_i16);
-  else if constexpr (N == 8)
-    __devicelib_ConvertFToBF16INTELVec8(src, dst_i16);
-  else if constexpr (N == 16)
-    __devicelib_ConvertFToBF16INTELVec16(src, dst_i16);
-#else
-  for (int i = 0; i < N; ++i) {
-    // No need to cast as bfloat16 has a assignment op overload that takes
-    // a float.
-    dst[i] = src[i];
-  }
-#endif
-}
-
 // sycl::vec support
 namespace bf16 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_DEVICE_ONLY__
 using Vec2StorageT = Bfloat16StorageT __attribute__((ext_vector_type(2)));
 using Vec3StorageT = Bfloat16StorageT __attribute__((ext_vector_type(3)));
@@ -115,6 +92,7 @@ using Vec4StorageT = std::array<Bfloat16StorageT, 4>;
 using Vec8StorageT = std::array<Bfloat16StorageT, 8>;
 using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
 #endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace bf16
 } // namespace detail
 
@@ -306,6 +284,30 @@ public:
 };
 
 namespace detail {
+
+template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  uint16_t *dst_i16 = sycl::bit_cast<uint16_t *>(dst);
+  if constexpr (N == 1)
+    __devicelib_ConvertFToBF16INTELVec1(src, dst_i16);
+  else if constexpr (N == 2)
+    __devicelib_ConvertFToBF16INTELVec2(src, dst_i16);
+  else if constexpr (N == 3)
+    __devicelib_ConvertFToBF16INTELVec3(src, dst_i16);
+  else if constexpr (N == 4)
+    __devicelib_ConvertFToBF16INTELVec4(src, dst_i16);
+  else if constexpr (N == 8)
+    __devicelib_ConvertFToBF16INTELVec8(src, dst_i16);
+  else if constexpr (N == 16)
+    __devicelib_ConvertFToBF16INTELVec16(src, dst_i16);
+#else
+  for (int i = 0; i < N; ++i) {
+    // No need to cast as bfloat16 has a assignment op overload that takes
+    // a float.
+    dst[i] = src[i];
+  }
+#endif
+}
 
 // Helper function for getting the internal representation of a bfloat16.
 inline Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value) {
