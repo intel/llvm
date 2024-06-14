@@ -117,7 +117,7 @@ supports
 
 Because of the special scheduling guarantees associated with a cluster launch,
 the backend must know which kernel would be using this feature. Thus, this 
-proposal introduces a new launch property called as `ClusterRange` that will
+proposal introduces a new launch property called as `cluster_size` that will
 contain the cluster  in terms of number of workgroups.
  
 
@@ -126,17 +126,17 @@ contain the cluster  in terms of number of workgroups.
 namespace sycl::ext::oneapi::experimental::cuda {
 /**
 * Dim Dimensionality of the launch
-* cluster_range sycl::range specifying the number of workgroups in the cluster
+* size sycl::range specifying the number of workgroups in the cluster
   in each dimension.
 */
 template <int Dim>
-struct ClusterRange {
-  ClusterRange(const sycl::range<Dim>& cluster_range) : 
-    cluster_range(cluster_range) {}
-  size_t operator[](int i) { return cluster_range[i]; }
-  sycl::range<Dim> cluster_range;
+struct cluster_size {
+  cluster_size(const sycl::range<Dim>& size) : 
+    size(size) {}
+  size_t operator[](int i) { return size[i]; }
+  sycl::range<Dim> size;
 };
-using ClusterRange_key = ClusterRange;
+using cluster_size_key = cluster_size;
 } // namespace sycl::ext::oneapi::experimental::cuda
 ----
 
@@ -144,7 +144,7 @@ The property list can the be constructed as follows -
 
 [source,c++]
 ----
-properties  cluster_launch_property{ClusterRange({1, 2, 1})};
+properties  cluster_launch_property{cluster_size({1, 2, 1})};
 ----
 
 Note that the total number of work-groups in the kernel must be a multiple of
@@ -215,13 +215,13 @@ the various ids of the work-item and work-groups.
 To obtain the total number of clusters in the kernel, and to obtain the 
 id of the cluster of the calling work-item, this extension proposes to add two
 new member functions the `nd_item` class, namely 
-`ext_oneapi_cuda_get_cluster_range` and `ext_oneapi_cuda_get_cluster_id`
+`ext_oneapi_cuda_get_size` and `ext_oneapi_cuda_get_cluster_id`
 
 
 [%header,cols="10,5"]
 |===
 
-|`range<3> nd_item::ext_oneapi_cuda_get_cluster_range(size_t) const`
+|`range<3> nd_item::ext_oneapi_cuda_get_size(size_t) const`
 |Returns the total number of `cluster_groups` across each dimension.
 
 |`id<3> nd_item::get_cluster_id() const`
@@ -261,7 +261,7 @@ sycl::event launch_kernel_with_cluster() {
     using namespace sycl::ext::oneapi::experimental::cuda;
 
     sycl::nd_range<3> kernel_range({4096, 4096, 32}, {32, 32, 1});
-    properties ClusterProperties(ClusterRange({4, 4, 1}));
+    properties ClusterProperties(cluster_size({4, 4, 1}));
     sycl::queue queue;
     launch_config config(kernel_range, ClusterProperties);
     return submit_with_event(queue, [&](sycl::handler& cgh){
