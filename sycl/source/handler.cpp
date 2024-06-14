@@ -994,7 +994,6 @@ void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
   MPattern.resize(ValueSize);
   std::memcpy(MPattern.data(), Value, ValueSize);
   MLength = Count * ValueSize;
-  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
   setType(detail::CG::FillUSM);
 }
 

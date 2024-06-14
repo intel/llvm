@@ -2899,7 +2899,15 @@ public:
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
+#if defined(__SPIR__) || defined(__SPIRV__)
+    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+      T *CastedPtr = static_cast<T *>(Ptr);
+      CastedPtr[Index] = Pattern;
+    });
+#else
     this->fill_impl(Ptr, &Pattern, sizeof(T), Count);
+#endif
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
