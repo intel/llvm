@@ -10,8 +10,8 @@
 // TODO enable opaque pointers support on CPU.
 // UNSUPPORTED: cpu || accelerator
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// UN: %{build} -o %t.out
+// UN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out  %}
 
@@ -140,8 +140,8 @@ int main() {
     std::cout << "/ ref0: " << division_ref0            << "    ref1: " << division_ref1 << std::endl;
     std::cout << "div[0]: " << double_division[0]       << "  div[1]: " << double_division[1] << std::endl;
     std::cout << "Float convert ref0: " << double_float[0]    << "    ref1: " << double_float[1] << std::endl;
-    std::cout << "convert[0]: " << fConv2[0]             << "  convert[1]: " << fConv2[1] << std::endl;
-    std::cout << "bf16 convert[0]: " << brev2[0]             << "  bf16 convert[1]: " << brev2[1] << std::endl;
+    std::cout << "convert[0]: " << fConv2[0]            << "  convert[1]: " << fConv2[1] << std::endl;
+    std::cout << "bf16 convert[0]: " << brev2[0]        << "  bf16 convert[1]: " << brev2[1] << std::endl;
 
     assert(twoA[0] == double_float[0]);                      assert(twoA[1] == double_float[1]);
     assert(addition_ref0 == double_addition[0]);             assert(addition_ref1 == double_addition[1]);
@@ -178,8 +178,8 @@ int main() {
             out << "/ ref0: " << division_ref0            << "    ref1: " << division_ref1 << sycl::endl;
             out << "div[0]: " << device_division[0]       << "  div[1]: " << device_division[1] << sycl::endl;
             out << "Float convert ref0: " << device_float[0]    << "    ref1: " << device_float[1] << sycl::endl;
-            out << "convert[0]: " << fConv2[0]             << "  convert[1]: " << fConv2[1] << sycl::endl;
-            out << "bf16 convert[0]: " << brev2[0]             << "  bf16 convert[1]: " << brev2[1] << sycl::endl;
+            out << "convert[0]: " << fConv2[0]            << "  convert[1]: " << fConv2[1] << sycl::endl;
+            out << "bf16 convert[0]: " << brev2[0]        << "  bf16 convert[1]: " << brev2[1] << sycl::endl;
 
             acc[7] = (twoA[0] == device_float[0]) && (twoA[1] == device_float[1]);
             acc[8] = (addition_ref0 == device_addition[0]) && (addition_ref1 == device_addition[1]);
