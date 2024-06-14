@@ -109,8 +109,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
-    "https://github.com/bensuo/unified-runtime.git"
-    "cmd-buf-copy-queue"
+    ${UNIFIED_RUNTIME_REPO}
+    # commit b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
+    # Merge: 0cd127ad 30f8ac50
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Jun 14 14:26:17 2024 +0100
+    #     Merge pull request #1738 from Bensuo/cmd-buf-copy-queue
+    #     [CMDBUF][L0] Use copy engine to optimize cmd-buffer usage
+    b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
   )
 
   fetch_adapter_source(opencl
