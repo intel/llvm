@@ -19,10 +19,10 @@ int main() {
 
   assert(arch == sycl::ext::oneapi::experimental::architecture::unknown);
   // device::ext_oneapi_architecture_is(syclex::architecture::unknown) should
-  // return true if the device does not have a known architecture
+  // return true if the device does not have a known architecture.
   assert(dev.ext_oneapi_architecture_is(arch));
 
-  // no exceptions are expected in this test
+  // No exceptions are expected in this test.
 
   return 0;
 }

@@ -48,14 +48,15 @@ enum class architecture : uint64_t {
   //       - DD is 2-digit number reserved for future unexpected modifications
   //         to keep uniqueness. It should be always 00 for now
   //
-  unknown = 0x9800000000000000,
-  x86_64 = 0x9900000000000000,
+  unknown = 0x9900000000000000,
   //
   // Intel CPU architectures
   //
   // AA is 03,
   // CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
   // underlied backend
+  // Note: CCCCCCCC for x86_64 consists of all zeros
+  x86_64 = 0x0300000000000000,
   intel_cpu_spr = 0x0300000000000800,
   intel_cpu_gnr = 0x0300000000000900,
   //

@@ -121,6 +121,16 @@ which version of this extension first included each of these enumerators.
 |Added in version
 |Description
 
+3+^|*Unknown architecture*
+
+a|
+[source]
+----
+unknown
+----
+|-
+|Some architecture which is not one of those listed below.
+
 3+^|*Intel CPU family*
 
 a|
@@ -684,16 +694,6 @@ amd_gpu_gfx1201
 ----
 |-
 |AMD RDNA 4 architecture.
-
-3+^|*Unknown architecture*
-
-a|
-[source]
-----
-unknown
-----
-|-
-|Some architecture which is not supported by this extension.
 |===
 
 The enumerators are guaranteed to be partially ordered, which means that some
@@ -1118,7 +1118,8 @@ They currently exist only for use with the
 link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
 extension.
 
-The architecture enumeration `unknown` is not currently supported in AOT mode.
+The architecture enumeration `unknown` is not currently supported with the 
+`if_architecture_is` function.
 
 
 == Implementation notes
