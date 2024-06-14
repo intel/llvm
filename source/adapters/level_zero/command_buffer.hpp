@@ -29,7 +29,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ur_context_handle_t Context, ur_device_handle_t Device,
       ze_command_list_handle_t CommandList,
       ze_command_list_handle_t CommandListResetEvents,
+      ze_command_list_handle_t CopyCommandList,
       ZeStruct<ze_command_list_desc_t> ZeDesc,
+      ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
       const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
   ~ur_exp_command_buffer_handle_t_();
@@ -44,16 +46,26 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
     return NextSyncPoint;
   }
 
+  // Indicates if a copy engine is available for use
+  bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
+
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
   // Device associated with this command buffer
   ur_device_handle_t Device;
   // Level Zero command list handle
-  ze_command_list_handle_t ZeCommandList;
+  ze_command_list_handle_t ZeComputeCommandList;
   // Level Zero command list handle
   ze_command_list_handle_t ZeCommandListResetEvents;
   // Level Zero command list descriptor
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
+  // Level Zero Copy command list handle
+  ze_command_list_handle_t ZeCopyCommandList;
+  // Level Zero Copy command list descriptor
+  ZeStruct<ze_command_list_desc_t> ZeCopyCommandListDesc;
+  // This flag is must be set to false if at least one copy command has been
+  // added to `ZeCopyCommandList`
+  bool MCopyCommandListEmpty = true;
   // Level Zero fences for each queue the command-buffer has been enqueued to.
   // These should be destroyed when the command-buffer is released.
   std::unordered_map<ze_command_queue_handle_t, ze_fence_handle_t> ZeFencesMap;
