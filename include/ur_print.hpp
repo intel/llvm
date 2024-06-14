@@ -10215,6 +10215,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phNativePlatform));
 
     os << ", ";
+    os << ".hAdapter = ";
+
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
+
+    os << ", ";
     os << ".pProperties = ";
 
     ur::details::printPtr(os,
