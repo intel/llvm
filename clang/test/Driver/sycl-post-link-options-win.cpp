@@ -1,10 +1,10 @@
-// REQUIRES: system-linux
+// REQUIRES: system-windows
 /// Verify same set of sycl-post-link options generated for old and new offloading model
 // Test for JIT compilation
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clangxx --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver \
 // RUN:          -Xdevice-post-link -O0 -v %s 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT %s
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN: %clangxx --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver \
 // RUN:          -Xdevice-post-link -O0 -v %s 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT %s
 // OPTIONS_POSTLINK_JIT: sycl-post-link{{.*}} -O0 -O2 -device-globals -spec-const=native -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd
