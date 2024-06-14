@@ -27,18 +27,6 @@ namespace detail {
 
 template <typename VecT> class VecAccess;
 
-// Element type for relational operator return value.
-template <typename DataT>
-using rel_t = typename std::conditional_t<
-    sizeof(DataT) == sizeof(opencl::cl_char), opencl::cl_char,
-    typename std::conditional_t<
-        sizeof(DataT) == sizeof(opencl::cl_short), opencl::cl_short,
-        typename std::conditional_t<
-            sizeof(DataT) == sizeof(opencl::cl_int), opencl::cl_int,
-            typename std::conditional_t<sizeof(DataT) ==
-                                            sizeof(opencl::cl_long),
-                                        opencl::cl_long, bool>>>>;
-
 // Macros to populate binary operation on sycl::vec.
 #if defined(__SYCL_BINOP) || defined(BINOP_BASE)
 #error "Undefine __SYCL_BINOP and BINOP_BASE macro"
