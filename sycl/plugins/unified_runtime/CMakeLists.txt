@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
-  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
-  # Merge: c015f892 b9442104
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit a53f89db295510b8f5b558052c217dd8eb316f27
+  # Merge: 6d053bc7 fcecc002
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 10:20:23 2024 +0100
-  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
-  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
-  set(UNIFIED_RUNTIME_TAG aaron/platformCreateWithNativeAdapter)
+  # Date:   Fri Jun 14 16:44:07 2024 +0100
+  #     Merge pull request #1692 from aarongreig/aaron/platformCreateWithNativeAdapter
+  #     Add hAdapter parameter to urPlatformCreateWithNativeHandle
+  set(UNIFIED_RUNTIME_TAG a53f89db295510b8f5b558052c217dd8eb316f27)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
