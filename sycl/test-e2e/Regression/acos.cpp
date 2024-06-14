@@ -1,4 +1,6 @@
 // REQUIRES: aspect-fp64
+// UNSUPPORTED: cuda || hip
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <complex>
