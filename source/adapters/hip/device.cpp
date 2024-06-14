@@ -779,36 +779,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-#if __HIP_PLATFORM_NVIDIA__
-    // Nvidia introduced fence.sc for seq_cst only since SM 7.0.
-    int Major = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
-    if (Major >= 7)
-      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
-#else
-    Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
-#endif
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence/memory_scope_capabilities.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
     ur_memory_scope_capability_flags_t Capabilities =
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-#if __HIP_PLATFORM_NVIDIA__
-    // Nvidia introduced system scope atomics only since SM 6.0.
-    int Major = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
-    if (Major >= 6)
-      Capabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
-#else
-    Capabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
-#endif
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
