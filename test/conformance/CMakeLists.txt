@@ -144,6 +144,7 @@ if(UR_DPCXX)
     add_subdirectory(exp_command_buffer)
     add_subdirectory(exp_usm_p2p)
     add_subdirectory(exp_launch_properties)
+    add_subdirectory(memory-migrate)
 else()
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \
