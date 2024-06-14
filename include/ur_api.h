@@ -5302,7 +5302,9 @@ typedef enum ur_queue_info_t {
                                        ///< The reference count returned should be considered immediately stale.
                                        ///< It is unsuitable for general use in applications. This feature is
                                        ///< provided for identifying memory leaks.
-    UR_QUEUE_INFO_SIZE = 5,            ///< [uint32_t] The size of the queue
+    UR_QUEUE_INFO_SIZE = 5,            ///< [uint32_t] The size of the queue on the device. Only a valid query
+                                       ///< if the queue was created with the `ON_DEVICE` queue flag, otherwise
+                                       ///< `::urQueueGetInfo` will return `::UR_RESULT_ERROR_INVALID_QUEUE`.
     UR_QUEUE_INFO_EMPTY = 6,           ///< [::ur_bool_t] return true if the queue was empty at the time of the
                                        ///< query
     /// @cond
@@ -5317,7 +5319,8 @@ typedef uint32_t ur_queue_flags_t;
 typedef enum ur_queue_flag_t {
     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = UR_BIT(0), ///< Enable/disable out of order execution
     UR_QUEUE_FLAG_PROFILING_ENABLE = UR_BIT(1),              ///< Enable/disable profiling
-    UR_QUEUE_FLAG_ON_DEVICE = UR_BIT(2),                     ///< Is a device queue
+    UR_QUEUE_FLAG_ON_DEVICE = UR_BIT(2),                     ///< Is a device queue. If this is enabled `OUT_OF_ORDER_EXEC_MODE_ENABLE`
+                                                             ///< must also be enabled.
     UR_QUEUE_FLAG_ON_DEVICE_DEFAULT = UR_BIT(3),             ///< Is the default queue for a device
     UR_QUEUE_FLAG_DISCARD_EVENTS = UR_BIT(4),                ///< Events will be discarded
     UR_QUEUE_FLAG_PRIORITY_LOW = UR_BIT(5),                  ///< Low priority queue
@@ -5362,7 +5365,7 @@ typedef enum ur_queue_flag_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE - "If `hQueue` isn't a valid queue handle or if `propName` isn't supported by `hQueue`."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
