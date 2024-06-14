@@ -347,6 +347,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -360,13 +362,22 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == phPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hAdapter)) {
+        refCountContext.logInvalidReference(hAdapter);
+    }
+
+    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
+                                                   pProperties, phPlatform);
 
     return result;
 }

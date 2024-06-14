@@ -1188,6 +1188,8 @@ typedef struct ur_platform_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -1195,6 +1197,7 @@ typedef struct ur_platform_native_properties_t {
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
     ur_native_handle_t hNativePlatform,                 ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t hAdapter,                       ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *phPlatform                    ///< [out] pointer to the handle of the platform object created.
 );
@@ -9555,6 +9558,7 @@ typedef struct ur_platform_get_native_handle_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_create_with_native_handle_params_t {
     ur_native_handle_t *phNativePlatform;
+    ur_adapter_handle_t *phAdapter;
     const ur_platform_native_properties_t **ppProperties;
     ur_platform_handle_t **pphPlatform;
 } ur_platform_create_with_native_handle_params_t;
