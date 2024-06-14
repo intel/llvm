@@ -129,4 +129,5 @@ int main() {
     }
     assert(GotException);
   }
+  return 0;
 }

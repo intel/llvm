@@ -36,6 +36,10 @@ namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
+// forward declaration
+void shutdown();
+void shutdown2();
+
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
 // Scheduler usage. Origin idea is to track usage of Scheduler from main and
@@ -223,13 +227,25 @@ void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
   // races with the detaching of the DLL object that calls piTearDown.
-
+  CPOUT << "releaseDefaultContexts(): "
+        << (MPlatformToDefaultContextCache.Inst
+                ? MPlatformToDefaultContextCache.Inst->size()
+                : 0)
+        << std::endl;
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
 struct DefaultContextReleaseHandler {
   ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
+    CPOUT
+        << "~DefaultContextReleaseHandler()  - but now calls shutdown instead."
+        << std::endl;
+    // GlobalHandler::instance().releaseDefaultContexts();
+#ifdef _WIN32
+    //shutdown2();
+#else
+    shutdown();
+#endif
   }
 };
 
@@ -272,23 +288,30 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-#ifdef _WIN32
-// because of something not-yet-understood on Windows
-// threads may be shutdown once the end of main() is reached
-// making an orderly shutdown difficult. Fortunately, Windows
-// itself is very aggressive about reclaiming memory. Thus,
-// we focus solely on unloading the plugins, so as to not
-// accidentally retain device handles. etc
-void shutdown() {
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadPlugins();
-}
-#else
 void shutdown() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
+
+  CPOUT << "shutdown() endDeferredRelease()" << std::endl;
+  // now that we are shutting down, we no longer defer MemObj releases.
+  Handler->endDeferredRelease();
+
+#ifdef _WIN32
+  // Ensure neither host task is working so that no default context is accessed
+  // upon its release
+  Handler->prepareSchedulerToRelease(true);
+
+  if (Handler->MHostTaskThreadPool.Inst)
+    Handler->MHostTaskThreadPool.Inst->finishAndWait();
+  
+  // This releases our reference to the default context, but
+  // it might not be the last one quite yet.
+  Handler->releaseDefaultContexts();
+  
+  shutdown2();
+#else
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
@@ -297,13 +320,43 @@ void shutdown() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // If default contexts are requested after the first default contexts have
-  // been released there may be a new default context. These must be released
-  // prior to closing the plugins.
-  // Note: Releasing a default context here may cause failures in plugins with
-  // global state as the global state may have been released.
+  // This releases our reference to the default context, but
+  // it might not be the last one quite yet.
   Handler->releaseDefaultContexts();
+#endif
+}
 
+#ifdef   _WIN32
+// because of something not-yet-understood on Windows
+// threads may be shutdown once the end of main() is reached
+// making an orderly shutdown difficult. Fortunately, Windows
+// itself is very aggressive about reclaiming memory. Thus,
+// we focus solely on unloading the plugins, so as to not
+// accidentally retain device handles. etc
+void shutdown2() {
+  CPOUT << "shutdown2()" << std::endl;
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+
+    // First, release resources, that may access plugins.
+  Handler->MPlatformCache.Inst.reset(nullptr);
+  Handler->MScheduler.Inst.reset(nullptr);
+  Handler->MProgramManager.Inst.reset(nullptr);
+
+  Handler->unloadPlugins();
+
+  // Release the rest of global resources.
+  delete Handler;
+  Handler = nullptr;
+}
+#else
+void shutdown2() {
+  
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
+
+  CPOUT << "shutdown2()" << std::endl;
   // First, release resources, that may access plugins.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
@@ -322,7 +375,9 @@ void shutdown() {
 }
 #endif
 
+
 #ifdef _WIN32
+  
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -344,12 +399,16 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
-
-    shutdown();
+    //shutdown();
+    //shutdown2();
+    
     break;
+
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
+    atexit(shutdown); //<-- latest of all, afaict. and not same order as an app
     break;
   case DLL_THREAD_ATTACH:
     break;
@@ -363,7 +422,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library
 // deinitialization.
-__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
+// CP
+__attribute__((destructor(110))) static void syclUnload() { shutdown2(); }
 #endif
 } // namespace detail
 } // namespace _V1

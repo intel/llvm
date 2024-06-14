@@ -216,6 +216,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 
 void SYCLMemObjT::detachMemoryObject(
     const std::shared_ptr<SYCLMemObjT> &Self) const {
+  CPOUT << "SYCLMemObjT::detachMemoryObject()" << std::endl;
   // Check MRecord without read lock because at this point we expect that no
   // commands that operate on the buffer can be created. MRecord is nullptr on
   // buffer creation and set to meaningfull
@@ -229,8 +230,14 @@ void SYCLMemObjT::detachMemoryObject(
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
   if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
-      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
-    Scheduler::getInstance().deferMemObjRelease(Self);
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
+    CPOUT << " => MemObj: <SKIP>  MCurContext (impl/pi): " << std::hex
+          << MRecord->MCurContext << " / "
+          << MRecord->MCurContext->getHandleRef() << std::endl;
+    bool okToDefer = GlobalHandler::instance().isOkToDefer();
+    if (okToDefer)
+      Scheduler::getInstance().deferMemObjRelease(Self);
+  }
 }
 
 void SYCLMemObjT::handleWriteAccessorCreation() {

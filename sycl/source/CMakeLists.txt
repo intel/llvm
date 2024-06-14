@@ -87,6 +87,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE /DEPENDENTLOADFLAG:0x2000 /MANIFEST:NO /MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME})
   endif()
 
+  if(UNIX)
+    find_package(Threads REQUIRED)
+    target_link_libraries (${LIB_NAME} PRIVATE Threads::Threads)
+  endif()
+
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
   if (WIN32) 

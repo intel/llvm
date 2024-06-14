@@ -279,6 +279,8 @@ void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+  CPOUT << "removeMemoryObject() StrictLock:" << StrictLock
+        << " Record: " << std::hex << Record << std::endl;
   if (!Record)
     // No operations were performed on the mem object
     return true;
@@ -502,6 +504,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  CPOUT << "Scheduler::deferMemObjRelease" << std::endl;
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
@@ -517,6 +520,12 @@ inline bool Scheduler::isDeferredMemObjectsEmpty() {
 void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
+
+  CPOUT << "cleanupDeferredMemObjects() with objects. "
+        << (Blocking == BlockingT::BLOCKING ? "BLOCKING" : "NON-BLOCKING")
+        << std::endl;
+  // CP - log each mem and context.
+
   if (Blocking == BlockingT::BLOCKING) {
     std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
     {
@@ -539,21 +548,33 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       while (MemObjIt != MDeferredMemObjRelease.end()) {
         MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
         if (!checkLeavesCompletion(Record)) {
+          CPOUT << "checkLeavesCompletion() returned false. value left in "
+                   "MDeferredObjRelease until later."
+                << std::endl;
           MemObjIt++;
           continue;
         }
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
       }
+    } else {
+      CPOUT << " Lock.owns_lock() was false" << std::endl;
     }
   }
   auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
   while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
-    if (!removeMemoryObject(ReleaseCandidateIt->get(), false))
-      break;
+    if (!removeMemoryObject(ReleaseCandidateIt->get(), false)) {
+      CPOUT << "removeMemoryObject() returned false ( unable to owns_lock() )"
+            << std::endl;
+      break; // <-- continue?
+    }
+
     ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
   }
   if (!ObjsReadyToRelease.empty()) {
+    CPOUT << "ObjsReadyToRelease still not empty, amending them to "
+             "MDeferredMemObjRelease for later"
+          << std::endl;
     std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.insert(
         MDeferredMemObjRelease.end(),

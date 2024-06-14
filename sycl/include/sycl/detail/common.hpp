@@ -8,6 +8,13 @@
 
 #pragma once
 
+// CP
+// clang-format off
+// #include <thread>
+#define CPOUT std::clog
+// #define CPOUT std::clog.rdbuf(NULL); std::clog
+// clang-format on
+
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32

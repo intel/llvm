@@ -161,6 +161,8 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
+    CPOUT << "~context_impl() calling piContextRelease (impl/pi):  " << std::hex
+          << this << " / " << MContext << std::endl;
     getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }

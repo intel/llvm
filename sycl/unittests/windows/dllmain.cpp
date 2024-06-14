@@ -40,20 +40,12 @@ TEST(Windows, DllMainCall) {
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
-  // Teardown calls are only expected on sycl.dll library unload, not when
-  // process gets terminated.
-  // The first call to DllMain is to simulate library unload. The second one
-  // is to simulate process termination
+  // Teardown calls are expected on sycl.dll when told we are DETACHING
   fprintf(stderr, "Call DllMain for the first time\n");
   DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)NULL);
 
   int TearDownCallsDone = TearDownCalls.load();
 
   EXPECT_NE(TearDownCallsDone, 0);
-
-  fprintf(stderr, "Call DllMain for the second time\n");
-  DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
-
-  EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
 #endif
 }
