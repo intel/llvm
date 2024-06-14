@@ -10717,6 +10717,10 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       (IsAOT || NewOffloadDriver))
     addArgs(PostLinkArgs, TCArgs,
             {"-generate-device-image-default-spec-consts"});
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (IsUsingLTO && LTOMode == LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-embed-aux-info-as-metadata"});
 }
 
 // sycl-post-link tool normally outputs a file table (see the tool sources for

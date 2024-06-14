@@ -75,6 +75,7 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
+using PropSetRegTy = llvm::util::PropertySetRegistry;
 
 namespace {
 
@@ -251,6 +252,11 @@ cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
              "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> EmbedAuxillaryInfoAsMetadata{
+    "embed-aux-info-as-metadata",
+    cl::desc("Embed the module properties and symbols as metadata"),
+    cl::cat(PostLinkCat)};
+
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -393,10 +399,31 @@ std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
       .str();
 }
 
-void saveModuleIR(Module &M, StringRef OutFilename) {
+// Add the module properties and symbol table as metadata. This is used when we
+// compile with thinLTO, as sycl-post-link is run early.
+void addAuxInfoAsMetadata(Module &M, const PropSetRegTy &PropSet,
+                          const std::string &SymT) {
+  auto AddMD = [&M](StringRef MDName, const std::string &MDVal) {
+    auto NamedMD = M.getOrInsertNamedMetadata(MDName);
+    auto MDStr = MDString::get(M.getContext(), MDVal);
+    SmallVector<Metadata *, 2> MD{MDStr};
+    auto MDOp = MDNode::get(M.getContext(), MD);
+    NamedMD->addOperand(MDOp);
+  };
+  std::string Buf;
+  raw_string_ostream OStr(Buf);
+  PropSet.write(OStr);
+  AddMD("sycl_properties", Buf);
+  AddMD("sycl_symbol_table", SymT);
+}
+
+void saveModuleIR(Module &M, StringRef OutFilename, const PropSetRegTy &PropSet,
+                  const std::string &SymT) {
   std::error_code EC;
   raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + OutFilename + "'");
+  if (EmbedAuxillaryInfoAsMetadata)
+    addAuxInfoAsMetadata(M, PropSet, SymT);
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -409,11 +436,12 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   MPM.run(M, MAM);
 }
 
-std::string saveModuleIR(Module &M, int I, StringRef Suff) {
+std::string saveModuleIR(Module &M, int I, StringRef Suff,
+                         const PropSetRegTy &PropSet, const std::string &SymT) {
   DUMP_ENTRY_POINTS(M, EmitOnlyKernelsAsEntryPoints, "saving IR");
   StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
   std::string OutFilename = makeResultFileName(FileExt, I, Suff);
-  saveModuleIR(M, OutFilename);
+  saveModuleIR(M, OutFilename, PropSet, SymT);
   return OutFilename;
 }
 
@@ -436,10 +464,8 @@ bool isImportedFunction(const Function &F) {
   return ReturnValue;
 }
 
-std::string saveModuleProperties(module_split::ModuleDesc &MD,
-                                 const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff) {
-  using PropSetRegTy = llvm::util::PropertySetRegistry;
+PropSetRegTy getModuleProperties(module_split::ModuleDesc &MD,
+                                 const GlobalBinImageProps &GlobProps) {
   PropSetRegTy PropSet;
   Module &M = MD.getModule();
   {
@@ -646,6 +672,14 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
                 1);
 
+  return PropSet;
+}
+
+std::string saveModuleProperties(module_split::ModuleDesc &MD,
+                                 const GlobalBinImageProps &GlobProps,
+                                 const PropSetRegTy &PropSet, int I,
+                                 StringRef Suff) {
+
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
   raw_fd_ostream SCOut(SCFile, EC);
@@ -655,9 +689,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   return SCFile;
 }
 
-// Saves specified collection of symbols to a file.
-std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
-                                  StringRef Suffix) {
+std::string getModuleSymbolTable(const module_split::EntryPointSet &Es) {
 #ifndef NDEBUG
   if (DebugPostLink > 0) {
     llvm::errs() << "ENTRY POINTS saving Sym table {\n";
@@ -673,6 +705,12 @@ std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
   for (const auto *F : Es) {
     SymT = (Twine(SymT) + Twine(F->getName()) + Twine("\n")).str();
   }
+  return SymT;
+}
+
+// Saves specified collection of symbols to a file.
+std::string saveModuleSymbolTable(const std::string &SymT, int I,
+                                  StringRef Suffix) {
   // Save to file.
   std::string OutFileName = makeResultFileName(".sym", I, Suffix);
   writeToFile(OutFileName, SymT);
@@ -757,22 +795,28 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
   IrPropSymFilenameTriple Res;
   StringRef Suffix = getModuleSuffix(MD);
-
+  GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                               EmitExportedSymbols, EmitImportedSymbols,
+                               DeviceGlobals};
+  PropSetRegTy PropSet = getModuleProperties(MD, Props);
+  std::string SymT = getModuleSymbolTable(MD.entries());
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
     Res.Ir = IRFilename.str();
   } else {
     MD.cleanup();
-    Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    Res.Ir = saveModuleIR(MD.getModule(), I, Suffix, PropSet, SymT);
   }
-  GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, EmitImportedSymbols,
-                               DeviceGlobals};
-  Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
+  // We don't need a seperate file with properties if we saved it as
+  // metadata inside the module itself.
+  if (!EmbedAuxillaryInfoAsMetadata)
+    Res.Prop = saveModuleProperties(MD, Props, PropSet, I, Suffix);
 
-  if (DoSymGen) {
+  // Only save the symbol table to a seperate module if it
+  // was requested and was not placed inside the module itself.
+  if (DoSymGen && !EmbedAuxillaryInfoAsMetadata) {
     // save the names of the entry points - the symbol table
-    Res.Sym = saveModuleSymbolTable(MD.entries(), I, Suffix);
+    Res.Sym = saveModuleSymbolTable(SymT, I, Suffix);
   }
   return Res;
 }
@@ -1071,10 +1115,12 @@ std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
-      StringRef(COL_CODE), StringRef(COL_PROPS)};
-
-  if (DoSymGen) {
-    ColumnTitles.push_back(COL_SYM);
+      StringRef(COL_CODE)};
+  if (!EmbedAuxillaryInfoAsMetadata) {
+    ColumnTitles.push_back(COL_PROPS);
+    if (DoSymGen) {
+      ColumnTitles.push_back(COL_SYM);
+    }
   }
   Expected<std::unique_ptr<util::SimpleTable>> TableE =
       util::SimpleTable::create(ColumnTitles);
@@ -1185,7 +1231,13 @@ processInputModule(std::unique_ptr<Module> M) {
               "' can't be used");
       }
       MMs.front().cleanup();
-      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      const auto &ModuleProps = getModuleProperties(
+          MMs.front(),
+          {EmitKernelParamInfo, EmitProgramMetadata, EmitExportedSymbols,
+           EmitImportedSymbols, DeviceGlobals});
+      std::string SymT = getModuleSymbolTable(MMs.front().entries());
+      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename,
+                   ModuleProps, SymT);
       return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
@@ -1337,6 +1389,10 @@ int main(int argc, char **argv) {
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
+
+  if (!DoSymGen && EmbedAuxillaryInfoAsMetadata)
+    errs() << "error: -" << EmbedAuxillaryInfoAsMetadata.ArgStr
+           << " can't be used without -" << DoSymGen.ArgStr << "\n";
 
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
