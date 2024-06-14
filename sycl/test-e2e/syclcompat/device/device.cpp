@@ -274,7 +274,6 @@ void test_device_info_api() {
   assert(Info.get_global_mem_cache_size() == 1000);
 }
 
-<<<<<<< HEAD
 void test_image_max_attrs() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   syclcompat::device_info info;
