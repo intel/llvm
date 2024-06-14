@@ -109,8 +109,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
 
   fetch_adapter_source(level_zero
-    https://github.com/nrspruit/unified-runtime.git
-    a46177870e8942d7f34d1094df4774f018ed364e
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 2c86cd84a86761204f302a1c5148a8455561b8e6
+    # Merge: f23ee23a a4617787
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Jun 14 10:54:08 2024 +0100
+    #     Merge pull request #1749 from nrspruit/fix_NonBlocking_LastCommand
+    #     [L0] Maintain Lock of Queue while syncing the Last Command Event and update Last Command Event only if matching
+    2c86cd84a86761204f302a1c5148a8455561b8e6
   )
 
   fetch_adapter_source(opencl
