@@ -530,7 +530,6 @@ __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE(double)
 
 template <typename NativeBFT, typename NativeFloatT, int VecSize>
 inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
-  using bfloat16 = sycl::ext::oneapi::bfloat16;
   if constexpr (VecSize == 1) {
     // On device, we interpret bfloat16 as a uint16_t scalar or vector.
     static_assert(std::is_same_v<NativeBFT,
@@ -555,7 +554,6 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
 
 template <typename NativeFloatT, typename NativeBFT, int VecSize>
 inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
-  using bfloat16 = sycl::ext::oneapi::bfloat16;
   if constexpr (VecSize == 1) {
     // On device, we interpret bfloat16 as a uint16_t scalar or vector.
     static_assert(std::is_same_v<NativeBFT,
