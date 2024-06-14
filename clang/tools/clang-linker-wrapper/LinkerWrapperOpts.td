@@ -172,7 +172,7 @@ def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   HelpText<"Options that will control llvm-spirv step">;
 
 // Extra SYCL options to help generate sycl-post-link options that also depend
-// on target triple.
+// on the target triple.
 def sycl_remove_unused_external_funcs : Flag<["--", "-"], "sycl-remove-unused-external-funcs">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
 def no_sycl_remove_unused_external_funcs : Flag<["--", "-"], "no-sycl-remove-unused-external-funcs">,

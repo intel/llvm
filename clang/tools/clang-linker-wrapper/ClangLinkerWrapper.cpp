@@ -532,16 +532,15 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                                const llvm::Triple Triple) {
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
   bool SYCLNativeCPU = (HostTriple == Triple);
-  bool SpecConsts = !(Triple.isNVPTX() || Triple.isAMDGCN() ||
-                      Triple.isSPIRAOT() || SYCLNativeCPU);
-  if (SpecConsts)
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() ||
+                              !Triple.isSPIRAOT() && !SYCLNativeCPU);
+  if (SpecConstsSupported)
     PostLinkArgs.push_back("-spec-const=native");
   else
     PostLinkArgs.push_back("-spec-const=emulation");
 
-  // See if device code splitting is requested.  The logic here works along side
-  // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
-  // added based on the user setting of -fsycl-device-code-split.
+  // See if device code splitting is already requested. If not requested, then
+  // set -split=auto for non-FPGA targets.
   bool NoSplit = true;
   for (auto Arg : PostLinkArgs)
     if (Arg.contains("-split=")) {
@@ -580,10 +579,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
     PostLinkArgs.push_back("-split-esimd");
   PostLinkArgs.push_back("-lower-esimd");
 
-  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
-               Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-               Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-               Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
   if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
       IsAOT)

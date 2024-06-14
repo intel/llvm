@@ -10649,15 +10649,16 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
-// to user supplied options. This function is invoked only for old offloading
-// model. For new offloading model, a slightly modified version of this
-// function is called inside clang-linker-wrapper.
+// to user supplied options. This function is invoked only for the old
+// offloading model. For the new offloading model, a slightly modified version
+// of this function is called inside clang-linker-wrapper.
 // NOTE: Any changes made here should be reflected in the similarly named
 // function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
 static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                            const llvm::opt::ArgList &TCArgs,
                                            ArgStringList &PostLinkArgs,
-                                           llvm::Triple Triple, bool SpecConsts,
+                                           llvm::Triple Triple,
+                                           bool SpecConstsSupported,
                                            types::ID OutputType) {
   if (OutputType == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
@@ -10665,7 +10666,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
   }
-  if (SpecConsts)
+  if (SpecConstsSupported)
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
   else
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
@@ -10674,7 +10675,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
   // added based on the user setting of -fsycl-device-code-split.
   if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) &&
-      (!(Triple.getArchName() == "spir64_fpga")))
+      (Triple.getArchName() != "spir64_fpga"))
     addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   // On Intel targets we don't need non-kernel functions as entry points,
