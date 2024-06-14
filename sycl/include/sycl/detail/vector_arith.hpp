@@ -50,15 +50,14 @@ using rel_t = typename std::conditional_t<
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
     vec_t Ret;                                                                 \
-    if constexpr (vec_t::IsUsingArrayOnDevice) {                               \
+    if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        detail::VecAccess<vec_t>::setValue(                                    \
-            Ret, I,                                                            \
-            (detail::VecAccess<vec_t>::getValue(Lhs, I)                        \
-                 BINOP detail::VecAccess<vec_t>::getValue(Rhs, I)));           \
+        Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
       }                                                                        \
     } else {                                                                   \
-      Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
+      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
+      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
+      Ret = vec<DataT, NumElements>(ExtVecLhs BINOP ExtVecRhs);                \
       if constexpr (std::is_same_v<DataT, bool> && CONVERT) {                  \
         vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);              \
       }                                                                        \
@@ -72,13 +71,9 @@ using rel_t = typename std::conditional_t<
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
     vec_t Ret{};                                                               \
-    for (size_t I = 0; I < NumElements; ++I)                                   \
-      detail::VecAccess<vec_t>::setValue(                                      \
-          Ret, I,                                                              \
-          (DataT)(vec_data<DataT>::get(                                        \
-              detail::VecAccess<vec_t>::getValue(Lhs, I))                      \
-                      BINOP vec_data<DataT>::get(                              \
-                          detail::VecAccess<vec_t>::getValue(Rhs, I))));       \
+    for (size_t I = 0; I < NumElements; ++I) {                                 \
+      Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
+    }                                                                          \
     return Ret;                                                                \
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -130,83 +125,78 @@ template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
 protected:
   using vec_t = vec<DataT, NumElements>;
-  using ocl_t = rel_t<DataT>;
+  using ocl_t = detail::select_cl_scalar_integral_signed_t<DataT>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.
-  friend vec<rel_t<DataT>, NumElements> operator!(const vec_t &Rhs) {
-    if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
-      vec_t Ret{};
+  friend vec<ocl_t, NumElements> operator!(const vec_t &Rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (!vec_t::IsBfloat16) {
+      auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Rhs);
+      vec<ocl_t, NumElements> Ret{
+          (typename vec<ocl_t, NumElements>::vector_t) !extVec};
+      return Ret;
+    } else
+#endif // __SYCL_DEVICE_ONLY__
+    {
+      vec<ocl_t, NumElements> Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        detail::VecAccess<vec_t>::setValue(
-            Ret, I,
-            !vec_data<DataT>::get(detail::VecAccess<vec_t>::getValue(Rhs, I)));
+        // static_cast will work here as the output of ! operator is either 0 or
+        // -1.
+        Ret[I] = static_cast<ocl_t>(-1 * (!Rhs[I]));
       }
-      return Ret.template as<vec<rel_t<DataT>, NumElements>>();
-    } else {
-      return vec_t{(typename vec<DataT, NumElements>::DataType) !Rhs.m_Data}
-          .template as<vec<rel_t<DataT>, NumElements>>();
+      return Ret;
     }
   }
 
   // operator +.
   friend vec_t operator+(const vec_t &Lhs) {
-    if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
-      vec_t Ret{};
-      for (size_t I = 0; I < NumElements; ++I)
-        detail::VecAccess<vec_t>::setValue(
-            Ret, I,
-            vec_data<DataT>::get(+vec_data<DataT>::get(
-                detail::VecAccess<vec_t>::getValue(Lhs, I))));
-      return Ret;
-    } else {
-      return vec_t{+Lhs.m_Data};
-    }
+#ifdef __SYCL_DEVICE_ONLY__
+    auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Lhs);
+    return vec_t{+extVec};
+#else
+    vec_t Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret[I] = +Lhs[I];
+    return Ret;
+#endif
   }
 
   // operator -.
   friend vec_t operator-(const vec_t &Lhs) {
-    namespace oneapi = sycl::ext::oneapi;
     vec_t Ret{};
-    if constexpr (vec_t::IsBfloat16 && NumElements == 1) {
-      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data);
-      oneapi::bfloat16 w = -v;
-      Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
-    } else if constexpr (vec_t::IsBfloat16) {
-      for (size_t I = 0; I < NumElements; I++) {
-        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data[I]);
-        oneapi::bfloat16 w = -v;
-        Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
-      }
-    } else if constexpr (vec_t::IsUsingArrayOnDevice ||
-                         vec_t::IsUsingArrayOnHost) {
-      for (size_t I = 0; I < NumElements; ++I)
-        detail::VecAccess<vec_t>::setValue(
-            Ret, I,
-            vec_data<DataT>::get(-vec_data<DataT>::get(
-                detail::VecAccess<vec_t>::getValue(Lhs, I))));
-      return Ret;
+    if constexpr (vec_t::IsBfloat16) {
+      for (size_t I = 0; I < NumElements; I++)
+        Ret[I] = -Lhs[I];
     } else {
-      Ret = vec_t{-Lhs.m_Data};
+#ifndef __SYCL_DEVICE_ONLY__
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret[I] = -Lhs[I];
+#else
+      auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Lhs);
+      Ret = vec_t{-extVec};
       if constexpr (std::is_same_v<DataT, bool>) {
         vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);
       }
-      return Ret;
+#endif
     }
+    return Ret;
   }
 
 // Unary operations on sycl::vec
+// FIXME: Don't allow Unary operators on vec<bool> after
+// https://github.com/KhronosGroup/SYCL-CTS/issues/896 gets fixed.
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   friend vec_t &operator UOP(vec_t & Rhs) {                                    \
-    Rhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    Rhs OPASSIGN DataT{1};                                                     \
     return Rhs;                                                                \
   }                                                                            \
   friend vec_t operator UOP(vec_t &Lhs, int) {                                 \
     vec_t Ret(Lhs);                                                            \
-    Lhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    Lhs OPASSIGN DataT{1};                                                     \
     return Ret;                                                                \
   }
 
@@ -228,25 +218,24 @@ protected:
   friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
       const vec_t & Lhs, const vec_t & Rhs) {                                  \
     vec<ocl_t, NumElements> Ret{};                                             \
-    /* This special case is needed since there are no standard operator||   */ \
-    /* or operator&& functions for std::array.                              */ \
-    if constexpr (vec_t::IsUsingArrayOnDevice &&                               \
-                  (std::string_view(#RELLOGOP) == "||" ||                      \
-                   std::string_view(#RELLOGOP) == "&&")) {                     \
+    /* ext_vector_type does not support bfloat16, so for these   */            \
+    /* we do element-by-element operation on the underlying std::array.  */    \
+    if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        /* We cannot use SetValue here as the operator is not a friend of*/    \
-        /* Ret on Windows. */                                                  \
-        Ret[I] = static_cast<ocl_t>(                                           \
-            -(vec_data<DataT>::get(detail::VecAccess<vec_t>::getValue(Lhs, I)) \
-                  RELLOGOP vec_data<DataT>::get(                               \
-                      detail::VecAccess<vec_t>::getValue(Rhs, I))));           \
+        Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
       }                                                                        \
     } else {                                                                   \
+      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
+      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
+      /* Cast required to convert unsigned char ext_vec_type to */             \
+      /* char ext_vec_type. */                                                 \
       Ret = vec<ocl_t, NumElements>(                                           \
           (typename vec<ocl_t, NumElements>::vector_t)(                        \
-              Lhs.m_Data RELLOGOP Rhs.m_Data));                                \
-      if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/           \
+              ExtVecLhs RELLOGOP ExtVecRhs));                                  \
+      /* For NumElements == 1, we use scalar instead of ext_vector_type. */    \
+      if constexpr (NumElements == 1) {                                        \
         Ret *= -1;                                                             \
+      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }
@@ -257,12 +246,7 @@ protected:
       const vec_t & Lhs, const vec_t & Rhs) {                                  \
     vec<ocl_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      /* We cannot use SetValue here as the operator is not a friend of*/      \
-      /* Ret on Windows. */                                                    \
-      Ret[I] = static_cast<ocl_t>(                                             \
-          -(vec_data<DataT>::get(detail::VecAccess<vec_t>::getValue(Lhs, I))   \
-                RELLOGOP vec_data<DataT>::get(                                 \
-                    detail::VecAccess<vec_t>::getValue(Rhs, I))));             \
+      Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                  \
     }                                                                          \
     return Ret;                                                                \
   }
@@ -376,25 +360,28 @@ template <typename DataT, int NumElements> class vec_arith_common {
 protected:
   using vec_t = vec<DataT, NumElements>;
 
+  static constexpr bool IsBfloat16 =
+      std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
+
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
   template <typename T = DataT>
   friend std::enable_if_t<!detail::is_vgenfloat_v<T>, vec_t>
   operator~(const vec_t &Rhs) {
-    if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
-      vec_t Ret{};
-      for (size_t I = 0; I < NumElements; ++I) {
-        detail::VecAccess<vec_t>::setValue(
-            Ret, I, ~detail::VecAccess<vec_t>::getValue(Rhs, I));
-      }
-      return Ret;
-    } else {
-      vec_t Ret{(typename vec_t::DataType) ~Rhs.m_Data};
-      if constexpr (std::is_same_v<DataT, bool>) {
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);
-      }
-      return Ret;
+#ifdef __SYCL_DEVICE_ONLY__
+    auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Rhs);
+    vec_t Ret{~extVec};
+    if constexpr (std::is_same_v<DataT, bool>) {
+      ConvertToDataT(Ret);
     }
+    return Ret;
+#else
+    vec_t Ret{};
+    for (size_t I = 0; I < NumElements; ++I) {
+      Ret[I] = ~Rhs[I];
+    }
+    return Ret;
+#endif
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -402,8 +389,7 @@ protected:
   // Required only for std::bool.
   static void ConvertToDataT(vec_bool_t &Ret) {
     for (size_t I = 0; I < NumElements; ++I) {
-      DataT Tmp = detail::VecAccess<vec_bool_t>::getValue(Ret, I);
-      detail::VecAccess<vec_bool_t>::setValue(Ret, I, Tmp);
+      Ret[I] = bit_cast<int8_t>(Ret[I]) != 0;
     }
   }
 #endif
