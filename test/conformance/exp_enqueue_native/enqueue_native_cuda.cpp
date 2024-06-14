@@ -88,3 +88,35 @@ TEST_P(urCudaEnqueueNativeCommandTest, Dependencies) {
         ASSERT_EQ(i, val);
     }
 }
+
+TEST_P(urCudaEnqueueNativeCommandTest, DependenciesURBefore) {
+    ur_event_handle_t event_1, event_2;
+
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_ptr, sizeof(val), &val,
+                                    allocation_size, 0,
+                                    nullptr /*phEventWaitList=*/, &event_1));
+
+    InteropData2 data_2{device_ptr, host_vec.data()};
+    ASSERT_SUCCESS(urEnqueueNativeCommandExp(
+        queue, &interop_func_2, &data_2, 0, nullptr /*phMemList=*/,
+        nullptr /*pProperties=*/, 1, &event_1, &event_2));
+    urQueueFinish(queue);
+    for (auto &i : host_vec) {
+        ASSERT_EQ(i, val);
+    }
+}
+
+TEST_P(urCudaEnqueueNativeCommandTest, DependenciesURAfter) {
+    ur_event_handle_t event_1;
+
+    InteropData1 data_1{device_ptr};
+    ASSERT_SUCCESS(urEnqueueNativeCommandExp(
+        queue, &interop_func_1, &data_1, 0, nullptr /*phMemList=*/,
+        nullptr /*pProperties=*/, 0, nullptr /*phEventWaitList=*/, &event_1));
+
+    urEnqueueUSMMemcpy(queue, /*blocking*/ true, host_vec.data(), device_ptr,
+                       allocation_size, 1, &event_1, nullptr);
+    for (auto &i : host_vec) {
+        ASSERT_EQ(i, val);
+    }
+}
