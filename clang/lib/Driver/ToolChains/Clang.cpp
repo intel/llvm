@@ -10738,14 +10738,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   llvm::Triple T = getToolChain().getTriple();
-  const toolchains::SYCLToolChain &TC =
-      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-
-  // Handle -Xdevice-post-link
-  TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
-                        options::OPT_Xdevice_post_link_EQ,
-                        JA.getOffloadingArch());
-
   getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs);
   getTripleBasedSYCLPostLinkOpts(getToolChain(), TCArgs, CmdArgs, T,
                                  SYCLPostLink->getRTSetsSpecConstants(),
@@ -10757,6 +10749,14 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   std::string OutputArg = Output.getFilename();
   if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+  // Handle -Xdevice-post-link
+  TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
+                        options::OPT_Xdevice_post_link_EQ,
+                        JA.getOffloadingArch());
 
   addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
@@ -11112,14 +11112,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // --sycl-post-link-options="options" provides a string of options to be
     // passed along to the sycl-post-link tool during device link.
     SmallString<128> PostLinkOptString;
-    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-        appendOption(PostLinkOptString, A);
-    }
     ArgStringList PostLinkArgs;
     getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     for (const auto &A : PostLinkArgs)
       appendOption(PostLinkOptString, A);
+    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
+      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
+        appendOption(PostLinkOptString, A);
+    }
     if (!PostLinkOptString.empty())
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));

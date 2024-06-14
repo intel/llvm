@@ -604,16 +604,15 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*SYCLPostLinkPath);
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
   StringRef SYCLPostLinkOptions;
   if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
     SYCLPostLinkOptions = A->getValue();
-
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*SYCLPostLinkPath);
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*TempFileOrErr);
   for (auto &File : InputFiles)
