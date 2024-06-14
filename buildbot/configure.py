@@ -261,8 +261,8 @@ def main():
     parser.add_argument("--native_cpu", action='store_true', help="Enable SYCL Native CPU")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--host-target", default='X86',
-                        help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
+    parser.add_argument("--host-target", default='host',
+                        help="host LLVM target architecture, defaults to \'host\', multiple targets may be provided as a semi-colon separated string")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
