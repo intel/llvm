@@ -789,8 +789,22 @@ public:
     using bfloat16 = sycl::ext::oneapi::bfloat16;
     static_assert(std::is_integral_v<vec_data_t<convertT>> ||
                       detail::is_floating_point<convertT>::value ||
-                      std::is_same_v<convertT, bfloat16>,
+                      // Conversion to BF16 available only for float.
+                      (std::is_same_v<convertT, bfloat16> &&
+                       std::is_same_v<DataT, float>),
                   "Unsupported convertT");
+
+    // Currently, for BF16 <--> float conversion, we only support
+    // Round-to-even rounding mode.
+    constexpr bool isFloatToBF16Conv = std::is_same_v<convertT, bfloat16> &&
+        std::is_same_v<DataT, float>;
+    constexpr bool isBF16ToFloatConv = std::is_same_v<DataT, bfloat16> &&
+        std::is_same_v<convertT, float>;
+    if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
+      static_assert(roundingMode == rounding_mode::automatic ||
+        roundingMode == rounding_mode::rte);
+    }
+
     using T = vec_data_t<DataT>;
     using R = vec_data_t<convertT>;
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
@@ -831,18 +845,18 @@ public:
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
         // For float -> bf16.
-        if constexpr (std::is_same_v<convertT, bfloat16>) {
+        if constexpr (isFloatToBF16Conv) {
           Result[I] = bfloat16((*this)[I]);
         } else
         // For bf16 -> float.
-        if constexpr (std::is_same_v<DataT, bfloat16>) {
+        if constexpr (isBF16ToFloatConv) {
           Result[I] = (float)((*this)[I]);
         }
         else {
           Result.setValue(
               I, vec_data<convertT>::get(
                      detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                         vec_data<T>::get(getValue(I)))));
+                         vec_data<DataT>::get(getValue(I)))));
         }
       }
     }
