@@ -219,7 +219,6 @@ set(files
   __atomic/kill_dependency.h
   __atomic/memory_order.h
   __atomic/to_gcc_order.h
-  __availability
   __bit/bit_cast.h
   __bit/bit_ceil.h
   __bit/bit_floor.h
@@ -251,6 +250,7 @@ set(files
   __chrono/convert_to_tm.h
   __chrono/day.h
   __chrono/duration.h
+  __chrono/exception.h
   __chrono/file_clock.h
   __chrono/formatter.h
   __chrono/hh_mm_ss.h
@@ -315,7 +315,9 @@ set(files
   __condition_variable/condition_variable.h
   __config
   __configuration/abi.h
+  __configuration/availability.h
   __configuration/compiler.h
+  __configuration/language.h
   __configuration/platform.h
   __coroutine/coroutine_handle.h
   __coroutine/coroutine_traits.h
