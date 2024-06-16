@@ -1861,6 +1861,14 @@ defm mcdc_coverage : BoolFOption<"coverage-mcdc",
           "Enable MC/DC criteria when generating code coverage">,
   NegFlag<SetFalse, [], [ClangOption], "Disable MC/DC coverage criteria">,
           BothFlags<[], [ClangOption, CLOption]>>;
+def fmcdc_max_conditions_EQ : Joined<["-"], "fmcdc-max-conditions=">,
+  Group<f_Group>, Visibility<[CC1Option]>,
+  HelpText<"Maximum number of conditions in MC/DC coverage">,
+  MarshallingInfoInt<CodeGenOpts<"MCDCMaxConds">, "32767">;
+def fmcdc_max_test_vectors_EQ : Joined<["-"], "fmcdc-max-test-vectors=">,
+  Group<f_Group>, Visibility<[CC1Option]>,
+  HelpText<"Maximum number of test vectors in MC/DC coverage">,
+  MarshallingInfoInt<CodeGenOpts<"MCDCMaxTVs">, "0x7FFFFFFE">;
 def fprofile_generate : Flag<["-"], "fprofile-generate">,
     Group<f_Group>, Visibility<[ClangOption, CLOption]>,
     HelpText<"Generate instrumented code to collect execution counts into default.profraw (overridden by LLVM_PROFILE_FILE env var)">;
@@ -8514,7 +8522,7 @@ def show_inst : Flag<["-"], "show-inst">,
 def dwarf_debug_producer : Separate<["-"], "dwarf-debug-producer">,
   HelpText<"The string to embed in the Dwarf debug AT_producer record.">;
 
-def defsym : Separate<["-"], "defsym">,
+def defsym : Separate<["--"], "defsym">,
   HelpText<"Define a value for a symbol">;
 
 } // let Visibility = [CC1AsOption]
@@ -8680,9 +8688,9 @@ def : CLFlag<"Oi">, Alias<_SLASH_O>, AliasArgs<["i"]>,
 def : CLFlag<"Oi-">, Alias<_SLASH_O>, AliasArgs<["i-"]>,
   HelpText<"Disable use of builtin functions">;
 def : CLFlag<"Os">, Alias<_SLASH_O>, AliasArgs<["s"]>,
-  HelpText<"Optimize for size">;
+  HelpText<"Optimize for size (like clang -Os)">;
 def : CLFlag<"Ot">, Alias<_SLASH_O>, AliasArgs<["t"]>,
-  HelpText<"Optimize for speed">;
+  HelpText<"Optimize for speed (like clang -O3)">;
 def : CLFlag<"Ox">, Alias<_SLASH_O>, AliasArgs<["x"]>,
   HelpText<"Deprecated (like /Og /Oi /Ot /Oy /Ob2); use /O2">;
 def : CLFlag<"Oy">, Alias<_SLASH_O>, AliasArgs<["y"]>,
