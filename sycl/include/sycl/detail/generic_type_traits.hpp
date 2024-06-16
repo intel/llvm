@@ -17,7 +17,7 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
-#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16 storage type.
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
 
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t

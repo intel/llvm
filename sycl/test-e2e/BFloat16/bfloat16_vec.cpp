@@ -190,13 +190,13 @@ int main() {
             acc[13] = (brev2[0] == device_float[0]) && (brev2[1] == device_float[1]);
         }); 
     }).wait();
-  // clang-format on
+    // clang-format on
 
-  sycl::host_accessor h_acc(buf, sycl::read_only);
-  for(unsigned i = 0; i < N; i++){
+    sycl::host_accessor h_acc(buf, sycl::read_only);
+    for (unsigned i = 0; i < N; i++) {
       assert(h_acc[i]);
-  }
+    }
 
-  std::cout<< "Test Passed."<<std::endl;
-  return 0;
+    std::cout << "Test Passed." << std::endl;
+    return 0;
 }

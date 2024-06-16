@@ -796,13 +796,13 @@ public:
 
     // Currently, for BF16 <--> float conversion, we only support
     // Round-to-even rounding mode.
-    constexpr bool isFloatToBF16Conv = std::is_same_v<convertT, bfloat16> &&
-        std::is_same_v<DataT, float>;
-    constexpr bool isBF16ToFloatConv = std::is_same_v<DataT, bfloat16> &&
-        std::is_same_v<convertT, float>;
+    constexpr bool isFloatToBF16Conv =
+        std::is_same_v<convertT, bfloat16> && std::is_same_v<DataT, float>;
+    constexpr bool isBF16ToFloatConv =
+        std::is_same_v<DataT, bfloat16> && std::is_same_v<convertT, float>;
     if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
       static_assert(roundingMode == rounding_mode::automatic ||
-        roundingMode == rounding_mode::rte);
+                    roundingMode == rounding_mode::rte);
     }
 
     using T = vec_data_t<DataT>;
@@ -848,16 +848,15 @@ public:
         if constexpr (isFloatToBF16Conv) {
           Result[I] = bfloat16((*this)[I]);
         } else
-        // For bf16 -> float.
-        if constexpr (isBF16ToFloatConv) {
-          Result[I] = (float)((*this)[I]);
-        }
-        else {
-          Result.setValue(
-              I, vec_data<convertT>::get(
-                     detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                         vec_data<DataT>::get(getValue(I)))));
-        }
+          // For bf16 -> float.
+          if constexpr (isBF16ToFloatConv) {
+            Result[I] = (float)((*this)[I]);
+          } else {
+            Result.setValue(I, vec_data<convertT>::get(
+                                   detail::convertImpl<T, R, roundingMode, 1,
+                                                       OpenCLT, OpenCLR>(
+                                       vec_data<DataT>::get(getValue(I)))));
+          }
       }
     }
 

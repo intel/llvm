@@ -420,20 +420,21 @@ public:
     using T = ConvertBoolAndByteT<DataT>;
     using R = ConvertBoolAndByteT<convertT>;
     using bfloat16 = sycl::ext::oneapi::bfloat16;
-    static_assert(std::is_integral_v<R> || detail::is_floating_point<R>::value ||
+    static_assert(std::is_integral_v<R> ||
+                      detail::is_floating_point<R>::value ||
                       std::is_same_v<R, bfloat16>,
                   "Unsupported convertT");
 
     {
       // Currently, for BF16 <--> float conversion, we only support
       // Round-to-even rounding mode.
-      constexpr bool isFloatToBF16Conv = std::is_same_v<convertT, bfloat16> &&
-          std::is_same_v<DataT, float>;
-      constexpr bool isBF16ToFloatConv = std::is_same_v<DataT, bfloat16> &&
-          std::is_same_v<convertT, float>;
+      constexpr bool isFloatToBF16Conv =
+          std::is_same_v<convertT, bfloat16> && std::is_same_v<DataT, float>;
+      constexpr bool isBF16ToFloatConv =
+          std::is_same_v<DataT, bfloat16> && std::is_same_v<convertT, float>;
       if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
         static_assert(roundingMode == rounding_mode::automatic ||
-          roundingMode == rounding_mode::rte);
+                      roundingMode == rounding_mode::rte);
       }
     }
 
