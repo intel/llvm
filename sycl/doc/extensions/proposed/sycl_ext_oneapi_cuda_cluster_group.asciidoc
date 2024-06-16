@@ -229,16 +229,53 @@ new member functions the `nd_item` class, namely
 |===
 
 
-To synchronize all the work-groups in a cluster, this extension proposes to 
-overload the `sycl::group_barrier` function, accepting the `cluster_group` type
+== Accessing another work-group's local memory
+
+Work-group's within the cluster have the ability to access another work-group's 
+local memory. Typically addresses which reside in the local memory of a 
+work-group can only be addressed by the work-items of that work-group. 
+Therefore, to access another work-group's local memory, the address needs to be
+mapped such that the address in another work-group is addressable within the 
+calling work-item. Further, to access another another work-group's local memory,
+all the work-groups within the cluster must exist and the work-group's should
+not cease to exist before all the memory operations are completed.
+
+A member function of the `cluster_group` class; 
+`map_cluster_local_pointer` will perform the mapping and return a pointer 
+which can then be dereferenced by the calling work-item. 
 
 
 [%header,cols="10,5"]
 |===
 
-|`void sycl::group_barrier(cluster_group G)`
-|Synchronizes all work-groups within the cluster
+|T*  map_cluster_local_pointer(T* addr, size_t group_id)
+|Accepts the equivalent address to the memory location relative to the calling 
+work-item which is to be mapped from the local memory of the work-group, as 
+specified by the group_id, denoting the flattened group_id within the cluster
 |===
+
+
+== Cluster Memory Fence Scope and Barrier
+
+Work-items in a work-group can atomically operate on the local memory addresses
+of another work-group which have mapped as described above. To facilitate this,
+this proposal introduces a new memory scope, 
+`sycl_ext_oneapi_experimental_cuda_cluster_fence` which can be used with the
+existing `atomic_ref` class.
+
+[source,c++]
+----
+    class cluster_group {
+    public:
+    ...
+    static constexpr memory_scope fence_scope = 
+                memory_scope::sycl_ext_oneapi_experimental_cuda_cluster_fence;
+    }
+----
+
+
+To synchronize all workitems in the cluster group, `sycl::group_barrier` can be 
+used, accepting the `cluster_group` class.
 
 
 == Example
@@ -253,7 +290,6 @@ void kernel_function_foo(nd_item<3> it) {
     auto cg = it.ext_oneapi_cuda_get_cluster_group();
     auto wg_ids_in_cluster = cg.get_group_id();
     ...
-    sycl::group_barrier(cg);
 }
 
 sycl::event launch_kernel_with_cluster() {
