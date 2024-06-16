@@ -110,13 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
+    # commit b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
+    # Merge: 0cd127ad 30f8ac50
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    # Date:   Fri Jun 14 14:26:17 2024 +0100
+    #     Merge pull request #1738 from Bensuo/cmd-buf-copy-queue
+    #     [CMDBUF][L0] Use copy engine to optimize cmd-buffer usage
+    b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
   )
 
   fetch_adapter_source(opencl
