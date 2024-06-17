@@ -20,8 +20,8 @@
 
 ; CHECK-LLVM: %[[#Ptr:]] = alloca ptr
 ; CHECK-LLVM: %[[#Array:]] = alloca [16 x i64]
-; CHECK-LLVM: call void @llvm.dbg.declare(metadata ptr %[[#Array]], metadata ![[#DbgLVarArray:]]
-; CHECK-LLVM: call void @llvm.dbg.declare(metadata ptr %[[#Ptr]], metadata ![[#DbgLVarPtr:]]
+; CHECK-LLVM: #dbg_declare(ptr %[[#Array]], ![[#DbgLVarArray:]]
+; CHECK-LLVM: #dbg_declare(ptr %[[#Ptr]], ![[#DbgLVarPtr:]]
 
 ; CHECK-LLVM: ![[#DbgLVarPtr:]] = !DILocalVariable(scope: ![[#]], file: ![[#]], type: ![[#DbgPtrT:]], flags: DIFlagArtificial)
 ; CHECK-LLVM: ![[#DbgPtrT:]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: ![[#DbgBasicT:]], size: 64)
