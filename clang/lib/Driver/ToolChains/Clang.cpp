@@ -10646,6 +10646,10 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (IsUsingLTO && LTOMode == LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-embed-aux-info-as-metadata"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple.
@@ -10717,10 +10721,6 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       (IsAOT || NewOffloadDriver))
     addArgs(PostLinkArgs, TCArgs,
             {"-generate-device-image-default-spec-consts"});
-  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
-  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
-  if (IsUsingLTO && LTOMode == LTOK_Thin)
-    addArgs(PostLinkArgs, TCArgs, {"-embed-aux-info-as-metadata"});
 }
 
 // sycl-post-link tool normally outputs a file table (see the tool sources for
