@@ -885,7 +885,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                                  CommandBuffer->Device));
 
-  bool PreferCopyEngine = (SrcBuffer->OnHost || SrcBuffer->OnHost);
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
@@ -917,7 +917,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                                  CommandBuffer->Device));
 
-  bool PreferCopyEngine = (SrcBuffer->OnHost || SrcBuffer->OnHost);
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
