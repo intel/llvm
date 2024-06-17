@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -99,7 +100,6 @@ bool test_kernel_apis(queue Queue) {
 }
 
 bool test_bundle_apis(queue Queue) {
-  std::cerr << "test_bundle_apis" << std::endl << std::flush;
   bool Pass = true;
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -108,19 +108,14 @@ bool test_bundle_apis(queue Queue) {
   std::vector<device> Devices{Context.get_devices()};
 
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
-  bool Pass6 = ext::oneapi::experimental::is_kernel_v<ff_2>;
-  std::cerr << "Pass6=" << Pass6 << std::endl << std::flush;
   bool PassA = has_kernel_bundle<ff_2, bundle_state::executable>(Context);
-  std::cerr << "PassA=" << PassA << std::endl << std::flush;
+  std::cerr << "PassA=" << PassA << std::endl;
   Pass &= PassA;
 
-  bool Pass7 =
-    ext::oneapi::experimental::is_kernel_v<(void (*)(int*, int))ff_3>;
-  std::cerr << "Pass7=" << Pass7 << std::endl << std::flush;
   bool PassB =
       has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
           Context);
-  std::cerr << "PassB=" << PassB << std::endl << std::flush;
+  std::cerr << "PassB=" << PassB << std::endl;
   Pass &= PassB;
 
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
