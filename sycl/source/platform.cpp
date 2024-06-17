@@ -20,12 +20,15 @@ namespace sycl {
 inline namespace _V1 {
 
 platform::platform() : platform(default_selector_v) {}
-/*
+
 platform::platform(cl_platform_id PlatformId) {
-  impl = detail::platform_impl::getOrMakePlatformImpl(
-      detail::pi::cast<sycl::detail::pi::PiPlatform>(PlatformId),
-      sycl::detail::pi::getPlugin<backend::opencl>());
-}*/
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  ur_platform_handle_t UrPlatform = nullptr;
+  Plugin->call(urPlatformCreateWithNativeHandle,
+               detail::pi::cast<ur_native_handle_t>(PlatformId),
+               Plugin->getUrAdapter(), nullptr, &UrPlatform);
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
+}
 
 // protected constructor for internal use
 platform::platform(const device &Device) { *this = Device.get_platform(); }

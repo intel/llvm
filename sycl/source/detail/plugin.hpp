@@ -195,17 +195,6 @@ public:
     }
   }
 
-  /// Calls the PiApi, traces the call, and returns the result.
-  ///
-  /// Usage:
-  /// \code{cpp}
-  /// PiResult Err = Plugin->call<PiApiKind::pi>(Args);
-  /// Plugin->checkPiResult(Err); // Checks Result and throws a runtime_error
-  /// // exception.
-  /// \endcode
-  ///
-  /// \sa plugin::checkPiResult
-
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
@@ -219,6 +208,18 @@ public:
     return UrPlatforms;
   }
 
+  ur_adapter_handle_t getUrAdapter() { return MAdapter; }
+
+  /// Calls the UR Api, traces the call, and returns the result.
+  ///
+  /// Usage:
+  /// \code{cpp}
+  /// ur_result_t Err = Plugin->call(urEntryPoint, Args);
+  /// Plugin->checkUrResult(Err); // Checks Result and throws a runtime_error
+  /// // exception.
+  /// \endcode
+  ///
+  /// \sa plugin::checkUrResult
   template <class UrFunc, typename... ArgsT>
   ur_result_t call_nocheck(UrFunc F, ArgsT... Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;

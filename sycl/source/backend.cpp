@@ -90,8 +90,8 @@ platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
-  Plugin->call(urPlatformCreateWithNativeHandle, NativeHandle, nullptr,
-               &UrPlatform);
+  Plugin->call(urPlatformCreateWithNativeHandle, NativeHandle,
+               Plugin->getUrAdapter(), nullptr, &UrPlatform);
 
   return detail::createSyclObjFromImpl<platform>(
       platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin));
