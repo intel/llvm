@@ -449,7 +449,7 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
 static cl::opt<bool>
     ClSpirOffloadPrivates("asan-spir-privates",
                           cl::desc("instrument private pointer"), cl::Hidden,
-                          cl::init(false));
+                          cl::init(true));
 
 static cl::opt<bool> ClSpirOffloadGlobals("asan-spir-globals",
                                           cl::desc("instrument global pointer"),

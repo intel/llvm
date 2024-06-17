@@ -1,16 +1,16 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=1 -O2 -g -o %t1
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t1 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR1 %s
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=2 -O2 -g -o %t2
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t2 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR2 %s
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=3 -O2 -g -o %t3
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t3 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR3 %s
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=4 -O2 -g -o %t4
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t4 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR4 %s
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=5 -O2 -g -o %t5
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t5 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR5 %s
-// RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -DVAR=6 -O2 -g -o %t6
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t6 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR6 %s
+// RUN: %{build} %device_asan_flags -DVAR=1 -O2 -g -o %t1
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t1 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR1 %s
+// RUN: %{build} %device_asan_flags -DVAR=2 -O2 -g -o %t2
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t2 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR2 %s
+// RUN: %{build} %device_asan_flags -DVAR=3 -O2 -g -o %t3
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t3 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR3 %s
+// RUN: %{build} %device_asan_flags -DVAR=4 -O2 -g -o %t4
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t4 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR4 %s
+// RUN: %{build} %device_asan_flags -DVAR=5 -O2 -g -o %t5
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t5 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR5 %s
+// RUN: %{build} %device_asan_flags -DVAR=6 -O2 -g -o %t6
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t6 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR6 %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -69,8 +69,9 @@ int main() {
       array[0] = foo6(&p5[1]);
 #endif
     });
-    Q.wait();
   });
+  Q.wait();
+  sycl::free(array, Q);
 
   return 0;
 }
