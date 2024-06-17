@@ -442,7 +442,7 @@ run the following commands
     tar -zxvf oclcpuexp_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime (requires root access)
+2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
     # OpenCL FPGA emulation RT
