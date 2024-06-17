@@ -361,8 +361,10 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
   const CG::CGTYPE Type = Handler.getType();
-  event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<detail::event_impl>());
+  event Event = detail::createSyclObjFromImpl<event>(std::make_shared<detail::event_impl>());
+  std::vector<StreamImplPtr> Streams;
+  if (Type == CG::Kernel)
+    Streams = std::move(Handler.MStreamStorage);
 
   if (PostProcess) {
     bool IsKernel = Type == CG::Kernel;
@@ -380,6 +382,19 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     finalizeHandler(Handler, Event);
 
   addEvent(Event);
+
+  auto EventImpl = detail::getSyclObjImpl(Event);
+  for (auto &Stream : Streams) {
+    // We don't want stream flushing to be blocking operation that is why submit a
+    // host task to print stream buffer. It will fire up as soon as the kernel
+    // finishes execution.
+    event FlushEvent = submit_impl([&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    }, Self, PrimaryQueue, SecondaryQueue, Loc, {});
+    EventImpl->attachEventToComplete(detail::getSyclObjImpl(FlushEvent));
+    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+  }
+
   return Event;
 }
 

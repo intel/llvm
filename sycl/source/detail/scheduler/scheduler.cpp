@@ -99,13 +99,6 @@ EventImplPtr Scheduler::addCG(
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
-  std::vector<StreamImplPtr> Streams;
-
-  if (Type == CG::Kernel) {
-    auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
-    Streams = CGExecKernelPtr->getStreams();
-    CGExecKernelPtr->clearStreams();
-  }
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
   CommandGroup->clearAuxiliaryResources();
@@ -143,10 +136,6 @@ EventImplPtr Scheduler::addCG(
 
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
-
-    for (const auto &StreamImplPtr : Streams) {
-      StreamImplPtr->flush(NewEvent);
-    }
   }
 
   if (!AuxiliaryResources.empty())
