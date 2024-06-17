@@ -30,6 +30,13 @@ int main() {
   const auto &Devices =
       platform(gpu_selector_v).get_devices(info::device_type::gpu);
   std::cout << Devices.size() << " devices found" << std::endl;
+
+  if (Devices.size() == 1) {
+    // Since this is XFAIL for Devices.size() > 1 we need to return failure if
+    // test can't run
+    return 1;
+  }
+
   context C(Devices);
 
   int Index = 0;
