@@ -18,7 +18,8 @@
 ; intrinsics across all lanes even when scalarization masks disable some
 ; of the lanes. This occurs when we scalarize insertelement instructions.
 
-; RUN: veczc -k unaligned_load -vecz-passes="function(instcombine,adce),scalarize,packetizer,instcombine" -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s
+; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
+; RUN: veczc -k unaligned_load -vecz-passes="function(instcombine,adce),scalarize,packetizer,instcombine" -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %t
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -49,8 +50,10 @@ entry:
 ; FIXME: This llvm.dbg.value marks a 'kill location' and denotes the
 ; termination of the previous value assigned to %tmp - we could probably do
 ; better here by manifesting a vectorized value?
-; CHECK: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata [[VAR:![0-9]+]],
-; CHECK-SAME:   metadata !DIExpression({{.*}})), !dbg !{{[0-9]+}}
+; CHECK-GE19: #dbg_value(i32 {{(poison|undef)}}, [[VAR:![0-9]+]],
+; CHECK-LT19: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata [[VAR:![0-9]+]],
+; CHECK-SAME:   !DIExpression({{.*}}),
+; CHECK-SAME:   !{{[0-9]+}}
   %1 = load i32, i32* %tid, align 4, !dbg !32
   %mul = mul nsw i32 3, %1, !dbg !32
   %idx.ext = sext i32 %mul to i64, !dbg !32
