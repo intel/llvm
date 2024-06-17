@@ -4,8 +4,8 @@
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/queue.hpp>
 #include <sycl/usm.hpp>
 
 #include <string>
