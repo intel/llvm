@@ -2034,10 +2034,10 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   if (InputImpl->get_bin_image_ref()->getFormat() !=
           PI_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
-    sycl::runtime_error(
-        "Creating a program from AOT binary for multiple device is not "
-        "supported",
-        PI_ERROR_INVALID_OPERATION);
+    sycl::exception(
+        sycl::errc::feature_not_supported,
+        "Creating a program from AOT binary for multiple devices is "
+        "not supported");
 
   // Device is not used when creating program from SPIRV, so passing only one
   // device is OK.
@@ -2229,10 +2229,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
-      sycl::runtime_error(
-          "Creating a program from AOT binary for multiple device is not "
-          "supported",
-          PI_ERROR_INVALID_OPERATION);
+      sycl::exception(sycl::errc::feature_not_supported,
+                      "Creating a program from AOT binary for multiple device "
+                      "is not supported");
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.

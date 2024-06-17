@@ -56,7 +56,7 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(sycl::errc::runtime, Error);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.DeviceType) {
@@ -77,10 +77,10 @@ filter create_filter(const std::string &Input) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::errc::runtime, Error);
       }
     } else {
-      throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(sycl::errc::runtime, Error);
     }
   }
 
@@ -144,9 +144,9 @@ int filter_selector_impl::operator()(const device &Dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    throw sycl::runtime_error(
-        "Could not find a device that matches the specified filter(s)!",
-        PI_ERROR_DEVICE_NOT_FOUND);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Could not find a device that matches the specified filter(s)!");
   }
 
   return Score;
