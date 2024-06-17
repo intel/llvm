@@ -46,8 +46,8 @@ int test_cluster_launch_enqueue_functions(sycl::queue &queue,
                     *correct_result_flag = 1;
                   }
                 } else if constexpr (Dim == 2) {
-                  if (cluster_dim_z == 1 && cluster_dim_y == cluster_range[0] &&
-                      cluster_dim_x == cluster_range[1]) {
+                  if (cluster_dim_z == cluster_range[1] &&
+                      cluster_dim_y == cluster_range[0] && cluster_dim_x == 1) {
                     *correct_result_flag = 1;
                   }
                 } else {
@@ -80,7 +80,7 @@ int main() {
       test_cluster_launch_enqueue_functions(queue, sycl::range{128, 128, 128},
                                             sycl::range{16, 16, 2},
                                             sycl::range{2, 4, 1}) &&
-      test_cluster_launch_enqueue_functions(queue, sycl::range{1024, 1024},
+      test_cluster_launch_enqueue_functions(queue, sycl::range{512, 1024},
                                             sycl::range{32, 32},
                                             sycl::range{4, 2}) &&
       test_cluster_launch_enqueue_functions(queue, sycl::range{128},
