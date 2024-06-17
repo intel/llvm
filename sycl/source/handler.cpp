@@ -1591,6 +1591,10 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+backend handler::getDeviceBackend() {
+  return MQueue->getDeviceImplPtr()->getBackend();
+}
+
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
