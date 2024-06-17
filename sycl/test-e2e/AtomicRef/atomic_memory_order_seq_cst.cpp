@@ -22,7 +22,7 @@ size_t CalculateIterations(device &device, size_t iter_cap) {
               << "Befawre of allocating too much memory on the device.\n";
     std::cerr << "Error message: " << e.what() << std::endl;
   }
-  uint64_t max_chars_alloc = max_alloc_size / sizeof (char);
+  uint64_t max_chars_alloc = max_alloc_size / sizeof(char);
   size_t max_iter =
       (std::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
   return std::min(max_iter, iter_cap);
