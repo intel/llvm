@@ -18,7 +18,8 @@
 ; Specifically that the scalarization pass doesn't destroy DI
 ; intrinsics attached to the vector instructions it scalarizes.
 
-; RUN: veczc -k mul2 -vecz-passes="scalarize,function(mem2reg)" -vecz-choices=FullScalarization -S < %s | FileCheck %s
+; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
+; RUN: veczc -k mul2 -vecz-passes="scalarize,function(mem2reg)" -vecz-choices=FullScalarization -S < %s | FileCheck %t
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -131,26 +132,33 @@ attributes #3 = { nobuiltin }
 ; CHECK: @__vecz_v[[WIDTH:[0-9]+]]_mul2({{.*}} !dbg [[VECZ_SUBPROG:![0-9]+]]
 
 ; Check that intrinsics for user variable locations are still present
-; CHECK: call void @llvm.dbg.value(metadata {{.*}} %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
-; CHECK-SAME: !dbg [[PARAM_LOC:![0-9]+]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata {{.*}} %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
+; CHECK-GE19: #dbg_value({{.*}} %in1, [[DI_IN1:![0-9]+]], [[EXPR:!DIExpression()]]
+; CHECK-SAME: [[PARAM_LOC:![0-9]+]]
 
-; CHECK: call void @llvm.dbg.value(metadata {{.*}} %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata {{.*}} %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_value({{.*}} %in2, [[DI_IN2:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[PARAM_LOC]]
 
-; CHECK: call void @llvm.dbg.value(metadata {{.*}} %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata {{.*}} %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_value({{.*}} %out, [[DI_OUT:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[PARAM_LOC]]
 
-; CHECK: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[TID_LOC:![0-9]+]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_value(i64 %call, [[DI_TID:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[TID_LOC:![0-9]+]]
 
-; CHECK: call void @llvm.dbg.declare(metadata ptr %a, metadata [[DI_A:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME:!dbg [[A_LOC:![0-9]+]]
+; CHECK-LT19: call void @llvm.dbg.declare(metadata ptr %a, metadata [[DI_A:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_declare(ptr %a, [[DI_A:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[A_LOC:![0-9]+]]
 
-; CHECK: call void @llvm.dbg.declare(metadata ptr %b, metadata [[DI_B:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME:!dbg [[B_LOC:![0-9]+]]
+; CHECK-LT19: call void @llvm.dbg.declare(metadata ptr %b, metadata [[DI_B:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_declare(ptr %b, [[DI_B:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[B_LOC:![0-9]+]]
 
-; CHECK: call void @llvm.dbg.declare(metadata ptr %tmp, metadata [[DI_TMP:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME:!dbg [[TMP_LOC:![0-9]+]]
+; CHECK-LT19: call void @llvm.dbg.declare(metadata ptr %tmp, metadata [[DI_TMP:![0-9]+]], metadata [[EXPR]]
+; CHECK-GE19: #dbg_declare(ptr %tmp, [[DI_TMP:![0-9]+]], [[EXPR]]
+; CHECK-SAME: [[TMP_LOC:![0-9]+]]
 
 ; Debug info metadata entries
 ; CHECK:[[PTR_TYPE:![0-9]+]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DI_INT2:![0-9]+]], size: 64, align: 64)

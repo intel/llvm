@@ -17,7 +17,8 @@
 ; Check that debug info intrinsics are correctly placed after
 ; phi nodes.
 
-; RUN: veczc -vecz-simd-width=4 -S < %s | FileCheck %s
+; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
+; RUN: veczc -vecz-simd-width=4 -S < %s | FileCheck %t
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -47,8 +48,10 @@ entry:
 
 ; CHECK: for.cond:
 ; CHECK: %[[PHI1:.+]] = phi {{i[0-9]+}} [ %{{.+}}, %entry ], [ %{{.+}}, %for.cond ]
-; CHECK: call void @llvm.dbg.value(metadata i64 %[[PHI1]], metadata !{{[0-9]+}},
-; CHECK-SAME: metadata !DIExpression({{.*}})), !dbg !{{[0-9]+}}
+; CHECK-GE19: #dbg_value(i64 %[[PHI1]], !{{[0-9]+}},
+; CHECK-LT19: call void @llvm.dbg.value(metadata i64 %[[PHI1]], metadata !{{[0-9]+}},
+; CHECK-SAME: !DIExpression({{.*}}),
+; CHECK-SAME: !{{[0-9]+}}
 ; Check we haven't inserted a llvm.dbg.value intrinsic before the last of the PHIs.
 ; CHECK-NOT: phi
 for.cond:                                         ; preds = %for.inc, %entry

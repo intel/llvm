@@ -17,7 +17,8 @@
 ; Check that debug info is preserved in the vectorized kernel.
 ; Specifically that the packetization pass creates vector types
 ; in the DI for the variables.
-; RUN: veczc -k add -S < %s | FileCheck %s
+; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
+; RUN: veczc -k add -S < %s | FileCheck %t
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -35,32 +36,38 @@ entry:
   %a = alloca i32, align 4
   %b = alloca i32, align 4
   store i32 addrspace(1)* %in1, i32 addrspace(1)** %in1.addr, align 8
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
-; CHECK-SAME: !dbg [[PARAM_LOC:![0-9]+]]
+; CHECK-GE19: #dbg_value(ptr addrspace(1) %in1, [[DI_IN1:![0-9]+]], [[EXPR:!DIExpression()]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata ptr addrspace(1) %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
+; CHECK-SAME: [[PARAM_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %in1.addr, metadata !11, metadata !29), !dbg !30
   store i32 addrspace(1)* %in2, i32 addrspace(1)** %in2.addr, align 8
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
+; CHECK-GE19: #dbg_value(ptr addrspace(1) %in2, [[DI_IN2:![0-9]+]], [[EXPR]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata ptr addrspace(1) %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: [[PARAM_LOC]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %in2.addr, metadata !12, metadata !29), !dbg !30
   store i32 addrspace(1)* %out, i32 addrspace(1)** %out.addr, align 8
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
+; CHECK-GE19: #dbg_value(ptr addrspace(1) %out, [[DI_OUT:![0-9]+]], [[EXPR]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata ptr addrspace(1) %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: [[PARAM_LOC]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %out.addr, metadata !13, metadata !29), !dbg !30
-; CHECK: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[TID_LOC:![0-9]+]]
+; CHECK-GE19: #dbg_value(i64 %call, [[DI_TID:![0-9]+]], [[EXPR]]
+; CHECK-LT19: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: [[TID_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i64* %tid, metadata !14, metadata !29), !dbg !31
   %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !31
   store i64 %call, i64* %tid, align 8, !dbg !31
-; CHECK: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_A:![0-9]+]], metadata !DIExpression())
-; CHECK-SAME: !dbg [[A_LOC:![0-9]+]]
+; CHECK-GE19: #dbg_value(i32 undef, [[DI_A:![0-9]+]], !DIExpression(),
+; CHECK-LT19: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_A:![0-9]+]], metadata !DIExpression())
+; CHECK-SAME: [[A_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %a, metadata !19, metadata !29), !dbg !32
   %0 = load i64, i64* %tid, align 8, !dbg !32
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %in1.addr, align 8, !dbg !32
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %1, i64 %0, !dbg !32
   %2 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !32
   store i32 %2, i32* %a, align 4, !dbg !32
-; CHECK: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_B:![0-9]+]], metadata !DIExpression())
-; CHECK-SAME: !dbg [[B_LOC:![0-9]+]]
+; CHECK-GE19: #dbg_value(i32 undef, [[DI_B:![0-9]+]], !DIExpression(),
+; CHECK-LT19: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_B:![0-9]+]], metadata !DIExpression())
+; CHECK-SAME: [[B_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %b, metadata !20, metadata !29), !dbg !33
   %3 = load i64, i64* %tid, align 8, !dbg !33
   %4 = load i32 addrspace(1)*, i32 addrspace(1)** %in2.addr, align 8, !dbg !33
