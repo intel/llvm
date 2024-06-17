@@ -4520,11 +4520,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t
+        memHandleType, ///< [in] type of external memory handle
     ur_exp_interop_mem_desc_t
         *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
@@ -4533,11 +4535,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImportOpaqueFDExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
-    if (nullptr != pfnImportOpaqueFDExp) {
-        result = pfnImportOpaqueFDExp(hContext, hDevice, size, pInteropMemDesc,
-                                      phInteropMem);
+    auto pfnImportExternalMemoryExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
+    if (nullptr != pfnImportExternalMemoryExp) {
+        result =
+            pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
+                                       pInteropMemDesc, phInteropMem);
     } else {
         // generic implementation
         *phInteropMem =
@@ -4606,11 +4609,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t
+        semHandleType, ///< [in] type of external memory handle
     ur_exp_interop_semaphore_desc_t
         *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
@@ -4619,12 +4623,12 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImportExternalSemaphoreOpaqueFDExp =
-        d_context.urDdiTable.BindlessImagesExp
-            .pfnImportExternalSemaphoreOpaqueFDExp;
-    if (nullptr != pfnImportExternalSemaphoreOpaqueFDExp) {
-        result = pfnImportExternalSemaphoreOpaqueFDExp(
-            hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
+    auto pfnImportExternalSemaphoreExp =
+        d_context.urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
+    if (nullptr != pfnImportExternalSemaphoreExp) {
+        result = pfnImportExternalSemaphoreExp(hContext, hDevice, semHandleType,
+                                               pInteropSemaphoreDesc,
+                                               phInteropSemaphore);
     } else {
         // generic implementation
         *phInteropSemaphore =
@@ -4667,7 +4671,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
+                      ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `waitValue` is ignored.
+    uint64_t waitValue,           ///< [in] the value to be waited on
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4685,8 +4695,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     auto pfnWaitExternalSemaphoreExp =
         d_context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
     if (nullptr != pfnWaitExternalSemaphoreExp) {
-        result = pfnWaitExternalSemaphoreExp(
-            hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+        result = pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, hasWaitValue,
+                                             waitValue, numEventsInWaitList,
+                                             phEventWaitList, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {
@@ -4704,7 +4715,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
+                        ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `signalValue` is ignored.
+    uint64_t signalValue,         ///< [in] the value to be signalled
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4723,7 +4740,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         d_context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
     if (nullptr != pfnSignalExternalSemaphoreExp) {
         result = pfnSignalExternalSemaphoreExp(
-            hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+            hQueue, hSemaphore, hasSignalValue, signalValue,
+            numEventsInWaitList, phEventWaitList, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {
@@ -5933,15 +5951,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
     pDdiTable->pfnMipmapFreeExp = driver::urBindlessImagesMipmapFreeExp;
 
-    pDdiTable->pfnImportOpaqueFDExp = driver::urBindlessImagesImportOpaqueFDExp;
+    pDdiTable->pfnImportExternalMemoryExp =
+        driver::urBindlessImagesImportExternalMemoryExp;
 
     pDdiTable->pfnMapExternalArrayExp =
         driver::urBindlessImagesMapExternalArrayExp;
 
     pDdiTable->pfnReleaseInteropExp = driver::urBindlessImagesReleaseInteropExp;
 
-    pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
-        driver::urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+    pDdiTable->pfnImportExternalSemaphoreExp =
+        driver::urBindlessImagesImportExternalSemaphoreExp;
 
     pDdiTable->pfnDestroyExternalSemaphoreExp =
         driver::urBindlessImagesDestroyExternalSemaphoreExp;
