@@ -50,6 +50,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Indicates if a copy engine is available for use
   bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
 
+  //FIXME Refactor Documentation
+  ze_command_list_handle_t chooseCommandList(bool PreferCopyEngine);
+
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
   // Device associated with this command buffer

@@ -317,6 +317,51 @@ static ur_result_t getEventsFromSyncPoints(
   return UR_RESULT_SUCCESS;
 }
 
+// FIXME Refactor Naming?
+// FIXME Refactor Why do some events need to be host_visible and others don't
+ur_result_t
+createSyncPoint(ur_command_t CommandType,
+                ur_exp_command_buffer_handle_t CommandBuffer,
+                uint32_t NumSyncPointsInWaitList,
+                const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+                ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+                bool host_visible, std::vector<ze_event_handle_t> &ZeEventList,
+                ur_event_handle_t &LaunchEvent) {
+  //  std::vector<ze_event_handle_t> ZeEventList;
+  //  ur_event_handle_t LaunchEvent;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, host_visible,
+                      &LaunchEvent, false, !CommandBuffer->IsProfilingEnabled));
+  LaunchEvent->CommandType = CommandType;
+
+  // Get sync point and register the event with it.
+  // FIXME Refactor GetNextSyncPoint and RegisterSyncPoint seem redudant. Can be
+  // made into just one function.
+  ur_exp_command_buffer_sync_point_t SyncPoint =
+      CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+
+  if (RetSyncPoint) {
+    *RetSyncPoint = SyncPoint;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ze_command_list_handle_t
+ur_exp_command_buffer_handle_t_::chooseCommandList(Ubool PreferCopyEngine) {
+  // If the copy engine available, the command is enqueued in the
+  // ZeCopyCommandList.
+  if (PreferCopyEngine && this->UseCopyEngine()) {
+    // We indicate that the ZeCopyCommandList contains commands to be
+    // submitted.
+    this->MCopyCommandListEmpty = false;
+    return this->ZeCopyCommandList;
+  }
+  return this->ZeComputeCommandList;
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // Helper function for common code when enqueuing memory operations to a command
 // buffer.
@@ -333,33 +378,16 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
 
     logger::debug("calling zeCommandListAppendMemoryCopy()");
   } else {
+    // FIXME Why doesn't the event need to be host visible
     std::vector<ze_event_handle_t> ZeEventList;
     ur_event_handle_t LaunchEvent;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = CommandType;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
-    }
+    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
+                            SyncPointWaitList, RetSyncPoint, false, ZeEventList,
+                            LaunchEvent));
 
     ze_command_list_handle_t ZeCommandList =
-        CommandBuffer->ZeComputeCommandList;
-    // If the copy engine available, the command is enqueued in the
-    // ZeCopyCommandList.
-    if (PreferCopyEngine && CommandBuffer->UseCopyEngine()) {
-      ZeCommandList = CommandBuffer->ZeCopyCommandList;
-      // We indicate that the ZeCopyCommandList contains commands to be
-      // submitted.
-      CommandBuffer->MCopyCommandListEmpty = false;
-    }
+        CommandBuffer->chooseCommandList(PreferCopyEngine);
+
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (ZeCommandList, Dst, Src, Size, LaunchEvent->ZeEvent,
                 ZeEventList.size(), ZeEventList.data()));
@@ -421,34 +449,16 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
 
     logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
   } else {
+    // FIXME Why doesn't the event need to be host visible
+
     std::vector<ze_event_handle_t> ZeEventList;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
-
     ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = CommandType;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
-    }
+    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
+                            SyncPointWaitList, RetSyncPoint, false, ZeEventList,
+                            LaunchEvent));
 
     ze_command_list_handle_t ZeCommandList =
-        CommandBuffer->ZeComputeCommandList;
-    // If the copy engine available, the command is enqueued in the
-    // ZeCopyCommandList.
-    if (PreferCopyEngine && CommandBuffer->UseCopyEngine()) {
-      ZeCommandList = CommandBuffer->ZeCopyCommandList;
-      // We indicate that the ZeCopyCommandList contains commands to be
-      // submitted.
-      CommandBuffer->MCopyCommandListEmpty = false;
-    }
+        CommandBuffer->chooseCommandList(PreferCopyEngine);
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
@@ -474,22 +484,17 @@ static ur_result_t enqueueCommandBufferFillHelper(
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  ze_command_list_handle_t ZeCommandList;
   // If the copy engine available and patternsize is valid, the command is
   // enqueued in the ZeCopyCommandList, otherwise enqueue it in the compute
   // command list.
-
-  if (PreferCopyEngine && CommandBuffer->UseCopyEngine() &&
+  PreferCopyEngine =
+      PreferCopyEngine &&
       PatternSize <=
           CommandBuffer->Device
               ->QueueGroup[ur_device_handle_t_::queue_group_info_t::MainCopy]
-              .ZeProperties.maxMemoryFillPatternSize) {
+              .ZeProperties.maxMemoryFillPatternSize;
 
-    ZeCommandList = CommandBuffer->ZeCopyCommandList;
-    // We indicate that the ZeCopyCommandList contains commands to be
-    // submitted.
-    CommandBuffer->MCopyCommandListEmpty = false;
-  } else {
+  if (!PreferCopyEngine) {
     // Pattern size must fit the compute queue capabilities.
     UR_ASSERT(
         PatternSize <=
@@ -497,8 +502,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
                 ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
                 .ZeProperties.maxMemoryFillPatternSize,
         UR_RESULT_ERROR_INVALID_VALUE);
-    ZeCommandList = CommandBuffer->ZeComputeCommandList;
   }
+  ze_command_list_handle_t ZeCommandList =
+      CommandBuffer->chooseCommandList(PreferCopyEngine);
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
@@ -507,23 +513,12 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
     logger::debug("calling zeCommandListAppendMemoryFill()");
   } else {
+    // FIXME Why does the event need to be host visible?
     std::vector<ze_event_handle_t> ZeEventList;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
-
     ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = CommandType;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
-    }
+    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
+                            SyncPointWaitList, RetSyncPoint, true, ZeEventList,
+                            LaunchEvent));
 
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
                (ZeCommandList, Ptr, Pattern, PatternSize, Size,
@@ -820,21 +815,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     logger::debug("calling zeCommandListAppendLaunchKernel()");
   } else {
     std::vector<ze_event_handle_t> ZeEventList;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
     ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
-    }
+    UR_CALL(createSyncPoint(UR_COMMAND_KERNEL_LAUNCH, CommandBuffer,
+                            NumSyncPointsInWaitList, SyncPointWaitList,
+                            RetSyncPoint, false, ZeEventList, LaunchEvent));
 
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
                (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
@@ -857,6 +841,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
                           !IsDevicePointer(CommandBuffer->Context, Dst);
+
 
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
@@ -1032,28 +1017,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
                (CommandBuffer->ZeComputeCommandList, Mem, Size));
   } else {
+    // FIXME Why does the event need to be host visible?
     std::vector<ze_event_handle_t> ZeEventList;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(createSyncPoint(UR_COMMAND_USM_PREFETCH, CommandBuffer,
+                            NumSyncPointsInWaitList, SyncPointWaitList,
+                            RetSyncPoint, true, ZeEventList, LaunchEvent));
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                  (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
                   ZeEventList.data()));
-    }
-
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
     }
 
     // Add the prefetch command to the command buffer.
@@ -1107,28 +1081,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
                (CommandBuffer->ZeComputeCommandList,
                 CommandBuffer->Device->ZeDevice, Mem, Size, ZeAdvice));
   } else {
+    // FIMXE Why does the event need to be host visible?
     std::vector<ze_event_handle_t> ZeEventList;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(createSyncPoint(UR_COMMAND_USM_ADVISE, CommandBuffer,
+                            NumSyncPointsInWaitList, SyncPointWaitList,
+                            RetSyncPoint, true, ZeEventList, LaunchEvent));
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                  (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
                   ZeEventList.data()));
-    }
-
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
-
-    // Get sync point and register the event with it.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
     }
 
     ZE2UR_CALL(zeCommandListAppendMemAdvise,
