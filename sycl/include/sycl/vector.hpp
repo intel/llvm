@@ -803,7 +803,7 @@ public:
     if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
       static_assert(roundingMode == rounding_mode::automatic ||
                     roundingMode == rounding_mode::rte,
-                    "Currently, we only supoort round-to-even rounding mode
+                    "Currently, we only supoort round-to-even rounding mode \
                       for Bfloat16 <--> float conversion.");
     }
 
