@@ -41,13 +41,13 @@ int test_cluster_launch_enqueue_functions(sycl::queue &queue,
                                "=r"(cluster_dim_x));
 #endif
                 if constexpr (Dim == 1) {
-                  if (cluster_dim_z == 1 && cluster_dim_y == 1 &&
-                      cluster_dim_x == cluster_range[0]) {
+                  if (cluster_dim_z == cluster_range[0] && cluster_dim_y == 1 &&
+                      cluster_dim_x == 1) {
                     *correct_result_flag = 1;
                   }
                 } else if constexpr (Dim == 2) {
-                  if (cluster_dim_z == 1 && cluster_dim_y == cluster_range[1] &&
-                      cluster_dim_x == cluster_range[0]) {
+                  if (cluster_dim_z == 1 && cluster_dim_y == cluster_range[0] &&
+                      cluster_dim_x == cluster_range[1]) {
                     *correct_result_flag = 1;
                   }
                 } else {
