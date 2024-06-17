@@ -83,7 +83,7 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
         if (cluster_launch_supported) {
             ur_exp_launch_property_t cluster_dims_prop;
             cluster_dims_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
-            cluster_dims_prop.value.clusterDim[0] = 1;
+            cluster_dims_prop.value.clusterDim[0] = 16;
             cluster_dims_prop.value.clusterDim[1] = 1;
             cluster_dims_prop.value.clusterDim[2] = 1;
 
