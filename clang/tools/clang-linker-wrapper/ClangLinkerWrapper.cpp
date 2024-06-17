@@ -575,6 +575,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // add options unconditionally
   PostLinkArgs.push_back("-symbols");
   PostLinkArgs.push_back("-emit-exported-symbols");
+  PostLinkArgs.push_back("-emit-imported-symbols");
   if (SplitEsimd)
     PostLinkArgs.push_back("-split-esimd");
   PostLinkArgs.push_back("-lower-esimd");
