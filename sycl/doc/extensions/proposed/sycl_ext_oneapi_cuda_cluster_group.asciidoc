@@ -238,7 +238,9 @@ Therefore, to access another work-group's local memory, the address needs to be
 mapped such that the address in another work-group is addressable within the 
 calling work-item. Further, to access another another work-group's local memory,
 all the work-groups within the cluster must exist and the work-group's should
-not cease to exist before all the memory operations are completed.
+not cease to exist before all the memory operations are completed. This can be 
+ensured by synchronizing all the work-items within the cluster before and after
+the local memory operations.
 
 A member function of the `cluster_group` class; 
 `map_cluster_local_pointer` will perform the mapping and return a pointer 
