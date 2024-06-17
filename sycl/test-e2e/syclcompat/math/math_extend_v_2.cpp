@@ -14,14 +14,13 @@
  *
  *  SYCLcompat API
  *
- *  math_extend_v.cpp
+ *  math_extend_v_2.cpp
  *
  *  Description:
- *    math extend-vectorized helpers tests
+ *    math extend 2-vectorized helpers tests
  **************************************************************************/
 
-// ===----------- math_extend_vfunc[2/4].cpp ---------- -*- C++ -*
-// --------------===//
+// ===------------- math_extend_vfunc_2.cpp ----------------*- C++ -*-----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -275,6 +274,58 @@ std::pair<const char *, int> vavrg2_add() {
   return {nullptr, 0};
 }
 
+std::pair<const char *, int> vcompare2() {
+
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::greater<>()),
+        (unsigned)0x00010000);
+  CHECK(syclcompat::extend_vcompare2((uint32_t)0x0002FFFF, (int32_t)0x0001FFFF,
+                                     std::greater<>()),
+        (unsigned)0x00010001);
+  CHECK(syclcompat::extend_vcompare2((int32_t)0x0002FFFF, (uint32_t)0x0001FFFF,
+                                     std::greater<>()),
+        (unsigned)0x00010000);
+
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::less<>()),
+        (unsigned)0x00000000);
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0002FFFF,
+                                     std::greater_equal<>()),
+        (unsigned)0x00010001);
+  CHECK(
+      syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::less_equal<>()),
+      (unsigned)0x00000001);
+  CHECK(syclcompat::extend_vcompare2(0xFFFE0002, 0xFFFF0002, std::equal_to<>()),
+        (unsigned)0x00000001);
+  CHECK(syclcompat::extend_vcompare2(0xFFFE0002, 0xFFFF0002,
+                                     std::not_equal_to<>()),
+        (unsigned)0x00010000);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> vcompare2_add() {
+
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 1,
+                                         std::greater<>()),
+        (unsigned)0x00000002);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 2,
+                                         std::less<>()),
+        (unsigned)0x00000002);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0002FFFF, 1,
+                                         std::greater_equal<>()),
+        (unsigned)0x00000003);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 2,
+                                         std::less_equal<>()),
+        (unsigned)0x00000003);
+  CHECK(syclcompat::extend_vcompare2_add(0xFFFE0002, 0xFFFF0002, 0xFFFF,
+                                         std::equal_to<>()),
+        (unsigned)0x00010000);
+  CHECK(syclcompat::extend_vcompare2_add(0xFFFE0002, 0xFFFF0002, 0xFF,
+                                         std::not_equal_to<>()),
+        (unsigned)0x00000100);
+
+  return {nullptr, 0};
+}
+
 void test(const sycl::stream &s, int *ec) {
   {
     auto res = vadd2();
@@ -374,6 +425,24 @@ void test(const sycl::stream &s, int *ec) {
       return;
     }
     s << "vabsdiff2_add check passed!\n";
+  }
+  {
+    auto res = vcompare2();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 12;
+      return;
+    }
+    s << "vcompare2 check passed!\n";
+  }
+  {
+    auto res = vcompare2_add();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 13;
+      return;
+    }
+    s << "vcompare2_add check passed!\n";
   }
   *ec = 0;
 }

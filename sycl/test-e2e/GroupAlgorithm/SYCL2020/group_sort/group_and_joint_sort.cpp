@@ -29,6 +29,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include "common.hpp"
 #include <sycl/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -38,30 +39,6 @@
 #include <numeric>
 #include <random>
 #include <vector>
-
-namespace oneapi_exp = sycl::ext::oneapi::experimental;
-
-template <typename...> class KernelNameOverGroup;
-template <typename...> class KernelNameJoint;
-
-enum class UseGroupT { SubGroup = true, WorkGroup = false };
-
-// these classes are needed to pass non-type template parameters to KernelName
-template <int> class IntWrapper;
-template <UseGroupT> class UseGroupWrapper;
-
-class CustomType {
-public:
-  CustomType(size_t Val) : MVal(Val) {}
-  CustomType() : MVal(0) {}
-
-  bool operator<(const CustomType &RHS) const { return MVal < RHS.MVal; }
-  bool operator>(const CustomType &RHS) const { return MVal > RHS.MVal; }
-  bool operator==(const CustomType &RHS) const { return MVal == RHS.MVal; }
-
-private:
-  size_t MVal = 0;
-};
 
 #if VERSION == 1
 template <class CompT, class T> struct RadixSorterType;
@@ -86,28 +63,7 @@ template <> struct RadixSorterType<std::greater<CustomType>, CustomType> {
   using Type =
       oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::descending>;
 };
-#else
-template <class T> struct ConvertToSimpleType {
-  using Type = T;
-};
-
-// Dummy overloads for CustomType which is not supported by radix sorter
-template <> struct ConvertToSimpleType<CustomType> {
-  using Type = int;
-};
-
-template <class SorterT> struct ConvertToSortingOrder;
-
-template <class T> struct ConvertToSortingOrder<std::greater<T>> {
-  static const auto Type = oneapi_exp::sorting_order::descending;
-};
-
-template <class T> struct ConvertToSortingOrder<std::less<T>> {
-  static const auto Type = oneapi_exp::sorting_order::ascending;
-};
 #endif
-
-constexpr size_t ReqSubGroupSize = 8;
 
 template <UseGroupT UseGroup, int Dims, class T, class Compare>
 void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
