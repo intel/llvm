@@ -319,7 +319,7 @@ static ur_result_t getEventsFromSyncPoints(
 
 // FIXME Refactor Naming?
 // FIXME Refactor Why do some events need to be host_visible and others don't
-ur_result_t
+static ur_result_t
 createSyncPoint(ur_command_t CommandType,
                 ur_exp_command_buffer_handle_t CommandBuffer,
                 uint32_t NumSyncPointsInWaitList,
@@ -349,17 +349,43 @@ createSyncPoint(ur_command_t CommandType,
   return UR_RESULT_SUCCESS;
 }
 
-ze_command_list_handle_t
-ur_exp_command_buffer_handle_t_::chooseCommandList(Ubool PreferCopyEngine) {
+ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
+    bool PreferCopyEngine, ze_command_list_handle_t &ZeCommandList) {
   // If the copy engine available, the command is enqueued in the
   // ZeCopyCommandList.
   if (PreferCopyEngine && this->UseCopyEngine()) {
     // We indicate that the ZeCopyCommandList contains commands to be
     // submitted.
     this->MCopyCommandListEmpty = false;
-    return this->ZeCopyCommandList;
+    ZeCommandList = this->ZeCopyCommandList;
   }
-  return this->ZeComputeCommandList;
+  ZeCommandList = this->ZeComputeCommandList;
+}
+
+//FIXME Probably overkill?
+ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
+    bool PreferCopyEngine, ze_command_list_handle_t &ZeCommandList,
+    size_t PatternSize) {
+  // If the copy engine available and patternsize is valid, the command is
+  // enqueued in the ZeCopyCommandList, otherwise enqueue it in the compute
+  // command list.
+  PreferCopyEngine =
+      PreferCopyEngine &&
+      PatternSize <=
+          this->Device
+              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::MainCopy]
+              .ZeProperties.maxMemoryFillPatternSize;
+
+  if (!PreferCopyEngine) {
+    // Pattern size must fit the compute queue capabilities.
+    UR_ASSERT(
+        PatternSize <=
+            this->Device
+                ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+                .ZeProperties.maxMemoryFillPatternSize,
+        UR_RESULT_ERROR_INVALID_VALUE);
+  }
+  chooseCommandList(PreferCopyEngine, ZeCommandList);
 }
 
 // Shared by all memory read/write/copy PI interfaces.
@@ -385,8 +411,8 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
                             SyncPointWaitList, RetSyncPoint, false, ZeEventList,
                             LaunchEvent));
 
-    ze_command_list_handle_t ZeCommandList =
-        CommandBuffer->chooseCommandList(PreferCopyEngine);
+    ze_command_list_handle_t ZeCommandList;
+    CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList);
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (ZeCommandList, Dst, Src, Size, LaunchEvent->ZeEvent,
@@ -450,15 +476,14 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
   } else {
     // FIXME Why doesn't the event need to be host visible
-
     std::vector<ze_event_handle_t> ZeEventList;
     ur_event_handle_t LaunchEvent;
     UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
                             SyncPointWaitList, RetSyncPoint, false, ZeEventList,
                             LaunchEvent));
 
-    ze_command_list_handle_t ZeCommandList =
-        CommandBuffer->chooseCommandList(PreferCopyEngine);
+    ze_command_list_handle_t ZeCommandList;
+    CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList);
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
@@ -484,27 +509,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  // If the copy engine available and patternsize is valid, the command is
-  // enqueued in the ZeCopyCommandList, otherwise enqueue it in the compute
-  // command list.
-  PreferCopyEngine =
-      PreferCopyEngine &&
-      PatternSize <=
-          CommandBuffer->Device
-              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::MainCopy]
-              .ZeProperties.maxMemoryFillPatternSize;
-
-  if (!PreferCopyEngine) {
-    // Pattern size must fit the compute queue capabilities.
-    UR_ASSERT(
-        PatternSize <=
-            CommandBuffer->Device
-                ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
-                .ZeProperties.maxMemoryFillPatternSize,
-        UR_RESULT_ERROR_INVALID_VALUE);
-  }
-  ze_command_list_handle_t ZeCommandList =
-      CommandBuffer->chooseCommandList(PreferCopyEngine);
+  ze_command_list_handle_t ZeCommandList;
+  CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList,
+                                   PatternSize);
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
@@ -841,8 +848,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
                           !IsDevicePointer(CommandBuffer->Context, Dst);
-
-
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueCommandBufferMemCopyHelper(
