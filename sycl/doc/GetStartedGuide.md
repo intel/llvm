@@ -487,7 +487,7 @@ folder:
       /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so.2
     ```
 
-5) Configure library paths (requires root access)
+5) Configure library paths (requires sudo access)
 
     ```bash
     echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
