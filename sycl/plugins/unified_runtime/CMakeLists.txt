@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit a53f89db295510b8f5b558052c217dd8eb316f27
+  # Merge: 6d053bc7 fcecc002
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Fri Jun 14 16:44:07 2024 +0100
+  #     Merge pull request #1692 from aarongreig/aaron/platformCreateWithNativeAdapter
+  #     Add hAdapter parameter to urPlatformCreateWithNativeHandle
+  set(UNIFIED_RUNTIME_TAG a53f89db295510b8f5b558052c217dd8eb316f27)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
-    # Merge: 0cd127ad 30f8ac50
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Jun 14 14:26:17 2024 +0100
-    #     Merge pull request #1738 from Bensuo/cmd-buf-copy-queue
-    #     [CMDBUF][L0] Use copy engine to optimize cmd-buffer usage
-    b8a1a3f232198bf2c3d8edd2bbc909bb2a9be555
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -131,13 +125,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
-    # Merge: abe85cc9 3e011c70
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Jun 13 10:22:34 2024 +0100
-    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
-    #     [HIP] Enable more ordering and scope capabilities for atomic fences
-    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
