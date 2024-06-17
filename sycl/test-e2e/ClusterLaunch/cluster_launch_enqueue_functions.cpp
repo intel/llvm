@@ -11,18 +11,14 @@
 
 #include <string>
 
-int main() {
+template <int Dim>
+int test_cluster_launch_enqueue_functions(sycl::queue &queue,
+                                          sycl::range<Dim> global_range,
+                                          sycl::range<Dim> local_range,
+                                          sycl::range<Dim> cluster_range) {
   using namespace sycl::ext::oneapi::experimental;
 
-  sycl::queue queue;
-  auto computeCapability = std::stof(
-      queue.get_device().get_info<sycl::info::device::backend_version>());
-
-  if (computeCapability < 9.0) {
-    printf("Cluster group not supported on this arch, exiting...\n");
-    return 0;
-  }
-  cuda::cluster_size cluster_dims(sycl::range<3>(2, 4, 1));
+  cuda::cluster_size cluster_dims(cluster_range);
   properties cluster_launch_property{cluster_dims};
 
   int *correct_result_flag = sycl::malloc_device<int>(1, queue);
@@ -30,9 +26,9 @@ int main() {
 
   submit_with_event(queue, [&](sycl::handler &cgh) {
     nd_launch(cgh,
-              launch_config(sycl::nd_range<3>({64, 256, 1}, {32, 32, 1}),
+              launch_config(sycl::nd_range<Dim>(global_range, local_range),
                             cluster_launch_property),
-              [=](sycl::nd_item<3> it) {
+              [=](sycl::nd_item<Dim> it) {
                 uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
 // Temporary solution till cluster group class is implemented
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
@@ -44,20 +40,53 @@ int main() {
                              : "=r"(cluster_dim_z), "=r"(cluster_dim_y),
                                "=r"(cluster_dim_x));
 #endif
-
-                if (cluster_dim_z == 1 || cluster_dim_y == 4 ||
-                    cluster_dim_x == 2) {
-                  *correct_result_flag = 1;
+                if constexpr (Dim == 1) {
+                  if (cluster_dim_z == 1 && cluster_dim_y == 1 &&
+                      cluster_dim_x == cluster_range[0]) {
+                    *correct_result_flag = 1;
+                  }
+                } else if constexpr (Dim == 2) {
+                  if (cluster_dim_z == 1 && cluster_dim_y == cluster_range[1] &&
+                      cluster_dim_x == cluster_range[0]) {
+                    *correct_result_flag = 1;
+                  }
+                } else {
+                  if (cluster_dim_z == cluster_range[2] &&
+                      cluster_dim_y == cluster_range[1] &&
+                      cluster_dim_x == cluster_range[0]) {
+                    *correct_result_flag = 1;
+                  }
                 }
               });
   }).wait_and_throw();
 
   int correct_result_flag_host = 0;
   queue.copy(correct_result_flag, &correct_result_flag_host, 1).wait();
+  return correct_result_flag_host;
+}
 
-  if (!correct_result_flag_host) {
-    std::cerr << "Cluster Dimensions did not match " << std::endl;
+int main() {
+
+  sycl::queue queue;
+  auto computeCapability = std::stof(
+      queue.get_device().get_info<sycl::info::device::backend_version>());
+
+  if (computeCapability < 9.0) {
+    printf("Cluster group not supported on this arch, exiting...\n");
+    return 0;
   }
 
-  return !correct_result_flag_host;
+  int host_correct_flag =
+      test_cluster_launch_enqueue_functions(queue, sycl::range{128, 128, 128},
+                                            sycl::range{16, 16, 2},
+                                            sycl::range{2, 4, 1}) &&
+      test_cluster_launch_enqueue_functions(queue, sycl::range{1024, 1024},
+                                            sycl::range{32, 32},
+                                            sycl::range{4, 2}) &&
+      test_cluster_launch_enqueue_functions(queue, sycl::range{128},
+                                            sycl::range{32}, sycl::range{2}) &&
+      test_cluster_launch_enqueue_functions(queue, sycl::range{16384},
+                                            sycl::range{32}, sycl::range{16});
+
+  return !host_correct_flag;
 }
