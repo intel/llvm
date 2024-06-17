@@ -201,7 +201,7 @@ struct ur_kernel_handle_t_ {
   /// offset. Note this only returns the current known number of arguments,
   /// not the real one required by the kernel, since this cannot be queried
   /// from the HIP Driver API
-  uint32_t getNumArgs() const noexcept { return Args.Indices.size() - 1; }
+  size_t getNumArgs() const noexcept { return Args.Indices.size() - 1; }
 
   void setKernelArg(int Index, size_t Size, const void *Arg) {
     Args.addArg(Index, Size, Arg);
