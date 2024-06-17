@@ -989,7 +989,6 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
 
 void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
                         size_t Count) {
-  throwIfActionIsCreated();
   MDstPtr = Dest;
   MPattern.resize(ValueSize);
   std::memcpy(MPattern.data(), Value, ValueSize);

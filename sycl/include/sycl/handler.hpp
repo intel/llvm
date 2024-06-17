@@ -2897,9 +2897,10 @@ public:
   /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
+    throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     if (getDeviceBackend() == backend::ext_oneapi_level_zero) {
       parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
         T *CastedPtr = static_cast<T *>(Ptr);
