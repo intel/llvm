@@ -3499,7 +3499,7 @@ private:
 
   // Function to get information about the backend for which the code is
   // compiled for
-  backend getDeviceBackend();
+  backend getDeviceBackend() const;
 
   // Common function for launching a 2D USM memcpy kernel to avoid redefinitions
   // of the kernel from copy and memcpy.

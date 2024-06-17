@@ -1590,8 +1590,11 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-backend handler::getDeviceBackend() {
-  return MQueue->getDeviceImplPtr()->getBackend();
+backend handler::getDeviceBackend() const {
+  if (MGraph)
+    return MGraph->getDevice().get_backend();
+  else
+    return MQueue->getDeviceImplPtr()->getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
