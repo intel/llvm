@@ -742,8 +742,7 @@ protected:
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
                               Command::BlockReason Reason,
-                              std::vector<Command *> &ToEnqueue,
-                              const bool AddDepsToLeaves = true);
+                              std::vector<Command *> &ToEnqueue);
 
     void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
                                std::vector<Requirement *> &Reqs,

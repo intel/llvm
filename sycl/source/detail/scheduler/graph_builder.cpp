@@ -868,7 +868,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     Command *Cmd, const std::vector<Requirement *> &Reqs,
     Command::BlockReason Reason,
-    std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
+    std::vector<Command *> &ToEnqueue) {
   EmptyCommand *EmptyCmd = new EmptyCommand();
 
   if (!EmptyCmd)
@@ -889,19 +889,17 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
   if (!Reqs.size())
     Cmd->addUser(EmptyCmd);
 
-  if (AddDepsToLeaves) {
-    const std::vector<DepDesc> &Deps = Cmd->MDeps;
-    std::vector<Command *> ToCleanUp;
-    for (const DepDesc &Dep : Deps) {
-      const Requirement *Req = Dep.MDepRequirement;
-      MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+  const std::vector<DepDesc> &Deps = Cmd->MDeps;
+  std::vector<Command *> ToCleanUp;
+  for (const DepDesc &Dep : Deps) {
+    const Requirement *Req = Dep.MDepRequirement;
+    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
 
-      updateLeaves({Cmd}, Record, Req->MAccessMode, ToCleanUp);
-      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
-    }
-    for (Command *Cmd : ToCleanUp)
-      cleanupCommand(Cmd);
+    updateLeaves({Cmd}, Record, Req->MAccessMode, ToCleanUp);
+    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
   }
+  for (Command *Cmd : ToCleanUp)
+    cleanupCommand(Cmd);
 
   return EmptyCmd;
 }
