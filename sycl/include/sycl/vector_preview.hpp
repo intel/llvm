@@ -434,7 +434,9 @@ public:
           std::is_same_v<DataT, bfloat16> && std::is_same_v<convertT, float>;
       if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
         static_assert(roundingMode == rounding_mode::automatic ||
-                      roundingMode == rounding_mode::rte);
+                    roundingMode == rounding_mode::rte,
+                    "Currently, we only supoort round-to-even rounding mode
+                      for Bfloat16 <--> float conversion.");
       }
     }
 
