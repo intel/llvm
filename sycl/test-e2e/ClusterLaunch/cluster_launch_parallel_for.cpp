@@ -1,11 +1,10 @@
 // Tests whether or not cluster launch was successful, with the correct ranges
-// that were passed via enqueue functions extension
+// that were passed via parallel for overload
 // REQUIRES: cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 #include <string>
 
@@ -26,29 +25,30 @@ int main() {
   int *correct_result_flag = sycl::malloc_device<int>(1, queue);
   queue.memset(correct_result_flag, 0, sizeof(int)).wait();
 
-  submit_with_event(queue, [&](sycl::handler &cgh) {
-    nd_launch(cgh,
-              launch_config(sycl::nd_range<3>({64, 256, 1}, {32, 32, 1}),
-                            cluster_launch_property),
-              [=](sycl::nd_item<3> it) {
-                uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
+  queue
+      .submit([&](sycl::handler &cgh) {
+        cgh.parallel_for(sycl::nd_range<3>({64, 256, 1}, {32, 32, 1}),
+                         cluster_launch_property, [=](sycl::nd_item<3> it) {
+                           uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
 // Temporary solution till cluster group class is implemented
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
     (__SYCL_CUDA_ARCH__ >= 900)
-                asm volatile("\n\t"
-                             "mov.u32 %0, %%cluster_nctaid.x; \n\t"
-                             "mov.u32 %1, %%cluster_nctaid.y; \n\t"
-                             "mov.u32 %2, %%cluster_nctaid.z; \n\t"
-                             : "=r"(cluster_dim_z), "=r"(cluster_dim_y),
-                               "=r"(cluster_dim_x));
+                           asm volatile("\n\t"
+                                        "mov.u32 %0, %%cluster_nctaid.x; \n\t"
+                                        "mov.u32 %1, %%cluster_nctaid.y; \n\t"
+                                        "mov.u32 %2, %%cluster_nctaid.z; \n\t"
+                                        : "=r"(cluster_dim_z),
+                                          "=r"(cluster_dim_y),
+                                          "=r"(cluster_dim_x));
 #endif
 
-                if (cluster_dim_z == 1 || cluster_dim_y == 4 ||
-                    cluster_dim_x == 2) {
-                  *correct_result_flag = 1;
-                }
-              });
-  }).wait_and_throw();
+                           if (cluster_dim_z == 1 || cluster_dim_y == 4 ||
+                               cluster_dim_x == 2) {
+                             *correct_result_flag = 1;
+                           }
+                         });
+      })
+      .wait_and_throw();
 
   int correct_result_flag_host = 0;
   queue.copy(correct_result_flag, &correct_result_flag_host, 1).wait();

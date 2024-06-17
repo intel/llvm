@@ -137,10 +137,6 @@ public:
     for (int I = 0; I < Dims_; ++I) {
       ClusterDimensions[I] = N[I];
     }
-
-    for (int I = Dims; I < 3; ++I) {
-      ClusterDimensions[I] = 1;
-    }
   }
 
   sycl::range<3> GlobalSize;
@@ -150,7 +146,7 @@ public:
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
   sycl::range<3> NumWorkGroups;
-  sycl::range<3> ClusterDimensions;
+  sycl::range<3> ClusterDimensions{1, 1, 1};
   size_t Dims;
 };
 

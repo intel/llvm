@@ -948,28 +948,21 @@ private:
 
   template <typename Properties>
   void checkAndSetClusterRange(const Properties &Props) {
-    if constexpr (ext::oneapi::experimental::hasClusterDim<Properties, 1>()) {
+    namespace syclex = sycl::ext::oneapi::experimental;
+    if constexpr (hasClusterDim<Properties, 1>()) {
       setKernelUsesClusterLaunch(true);
       MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>>()
+          Props.template get_property<cuda::cluster_size_key<1>>()
               .get_cluster_size());
-    } else if constexpr (ext::oneapi::experimental::hasClusterDim<Properties,
-                                                                  2>()) {
+    } else if constexpr (hasClusterDim<Properties, 2>()) {
       setKernelUsesClusterLaunch(true);
       MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>>()
+          Props.template get_property<cuda::cluster_size_key<2>>()
               .get_cluster_size());
-    } else if constexpr (ext::oneapi::experimental::hasClusterDim<Properties,
-                                                                  3>()) {
+    } else if constexpr (hasClusterDim<Properties, 3>()) {
       setKernelUsesClusterLaunch(true);
       MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>()
+          Props.template get_property<cuda::cluster_size_key<3>>()
               .get_cluster_size());
     }
   }
