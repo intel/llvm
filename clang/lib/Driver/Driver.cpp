@@ -844,8 +844,6 @@ static const char *getDefaultSYCLArch(Compilation &C) {
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
   /// Returns true if a triple is added to SYCLTriples, false otherwise
-  if (!C.getDriver().isSYCLDefaultTripleImplied())
-    return false;
   if (C.getInputArgs().hasArg(options::OPT_fno_spirv))
     return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
@@ -3697,9 +3695,6 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
     return false;
 
   if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
-    return false;
-
-  if (Args.hasArg(options::OPT_fno_spirv))
     return false;
 
   // Do not do the check if the default device is passed in -fsycl-targets
