@@ -41,7 +41,7 @@ int main() {
       dataB[i] = 0;
     }
 
-    Queue.mem_advise(dataA, numBytes, (pi_mem_advice)mem_advice);
+    Queue.mem_advise(dataA, numBytes, mem_advice);
 
     Queue.submit([&](handler &cgh) {
       auto myRange = range<1>(dataSize);

@@ -860,13 +860,13 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_platform_native_properties_t UrProperties{};
-  urPlatformCreateWithNativeHandle(UrNativeHandle, &UrProperties, &UrPlatform);
+  urPlatformCreateWithNativeHandle(UrNativeHandle, adapter, &UrProperties,
+                                   &UrPlatform);
 
   *Platform = reinterpret_cast<pi_platform>(UrPlatform);
 
