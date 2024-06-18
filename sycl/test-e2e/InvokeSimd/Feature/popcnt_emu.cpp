@@ -126,7 +126,7 @@ int main(void) {
             } else {
               res = id % 2;
             }
-            sg.store(out_accessor.get_multi_ptr<access::decorated::no>() +
+            sg.store(out_accessor.get_multi_ptr<access::decorated::yes>() +
                          offset,
                      res);
           });

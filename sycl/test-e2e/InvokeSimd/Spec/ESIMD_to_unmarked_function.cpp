@@ -118,10 +118,10 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_multi_ptr<access::decorated::no>().get() +
-                               offset);
-            float vb = sg.load(PB.get_multi_ptr<access::decorated::no>().get() +
-                               offset);
+            float va = sg.load(
+                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vb = sg.load(
+                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
             float vc;
 
             if constexpr (use_invoke_simd) {
@@ -129,7 +129,7 @@ int main(void) {
             } else {
               vc = doVadd(va, vb);
             }
-            sg.store(PC.get_multi_ptr<access::decorated::no>().get() + offset,
+            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
                      vc);
           });
     });

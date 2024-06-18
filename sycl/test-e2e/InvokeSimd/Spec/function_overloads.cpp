@@ -115,8 +115,8 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_multi_ptr<access::decorated::no>().get() +
-                               offset);
+            float va = sg.load(
+                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
             float vc;
 
             // Invoke SIMD function:
@@ -129,7 +129,7 @@ int main(void) {
                   simd<float, VL>, simd<float, VL>)>(sg, SIMD_CALLEE_scale, va,
                                                      n);
 
-            sg.store(PC.get_multi_ptr<access::decorated::no>().get() + offset,
+            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
                      vc);
           });
     });

@@ -102,11 +102,11 @@ template <class T, class QueueTY> bool test(QueueTY q) {
                                   sg.get_group_id() * sg.get_max_local_range();
 
             T va = sg.load(
-                acca.template get_multi_ptr<access::decorated::no>().get() +
+                acca.template get_multi_ptr<access::decorated::yes>().get() +
                 offset);
             T vc = invoke_simd(sg, SIMD_CALLEE_scale<T>, va, uniform{n});
             sg.store(
-                accc.template get_multi_ptr<access::decorated::no>().get() +
+                accc.template get_multi_ptr<access::decorated::yes>().get() +
                     offset,
                 vc);
           });

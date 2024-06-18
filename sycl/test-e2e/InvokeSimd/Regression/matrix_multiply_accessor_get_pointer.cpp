@@ -151,8 +151,8 @@ int main(void) {
                 int res = invoke_simd(
                     ndi.get_sub_group(), SIMD_CALLEE_computeDotProducts,
                     row_index, column_index,
-                    uniform{acc_a.get_multi_ptr<access::decorated::no>()},
-                    uniform{acc_b.get_multi_ptr<access::decorated::no>()});
+                    uniform{acc_a.get_multi_ptr<access::decorated::yes>()},
+                    uniform{acc_b.get_multi_ptr<access::decorated::yes>()});
                 acc_c[row_index][column_index] = res;
               } else {
                 for (int k = 0; k < N; ++k) {
