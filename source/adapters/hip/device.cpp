@@ -478,10 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
-    // The mandated minimum capability:
-    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    return ReturnValue(Capability);
+    return ReturnValue(0);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
@@ -785,8 +782,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
     return ReturnValue(Capabilities);
   }
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // SYCL2020 4.6.4.2 minimum mandated capabilities for
     // atomic_fence/memory_scope_capabilities.
     // Because scopes are hierarchical, wider scopes support all narrower
@@ -798,6 +794,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
     return ReturnValue(Capabilities);
   }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    constexpr ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+    return ReturnValue(Capabilities);
+  }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // SYCL2020 4.6.4.2 minimum mandated capabilities for
     // atomic_fence_order_capabilities.
@@ -806,6 +811,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+#ifdef __HIP_PLATFORM_NVIDIA__
+    // Nvidia introduced fence.sc for seq_cst only since SM 7.0.
+    int Major = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
+    if (Major >= 7)
+      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#else
+    Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#endif
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_DEVICE_ID: {
@@ -864,14 +879,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_COMPONENT_DEVICES:
-  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
-    // These two are exclusive of L0.
-    return ReturnValue(0);
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(true);
 
   // TODO: Investigate if this information is available on HIP.
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:

@@ -888,7 +888,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // First call to get SubDeviceCount.
     ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
     if (SubDeviceCount == 0)
-      return ReturnValue(0);
+      return ReturnValue(std::nullopt);
 
     std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
     // Second call to get the actual list of devices.

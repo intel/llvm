@@ -753,12 +753,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
+    ur_queue_handle_t hUrQueue, void *pDst, void *pSrc,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
     ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
     ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto hQueue = Legacy(hUrQueue);
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -941,13 +942,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
   return urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
+    ur_exp_external_mem_type_t memHandleType,
     ur_exp_interop_mem_desc_t *pInteropMemDesc,
     ur_exp_interop_mem_handle_t *phInteropMem) {
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = size;
+  std::ignore = memHandleType;
   std::ignore = pInteropMemDesc;
   std::ignore = phInteropMem;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -982,13 +985,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
   std::ignore = hContext;
   std::ignore = hDevice;
+  std::ignore = semHandleType;
   std::ignore = pInteropSemaphoreDesc;
   std::ignore = phInteropSemaphoreHandle;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -1009,10 +1013,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hQueue;
   std::ignore = hSemaphore;
+  std::ignore = hasValue;
+  std::ignore = waitValue;
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
@@ -1023,10 +1029,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hQueue;
   std::ignore = hSemaphore;
+  std::ignore = hasValue;
+  std::ignore = signalValue;
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;

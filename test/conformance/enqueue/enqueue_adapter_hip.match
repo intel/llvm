@@ -5,8 +5,6 @@ urEnqueueKernelLaunchKernelSubGroupTest.Success/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueKernelLaunchUSMLinkedList.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_row_2D
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_3d_2d
-urEnqueueMemBufferFillTest.Success/AMD_HIP_BACKEND___{{.*}}___size__256__patternSize__256
-urEnqueueMemBufferFillTest.Success/AMD_HIP_BACKEND___{{.*}}___size__1024__patternSize__256
 {{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_row_2D
 {{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_3d_2d
 urEnqueueUSMAdviseWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ADVICE_FLAG_DEFAULT
