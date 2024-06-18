@@ -19,7 +19,7 @@ size_t CalculateIterations(device &device, size_t iter_cap) {
     max_alloc_size = std::min(max_alloc_size, free_memory);
   } else {
     std::cout << "Warning: free_memory device info query not supported. "
-            << "Befawre of allocating too much memory on the device.\n";
+              << "Befawre of allocating too much memory on the device.\n";
   }
   uint64_t max_chars_alloc = max_alloc_size / sizeof(char);
   size_t max_iter =
