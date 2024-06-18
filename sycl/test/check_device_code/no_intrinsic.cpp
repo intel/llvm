@@ -17,6 +17,4 @@
 
 using namespace sycl;
 
-SYCL_EXTERNAL void integral(stream Out) {
-  Out << "Hello, World!\n";
-}
+SYCL_EXTERNAL void integral(stream Out) { Out << "Hello, World!\n"; }
