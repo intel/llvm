@@ -126,7 +126,10 @@ int main(void) {
             } else {
               res = id % 2;
             }
-            sg.store(out_accessor.get_pointer() + offset, res);
+            sg.store(
+                out_accessor.get_multi_ptr<access::decorated::no>() +
+                    offset,
+                res);
           });
     });
     e.wait();
