@@ -68,3 +68,5 @@ if(NOT WIN32)
 
     target_link_libraries(test-adapter-level_zero_multi_queue PRIVATE zeCallMap)
 endif()
+
+add_subdirectory(v2)
