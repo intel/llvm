@@ -6185,10 +6185,9 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
   }
 
   // Check size is passed as a specialization constant
-  const auto CheckSize = [this, IsAlignedAlloca, ElementTypeIndex,
-                          SpecNameIndex](const ASTContext &Ctx,
-                                         SourceLocation Loc,
-                                         const TemplateArgumentList *CST) {
+  const auto CheckSize = [this, IsAlignedAlloca, SpecNameIndex](
+                             const ASTContext &Ctx, SourceLocation Loc,
+                             const TemplateArgumentList *CST) {
     TemplateArgument TA = CST->get(SpecNameIndex);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
