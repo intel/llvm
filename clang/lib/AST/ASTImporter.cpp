@@ -5923,11 +5923,11 @@ ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   }
 
   if (D->hasDefaultArgument()) {
-    Expected<TypeSourceInfo *> ToDefaultArgOrErr =
-        import(D->getDefaultArgumentInfo());
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
     if (!ToDefaultArgOrErr)
       return ToDefaultArgOrErr.takeError();
-    ToD->setDefaultArgument(*ToDefaultArgOrErr);
+    ToD->setDefaultArgument(ToD->getASTContext(), *ToDefaultArgOrErr);
   }
 
   return ToD;
@@ -5955,10 +5955,11 @@ ASTNodeImporter::VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
     return ToD;
 
   if (D->hasDefaultArgument()) {
-    ExpectedExpr ToDefaultArgOrErr = import(D->getDefaultArgument());
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
     if (!ToDefaultArgOrErr)
       return ToDefaultArgOrErr.takeError();
-    ToD->setDefaultArgument(*ToDefaultArgOrErr);
+    ToD->setDefaultArgument(Importer.getToContext(), *ToDefaultArgOrErr);
   }
 
   return ToD;

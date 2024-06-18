@@ -5,32 +5,33 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+template <size_t TileRows, size_t TileCols> class add;
+template <size_t TileRows, size_t TileCols> class sub;
+template <size_t TileRows, size_t TileCols> class mul;
+template <size_t TileRows, size_t TileCols> class divide;
+template <size_t TileRows, size_t TileCols> class logic;
 
-#define TM 8
-#define TK 16
-
-template <typename T, size_t M, size_t N, typename R>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
-                    const float ref) {
-  for (size_t i = 0; i < M; i++)
-    for (size_t j = 0; j < N; j++) {
+template <typename T, size_t Rows, size_t Cols, typename R>
+void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
+  for (size_t i = 0; i < Rows; i++)
+    for (size_t j = 0; j < Cols; j++) {
       auto diff = C[i][j] - ref;
       assert(std::fabs(static_cast<R>(diff)) <
              std::numeric_limits<R>::epsilon());
     }
 }
 
-template <typename T, size_t M, size_t N, size_t TileM, size_t TileN,
-          size_t TileK, class kernel_name, typename R, typename OP>
-void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
-  buffer<half, 2> bufA(A.get_data(), range<2>(M, N));
+template <typename T, size_t Rows, size_t Cols, size_t TileRows,
+          size_t TileCols, class kernel_name, typename R, typename OP>
+void matrix_verify_op(big_matrix<T, Rows, Cols> &A, const R ref, OP op) {
+  buffer<T, 2> bufA(A.get_data(), range<2>(Rows, Cols));
 
   queue q;
   size_t sg_size = get_sg_size<kernel_name>(q);
-  nd_range<2> r({M / TileM, N / TileN * sg_size}, {1, 1 * sg_size});
+  nd_range<2> r({Rows / TileRows, Cols / TileCols * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
+     sycl::accessor accA{bufA, cgh, sycl::read_write};
 
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
@@ -44,7 +45,8 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TileM, TileK, layout::row_major>
+           joint_matrix<sub_group, T, use::a, TileRows, TileCols,
+                        layout::row_major>
                sub_a;
 
            joint_matrix_fill(sg, sub_a, 5);
@@ -53,48 +55,73 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TileM) * N + sg_starty / sg_size * TileN,
-               N);
+                   (sg_startx * TileRows) * Cols +
+                   sg_starty / sg_size * TileCols,
+               Cols);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N, R>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, Rows, Cols, R>(bufA.get_host_access(read_only), ref);
 }
 
-int main() {
+template <typename Ta, typename TResult, size_t TM, size_t TK> void test() {
+  static constexpr size_t Rows = TM * 2;
+  static constexpr size_t Cols = TK * 2;
+  Ta A[Rows][Cols];
 
-  static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = TN * 2;
-  half A[MATRIX_M][MATRIX_N];
-  big_matrix<half, MATRIX_M, MATRIX_N> MA((half *)&A);
+  big_matrix<Ta, Rows, Cols> MA((Ta *)&A);
 
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class add, float>(
-      MA, 7.0, [=](auto &x) { x = x + static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class sub, float>(
-      MA, 3.0, [=](auto &x) { x = x - static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class mult, float>(
-      MA, 15.0, [=](auto &x) { x = x * static_cast<half>(3.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class div, float>(
-      MA, 2.5, [=](auto &x) { x = x / static_cast<half>(2.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class logic, float>(
-      MA, 7.0, [=](auto &x) {
+  matrix_verify_op<Ta, Rows, Cols, TM, TK, add<TM, TK>, TResult>(
+      MA, 7, [=](Ta &x) { x = x + static_cast<Ta>(2); });
+  matrix_verify_op<Ta, Rows, Cols, TM, TK, sub<TM, TK>, TResult>(
+      MA, 3, [=](Ta &x) { x = x - static_cast<Ta>(2); });
+  matrix_verify_op<Ta, Rows, Cols, TM, TK, mul<TM, TK>, TResult>(
+      MA, 10, [=](Ta &x) { x = x * static_cast<Ta>(2); });
+  matrix_verify_op<Ta, Rows, Cols, TM, TK, divide<TM, TK>, TResult>(
+      MA, 2.5, [=](Ta &x) { x = x / static_cast<Ta>(2); });
+  matrix_verify_op<Ta, Rows, Cols, TM, TK, logic<TM, TK>, TResult>(
+      MA, 7, [=](Ta &x) {
         if (x) {
-          if (x > static_cast<half>(2.0) || x >= static_cast<half>(2.0) ||
-              x < static_cast<half>(2.0) || x <= static_cast<half>(2.0)) {
-            half val =
-                (x != static_cast<half>(2.0)) ? x : static_cast<half>(2.0);
+          if (x > static_cast<Ta>(2) || x >= static_cast<Ta>(2) ||
+              x < static_cast<Ta>(2) || x <= static_cast<Ta>(2)) {
+            Ta val = (x != static_cast<Ta>(2)) ? x : static_cast<Ta>(2);
             val--;
             val++;
-            if (x == static_cast<half>(2.0)) {
-              val -= 2;
-              val *= 3;
-              val /= 2;
+            if (x == static_cast<Ta>(2)) {
+              val -= static_cast<Ta>(2);
+              val *= static_cast<Ta>(3);
+              val /= static_cast<Ta>(2);
             } else {
-              val += 2;
+              val += static_cast<Ta>(2);
             }
             x = val;
           }
         }
       });
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<half, float, /*TM*/ 16, /*TK*/ 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<half, float, /*TM*/ 8, /*TK*/ 16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<half, float, /*TM*/ 8, /*TK*/ 16>();
+      break;
+    }
+  }
 
   return 0;
 }

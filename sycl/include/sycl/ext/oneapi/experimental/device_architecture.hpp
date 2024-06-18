@@ -48,13 +48,15 @@ enum class architecture : uint64_t {
   //       - DD is 2-digit number reserved for future unexpected modifications
   //         to keep uniqueness. It should be always 00 for now
   //
-  x86_64 = 0x9900000000000000,
+  unknown = 0x9900000000000000,
   //
   // Intel CPU architectures
   //
   // AA is 03,
   // CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
   // underlied backend
+  // Note: CCCCCCCC for x86_64 consists of all zeros
+  x86_64 = 0x0300000000000000,
   intel_cpu_spr = 0x0300000000000800,
   intel_cpu_gnr = 0x0300000000000900,
   //
@@ -121,6 +123,7 @@ enum class architecture : uint64_t {
   nvidia_gpu_sm_87 = 0x0100000000008700,
   nvidia_gpu_sm_89 = 0x0100000000008900,
   nvidia_gpu_sm_90 = 0x0100000000009000,
+  nvidia_gpu_sm_90a = 0x01000000000090a0,
   //
   // AMD architectures
   //
@@ -231,7 +234,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =

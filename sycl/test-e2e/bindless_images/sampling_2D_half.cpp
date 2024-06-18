@@ -1,6 +1,4 @@
-// REQUIRES: linux
-// REQUIRES: cuda || gpu-intel-dg2
-// REQUIRES: aspect-fp16
+// REQUIRES: cuda || (linux && gpu-intel-dg2)
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: env UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -52,8 +50,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp16);
+        {width, height}, 4, sycl::image_channel_type::fp16);
 
     if (imgMem == nullptr) {
       std::cout << "Error allocating images!" << std::endl;

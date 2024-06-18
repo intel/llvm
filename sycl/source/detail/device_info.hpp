@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
@@ -500,10 +501,16 @@ struct get_device_info_impl<std::vector<size_t>,
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         0, nullptr, &resultSize);
 
-    std::vector<size_t> result(resultSize / sizeof(size_t));
+    std::vector<uint32_t> result32(resultSize / sizeof(uint32_t));
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        resultSize, result.data(), nullptr);
+        resultSize, result32.data(), nullptr);
+
+    std::vector<size_t> result;
+    result.reserve(result32.size());
+    for (uint32_t value : result32) {
+      result.push_back(value);
+    }
     return result;
   }
 };
@@ -667,10 +674,7 @@ struct get_device_info_impl<
           if (Item.first == arch)
             return Item.second;
         }
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
+        return ext::oneapi::experimental::architecture::unknown;
       };
       uint32_t DeviceIp;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
@@ -686,10 +690,7 @@ struct get_device_info_impl<
           if (std::string_view(Item.first) == arch)
             return Item.second;
         }
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
+        return ext::oneapi::experimental::architecture::unknown;
       };
       size_t ResultSize = 0;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
@@ -720,21 +721,7 @@ struct get_device_info_impl<
       return MapArchIDToArchName(DeviceIp);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
-    // Generating a user-friendly error message
-    std::string DeviceStr;
-    if (Dev->is_gpu())
-      DeviceStr = "GPU";
-    else if (Dev->is_cpu())
-      DeviceStr = "CPU";
-    else if (Dev->is_accelerator())
-      DeviceStr = "accelerator";
-    // else if not needed
-    std::stringstream ErrorMessage;
-    ErrorMessage
-        << "sycl_ext_oneapi_device_architecture feature is not supported on "
-        << DeviceStr << " device with sycl::backend::" << CurrentBackend
-        << " backend.";
-    throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
+    return ext::oneapi::experimental::architecture::unknown;
   }
 };
 
@@ -1209,11 +1196,21 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
+
+    // If the feature is unsupported or if the result was empty, return an empty
+    // list of devices.
+    if (Err == PI_ERROR_INVALID_VALUE || (Err == PI_SUCCESS && ResultSize == 0))
+      return {};
+
+    // Otherwise, if there was an error from PI it is unexpected and we should
+    // handle it accordingly.
+    Dev->getPlugin()->checkPiResult(Err);
+
     size_t DevCount = ResultSize / sizeof(pi_device);
     // Second call to get the list.
     std::vector<pi_device> Devs(DevCount);
@@ -2203,7 +2200,7 @@ inline uint32_t get_device_info_host<
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
-  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 
