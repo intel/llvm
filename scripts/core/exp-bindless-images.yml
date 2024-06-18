@@ -357,7 +357,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_image_handle_t
       name: hImage
-      desc: "[in] pointer to handle of image object to destroy"
+      desc: "[in][release] pointer to handle of image object to destroy"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -378,7 +378,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_image_handle_t
       name: hImage
-      desc: "[in] pointer to handle of image object to destroy"
+      desc: "[in][release] pointer to handle of image object to destroy"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -775,7 +775,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_semaphore_handle_t
       name: hInteropSemaphore
-      desc: "[in] handle of interop semaphore to be destroyed"
+      desc: "[in][release] handle of interop semaphore to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE

@@ -6536,7 +6536,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnUnsampledImageHandleDestroyExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
@@ -6572,7 +6572,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnSampledImageHandleDestroyExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
@@ -7156,7 +7156,7 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
     auto pfnDestroyExternalSemaphoreExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
