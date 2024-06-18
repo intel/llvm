@@ -1,10 +1,15 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 // Same test but with -g
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -g -o %t-debug
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-debug
+
+// Test with vector width set manually, this ensures that we peel correctly when
+// doing vectorization.
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-cpu-vecz-width=4 %s -g -o %t-vec
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-vec
 
 #include <sycl/sycl.hpp>
 
@@ -17,8 +22,9 @@ constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 class SimpleVadd;
 
 int main() {
-  const size_t N = 4;
-  std::array<int, N> A = {{1, 2, 3, 4}}, B = {{2, 3, 4, 5}}, C{{0, 0, 0, 0}};
+  const size_t N = 5;
+  std::array<int, N> A = {{1, 2, 3, 4, 5}}, B = {{2, 3, 4, 5, 6}},
+                     C{{0, 0, 0, 0, 0}};
   sycl::queue deviceQueue;
   sycl::range<1> numOfItems{N};
   sycl::buffer<int, 1> bufferA(A.data(), numOfItems);

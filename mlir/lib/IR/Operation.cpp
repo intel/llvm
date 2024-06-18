@@ -20,6 +20,7 @@
 #include "mlir/Interfaces/FoldInterfaces.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <numeric>
 #include <optional>
 
@@ -611,11 +612,19 @@ void Operation::setSuccessor(Block *block, unsigned index) {
 /// the results of the given op.
 static void checkFoldResultTypes(Operation *op,
                                  SmallVectorImpl<OpFoldResult> &results) {
-  if (!results.empty())
-    for (auto [ofr, opResult] : llvm::zip_equal(results, op->getResults()))
-      if (auto value = ofr.dyn_cast<Value>())
-        assert(value.getType() == opResult.getType() &&
-               "folder produced value of incorrect type");
+  if (results.empty())
+    return;
+
+  for (auto [ofr, opResult] : llvm::zip_equal(results, op->getResults())) {
+    if (auto value = dyn_cast<Value>(ofr)) {
+      if (value.getType() != opResult.getType()) {
+        op->emitOpError() << "folder produced a value of incorrect type: "
+                          << opResult.getType()
+                          << ", expected: " << value.getType();
+        assert(false && "incorrect fold result type");
+      }
+    }
+  }
 }
 #endif // NDEBUG
 
@@ -781,15 +790,33 @@ void OpState::printOpName(Operation *op, OpAsmPrinter &p,
 /// Parse properties as a Attribute.
 ParseResult OpState::genericParseProperties(OpAsmParser &parser,
                                             Attribute &result) {
-  if (parser.parseLess() || parser.parseAttribute(result) ||
-      parser.parseGreater())
-    return failure();
+  if (succeeded(parser.parseOptionalLess())) { // The less is optional.
+    if (parser.parseAttribute(result) || parser.parseGreater())
+      return failure();
+  }
   return success();
 }
 
-/// Print the properties as a Attribute.
-void OpState::genericPrintProperties(OpAsmPrinter &p, Attribute properties) {
-  p << "<" << properties << ">";
+/// Print the properties as a Attribute with names not included within
+/// 'elidedProps'
+void OpState::genericPrintProperties(OpAsmPrinter &p, Attribute properties,
+                                     ArrayRef<StringRef> elidedProps) {
+  auto dictAttr = dyn_cast_or_null<::mlir::DictionaryAttr>(properties);
+  if (dictAttr && !elidedProps.empty()) {
+    ArrayRef<NamedAttribute> attrs = dictAttr.getValue();
+    llvm::SmallDenseSet<StringRef> elidedAttrsSet(elidedProps.begin(),
+                                                  elidedProps.end());
+    bool atLeastOneAttr = llvm::any_of(attrs, [&](NamedAttribute attr) {
+      return !elidedAttrsSet.contains(attr.getName().strref());
+    });
+    if (atLeastOneAttr) {
+      p << "<";
+      p.printOptionalAttrDict(dictAttr.getValue(), elidedProps);
+      p << ">";
+    }
+  } else {
+    p << "<" << properties << ">";
+  }
 }
 
 /// Emit an error about fatal conditions with this operation, reporting up to
@@ -1110,8 +1137,8 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultRank(Operation *op) {
   // delegate function that returns true if type is a shaped type with known
   // rank
   auto hasRank = [](const Type type) {
-    if (auto shaped_type = dyn_cast<ShapedType>(type))
-      return shaped_type.hasRank();
+    if (auto shapedType = dyn_cast<ShapedType>(type))
+      return shapedType.hasRank();
 
     return false;
   };
@@ -1127,7 +1154,7 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultRank(Operation *op) {
 
   // delegate function that returns rank of shaped type with known rank
   auto getRank = [](const Type type) {
-    return type.cast<ShapedType>().getRank();
+    return cast<ShapedType>(type).getRank();
   };
 
   auto rank = !rankedOperandTypes.empty() ? getRank(*rankedOperandTypes.begin())
@@ -1279,9 +1306,7 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
 }
 
 LogicalResult OpTrait::impl::verifyElementwise(Operation *op) {
-  auto isMappableType = [](Type type) {
-    return llvm::isa<VectorType, TensorType>(type);
-  };
+  auto isMappableType = llvm::IsaPred<VectorType, TensorType>;
   auto resultMappableTypes = llvm::to_vector<1>(
       llvm::make_filter_range(op->getResultTypes(), isMappableType));
   auto operandMappableTypes = llvm::to_vector<2>(

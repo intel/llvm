@@ -175,12 +175,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
     int a;
   };
   g g0, g1;
-  // TODO: these notes shouldn't be emitted
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'detail::SwizzleOp}}
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
-  // expected-note@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{candidate template ignored: could not match 'annotated_arg<T, PropertyList>'}}
-  // expected-note@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{candidate template ignored: could not match 'annotated_arg<T2, PropertyList2>'}}
   // expected-error@+1 {{invalid operands to binary expression}}
   auto g2 = g0 + g1;
 

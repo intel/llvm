@@ -36,12 +36,17 @@ define spir_kernel void @fused_0(ptr addrspace(1) nocapture align 16 %KernelOne_
 ; CHECK:           [[TMP4:%.*]] = tail call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)
 ; CHECK:           [[MUL:%.*]] = mul nuw nsw i64 [[TMP4]], 3
 ; CHECK:           [[ADD:%.*]] = add nuw nsw i64 [[MUL]], 1
-; CHECK:           [[TMP6:%.*]] = add i64 [[TMP2]], [[ADD]]
+; CHECK:           [[TMP6:%.*]] = add i64 [[TMP2]], [[MUL]]
 ; CHECK:           [[TMP7:%.*]] = urem i64 [[TMP6]], 3
 ; CHECK:           [[ARRAYIDX_1:%.*]] = getelementptr inbounds %struct.MyStruct, ptr [[TMP1]], i64 [[TMP7]]
+; CHECK:           [[ADDA:%.*]] = add i64 [[TMP7]], 1
+; CHECK:           [[TMP7A:%.*]] = urem i64 [[ADDA]], 3
+
+; COM:             This constant i8-GEP was rewritten to encode an _element_ offset, and subsequently remapped.
+; CHECK:           [[ARRAYIDX_1A:%.*]] = getelementptr inbounds i256, ptr [[TMP1]], i64 [[TMP7A]]
 
 ; COM:             This i8-GEP _was_ not remapped because it addresses into a single MyStruct element
-; CHECK:           [[ARRAYIDX_2:%.*]] = getelementptr inbounds i8, ptr [[ARRAYIDX_1]], i64 20
+; CHECK:           [[ARRAYIDX_2:%.*]] = getelementptr inbounds i8, ptr [[ARRAYIDX_1A]], i64 20
 
 ; CHECK:           store i32 {{.*}}, ptr [[ARRAYIDX_2]], align 4
 ; CHECK:           [[TMP8:%.*]] = add i64 [[TMP3]], [[ADD]]
@@ -66,8 +71,10 @@ entry:
   %add.j2 = add nuw nsw i64 %mul.j2, 1
   %arrayidx.j2 = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i35.i, i64 %add.j2
   %1 = load i32, ptr addrspace(1) %arrayidx.j2, align 4
-  %arrayidx.i54.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.j2, i64 %add.j2
-  %arrayidx.j3 = getelementptr inbounds i8, ptr addrspace(1) %arrayidx.i54.i, i64 20
+  %arrayidx.i54.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.j2, i64 %mul.j2
+  ; Mimic %add.j2 by artificially representing it as a constant byte offset (sizeof(MyStruct)==32 byte)
+  %arrayidx.plus.one.element = getelementptr inbounds i8, ptr addrspace(1) %arrayidx.i54.i, i64 32
+  %arrayidx.j3 = getelementptr inbounds i8, ptr addrspace(1) %arrayidx.plus.one.element, i64 20
   store i32 %1, ptr addrspace(1) %arrayidx.j3, align 4
   %conv.j2 = trunc i32 %1 to i8
   %arrayidx.i70.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i44.i, i64 %add.j2

@@ -31,54 +31,68 @@ using property_value =
 //===----------------------------------------------------------------------===//
 //        FPGA properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
-struct register_map_key {
+struct register_map_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::RegisterMap> {
   using value_t = property_value<register_map_key>;
 };
 
-struct conduit_key {
+struct conduit_key : oneapi::experimental::detail::compile_time_property_key<
+                         oneapi::experimental::detail::PropKind::Conduit> {
   using value_t = property_value<conduit_key>;
 };
 
-struct stable_key {
+struct stable_key : oneapi::experimental::detail::compile_time_property_key<
+                        oneapi::experimental::detail::PropKind::Stable> {
   using value_t = property_value<stable_key>;
 };
 
-struct buffer_location_key {
+struct buffer_location_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::BufferLocation> {
   template <int K>
   using value_t =
       property_value<buffer_location_key, std::integral_constant<int, K>>;
 };
 
-struct awidth_key {
+struct awidth_key : oneapi::experimental::detail::compile_time_property_key<
+                        oneapi::experimental::detail::PropKind::AddrWidth> {
   template <int K>
   using value_t = property_value<awidth_key, std::integral_constant<int, K>>;
 };
 
-struct dwidth_key {
+struct dwidth_key : oneapi::experimental::detail::compile_time_property_key<
+                        oneapi::experimental::detail::PropKind::DataWidth> {
   template <int K>
   using value_t = property_value<dwidth_key, std::integral_constant<int, K>>;
 };
 
-struct latency_key {
+struct latency_key : oneapi::experimental::detail::compile_time_property_key<
+                         oneapi::experimental::detail::PropKind::Latency> {
   template <int K>
   using value_t = property_value<latency_key, std::integral_constant<int, K>>;
 };
 
 enum class read_write_mode_enum : std::uint16_t { read, write, read_write };
 
-struct read_write_mode_key {
+struct read_write_mode_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::RWMode> {
   template <read_write_mode_enum Mode>
   using value_t =
       property_value<read_write_mode_key,
                      std::integral_constant<read_write_mode_enum, Mode>>;
 };
 
-struct maxburst_key {
+struct maxburst_key : oneapi::experimental::detail::compile_time_property_key<
+                          oneapi::experimental::detail::PropKind::MaxBurst> {
   template <int K>
   using value_t = property_value<maxburst_key, std::integral_constant<int, K>>;
 };
 
-struct wait_request_key {
+struct wait_request_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::WaitRequest> {
   template <int K>
   using value_t =
       property_value<wait_request_key, std::integral_constant<int, K>>;
@@ -130,18 +144,6 @@ using read_write_mode_key = intel::experimental::read_write_mode_key;
 using maxburst_key = intel::experimental::maxburst_key;
 using wait_request_key = intel::experimental::wait_request_key;
 using read_write_mode_enum = intel::experimental::read_write_mode_enum;
-
-template <> struct is_property_key<register_map_key> : std::true_type {};
-template <> struct is_property_key<conduit_key> : std::true_type {};
-template <> struct is_property_key<stable_key> : std::true_type {};
-
-template <> struct is_property_key<buffer_location_key> : std::true_type {};
-template <> struct is_property_key<awidth_key> : std::true_type {};
-template <> struct is_property_key<dwidth_key> : std::true_type {};
-template <> struct is_property_key<latency_key> : std::true_type {};
-template <> struct is_property_key<read_write_mode_key> : std::true_type {};
-template <> struct is_property_key<maxburst_key> : std::true_type {};
-template <> struct is_property_key<wait_request_key> : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<register_map_key, annotated_arg<T, PropertyListT>>
@@ -224,51 +226,6 @@ struct is_property_key_of<wait_request_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<register_map_key> {
-  static constexpr PropKind Kind = PropKind::RegisterMap;
-};
-template <> struct PropertyToKind<conduit_key> {
-  static constexpr PropKind Kind = PropKind::Conduit;
-};
-template <> struct PropertyToKind<stable_key> {
-  static constexpr PropKind Kind = PropKind::Stable;
-};
-template <> struct PropertyToKind<buffer_location_key> {
-  static constexpr PropKind Kind = PropKind::BufferLocation;
-};
-template <> struct PropertyToKind<awidth_key> {
-  static constexpr PropKind Kind = PropKind::AddrWidth;
-};
-template <> struct PropertyToKind<dwidth_key> {
-  static constexpr PropKind Kind = PropKind::DataWidth;
-};
-template <> struct PropertyToKind<latency_key> {
-  static constexpr PropKind Kind = PropKind::Latency;
-};
-template <> struct PropertyToKind<read_write_mode_key> {
-  static constexpr PropKind Kind = PropKind::RWMode;
-};
-template <> struct PropertyToKind<maxburst_key> {
-  static constexpr PropKind Kind = PropKind::MaxBurst;
-};
-template <> struct PropertyToKind<wait_request_key> {
-  static constexpr PropKind Kind = PropKind::WaitRequest;
-};
-
-template <> struct IsCompileTimeProperty<register_map_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<conduit_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<stable_key> : std::true_type {};
-
-template <>
-struct IsCompileTimeProperty<buffer_location_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<awidth_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<dwidth_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<read_write_mode_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<latency_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<maxburst_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<wait_request_key> : std::true_type {};
-
 template <> struct PropertyMetaInfo<register_map_key::value_t> {
   static constexpr const char *name = "sycl-register-map";
   static constexpr std::nullptr_t value = nullptr;
@@ -352,6 +309,10 @@ template <typename T>
 struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
+
+// buffer_location is applied on PtrAnnotation
+template <>
+struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
 
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties

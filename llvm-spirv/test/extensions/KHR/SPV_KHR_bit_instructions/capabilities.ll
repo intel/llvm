@@ -1,19 +1,18 @@
 ; RUN: llvm-as %s -o %t.bc
 
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=-SPV_KHR_bit_instructions -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-COMMON,CHECK-WITHOUT-EXT
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-WITHOUT-EXT
 
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_bit_instructions -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-COMMON,CHECK-WITH-EXT
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-WITH-EXT
 
-; CHECK-WITHOUT-EXT: Capability Shader
+; CHECK-WITHOUT-EXT: Name [[#]] "llvm_bitreverse_i32"
+; CHECK-WITHOUT-EXT: LinkageAttributes "llvm_bitreverse_i32" Export
 
-; CHECK-WITH-EXT-NOT: Capability Shader
 ; CHECK-WITH-EXT: Capability BitInstructions
-; CHECK-WITH-EXT-NOT: Capability Shader
 ; CHECK-WITH-EXT: Extension "SPV_KHR_bit_instructions"
 
-; CHECK-COMMON: 4 BitReverse
+; CHECK-WITH-EXT: 4 BitReverse
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"

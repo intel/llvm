@@ -11,7 +11,7 @@
 // CHECK-WITHOUT-NOT: -igc_opts
 // CHECK-WITHOUT: ) ---> pi_result : PI_SUCCESS
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::buffer<size_t, 1> Buffer(4);

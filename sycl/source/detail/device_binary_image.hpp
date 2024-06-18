@@ -11,6 +11,8 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <sycl/detail/iostream_proxy.hpp>
+
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -220,7 +222,7 @@ public:
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
-    return reinterpret_cast<std::uintptr_t>(Bin);
+    return ImageId;
   }
 
 protected:
@@ -240,6 +242,10 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
+
+private:
+  static std::atomic<uintptr_t> ImageCounter;
+  uintptr_t ImageId = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

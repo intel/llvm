@@ -9,8 +9,11 @@
 #pragma once
 
 #include <sycl/bit_cast.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #define NOMINMAX
 #include <algorithm>
@@ -26,6 +29,10 @@
 using namespace sycl;
 
 namespace esimd_test {
+
+template <typename T>
+using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared>;
+template <typename T> using shared_vector = std::vector<T, shared_allocator<T>>;
 
 // This is the function provided to SYCL runtime by the application to decide
 // on which device to run, or whether to run at all.

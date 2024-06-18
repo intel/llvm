@@ -3,9 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
-// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
 
 // RUN: %if windows %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
@@ -18,7 +18,7 @@
 #include <complex>
 #endif
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #ifndef INCLUDE_BEFORE
 #include <complex>
@@ -31,6 +31,11 @@ int main() {
   queue q;
   auto test = []() {
     static_assert(sycl::detail::is_complex<std::complex<float>>::value);
+    static_assert(sycl::detail::is_complex<const std::complex<half>>::value);
+    static_assert(
+        sycl::detail::is_complex<const volatile std::complex<float>>::value);
+    static_assert(
+        sycl::detail::is_complex<volatile std::complex<double>>::value);
     static_assert(sycl::detail::isComplex<std::complex<float>>::value);
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(

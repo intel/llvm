@@ -4,7 +4,7 @@
 
 // REQUIRES: x86-registered-target
 
-/// Test behaviors of -foffload-static-lib=<lib> with single object.
+/// Test behaviors of using a static library with single object.
 // Build the offload library that is used for the tests.
 // RUN: echo "void foo() {}" > %t.c
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -c -Fo%t-orig.obj %t.c
@@ -41,7 +41,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors of -foffload-static-lib=<lib> with multiple objects.
+/// Test behaviors of using a static library with multiple objects.
 // RUN: touch %t-orig.lib
 // RUN: touch %t-1.obj
 // RUN: touch %t-2.obj
@@ -60,7 +60,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors with multiple -foffload-static-lib=<lib> options.
+/// Test behaviors with multiple static libraries.
 // RUN: cp %t-orig.lib %t1.lib
 // RUN: cp %t-orig.lib %t2.lib
 // RUN: touch %t-orig.obj
@@ -78,7 +78,7 @@
 
 /// ###########################################################################
 
-/// Test behaviors of -foffload-static-lib=<lib> from source.
+/// Test behaviors of using static libraries from source.
 // RUN: touch %t-orig.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
@@ -95,26 +95,24 @@
 // FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTLIB]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, tempfilelist
-// FOFFLOAD_STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64-unknown-unknown)" {22}, image
+// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: input, "[[INPUTLIB]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
+// FOFFLOAD_STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
+// FOFFLOAD_STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
 
 /// ###########################################################################
 
 // RUN: touch %t-orig.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t-orig.lib %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"

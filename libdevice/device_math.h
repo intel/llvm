@@ -10,7 +10,7 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 #include <cstdint>
 
 typedef struct {
@@ -39,6 +39,66 @@ long int __devicelib_labs(long int x);
 
 DEVICE_EXTERN_C
 long long int __devicelib_llabs(long long int x);
+
+DEVICE_EXTERN_C
+float __devicelib_fabsf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_fabs(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_ceilf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_ceil(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_copysignf(float x, float y);
+
+DEVICE_EXTERN_C
+double __devicelib_copysign(double x, double y);
+
+DEVICE_EXTERN_C
+float __devicelib_cospif(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_cospi(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_fmaxf(float x, float y);
+
+DEVICE_EXTERN_C
+double __devicelib_fmax(double x, double y);
+
+DEVICE_EXTERN_C
+float __devicelib_fminf(float x, float y);
+
+DEVICE_EXTERN_C
+double __devicelib_fmin(double x, double y);
+
+DEVICE_EXTERN_C
+float __devicelib_truncf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_trunc(double x);
+
+DEVICE_EXTERN_C
+double __devicelib_sinpi(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_sinpif(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_rsqrt(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_rsqrtf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_exp10(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_exp10f(float x);
 
 DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y);
@@ -301,5 +361,5 @@ float __devicelib_scalbnf(float x, int n);
 DEVICE_EXTERN_C
 double __devicelib_scalbn(double x, int exp);
 
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__
 #endif // __LIBDEVICE_DEVICE_MATH_H__

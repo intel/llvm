@@ -54,7 +54,7 @@ struct SYCLInternalizerImpl {
   TargetFusionInfo TargetInfo;
 
   /// Implements internalization the pass run.
-  PreservedAnalyses operator()(Module &M, ModuleAnalysisManager &AM) const;
+  PreservedAnalyses operator()(Module &M) const;
 
   ///
   /// Update a value to be promoted in a function.
@@ -71,8 +71,8 @@ struct SYCLInternalizerImpl {
   void promoteValue(Value *Val, const PromotionInfo &PromInfo,
                     bool InAggregate) const;
 
-  void promoteGEPI(GetElementPtrInst *GEPI, const Value *Val,
-                   const PromotionInfo &PromInfo, bool InAggregate) const;
+  void promoteGEPI(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo,
+                   bool InAggregate) const;
 
   void promoteCall(CallBase *C, const Value *Val,
                    const PromotionInfo &PromInfo) const;
@@ -103,8 +103,8 @@ struct SYCLInternalizerImpl {
   ///
   /// Check that the operand of a GEP can be promoted to its users, and
   /// propagate whether it represents a pointer into an aggregate object.
-  Error canPromoteGEP(GetElementPtrInst *GEPI, const Value *Val,
-                      const PromotionInfo &PromInfo, bool InAggregate) const;
+  Error canPromoteGEP(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo,
+                      bool InAggregate) const;
 
   ///
   /// Check if operand to a function call can be promoted.
@@ -189,6 +189,21 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 }
 
 ///
+/// If \p GEPI represents a constant offset in bytes, return it, otherwise
+/// return an empty value.
+static std::optional<unsigned> getConstantByteOffset(GetElementPtrInst *GEPI,
+                                                     const DataLayout &DL) {
+  MapVector<Value *, APInt> VariableOffsets;
+  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
+  APInt ConstantOffset = APInt::getZero(IW);
+  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
+      VariableOffsets.empty()) {
+    return ConstantOffset.getZExtValue();
+  }
+  return {};
+}
+
+///
 /// When performing internalization, GEP instructions must be remapped, as the
 /// address space has changed from N to N / LocalSize.
 static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
@@ -198,6 +213,25 @@ static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
     // Squash the index and let instcombine clean-up afterwards.
     GEPI->idx_begin()->set(Builder.getInt64(0));
     return;
+  }
+
+  // GEPs with constant offset may be marked for remapping even if their element
+  // size differs from the accessor's element size. However we know that the
+  // offset is a multiple of the latter. Rewrite the instruction to represent a
+  // number of _elements_ to make it compatible with other GEPs in the current
+  // chain.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+  if (SrcElemTySz != PromInfo.ElemSize) {
+    auto COff = getConstantByteOffset(GEPI, DL);
+    // This is special case #2 in `getGEPKind`.
+    assert(COff.has_value() && *COff % PromInfo.ElemSize == 0 &&
+           GEPI->getNumIndices() == 1);
+    auto *IntTypeWithSameWidthAsAccessorElementType =
+        Builder.getIntNTy(PromInfo.ElemSize * 8);
+    GEPI->setSourceElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->setResultElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->idx_begin()->set(Builder.getInt64(*COff / PromInfo.ElemSize));
   }
 
   // An individual `GEP(ptr, offset)` is rewritten as
@@ -302,15 +336,19 @@ static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
     return Kind;
   }
 
-  // Check whether `GEPI` adds a constant offset, e.g. a byte offset to address
-  // into a padded structure, smaller than the element size.
-  MapVector<Value *, APInt> VariableOffsets;
-  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
-  APInt ConstantOffset = APInt::getZero(IW);
-  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
-      VariableOffsets.empty() &&
-      ConstantOffset.getZExtValue() < PromInfo.ElemSize) {
-    return ADDRESSES_INTO_AGGREGATE;
+  // We can handle a mismatch between `GEPI`'s element size and the accessors
+  // element size if `GEPI` represents a constant offset.
+  if (auto COff = getConstantByteOffset(GEPI, DL)) {
+    if (*COff < PromInfo.ElemSize) {
+      // Special case #1: The offset is less than the element size, hence we're
+      // addressing into an aggregrate and no remapping is required.
+      return ADDRESSES_INTO_AGGREGATE;
+    }
+    if (*COff % PromInfo.ElemSize == 0 && GEPI->getNumIndices() == 1) {
+      // Special case #2: The offset is a multiple of the element size, meaning
+      // `GEPI` selects an element and is subject to remapping.
+      return NEEDS_REMAPPING;
+    }
   }
 
   // We don't know what `GEPI` addresses; bail out.
@@ -318,7 +356,6 @@ static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
 }
 
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
-                                          const Value *Val,
                                           const PromotionInfo &PromInfo,
                                           bool InAggregate) const {
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() == AS) {
@@ -367,7 +404,7 @@ Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
       }
       break;
     case Instruction::GetElementPtr:
-      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), Val, PromInfo,
+      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), PromInfo,
                                    InAggregate)) {
         return Err;
       }
@@ -450,7 +487,6 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
 }
 
 void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
-                                       const Value *Val,
                                        const PromotionInfo &PromInfo,
                                        bool InAggregate) const {
   // Not PointerType is unreachable. Other case is caught in caller.
@@ -485,7 +521,7 @@ void SYCLInternalizerImpl::promoteValue(Value *Val,
       promoteCall(cast<CallBase>(I), Val, PromInfo);
       break;
     case Instruction::GetElementPtr:
-      promoteGEPI(cast<GetElementPtrInst>(I), Val, PromInfo, InAggregate);
+      promoteGEPI(cast<GetElementPtrInst>(I), PromInfo, InAggregate);
       break;
     case Instruction::Load:
     case Instruction::Store:
@@ -526,8 +562,11 @@ getPromotedFunctionDeclaration(Function *F, ArrayRef<PromotionInfo> PromInfos,
   // declaration.
   FunctionType *NewTy =
       ChangeTypes ? getPromotedFunctionType(Ty, PromInfos, AS) : Ty;
-  return Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
-                          F->getName(), F->getParent());
+  Function *NewF =
+      Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
+                       F->getName(), F->getParent());
+  NewF->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+  return NewF;
 }
 
 ///
@@ -596,8 +635,7 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
   return NewF;
 }
 
-PreservedAnalyses
-SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
+PreservedAnalyses SYCLInternalizerImpl::operator()(Module &M) const {
   bool Changed{false};
   SmallVector<Function *> ToUpdate;
   for (auto &F : M) {
@@ -664,7 +702,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
     // Use the argument usage mask to provide feedback to the runtime which
     // arguments have been promoted to private or local memory and which have
     // been eliminated in the process (private promotion).
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       const auto &MDS = cast<MDString>(I.value().get())->getString();
       if (MDS == PrivatePromotion) {
@@ -688,10 +726,10 @@ PreservedAnalyses llvm::SYCLInternalizer::run(Module &M,
   TargetFusionInfo TFI{&M};
   // Private promotion
   const PreservedAnalyses Tmp = SYCLInternalizerImpl{
-      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M, AM);
+      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M);
   // Local promotion
-  PreservedAnalyses Res = SYCLInternalizerImpl{
-      TFI.getLocalAddressSpace(), LocalPromotion, false, TFI}(M, AM);
+  PreservedAnalyses Res = SYCLInternalizerImpl{TFI.getLocalAddressSpace(),
+                                               LocalPromotion, false, TFI}(M);
 
   Res.intersect(Tmp);
 

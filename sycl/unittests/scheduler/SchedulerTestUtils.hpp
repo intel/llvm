@@ -109,9 +109,8 @@ public:
 
   sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
-                          sycl::detail::Requirement *Req,
-                          std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+                          sycl::detail::Requirement *Req) {
+    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
 
   void decrementLeafCountersForRecord(sycl::detail::MemObjRecord *Rec) {
@@ -258,7 +257,7 @@ public:
     return CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
-  std::string &getKernelName() { return MKernelName; }
+  std::string getKernelName() { return MKernelName.c_str(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
   std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
@@ -307,7 +306,7 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, getCodeLoc()));
+          getCGType(), {}, MImpl->MKernelIsCooperative, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {

@@ -11,77 +11,84 @@
 
 #include "Kernel.h"
 
-#include <memory>
-#include <unordered_map>
-
 namespace jit_compiler {
 
 enum OptionID { VerboseOutput, EnableCaching, TargetDeviceInfo };
 
-class OptionPtrBase {};
-
-class Config {
+class OptionPtrBase {
+protected:
+  explicit OptionPtrBase(OptionID Id) : Id(Id) {}
 
 public:
-  template <typename Opt> void set(typename Opt::ValueType Value) {
-    Opt::set(*this, Value);
-  }
+  virtual ~OptionPtrBase() = default;
 
-  template <typename Opt> typename Opt::ValueType get() {
-    return Opt::get(*this);
-  }
-
-private:
-  std::unordered_map<OptionID, std::unique_ptr<OptionPtrBase>> OptionValues;
-
-  void set(OptionID ID, std::unique_ptr<OptionPtrBase> Value) {
-    OptionValues[ID] = std::move(Value);
-  }
-
-  OptionPtrBase *get(OptionID ID) {
-    if (OptionValues.count(ID)) {
-      return OptionValues.at(ID).get();
-    }
-    return nullptr;
-  }
-
-  template <OptionID ID, typename T> friend class OptionBase;
+  const OptionID Id;
 };
 
-template <OptionID ID, typename T> class OptionBase : public OptionPtrBase {
+class OptionStorage {
 public:
-  using ValueType = T;
+  ~OptionStorage() { delete Storage; }
 
-protected:
-  static void set(Config &Cfg, T Value) {
-    Cfg.set(ID,
-            std::unique_ptr<OptionBase<ID, T>>{new OptionBase<ID, T>{Value}});
+  OptionStorage() : Storage{nullptr} {}
+
+  OptionStorage(const OptionStorage &) = delete;
+  OptionStorage &operator=(const OptionStorage &) = delete;
+
+  OptionStorage(OptionStorage &&Other) : Storage{Other.Storage} {
+    Other.Storage = nullptr;
   }
 
-  static const T get(Config &Cfg) {
-    auto *ConfigValue = Cfg.get(ID);
-    if (!ConfigValue) {
-      return T{};
-    }
-    return static_cast<OptionBase<ID, T> *>(ConfigValue)->Value;
+  OptionStorage &operator=(OptionStorage &&Other) {
+    Storage = Other.Storage;
+    Other.Storage = nullptr;
+    return *this;
+  }
+
+  OptionPtrBase *get() const { return Storage; }
+
+  template <typename OptionT, typename... Args>
+  static OptionStorage makeOption(Args &&...As) {
+    return OptionStorage(new OptionT(std::forward<Args>(As)...));
   }
 
 private:
+  OptionPtrBase *Storage;
+
+  OptionStorage(OptionPtrBase *Store) : Storage{Store} {}
+};
+
+template <typename OptionT, OptionID ID, typename T>
+struct OptionBase : public OptionPtrBase {
+  static constexpr OptionID Id = ID;
+  using ValueType = T;
+
+  template <typename... Args>
+  explicit OptionBase(Args &&...As)
+      : OptionPtrBase{ID}, Value{std::forward<Args>(As)...} {}
+
+  template <typename... Args> static OptionStorage set(Args &&...As) {
+    return OptionStorage::makeOption<OptionT>(std::forward<Args>(As)...);
+  }
+
   T Value;
-
-  OptionBase(T Val) : Value{Val} {}
-
-  friend Config;
 };
 
 namespace option {
 
-struct JITEnableVerbose : public OptionBase<OptionID::VerboseOutput, bool> {};
+struct JITEnableVerbose
+    : public OptionBase<JITEnableVerbose, OptionID::VerboseOutput, bool> {
+  using OptionBase::OptionBase;
+};
 
-struct JITEnableCaching : public OptionBase<OptionID::EnableCaching, bool> {};
+struct JITEnableCaching
+    : public OptionBase<JITEnableCaching, OptionID::EnableCaching, bool> {
+  using OptionBase::OptionBase;
+};
 
 struct JITTargetInfo
-    : public OptionBase<OptionID::TargetDeviceInfo, TargetInfo> {};
+    : public OptionBase<JITTargetInfo, OptionID::TargetDeviceInfo, TargetInfo> {
+  using OptionBase::OptionBase;
+};
 
 } // namespace option
 } // namespace jit_compiler

@@ -1,10 +1,6 @@
-// REQUIRES: gpu, (hip || cuda)
+// REQUIRES: (gpu && (hip || cuda)), cpu
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "WRONG a VALUE" --implicit-check-not "WRONG b VALUE"
-// XFAIL: *
-
-// COM: This test is expected to fail on CI, as CUDA and HIP runners do not
-// provide a CPU backend.
 
 // Test caching for JIT fused kernels when devices with different architectures
 // are involved.

@@ -46,6 +46,7 @@ static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
 }
 
 TEST_F(SchedulerTest, AllocaLinking) {
+  HostUnifiedMemory = false;
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info
   // which is needed when creating a host device.
@@ -66,9 +67,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
@@ -83,9 +83,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
         range<1>(1), {ext::oneapi::property::buffer::use_pinned_host_memory()});
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
@@ -100,9 +99,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =

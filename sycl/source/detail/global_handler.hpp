@@ -23,7 +23,6 @@ class Scheduler;
 class ProgramManager;
 class Sync;
 class plugin;
-class device_filter_list;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
@@ -70,13 +69,14 @@ public:
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<PluginPtr> &getPlugins();
-  device_filter_list &getDeviceFilterList(const std::string &InitValue);
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerDefaultContextReleaseHandler();
+  static void registerEarlyShutdownHandler();
 
+  bool isOkToDefer() const;
+  void endDeferredRelease();
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
@@ -93,7 +93,11 @@ private:
   void *GSYCLCallEvent = nullptr;
 #endif
 
-  friend void shutdown();
+  bool OkToDefer = true;
+
+  friend void shutdown_win();
+  friend void shutdown_early();
+  friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
@@ -121,7 +125,6 @@ private:
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<PluginPtr>> MPlugins;
-  InstWithLock<device_filter_list> MDeviceFilterList;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution

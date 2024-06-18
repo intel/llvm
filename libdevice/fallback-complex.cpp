@@ -8,7 +8,7 @@
 
 #include "device_complex.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 #include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the
@@ -431,4 +431,4 @@ float __complex__ __devicelib_catanf(float __complex__ z) {
       CMPLXF(-__devicelib_cimagf(z), __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

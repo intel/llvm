@@ -8,8 +8,6 @@
 
 #include "SYCLKernelInfo.h"
 
-#include "metadata/MDParsing.h"
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/Support/CommandLine.h"
@@ -34,6 +32,12 @@ static constexpr std::array<llvm::StringLiteral, NumParameterKinds>
 };
 static constexpr llvm::StringLiteral InvalidParameterKindString{"Invalid"};
 
+template <typename T> static T getUInt(const MDOperand &Operand) {
+  auto *ConstantMD = cast<ConstantAsMetadata>(Operand);
+  auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
+  return static_cast<T>(ConstInt->getZExtValue());
+}
+
 void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
   DiagnosticPrinterRawOStream Printer{llvm::errs()};
   ModuleInfo = std::make_unique<SYCLModuleInfo>();
@@ -49,13 +53,21 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
 
     // Operand 0: Kernel name
     auto Name = cast<MDString>(*It)->getString().str();
-    SYCLKernelInfo KernelInfo{std::move(Name)};
     ++It;
 
     // Operand 1: Argument kinds
     auto *ArgsKindsMD = cast<MDNode>(*It);
+    ++It;
+
+    // Operand 2: Argument usage mask
+    auto *ArgsUsageMaskMD = cast<MDNode>(*It);
+    ++It;
+
+    assert(ArgsKindsMD->getNumOperands() == ArgsUsageMaskMD->getNumOperands());
+    SYCLKernelInfo KernelInfo{Name.c_str(), ArgsKindsMD->getNumOperands()};
+
     llvm::transform(
-        ArgsKindsMD->operands(), std::back_inserter(KernelInfo.Args.Kinds),
+        ArgsKindsMD->operands(), KernelInfo.Args.Kinds.begin(),
         [](const auto &Op) {
           auto KindStr = cast<MDString>(Op)->getString();
           auto It = std::find_if(
@@ -67,38 +79,30 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
           auto Idx = std::distance(ParameterKindStrings.begin(), It);
           return static_cast<ParameterKind>(Idx);
         });
-    ++It;
 
-    // Operand 2: Argument usage mask
-    auto *ArgsUsageMaskMD = cast<MDNode>(*It);
-    llvm::transform(
-        ArgsUsageMaskMD->operands(),
-        std::back_inserter(KernelInfo.Args.UsageMask), [](const auto &Op) {
-          auto UIntOrErr = metadataToUInt<std::underlying_type_t<ArgUsage>>(Op);
-          if (UIntOrErr.takeError()) {
-            llvm_unreachable("Invalid kernel info metadata");
-          }
-          return *UIntOrErr;
-        });
-    ++It;
+    llvm::transform(ArgsUsageMaskMD->operands(),
+                    KernelInfo.Args.UsageMask.begin(), getUInt<ArgUsageUT>);
 
     // Operands 3..n: Attributes
-    for (; It != End; ++It) {
-      auto *AIMD = cast<MDNode>(*It);
-      assert(AIMD->getNumOperands() > 1);
+    KernelInfo.Attributes = jit_compiler::SYCLAttributeList{
+        static_cast<size_t>(std::distance(It, End))};
+    std::transform(It, End, KernelInfo.Attributes.begin(), [](const auto &Op) {
+      auto *AIMD = cast<MDNode>(Op);
+      assert(AIMD->getNumOperands() == 4);
       const auto *AttrIt = AIMD->op_begin(), *AttrEnd = AIMD->op_end();
 
       // Operand 0: Attribute name
       auto Name = cast<MDString>(*AttrIt)->getString().str();
+      auto Kind = SYCLKernelAttribute::parseKind(Name.c_str());
+      assert(Kind != SYCLKernelAttribute::AttrKind::Invalid);
       ++AttrIt;
 
-      // Operands 1..m: String values
-      auto &KernelAttr = KernelInfo.Attributes.emplace_back(std::move(Name));
-      for (; AttrIt != AttrEnd; ++AttrIt) {
-        auto Value = cast<MDString>(*AttrIt)->getString().str();
-        KernelAttr.Values.emplace_back(std::move(Value));
-      }
-    }
+      // Operands 1..3: Values
+      Indices Values;
+      std::transform(AttrIt, AttrEnd, Values.begin(), getUInt<size_t>);
+
+      return SYCLKernelAttribute{Kind, Values};
+    });
 
     ModuleInfo->addKernel(KernelInfo);
   }
@@ -130,7 +134,7 @@ PreservedAnalyses SYCLModuleInfoPrinter::run(Module &Mod,
   for (const auto &KernelInfo : ModuleInfo->kernels()) {
     Out << "KernelName:";
     Out.PadToColumn(Pad);
-    Out << KernelInfo.Name << '\n';
+    Out << KernelInfo.Name.c_str() << '\n';
 
     Out.indent(Indent) << "Args:\n";
     Out.indent(Indent * 2) << "Kinds:";
@@ -155,7 +159,7 @@ PreservedAnalyses SYCLModuleInfoPrinter::run(Module &Mod,
 
     Out.indent(Indent) << "Attributes:\n";
     for (const auto &AttrInfo : KernelInfo.Attributes) {
-      Out.indent(Indent * 2) << AttrInfo.AttributeName << ':';
+      Out.indent(Indent * 2) << AttrInfo.getName() << ':';
       Out.PadToColumn(Pad);
       llvm::interleaveComma(AttrInfo.Values, Out);
       Out << '\n';

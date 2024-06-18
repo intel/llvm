@@ -344,9 +344,6 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
        auto OutPtr = Out.data();
 
        CGH.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-         constexpr uint32_t SLMSize = (GroupSize * N) * sizeof(T);
-         slm_init<SLMSize>();
-
          uint16_t GlobalID = ndi.get_global_id(0);
          uint16_t LocalID = ndi.get_local_id(0);
          uint32_t LocalElemOffset = LocalID * N * sizeof(T);
@@ -637,6 +634,10 @@ bool test_block_store_slm(queue Q) {
   //
   // These test case may compute wrong values for some of elements
   // if the driver is not new enough.
+#if 0
+  // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
+  // non-power-of-2 N values was resolved for slm_block_load(), but not for
+  // slm_block_store().
   if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "27556", "win.just.skip.test", false)) {
     Passed &= testSLM<T, 3, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
@@ -646,6 +647,7 @@ bool test_block_store_slm(queue Q) {
     Passed &=
         testSLM<T, 113, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
   }
+#endif
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
@@ -729,6 +731,10 @@ bool test_block_store_local_acc_slm(queue Q) {
   //
   // These test case may compute wrong values for some of elements
   // if the driver is not new enough.
+#if 0
+  // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
+  // non-power-of-2 N values was resolved for slm_block_load(), but not for
+  // slm_block_store().
   if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "27556", "win.just.skip.test", false)) {
     Passed &= testLocalAccSLM<T, 3, !CheckMask, CheckProperties>(
@@ -740,6 +746,7 @@ bool test_block_store_local_acc_slm(queue Q) {
     Passed &= testLocalAccSLM<T, 113, !CheckMask, CheckProperties>(
         Q, 2, AlignElemProps);
   }
+#endif
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {

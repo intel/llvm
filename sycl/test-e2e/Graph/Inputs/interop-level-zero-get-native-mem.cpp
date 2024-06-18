@@ -9,6 +9,8 @@
 // SYCL
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 bool is_discrete(const device &Device) {
   auto ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);
   ze_device_properties_t ZeDeviceProps;
@@ -31,14 +33,7 @@ int main() {
 
     device Dev1 = Devices[0];
     context Context1{Dev1};
-    queue Queue{
-        Context1,
-        Dev1,
-        {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-    if (!are_graphs_supported(Queue)) {
-      return 0;
-    }
+    queue Queue{Context1, Dev1};
 
     auto Context = Queue.get_context();
     auto Device = Queue.get_info<info::queue::device>();

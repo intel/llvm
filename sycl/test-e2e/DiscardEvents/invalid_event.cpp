@@ -2,7 +2,6 @@
 // https://github.com/intel/llvm/issues/7330.
 // UNSUPPORTED: opencl && gpu
 // RUN: %{build} -o %t.out
-
 // RUN: %{run} %t.out
 
 // The test checks that each PI call to the queue returns a discarded event
@@ -10,7 +9,9 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 16;
@@ -19,9 +20,9 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
   sycl::range<1> range(BUFFER_SIZE);
 
   auto Dev = Q.get_device();
-  int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
+  int *x = sycl::malloc_device<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
-  int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
+  int *y = sycl::malloc_device<int>(BUFFER_SIZE, Q);
   assert(y != nullptr);
 
   sycl::event DiscardedEvent;

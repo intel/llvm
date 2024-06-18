@@ -13,6 +13,7 @@
 #include "llvm/Passes/PassPlugin.h"
 
 #include "Kernel.h"
+#include "ModuleInfo.h"
 
 ///
 /// Analysis pass to make the SYCLModuleInfo available to other

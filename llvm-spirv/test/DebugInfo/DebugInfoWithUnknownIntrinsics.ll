@@ -4,6 +4,12 @@
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+all --spirv-allow-unknown-intrinsics --experimental-debuginfo-iterators=1
+; RUN: llvm-spirv -r %t.spv -o %t.bc --experimental-debuginfo-iterators=1
+; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
+
 ; ModuleID = 'test.bc'
 source_filename = "test.cl"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

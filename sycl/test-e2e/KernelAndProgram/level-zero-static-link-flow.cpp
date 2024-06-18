@@ -25,7 +25,7 @@
 // CHECK: ---> piProgramLink
 // CHECK: ZE ---> zeModuleCreate
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 class MyKernel;
 

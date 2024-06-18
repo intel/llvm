@@ -8,9 +8,13 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <type_traits>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -109,6 +113,47 @@ template <template <typename, memory_order, memory_scope, access::address_space>
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
+void add_fetch_test_usm_shared(queue q, size_t N) {
+  T *sum = malloc_shared<T>(1, q);
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  sum[0] = T(0);
+  std::fill(output_begin, output_end, T(0));
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (sum[0]);
+         output[gid] = atm.fetch_add(Difference(1), order);
+       });
+     }).wait_and_throw();
+  }
+
+  // All work-items increment by 1, so final value should be equal to N.
+  assert(sum[0] == T(N));
+
+  // Fetch returns original value: will be in [0, N-1].
+  auto min_e = std::min_element(output_begin, output_end);
+  auto max_e = std::max_element(output_begin, output_end);
+  assert(*min_e == T(0) && *max_e == T(N - 1));
+
+  // Intermediate values should be unique.
+  std::sort(output_begin, output_end);
+  assert(std::unique(output_begin, output_end) == output_end);
+
+  free(sum, q);
+  free(output, q);
+}
+
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T, typename Difference = T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
 void add_plus_equal_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -144,6 +189,47 @@ void add_plus_equal_test(queue q, size_t N) {
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
+}
+
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T, typename Difference = T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void add_plus_equal_test_usm_shared(queue q, size_t N) {
+  T *sum = malloc_shared<T>(1, q);
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  sum[0] = T(0);
+  std::fill(output_begin, output_end, T(0));
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (sum[0]);
+         output[gid] = atm += Difference(1);
+       });
+     }).wait_and_throw();
+  }
+
+  // All work-items increment by 1, so final value should be equal to N.
+  assert(sum[0] == T(N));
+
+  // += returns updated value: will be in [1, N].
+  auto min_e = std::min_element(output_begin, output_end);
+  auto max_e = std::max_element(output_begin, output_end);
+  assert(*min_e == T(1) && *max_e == T(N));
+
+  // Intermediate values should be unique.
+  std::sort(output_begin, output_end);
+  assert(std::unique(output_begin, output_end) == output_end);
+
+  free(sum, q);
+  free(output, q);
 }
 
 template <template <typename, memory_order, memory_scope, access::address_space>
@@ -193,6 +279,46 @@ template <template <typename, memory_order, memory_scope, access::address_space>
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
+void add_pre_inc_test_usm_shared(queue q, size_t N) {
+  T *sum = malloc_shared<T>(1, q);
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  sum[0] = T(0);
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (sum[0]);
+         output[gid] = ++atm;
+       });
+     }).wait_and_throw();
+  }
+
+  // All work-items increment by 1, so final value should be equal to N.
+  assert(sum[0] == T(N));
+
+  // Pre-increment returns updated value: will be in [1, N].
+  auto min_e = std::min_element(output_begin, output_end);
+  auto max_e = std::max_element(output_begin, output_end);
+  assert(*min_e == T(1) && *max_e == T(N));
+
+  // Intermediate values should be unique.
+  std::sort(output_begin, output_end);
+  assert(std::unique(output_begin, output_end) == output_end);
+
+  free(sum, q);
+  free(output, q);
+}
+
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T, typename Difference = T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
 void add_post_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -230,6 +356,46 @@ void add_post_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T, typename Difference = T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void add_post_inc_test_usm_shared(queue q, size_t N) {
+  T *sum = malloc_shared<T>(1, q);
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  sum[0] = T(0);
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (sum[0]);
+         output[gid] = atm++;
+       });
+     }).wait_and_throw();
+  }
+
+  // All work-items increment by 1, so final value should be equal to N.
+  assert(sum[0] == T(N));
+
+  // Post-increment returns original value: will be in [0, N-1].
+  auto min_e = std::min_element(output_begin, output_end);
+  auto max_e = std::max_element(output_begin, output_end);
+  assert(*min_e == T(0) && *max_e == T(N - 1));
+
+  // Intermediate values should be unique.
+  std::sort(output_begin, output_end);
+  assert(std::unique(output_begin, output_end) == output_end);
+
+  free(sum, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -241,6 +407,7 @@ void add_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -259,11 +426,23 @@ void add_test(queue q, size_t N) {
                      order, scope>(q, N);
       add_plus_equal_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
                           order, scope>(q, N);
+      if (do_usm_tests) {
+        add_fetch_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                  Difference, order, scope>(q, N);
+        add_plus_equal_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space,
+                                       T, Difference, order, scope>(q, N);
+      }
       if constexpr (!std::is_floating_point_v<T>) {
         add_pre_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
                          order, scope>(q, N);
         add_post_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
                           order, scope>(q, N);
+        if (do_usm_tests) {
+          add_pre_inc_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                      Difference, order, scope>(q, N);
+          add_post_inc_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space,
+                                       T, Difference, order, scope>(q, N);
+        }
       }
     }
 #else
@@ -271,11 +450,23 @@ void add_test(queue q, size_t N) {
                                                                            N);
     add_plus_equal_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
         q, N);
+    if (do_usm_tests) {
+      add_fetch_test_usm_shared<::sycl::atomic_ref, space, T, Difference, order,
+                                scope>(q, N);
+      add_plus_equal_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                     order, scope>(q, N);
+    }
     if constexpr (!std::is_floating_point_v<T>) {
       add_pre_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
       add_post_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
+      if (do_usm_tests) {
+        add_pre_inc_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                    order, scope>(q, N);
+        add_post_inc_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                     order, scope>(q, N);
+      }
     }
 #endif
   }

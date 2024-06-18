@@ -1,6 +1,5 @@
 __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7, "use atomic64 instead")
 __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8, "use atomic64 instead")
 // Special macro for aspects that don't have own token
-__SYCL_ASPECT_DEPRECATED_ALIAS(usm_system_allocator, usm_system_allocations, "use usm_system_allocations instead")
 __SYCL_ASPECT_DEPRECATED(usm_restricted_shared_allocations, 16, "deprecated in SYCL 2020")
 __SYCL_ASPECT_DEPRECATED(host, 0, "removed in SYCL 2020, 'host' device has been removed")

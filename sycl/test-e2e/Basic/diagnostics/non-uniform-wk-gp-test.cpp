@@ -11,7 +11,8 @@
 //==------------------------------------------==//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/stream.hpp>
 
 using namespace sycl;
 
@@ -33,10 +34,11 @@ int test() {
           });
     });
     std::cout << "Test failed: no exception thrown." << std::endl;
-  } catch (sycl::runtime_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() == errc::nd_range &&
+        std::string(E.what()).find(
             "Non-uniform work-groups are not supported by the target device") !=
-        std::string::npos) {
+            std::string::npos) {
       std::cout << E.what() << std::endl;
       std::cout << "Test passed: caught the expected error." << std::endl;
       res = 0;

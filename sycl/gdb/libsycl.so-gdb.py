@@ -311,7 +311,6 @@ class SyclArrayPrinter:
             return ("[%d]" % count, elt)
 
     def __init__(self, value):
-
         self.value = value
         if self.value.type.code == gdb.TYPE_CODE_REF:
             self.type = value.referenced_value().type.unqualified().strip_typedefs()

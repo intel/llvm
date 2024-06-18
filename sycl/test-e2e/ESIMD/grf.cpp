@@ -26,9 +26,6 @@
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 #if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #else
@@ -71,13 +68,10 @@ int main(void) {
     A[i] = i;
   }
 
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(gpu_selector{}, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class SyclKernel>(Size,
@@ -98,11 +92,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(Size, [=](id<1> i) SYCL_ESIMD_KERNEL {
@@ -128,7 +117,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 #ifdef USE_AUTO
     sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
 #elif defined(USE_NEW_API)
@@ -137,9 +125,6 @@ int main(void) {
     sycl::ext::oneapi::experimental::properties prop{
         register_alloc_mode<register_alloc_mode_enum::large>};
 #endif
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernelSpecifiedGRF>(

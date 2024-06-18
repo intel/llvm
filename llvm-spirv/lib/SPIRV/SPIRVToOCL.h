@@ -380,6 +380,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL12Legacy : public SPIRVToOCL12Base, public SPIRVToOCLLegacy {
@@ -451,6 +453,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {

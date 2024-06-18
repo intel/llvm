@@ -4,7 +4,9 @@
 // Test complete fusion with private internalization specified on the
 // accessors for three-dimensional range.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

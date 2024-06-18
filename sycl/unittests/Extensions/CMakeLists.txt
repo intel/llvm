@@ -7,7 +7,9 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   OneAPISubGroupMask.cpp
-  CommandGraph.cpp
   USMP2P.cpp
+  CompositeDevice.cpp
+  OneAPIProd.cpp
 )
 
+add_subdirectory(CommandGraph)

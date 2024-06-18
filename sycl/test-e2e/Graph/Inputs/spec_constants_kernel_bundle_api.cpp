@@ -6,6 +6,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/specialization_id.hpp>
+
 constexpr sycl::specialization_id<int> IntId(2);
 constexpr sycl::specialization_id<float> FloatId(3.14f);
 
@@ -30,12 +32,7 @@ int main() {
     }
   };
 
-  queue Queue{ExceptionHandler,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{ExceptionHandler};
 
   unsigned Errors = 0;
   if (!test_default_values(Queue)) {

@@ -13,6 +13,21 @@
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
 
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt --experimental-debuginfo-iterators=1
+; RUN: FileCheck %s --input-file %t.spt --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-OCL
+; RUN: llvm-spirv %t.bc -o %t.spv --experimental-debuginfo-iterators=1
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --experimental-debuginfo-iterators=1
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spt --experimental-debuginfo-iterators=1
+; RUN: FileCheck %s --input-file %t.spt --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NONSEM
+; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spv --experimental-debuginfo-iterators=1
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --experimental-debuginfo-iterators=1
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
 ; CHECK-SPIRV: String [[#Str_C:]] "C"
 ; CHECK-SPIRV: String [[#Str_B:]] "B"
 ; CHECK-SPIRV: String [[#Str_A:]] "A"

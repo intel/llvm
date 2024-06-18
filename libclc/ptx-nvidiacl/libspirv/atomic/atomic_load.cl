@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <atomic_helpers.h>
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
@@ -53,6 +54,12 @@ Memory order is stored in the lowest 5 bits */                                 \
       case Acquire:                                                            \
         __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,      \
                                           ADDR_SPACE, ADDR_SPACE_NV, _acquire) \
+        break;                                                                 \
+      case SequentiallyConsistent:                                             \
+        __CLC_NVVM_FENCE_SC_SM70()                                             \
+        __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,      \
+                                          ADDR_SPACE, ADDR_SPACE_NV, _acquire) \
+        break;                                                                 \
       }                                                                        \
     } else {                                                                   \
       TYPE_NV res = __nvvm_volatile_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(        \

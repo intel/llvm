@@ -3,7 +3,7 @@
 //
 // XFAIL: hip_nvidia
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 // Test image-specific printers of the Plugin Interace

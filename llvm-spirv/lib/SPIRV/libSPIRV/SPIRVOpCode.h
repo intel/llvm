@@ -74,6 +74,10 @@ inline bool isBinaryOpCode(Op OpCode) {
          OpCode == OpDot || OpCode == OpIAddCarry || OpCode == OpISubBorrow;
 }
 
+inline bool isBinaryPtrOpCode(Op OpCode) {
+  return (unsigned)OpCode >= OpPtrEqual && (unsigned)OpCode <= OpPtrDiff;
+}
+
 inline bool isShiftOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpShiftRightLogical &&
          (unsigned)OpCode <= OpShiftLeftLogical;
@@ -221,7 +225,8 @@ inline bool isTypeOpCode(Op OpCode) {
          isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
          OC == internal::OpTypeJointMatrixINTEL ||
          OC == internal::OpTypeJointMatrixINTELv2 ||
-         OC == OpTypeCooperativeMatrixKHR;
+         OC == OpTypeCooperativeMatrixKHR ||
+         OC == internal::OpTypeTaskSequenceINTEL;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

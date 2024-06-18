@@ -51,6 +51,7 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F,
   FunctionType *NFTy = createMaskedFunctionType(Mask, F->getFunctionType());
   Function *NF = Function::Create(NFTy, F->getLinkage(), F->getAddressSpace(),
                                   F->getName(), F->getParent());
+  NF->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
   copyAttributesFrom(Mask, NF, F);
   NF->setComdat(F->getComdat());
   NF->takeName(F);
@@ -86,10 +87,8 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F,
 }
 
 static void updateArgUsageMask(jit_compiler::SYCLKernelInfo *Info,
-                               const jit_compiler::ArgUsageMask &NewArgInfo) {
-  // Masks iterator.
-  jit_compiler::ArgUsageMask &KernelMask = Info->Args.UsageMask;
-
+                               ArrayRef<jit_compiler::ArgUsageUT> NewArgInfo) {
+  auto &KernelMask = Info->Args.UsageMask;
   auto New = NewArgInfo.begin();
   for (auto &C : KernelMask) {
     if (C & jit_compiler::ArgUsage::Used) {
@@ -105,7 +104,7 @@ static void updateArgUsageMask(jit_compiler::SYCLKernelInfo *Info,
   }
 }
 
-static void applyArgMask(const jit_compiler::ArgUsageMask &NewArgInfo,
+static void applyArgMask(ArrayRef<jit_compiler::ArgUsageUT> NewArgInfo,
                          const BitVector &Mask, Function *F,
                          ModuleAnalysisManager &AM, TargetFusionInfo &TFI) {
   // Create the function without the masked-out args.
@@ -143,7 +142,7 @@ static void maskMD(const BitVector &Mask, Function *F) {
   }
 }
 
-void llvm::fullCleanup(const jit_compiler::ArgUsageMask &ArgUsageInfo,
+void llvm::fullCleanup(ArrayRef<jit_compiler::ArgUsageUT> ArgUsageInfo,
                        Function *F, ModuleAnalysisManager &AM,
                        TargetFusionInfo &TFI, ArrayRef<StringRef> MDToErase) {
   // Erase metadata.

@@ -34,7 +34,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 #define WARP_SIZE 32
@@ -88,9 +88,9 @@ void test_select_from_sub_group() {
   unsigned int *dev_data_u = nullptr;
   sycl::range<3> GridSize(1, 1, 1);
   sycl::range<3> BlockSize(1, 1, 1);
-  dev_data = sycl::malloc_shared<int>(DATA_NUM, *q_ct1);
-  dev_data_u = sycl::malloc_shared<unsigned int>(DATA_NUM, *q_ct1);
-
+  dev_data = sycl::malloc_device<int>(DATA_NUM, *q_ct1);
+  dev_data_u = sycl::malloc_device<unsigned int>(DATA_NUM, *q_ct1);
+  unsigned int host_dev_data_u[DATA_NUM];
   GridSize = sycl::range<3>(1, 1, 2);
   BlockSize = sycl::range<3>(1, 2, 32);
   unsigned int expect1[DATA_NUM] = {
@@ -103,8 +103,9 @@ void test_select_from_sub_group() {
       91,  92,  93,  94,  95,  64,  97,  98,  99,  100, 101, 102, 103, 104, 105,
       106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
       121, 122, 123, 124, 125, 126, 127, 96};
-  init_data<unsigned int>(dev_data_u, DATA_NUM);
-
+  init_data<unsigned int>(host_dev_data_u, DATA_NUM);
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
                           [[intel::reqd_sub_group_size(32)]] {
@@ -112,7 +113,9 @@ void test_select_from_sub_group() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-  verify_data<unsigned int>(dev_data_u, expect1, DATA_NUM);
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
+  verify_data<unsigned int>(host_dev_data_u, expect1, DATA_NUM);
 
   GridSize = sycl::range<3>(1, 1, 2);
   BlockSize = sycl::range<3>(1, 2, 32);
@@ -126,8 +129,9 @@ void test_select_from_sub_group() {
       91,  92,  93,  94,  95,  88,  97,  98,  99,  100, 101, 102, 103, 96,  105,
       106, 107, 108, 109, 110, 111, 104, 113, 114, 115, 116, 117, 118, 119, 112,
       121, 122, 123, 124, 125, 126, 127, 120};
-  init_data<unsigned int>(dev_data_u, DATA_NUM);
-
+  init_data<unsigned int>(host_dev_data_u, DATA_NUM);
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
                           [[intel::reqd_sub_group_size(32)]] {
@@ -135,7 +139,9 @@ void test_select_from_sub_group() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-  verify_data<unsigned int>(dev_data_u, expect2, DATA_NUM);
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
+  verify_data<unsigned int>(host_dev_data_u, expect2, DATA_NUM);
 
   sycl::free(dev_data, *q_ct1);
   sycl::free(dev_data_u, *q_ct1);

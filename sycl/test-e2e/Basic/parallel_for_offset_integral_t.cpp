@@ -3,7 +3,7 @@
 // RUN: %{build} -DLAMBDA_KERNEL=0 -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out
 // RUN: %{run} %t2.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 template <typename AccT> class func {
   AccT acc;

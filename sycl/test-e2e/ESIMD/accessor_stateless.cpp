@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -fsycl-esimd-force-stateless-mem -D_CRT_SECURE_NO_WARNINGS=1 -o %t.out
+// RUN: %{build} -fsycl-esimd-force-stateless-mem -D_CRT_SECURE_NO_WARNINGS=1 -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks that accessor-based memory accesses work correctly in ESIMD

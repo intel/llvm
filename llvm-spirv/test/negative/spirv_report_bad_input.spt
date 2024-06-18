@@ -1,0 +1,33 @@
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; The next line is to corrupt the binary file by changing its Magic Number
+; RUN: echo "0" > %t_corrupted.spv && cat %t.spv >> %t_corrupted.spv
+; RUN: not llvm-spirv --spirv-print-report %t_corrupted.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+;
+; CHECK-ERROR: Invalid SPIR-V binary: "InvalidMagicNumber: Invalid Magic Number."
+
+119734787 65536 393230 10 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability LoopFuseINTEL
+2 Capability BitInstructions
+6 Extension "SPV_INTEL_loop_fuse"
+8 Extension "SPV_KHR_bit_instructions"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+7 EntryPoint 6 5 "TestSatPacked"
+3 Source 3 102000
+
+5 Decorate 5 FuseLoopsInFunctionINTEL 3 1
+4 TypeInt 3 32 0
+2 TypeVoid 2
+5 TypeFunction 4 2 3 3
+
+5 Function 2 5 0 4
+3 FunctionParameter 3 6
+3 FunctionParameter 3 7
+
+2 Label 8
+4 BitReverse 3 9 6
+1 Return
+
+1 FunctionEnd

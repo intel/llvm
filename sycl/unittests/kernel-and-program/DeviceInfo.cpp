@@ -83,7 +83,7 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+    Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
         redefinedDeviceGetInfo);
   }
 
@@ -131,11 +131,7 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
 
   device Dev = Ctx.get_devices()[0];
 
-  if (!Dev.has(aspect::ext_intel_device_info_uuid)) {
-    std::clog
-        << "This test is only for the devices with UUID extension support.\n";
-    return;
-  }
+  EXPECT_TRUE(Dev.has(aspect::ext_intel_device_info_uuid));
 
   auto UUID = Dev.get_info<ext::intel::info::device::uuid>();
 
@@ -154,11 +150,7 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
 
   device Dev = Ctx.get_devices()[0];
 
-  if (!Dev.has(aspect::ext_intel_free_memory)) {
-    std::clog << "This test is only for the devices with "
-                 "ext_intel_free_memory extension support.\n";
-    return;
-  }
+  EXPECT_TRUE(Dev.has(aspect::ext_intel_free_memory));
 
   auto FreeMemory = Dev.get_info<ext::intel::info::device::free_memory>();
 

@@ -1,28 +1,24 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for leaks in Level Zero
-// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
-//
-// CHECK-NOT: LEAK
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+
+// REQUIRES: aspect-usm_shared_allocations
 
 // This test uses a host_task when adding a command_graph node to an
 // in-order queue.
 
 #include "../graph_common.hpp"
 
-int main() {
-  queue Queue{{property::queue::in_order{},
-               sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/properties/all_properties.hpp>
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+int main() {
+  queue Queue{property::queue::in_order{}};
 
   using T = int;
-
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   const T ModValue = T{7};
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
@@ -84,13 +80,8 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
-    Event.wait();
+    Queue.ext_oneapi_graph(GraphExec);
   }
   Queue.wait_and_throw();
 

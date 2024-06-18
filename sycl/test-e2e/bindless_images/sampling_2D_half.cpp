@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-fp16
 
@@ -6,7 +5,10 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/usm.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -49,8 +51,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp16);
+        {width, height}, 4, sycl::image_channel_type::fp16);
 
     if (imgMem == nullptr) {
       std::cout << "Error allocating images!" << std::endl;
@@ -82,9 +83,9 @@ int main() {
             float fdim0 = float(dim0 + 0.5f) / (float)width;
             float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read image data from handle
+            // Extension: sample image data from handle
             sycl::half4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::half4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::half4>(
                     imgHandle, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1[0];

@@ -8,7 +8,7 @@
 // RUN: %if cpu %{ env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <algorithm>
 #include <vector>
