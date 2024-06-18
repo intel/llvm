@@ -99,18 +99,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/winstonzhang-intel/unified-runtime.git")
   # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
   # Merge: a53f89db 58f68518
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Mon Jun 17 10:34:52 2024 +0100
   #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
   #     Fix return of component and composite device info queries
-  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
+  set(UNIFIED_RUNTIME_TAG c63a30987634fbfa42386a95be4bca3b4efed870)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/winstonzhang-intel/unified-runtime.git
+    c63a30987634fbfa42386a95be4bca3b4efed870
   )
 
   fetch_adapter_source(opencl
