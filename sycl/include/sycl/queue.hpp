@@ -1394,7 +1394,7 @@ public:
   /// \param DestImgDesc is the image descriptor (format, order, dimensions).
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1418,7 +1418,7 @@ public:
   ///                   measured in pixels as determined by \p DestImgDesc
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1438,7 +1438,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1464,7 +1464,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1485,7 +1485,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1512,7 +1512,7 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1530,7 +1530,7 @@ public:
   /// \param SrcImgDesc is the source image descriptor.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1556,7 +1556,8 @@ public:
   ///               \p SrcImgDesc )
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent,
@@ -1574,7 +1575,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1602,7 +1603,8 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent, event DepEvent,
@@ -1621,7 +1623,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1650,7 +1652,8 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1668,7 +1671,7 @@ public:
   /// \param DeviceRowPitch is the DeviceRowPitch of the rows on the device.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1696,7 +1699,7 @@ public:
   ///               \p DeviceImgDesc )
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -1716,7 +1719,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1731,7 +1734,7 @@ public:
   /// \param DepEvent is an events that specifies the kernel dependency.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       event DepEvent,
@@ -1748,7 +1751,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const std::vector<event> &DepEvents,
@@ -1763,7 +1766,7 @@ public:
   /// \param ImageDesc is the source image descriptor
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1792,7 +1795,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -1813,7 +1816,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1843,7 +1846,7 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
