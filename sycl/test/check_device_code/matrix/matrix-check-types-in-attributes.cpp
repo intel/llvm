@@ -29,7 +29,8 @@ template <typename T> SYCL_EXTERNAL void test() {
 
 template SYCL_EXTERNAL void test<sycl::ext::oneapi::bfloat16>();
 template SYCL_EXTERNAL void test<sycl::half>();
-template SYCL_EXTERNAL void test<sycl::ext::oneapi::experimental::matrix::precision::tf32>();
+template SYCL_EXTERNAL void
+test<sycl::ext::oneapi::experimental::matrix::precision::tf32>();
 template SYCL_EXTERNAL void test<float>();
 template SYCL_EXTERNAL void test<double>();
 template SYCL_EXTERNAL void test<int8_t>();
