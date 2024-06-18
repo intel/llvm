@@ -846,6 +846,9 @@ static bool addSYCLDefaultTriple(Compilation &C,
   /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (C.getInputArgs().hasArg(options::OPT_fno_spirv))
     return false;
+  // No default triple with -fsycl-device-only
+  if (C.getInputArgs().hasArg(options::OPT_fsycl_device_only))
+    return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
   for (const auto &SYCLTriple : SYCLTriples) {
