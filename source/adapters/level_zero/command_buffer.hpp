@@ -30,19 +30,20 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ze_command_list_handle_t CommandList,
       ze_command_list_handle_t CommandListTranslated,
       ze_command_list_handle_t CommandListResetEvents,
-      ze_command_list_handle_t CopyCommandList,
-      ur_event_handle_t SignalEvent,
-      ur_event_handle_t WaitEvent,
-      ur_event_handle_t AllResetEvent,
+      ze_command_list_handle_t CopyCommandList, ur_event_handle_t SignalEvent,
+      ur_event_handle_t WaitEvent, ur_event_handle_t AllResetEvent,
       const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
   ~ur_exp_command_buffer_handle_t_();
 
+//  void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
+//                         ur_event_handle_t Event) {
+//    SyncPoints[SyncPoint] = Event;
+//    NextSyncPoint++;
+//  }
+
   void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
-                         ur_event_handle_t Event) {
-    SyncPoints[SyncPoint] = Event;
-    NextSyncPoint++;
-  }
+                         ur_event_handle_t Event);
 
   ur_exp_command_buffer_sync_point_t GetNextSyncPoint() const {
     return NextSyncPoint;
@@ -52,8 +53,10 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
 
   // FIXME Refactor Documentation
-  ur_result_t getFence(ze_command_queue_handle_t & ZeCommandQueue, ze_fence_handle_t &ZeFence);
-  ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine, ze_command_queue_handle_t& ZeCommandQueue);
+  ur_result_t getFence(ze_command_queue_handle_t &ZeCommandQueue,
+                       ze_fence_handle_t &ZeFence);
+  ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
+                                ze_command_queue_handle_t &ZeCommandQueue);
   ur_result_t chooseCommandList(bool PreferCopyEngine,
                                 ze_command_list_handle_t *ZeCommandList);
   ur_result_t chooseCommandList(bool PreferCopyEngine,
@@ -98,7 +101,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
-  // List of Level Zero events associated to submitted commands.
+  // List of Level Zero events associated with submitted commands.
   std::vector<ze_event_handle_t> ZeEventsList;
 
   // Indicates if command-buffer commands can be updated after it is closed.
