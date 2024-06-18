@@ -81,6 +81,7 @@ const char *getArchName(const device &Device) {
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
   }
+  assert(false && "Unreachable!");
 }
 
 template <typename RangeTy, typename ElemTy>
