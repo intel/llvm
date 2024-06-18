@@ -667,45 +667,43 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
+void ur_exp_command_buffer_handle_t_::RegisterSyncPoint(
+    ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
+  SyncPoints[SyncPoint] = Event;
+  NextSyncPoint++;
+  ZeEventsList.push_back(Event->ZeEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // It is not allowed to append to command list from multiple threads.
   std::scoped_lock<ur_shared_mutex> Guard(CommandBuffer->Mutex);
 
-  // Create a list of events for our signal event to wait on
-  // This loop also resets the L0 events we use for command-buffer internal
-  // sync-points to the non-signaled state.
-  // This is required for multiple submissions.
-  const size_t NumEvents = CommandBuffer->SyncPoints.size();
-  for (size_t i = 0; i < NumEvents; i++) {
-    auto ZeEvent = CommandBuffer->SyncPoints[i]->ZeEvent;
-    CommandBuffer->ZeEventsList.push_back(ZeEvent);
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandBuffer->ZeCommandListResetEvents, ZeEvent));
-  }
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (CommandBuffer->ZeCommandListResetEvents,
-              CommandBuffer->AllResetEvent->ZeEvent));
-
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandBuffer->ZeComputeCommandList,
                 CommandBuffer->SignalEvent->ZeEvent));
   } else {
-    // Create a list of events for our signal event to wait on
-    const size_t NumEvents = CommandBuffer->SyncPoints.size();
-    std::vector<ze_event_handle_t> WaitEventList{NumEvents};
-    for (size_t i = 0; i < NumEvents; i++) {
-      WaitEventList[i] = CommandBuffer->SyncPoints[i]->ZeEvent;
+    // Reset the L0 events we use for command-buffer sync-points to the
+    // non-signaled state. This is required for multiple submissions.
+    for (auto &Event : CommandBuffer->ZeEventsList) {
+      ZE2UR_CALL(zeCommandListAppendEventReset,
+                 (CommandBuffer->ZeCommandListResetEvents, Event));
     }
 
     // Wait for all the user added commands to complete, and signal the
     // command-buffer signal-event when they are done.
-    ZE2UR_CALL(zeCommandListAppendBarrier, (CommandBuffer->ZeComputeCommandList,
-                                            CommandBuffer->SignalEvent->ZeEvent,
-                                            NumEvents, WaitEventList.data()));
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (CommandBuffer->ZeComputeCommandList,
+                CommandBuffer->SignalEvent->ZeEvent,
+                CommandBuffer->ZeEventsList.size(),
+                CommandBuffer->ZeEventsList.data()));
   }
+
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandBuffer->ZeCommandListResetEvents,
+              CommandBuffer->AllResetEvent->ZeEvent));
 
   // Close the command lists and have them ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
