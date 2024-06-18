@@ -5641,15 +5641,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // TODO: There is some code duplication for adding the macros for the
       // host and device side, find a way to clean this up.
       auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-      for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second;
-           TI != TE; ++TI) {
+      for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE;
+           ++TI) {
         auto TC = TI->second;
         llvm::Triple SYCLTriple = TC->getTriple();
         SmallString<64> Macro;
         if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
             SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN()) {
           for (StringRef Arch : D.getOffloadArchs(
-               C, C.getArgs(), Action::OFK_SYCL, &*TC, true)) {
+                   C, C.getArgs(), Action::OFK_SYCL, &*TC, true)) {
             if (!SYCL::gen::getGenDeviceMacro(Arch).empty()) {
               Macro = "-D";
               Macro += SYCL::gen::getGenDeviceMacro(Arch);

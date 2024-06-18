@@ -860,7 +860,11 @@ static bool addSYCLDefaultTriple(Compilation &C,
   }
   // When FPGA is the only AOT target or SYCL Native is the only target, do
   // not add the default triple.
-  if (SYCLTriples.size() == 1 && (SYCLTriples[0].getSubArch() == llvm::Triple::SPIRSubArch_fpga || driver::isSYCLNativeCPU(C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple(), SYCLTriples[0])))
+  if (SYCLTriples.size() == 1 &&
+      (SYCLTriples[0].getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+       driver::isSYCLNativeCPU(
+           C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple(),
+           SYCLTriples[0])))
     return false;
   // Add the default triple as it was not found.
   llvm::Triple DefaultTriple =
@@ -6459,8 +6463,7 @@ class OffloadingActionBuilder final {
               SYCLfpgaTriple = true;
             // For user specified spir64_gen, add an empty device value as a
             // placeholder.
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-                !GPUHasArch)
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen && !GPUHasArch)
               GpuArchList.emplace_back(TT, nullptr);
           }
 
