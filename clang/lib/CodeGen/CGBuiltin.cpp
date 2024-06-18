@@ -23996,7 +23996,7 @@ RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
   DeclRefExpr *Ref = DeclRefExpr::Create(
       getContext(), NestedNameSpecifierLoc(), SourceLocation(), SpecConst,
       /*RefersToEnclosingVariableOrCapture=*/false, E->getExprLoc(),
-      SpecConst->getType(), ExprValueKind::VK_LValue);
+      SpecConst->getType(), clang::ExprValueKind::VK_LValue);
   llvm::Value *UID = EmitScalarExpr(
       SYCLUniqueStableIdExpr::Create(getContext(), Loc, Loc, Loc, Ref));
 
