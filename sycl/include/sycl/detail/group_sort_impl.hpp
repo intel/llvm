@@ -578,7 +578,7 @@ template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
           typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
-                                ValsT vals, const ScratchMemory &memory) {
+                                ValsT *vals, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();

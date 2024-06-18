@@ -146,6 +146,8 @@ using PiImageMemHandle = ::pi_image_mem_handle;
 using PiImageCopyFlags = ::pi_image_copy_flags;
 using PiInteropMemHandle = ::pi_interop_mem_handle;
 using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiExternalMemDescriptor = ::pi_external_mem_descriptor;
+using PiExternalSemaphoreDescriptor = ::pi_external_semaphore_descriptor;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
 
