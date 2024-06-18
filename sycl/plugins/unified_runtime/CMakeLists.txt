@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a53f89db295510b8f5b558052c217dd8eb316f27
-  # Merge: 6d053bc7 fcecc002
+  # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
+  # Merge: a53f89db 58f68518
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jun 14 16:44:07 2024 +0100
-  #     Merge pull request #1692 from aarongreig/aaron/platformCreateWithNativeAdapter
-  #     Add hAdapter parameter to urPlatformCreateWithNativeHandle
-  set(UNIFIED_RUNTIME_TAG a53f89db295510b8f5b558052c217dd8eb316f27)
+  # Date:   Mon Jun 17 10:34:52 2024 +0100
+  #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
+  #     Fix return of component and composite device info queries
+  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
