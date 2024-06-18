@@ -94,7 +94,7 @@ int test_device_vector_conversions(queue Q) {
   Q.submit([&](handler &CGH) {
      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, CGH);
      CGH.single_task([=]() {
-       float FloatArray[4] = {1.0f, -1.0f, 0.0f, 2.0f};
+       float FloatArray[4] = {1.1f, -1.0f, 0.0f, 2.0f};
        bfloat16 BF16Array[4];
        sycl::ext::oneapi::detail::FloatVecToBF16Vec<4>(FloatArray, BF16Array);
        for (int i = 0; i < 4; i++) {

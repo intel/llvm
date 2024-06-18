@@ -425,21 +425,6 @@ public:
                       std::is_same_v<R, bfloat16>,
                   "Unsupported convertT");
 
-    {
-      // Currently, for BF16 <--> float conversion, we only support
-      // Round-to-even rounding mode.
-      constexpr bool isFloatToBF16Conv =
-          std::is_same_v<convertT, bfloat16> && std::is_same_v<DataT, float>;
-      constexpr bool isBF16ToFloatConv =
-          std::is_same_v<DataT, bfloat16> && std::is_same_v<convertT, float>;
-      if constexpr (isFloatToBF16Conv || isBF16ToFloatConv) {
-        static_assert(roundingMode == rounding_mode::automatic ||
-                          roundingMode == rounding_mode::rte,
-                      "Currently, we only supoort round-to-even rounding mode \
-                      for Bfloat16 <--> float conversion.");
-      }
-    }
-
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
     using OpenCLR = detail::ConvertToOpenCLType_t<R>;
     vec<convertT, NumElements> Result;

@@ -65,6 +65,91 @@
 
 #include <type_traits>
 
+#ifdef __SYCL_DEVICE_ONLY__
+extern "C" {
+// For converting BF16 to other types.
+extern __DPCPP_SYCL_EXTERNAL float __imf_bfloat162float(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_bfloat162uint_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned short
+__imf_bfloat162ushort_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned short
+__imf_bfloat162ushort_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned short
+__imf_bfloat162ushort_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned short
+__imf_bfloat162ushort_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL int __imf_bfloat162int_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL int __imf_bfloat162int_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL int __imf_bfloat162int_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL int __imf_bfloat162int_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL short __imf_bfloat162short_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL short __imf_bfloat162short_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL short __imf_bfloat162short_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL short __imf_bfloat162short_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rd(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rn(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_ru(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL long long __imf_bfloat162ll_rz(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL short __imf_bfloat16_as_short(uint16_t x);
+extern __DPCPP_SYCL_EXTERNAL unsigned short
+__imf_bfloat16_as_ushort(uint16_t x);
+
+// For converting other types to BF16.
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16(float x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rd(float x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rn(float x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_ru(float x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rz(float x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ushort2bfloat16_rd(unsigned short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ushort2bfloat16_rn(unsigned short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ushort2bfloat16_ru(unsigned short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ushort2bfloat16_rz(unsigned short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_uint2bfloat16_rd(unsigned int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_uint2bfloat16_rn(unsigned int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_uint2bfloat16_ru(unsigned int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_uint2bfloat16_rz(unsigned int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ull2bfloat16_rd(unsigned long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ull2bfloat16_rn(unsigned long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ull2bfloat16_ru(unsigned long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ull2bfloat16_rz(unsigned long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short2bfloat16_rd(short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short2bfloat16_rn(short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short2bfloat16_ru(short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short2bfloat16_rz(short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_int2bfloat16_rd(int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_int2bfloat16_rn(int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_int2bfloat16_ru(int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_int2bfloat16_rz(int x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rd(long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rn(long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_ru(long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_ll2bfloat16_rz(long long x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_double2bfloat16(double x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short_as_bfloat16(short x);
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__imf_ushort_as_bfloat16(unsigned short x);
+}
+#endif
+
 namespace sycl {
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
@@ -82,6 +167,10 @@ inline float trunc(float);
 inline double trunc(double);
 #endif
 namespace detail {
+
+template <typename FromT, typename ToT, sycl::rounding_mode RoundingMode,
+          int VecSize, typename NativeFromT, typename NativeToT>
+NativeToT convertImpl(NativeFromT);
 
 template <typename T, typename R>
 using is_sint_to_sint =
@@ -208,23 +297,35 @@ To ConvertFToU(From Value) {
   return ConvertFToS<From, To, VecSize, Enable, roundingMode>(Value);
 }
 
-template <typename NativeBFT, typename NativeFloatT, int VecSize>
-inline NativeFloatT ConvertBF16ToF(NativeBFT val) {
-  static_assert(VecSize == 1);
-  // On host, ensure that we don't convert BF16 to uint16 for conversion.
-  static_assert(std::is_same_v<NativeBFT, sycl::ext::oneapi::bfloat16>);
+template <typename NativeToT, sycl::rounding_mode RoundingMode>
+inline NativeToT ConvertFromBF16Scalar(bfloat16 val) {
+  // On host, NativeBF16T is bfloat16. Convert BF16 to float losslessly.
+  float fval = static_cast<float>(val);
 
-  return (NativeFloatT)val;
+  if constexpr (std::is_same_v<NativeToT, float>)
+    return fval;
+  else
+    // Convert float to the desired type.
+    return convertImpl<float, NativeToT, RoundingMode, 1, float, NativeToT>(fval);
 }
 
-// Create a bfloat16 from float.
-template <typename NativeFloatT, typename NativeBFT, int VecSize>
-inline NativeBFT ConvertFToBF16(NativeFloatT val) {
-  static_assert(VecSize == 1);
-  // On host, ensure that we don't convert BF16 to uint16 for conversion.
-  static_assert(std::is_same_v<NativeBFT, sycl::ext::oneapi::bfloat16>);
+template <typename NativeFromT, sycl::rounding_mode RoundingMode>
+bfloat16 ConvertToBF16Scalar(NativeFromT val) {
 
-  return NativeBFT(val);
+  static_assert(RoundingMode == sycl::rounding_mode::rte ||
+    RoundingMode == sycl::rounding_mode::automatic, "We only support RTE \
+    rounding mode when converting to Bfloat16.");
+
+  float fval;
+  if constexpr (std::is_same_v<NativeFromT, float>)
+    fval = val;
+  else {
+    // Convert to float and initialize a bfloat16 with it.
+    // By default, initialization of bfloat16 from float uses RTE rounding mode.
+    fval = convertImpl<NativeFromT, float, sycl::rounding_mode::rte, NativeFromT, float>(val);
+  }
+
+  return bfloat16{fval};
 }
 
 #else
@@ -529,16 +630,7 @@ __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE(double)
 #undef __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE
 
 template <typename NativeBFT, typename NativeFloatT, int VecSize>
-inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
-  if constexpr (VecSize == 1) {
-    // On device, we interpret bfloat16 as a uint16_t scalar or vector.
-    static_assert(
-        std::is_same_v<NativeBFT, sycl::ext::oneapi::detail::Bfloat16StorageT>);
-
-    // Bitcast to BF16 and typecast to float.
-    bfloat16 convertedBF = sycl::bit_cast<bfloat16>(vec);
-    return (float)convertedBF;
-  } else {
+inline NativeFloatT ConvertBF16ToFVec(NativeBFT vec) {
     bfloat16 *src = sycl::bit_cast<bfloat16 *>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
@@ -548,19 +640,10 @@ inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
     sycl::ext::oneapi::detail::BF16VecToFloatVec<VecSize>(src, dst);
 
     return sycl::bit_cast<NativeFloatT>(dst);
-  }
 }
 
 template <typename NativeFloatT, typename NativeBFT, int VecSize>
-inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
-  if constexpr (VecSize == 1) {
-    // On device, we interpret bfloat16 as a uint16_t scalar or vector.
-    static_assert(
-        std::is_same_v<NativeBFT, sycl::ext::oneapi::detail::Bfloat16StorageT>);
-
-    auto bf16Val = bfloat16(vec);
-    return sycl::bit_cast<NativeBFT>(bf16Val);
-  } else {
+inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
     float *src = sycl::bit_cast<float *>(&vec);
 
     // OpenCL vector of 3 elements is aligned to 4 multiplied by
@@ -570,10 +653,126 @@ inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
 
     sycl::ext::oneapi::detail::FloatVecToBF16Vec<VecSize>(src, dst);
     return sycl::bit_cast<NativeBFT>(dst);
+}
+
+#define EXPAND_BF16_ROUNDING_MODE(type, type_str, rmode, rmode_str)                     \
+  template <typename NativeToT, sycl::rounding_mode RoundingMode>                       \
+  std::enable_if_t<(std::is_same_v<NativeToT, type> && RoundingMode == rmode),          \
+  NativeToT> ConvertFromBF16Scalar(uint16_t val) {                                      \
+    return __imf_bfloat162##type_str##_##rmode_str(val);                                \
+  }                                                                                     \
+  template <typename NativeFromT, sycl::rounding_mode RoundingMode>                     \
+  std::enable_if_t<(std::is_same_v<NativeFromT, type> && RoundingMode == rmode),        \
+  uint16_t> ConvertToBF16Scalar(NativeFromT val) {                                      \
+    return __imf_##type_str##2bfloat16_##rmode_str(val);                                \
   }
+
+
+#define EXPAND_BF16_TYPE(type, type_str)                                                \
+  EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::automatic, rn)         \
+  EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rte, rn)               \
+  EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtp, ru)               \
+  EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtn, rd)               \
+  EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtz, rz)
+
+
+EXPAND_BF16_TYPE(uint, uint)
+EXPAND_BF16_TYPE(int, int)
+EXPAND_BF16_TYPE(ushort, ushort)
+EXPAND_BF16_TYPE(short, short)
+EXPAND_BF16_TYPE(long, ll)
+EXPAND_BF16_TYPE(unsigned long long, ull)
+
+#undef EXPAND_BF16_TYPE
+#undef EXPAND_BF16_ROUNDING_MODE
+
+// Mapping from BF16 to float is 1:1, lossless, so we accept all
+// rounding modes.
+template <typename NativeToT, sycl::rounding_mode RoundingMode>
+std::enable_if_t<std::is_same_v<NativeToT, float>,
+NativeToT> ConvertFromBF16Scalar(uint16_t val) {
+  return __imf_bfloat162float(val);
+}
+
+// Cast from BF16 to uint16_t.
+template <typename NativeToT, sycl::rounding_mode RoundingMode>
+std::enable_if_t<std::is_same_v<NativeToT, uint16_t>,
+NativeToT> ConvertFromBF16Scalar(uint16_t val) {
+  return __imf_bfloat16_as_short(val);
+}
+
+// Conversion of double to BF16 is lossless, so we accept all
+// rounding modes.
+template <typename NativeFromT, sycl::rounding_mode RoundingMode>
+std::enable_if_t<std::is_same_v<NativeFromT, double>,
+uint16_t> ConvertToBF16Scalar(NativeFromT val) {
+  return __imf_double2bfloat16(val);
+}
+
+template <typename NativeFromT, sycl::rounding_mode RoundingMode>
+std::enable_if_t<std::is_same_v<NativeFromT, float>,
+uint16_t> ConvertToBF16Scalar(NativeFromT val) {
+
+  if constexpr (RoundingMode == sycl::rounding_mode::automatic ||
+                RoundingMode == sycl::rounding_mode::rte)
+    return __imf_float2bfloat16_rn(val);
+  else if constexpr (RoundingMode == sycl::rounding_mode::rtp)
+    return __imf_float2bfloat16_ru(val);
+  else if constexpr (RoundingMode == sycl::rounding_mode::rtn)
+    return __imf_float2bfloat16_rd(val);
+  else if constexpr (RoundingMode == sycl::rounding_mode::rtz)
+    return __imf_float2bfloat16_rz(val);
+  else
+    static_assert(false, "Invalid rounding mode.");
 }
 
 #endif // __SYCL_DEVICE_ONLY__
+
+// Wrapper function for scalar and vector conversions from BF16 type.
+template <typename ToT, typename NativeFromT, typename NativeToT, sycl::rounding_mode RoundingMode, int VecSize>
+NativeToT ConvertFromBF16(NativeFromT val) {
+#ifdef __SYCL_DEVICE_ONLY__
+  //  Use vector conversion from BF16 to float for all rounding modes.
+  if constexpr (std::is_same_v<ToT, float> && VecSize > 1)
+    return ConvertBF16ToFVec<NativeFromT, NativeToT, VecSize>(val);
+  else
+#endif
+  // For VecSize > 1. Only for device.
+  if constexpr (VecSize > 1) {
+    NativeToT retval;
+    for (int i = 0; i < VecSize; i++) {
+      retval[i] = ConvertFromBF16Scalar<ToT, RoundingMode>(val[i]);
+    }
+    return retval;
+  }
+  // For VecSize == 1.
+  else
+    return ConvertFromBF16Scalar<NativeToT, RoundingMode>(val);
+}
+
+// Wrapper function for scalar and vector conversions to BF16 type.
+template <typename FromT, typename NativeFromT, typename NativeToT, sycl::rounding_mode RoundingMode, int VecSize>
+NativeToT ConvertToBF16(NativeFromT val) {
+#ifdef __SYCL_DEVICE_ONLY__
+  //  Use vector conversion to BF16 from float for RNE rounding mode.
+  if constexpr (std::is_same_v<FromT, float> && VecSize > 1 &&
+                (RoundingMode == sycl::rounding_mode::automatic ||
+                 RoundingMode == sycl::rounding_mode::rte))
+    return ConvertFToBF16Vec<NativeFromT, NativeToT, VecSize>(val);
+  else
+#endif
+  // For VecSize > 1. Only for device.
+  if constexpr (VecSize > 1) {
+    NativeToT retval;
+    for (int i = 0; i < VecSize; i++) {
+      retval[i] = ConvertToBF16Scalar<FromT, RoundingMode>(val[i]);
+    }
+    return retval;
+  }
+  // For VecSize == 1.
+  else
+    return ConvertToBF16Scalar<NativeFromT, RoundingMode>(val);
+}
 
 /// Entry point helper for all kinds of converts between scalars and vectors, it
 /// dispatches to a right function depending on source and destination types.
@@ -612,10 +811,12 @@ NativeToT convertImpl(NativeFromT Value) {
   else if constexpr (is_float_to_float<FromT, ToT>::value)
     return FConvert<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
-  else if constexpr (is_bf16_to_float<FromT, ToT>::value)
-    return ConvertBF16ToF<NativeFromT, NativeToT, VecSize>(Value);
-  else if constexpr (is_float_to_bf16<FromT, ToT>::value)
-    return ConvertFToBF16<NativeFromT, NativeToT, VecSize>(Value);
+  // BF16 conversion to other types.
+  else if constexpr (std::is_same_v<FromT, bfloat16>)
+    return ConvertFromBF16<ToT, NativeFromT, NativeToT, RoundingMode, VecSize>(Value);
+  // conversion from other types to BF16.
+  else if constexpr (std::is_same_v<ToT, bfloat16>)
+    return ConvertToBF16<FromT, NativeFromT, NativeToT, RoundingMode, VecSize>(Value);
   else if constexpr (is_float_to_sint<FromT, ToT>::value)
     return ConvertFToS<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
