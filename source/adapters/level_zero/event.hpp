@@ -29,9 +29,9 @@
 
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
-ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent,
+ur_result_t EventCreate(ur_context_handle_t Context,
+                        ur_queue_handle_legacy_t Queue, bool IsMultiDevice,
+                        bool HostVisible, ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled = false,
                         bool ForceDisableProfiling = false);
 } // extern "C"
@@ -89,7 +89,7 @@ struct _ur_ze_event_list_t {
   // command-lists.
   ur_result_t createAndRetainUrZeEventList(uint32_t EventListLength,
                                            const ur_event_handle_t *EventList,
-                                           ur_queue_handle_t CurQueue,
+                                           ur_queue_handle_legacy_t CurQueue,
                                            bool UseCopyEngine);
 
   // Add all the events in this object's UrEventList to the end
