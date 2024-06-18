@@ -416,66 +416,67 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   urAdapterGet(adapterCount, adapters.data(), nullptr);
 
-  // FIXME clang format for this section (here to end of function) is wrong
-  auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> enum backend {
-    switch (backend){
-      case
-      UR_ADAPTER_BACKEND_LEVEL_ZERO : return backend::ext_oneapi_level_zero;
-      case UR_ADAPTER_BACKEND_OPENCL : return backend::opencl;
-      case UR_ADAPTER_BACKEND_CUDA : return backend::ext_oneapi_cuda;
-      case UR_ADAPTER_BACKEND_HIP : return backend::ext_oneapi_hip;
-      case
-      UR_ADAPTER_BACKEND_NATIVE_CPU : return backend::ext_oneapi_native_cpu;
-      default :
-          // no idea what to do here
-          return backend::all;
+  auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
+    switch (backend) {
+    case UR_ADAPTER_BACKEND_LEVEL_ZERO:
+      return backend::ext_oneapi_level_zero;
+    case UR_ADAPTER_BACKEND_OPENCL:
+      return backend::opencl;
+    case UR_ADAPTER_BACKEND_CUDA:
+      return backend::ext_oneapi_cuda;
+    case UR_ADAPTER_BACKEND_HIP:
+      return backend::ext_oneapi_hip;
+    case UR_ADAPTER_BACKEND_NATIVE_CPU:
+      return backend::ext_oneapi_native_cpu;
+    default:
+      // no idea what to do here
+      return backend::all;
     }
-};
+  };
 
-for (const auto &adapter : adapters) {
-  ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
-  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(adapterBackend),
-                   &adapterBackend, nullptr);
-  auto syclBackend = UrToSyclBackend(adapterBackend);
-  if (syclBackend == backend::all) {
-    // kaboom??
+  for (const auto &adapter : adapters) {
+    ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
+    urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(adapterBackend),
+                     &adapterBackend, nullptr);
+    auto syclBackend = UrToSyclBackend(adapterBackend);
+    if (syclBackend == backend::all) {
+      // kaboom??
+    }
+    Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
   }
-  Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
-}
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
 
-if (!(xptiTraceEnabled() && !XPTIInitDone))
-  return;
-// Not sure this is the best place to initialize the framework; SYCL runtime
-// team needs to advise on the right place, until then we piggy-back on the
-// initialization of the PI layer.
+  if (!(xptiTraceEnabled() && !XPTIInitDone))
+    return;
+  // Not sure this is the best place to initialize the framework; SYCL runtime
+  // team needs to advise on the right place, until then we piggy-back on the
+  // initialization of the PI layer.
 
-// Initialize the global events just once, in the case pi::initialize() is
-// called multiple times
-XPTIInitDone = true;
-// Registers a new stream for 'sycl' and any plugin that wants to listen to
-// this stream will register itself using this string or stream ID for this
-// string.
-uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-//  Let all tool plugins know that a stream by the name of 'sycl' has been
-//  initialized and will be generating the trace stream.
-GlobalHandler::instance().getXPTIRegistry().initializeStream(SYCL_STREAM_NAME,
-                                                             GMajVer, GMinVer,
-                                                             GVerStr);
-// Create a tracepoint to indicate the graph creation
-xpti::payload_t GraphPayload("application_graph");
-uint64_t GraphInstanceNo;
-GSYCLGraphEvent =
-    xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
-                  xpti_at::active, &GraphInstanceNo);
-if (GSYCLGraphEvent) {
-  // The graph event is a global event and will be used as the parent for
-  // all nodes (command groups)
-  xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
-                        GSYCLGraphEvent, GraphInstanceNo, nullptr);
-}
+  // Initialize the global events just once, in the case pi::initialize() is
+  // called multiple times
+  XPTIInitDone = true;
+  // Registers a new stream for 'sycl' and any plugin that wants to listen to
+  // this stream will register itself using this string or stream ID for this
+  // string.
+  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  //  Let all tool plugins know that a stream by the name of 'sycl' has been
+  //  initialized and will be generating the trace stream.
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  // Create a tracepoint to indicate the graph creation
+  xpti::payload_t GraphPayload("application_graph");
+  uint64_t GraphInstanceNo;
+  GSYCLGraphEvent =
+      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
+                    xpti_at::active, &GraphInstanceNo);
+  if (GSYCLGraphEvent) {
+    // The graph event is a global event and will be used as the parent for
+    // all nodes (command groups)
+    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
+                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
+  }
 #endif
 } // namespace pi
 
