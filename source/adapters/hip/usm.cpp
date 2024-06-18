@@ -152,41 +152,21 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                      ur_usm_alloc_info_t propName, size_t propValueSize,
                      void *pPropValue, size_t *pPropValueSizeRet) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  hipPointerAttribute_t hipPointerAttributeType;
-
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   try {
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
-      // do not throw if hipPointerGetAttribute returns hipErrorInvalidValue
-      hipError_t Ret = hipPointerGetAttributes(&hipPointerAttributeType, pMem);
-      if (Ret == hipErrorInvalidValue) {
+      auto MaybePointerAttrs = getPointerAttributes(pMem);
+      if (!MaybePointerAttrs.has_value()) {
         // pointer not known to the HIP subsystem
         return ReturnValue(UR_USM_TYPE_UNKNOWN);
       }
-      // Direct usage of the function, instead of UR_CHECK_ERROR, so we can get
-      // the line offset.
-      checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
-      // ROCm 6.0.0 introduces hipMemoryTypeUnregistered in the hipMemoryType
-      // enum to mark unregistered allocations (i.e., via system allocators).
-#if HIP_VERSION_MAJOR >= 6
-      if (hipPointerAttributeType.type == hipMemoryTypeUnregistered) {
-        // pointer not known to the HIP subsystem
-        return ReturnValue(UR_USM_TYPE_UNKNOWN);
-      }
-#endif
-      unsigned int Value;
-#if HIP_VERSION >= 50600000
-      Value = hipPointerAttributeType.type;
-#else
-      Value = hipPointerAttributeType.memoryType;
-#endif
+      auto Value = getMemoryType(*MaybePointerAttrs);
       UR_ASSERT(Value == hipMemoryTypeDevice || Value == hipMemoryTypeHost ||
                     Value == hipMemoryTypeManaged,
                 UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-      if (hipPointerAttributeType.isManaged || Value == hipMemoryTypeManaged) {
+      if (MaybePointerAttrs->isManaged || Value == hipMemoryTypeManaged) {
         // pointer to managed memory
         return ReturnValue(UR_USM_TYPE_SHARED);
       }
@@ -202,15 +182,18 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_DEVICE: {
-      // get device index associated with this pointer
-      UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+      auto MaybePointerAttrs = getPointerAttributes(pMem);
+      if (!MaybePointerAttrs.has_value()) {
+        // pointer not known to the HIP subsystem
+        return ReturnValue(UR_USM_TYPE_UNKNOWN);
+      }
 
-      int DeviceIdx = hipPointerAttributeType.device;
+      int DeviceIdx = MaybePointerAttrs->device;
 
       // hip backend has only one platform containing all devices
       ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
+      UR_CHECK_ERROR(urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr));
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIdx].get();
@@ -227,20 +210,32 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       }
       return ReturnValue(Pool);
     }
+    case UR_USM_ALLOC_INFO_BASE_PTR:
+      // HIP gives us the ability to query the base pointer for a device
+      // pointer, so check whether we've got one of those.
+      if (auto MaybePointerAttrs = getPointerAttributes(pMem)) {
+        if (getMemoryType(*MaybePointerAttrs) == hipMemoryTypeDevice) {
+          void *Base = nullptr;
+          UR_CHECK_ERROR(hipPointerGetAttribute(
+              &Base, HIP_POINTER_ATTRIBUTE_RANGE_START_ADDR,
+              (hipDeviceptr_t)pMem));
+          return ReturnValue(Base);
+        }
+      }
+      // If not, we can't be sure.
+      return UR_RESULT_ERROR_INVALID_VALUE;
     case UR_USM_ALLOC_INFO_SIZE: {
       size_t RangeSize = 0;
       UR_CHECK_ERROR(hipMemPtrGetInfo(const_cast<void *>(pMem), &RangeSize));
       return ReturnValue(RangeSize);
     }
-    case UR_USM_ALLOC_INFO_BASE_PTR:
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,

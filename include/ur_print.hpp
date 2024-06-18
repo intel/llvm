@@ -326,6 +326,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_semaphore_type_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
@@ -743,17 +745,11 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP";
         break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP";
-        break;
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
-        break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
@@ -931,6 +927,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         break;
     case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
         os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
+        break;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP";
+        break;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -9313,6 +9315,48 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_fi
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_external_mem_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_mem_type_t value) {
+    switch (value) {
+    case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD";
+        break;
+    case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT";
+        break;
+    case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_external_semaphore_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_semaphore_type_t value) {
+    switch (value) {
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD";
+        break;
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT";
+        break;
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_file_descriptor_t type
 /// @returns
 ///     std::ostream &
@@ -10213,6 +10257,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phNativePlatform));
+
+    os << ", ";
+    os << ".hAdapter = ";
+
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".pProperties = ";
@@ -14760,10 +14810,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_import_opaque_fd_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_import_external_memory_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_opaque_fd_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_memory_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14780,6 +14830,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ".size = ";
 
     os << *(params->psize);
+
+    os << ", ";
+    os << ".memHandleType = ";
+
+    os << *(params->pmemHandleType);
 
     os << ", ";
     os << ".pInteropMemDesc = ";
@@ -14867,10 +14922,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_import_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_semaphore_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14882,6 +14937,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phDevice));
+
+    os << ", ";
+    os << ".semHandleType = ";
+
+    os << *(params->psemHandleType);
 
     os << ", ";
     os << ".pInteropSemaphoreDesc = ";
@@ -14942,6 +15002,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phSemaphore));
 
     os << ", ";
+    os << ".hasWaitValue = ";
+
+    os << *(params->phasWaitValue);
+
+    os << ", ";
+    os << ".waitValue = ";
+
+    os << *(params->pwaitValue);
+
+    os << ", ";
     os << ".numEventsInWaitList = ";
 
     os << *(params->pnumEventsInWaitList);
@@ -14983,6 +15053,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phSemaphore));
+
+    os << ", ";
+    os << ".hasSignalValue = ";
+
+    os << *(params->phasSignalValue);
+
+    os << ", ";
+    os << ".signalValue = ";
+
+    os << *(params->psignalValue);
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -17417,8 +17497,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP: {
         os << (const struct ur_bindless_images_mipmap_free_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP: {
-        os << (const struct ur_bindless_images_import_opaque_fd_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP: {
+        os << (const struct ur_bindless_images_import_external_memory_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP: {
         os << (const struct ur_bindless_images_map_external_array_exp_params_t *)params;
@@ -17426,8 +17506,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP: {
         os << (const struct ur_bindless_images_release_interop_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP: {
-        os << (const struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
+        os << (const struct ur_bindless_images_import_external_semaphore_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *)params;
