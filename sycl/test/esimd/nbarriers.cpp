@@ -6,17 +6,10 @@
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
-  kernelFunc();
-}
-
-void caller(int x) {
-  kernel<class kernel_esimd>([=]() SYCL_ESIMD_KERNEL {
-    __ESIMD_NS::named_barrier_init<7>();
-    __ESIMD_NS::named_barrier_wait(2);
-    // CHECK: call spir_func void @_Z13__esimd_fenceh(i8 noundef zeroext 33)
-    // CHECK-NEXT: call spir_func void @_Z23__esimd_nbarrier_arrive{{.*}}
-    __ESIMD_NS::named_barrier_signal(0, 0, 4, 4);
-  });
+SYCL_ESIMD_KERNEL SYCL_EXTERNAL void kernel_esimd() {
+  __ESIMD_NS::named_barrier_init<7>();
+  __ESIMD_NS::named_barrier_wait(2);
+  // CHECK: call spir_func void @_Z13__esimd_fenceh(i8 noundef zeroext 33)
+  // CHECK-NEXT: call spir_func void @_Z23__esimd_nbarrier_arrive{{.*}}
+  __ESIMD_NS::named_barrier_signal(0, 0, 4, 4);
 }
