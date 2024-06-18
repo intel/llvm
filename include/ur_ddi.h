@@ -1605,11 +1605,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapFreeExp_t)(
     ur_exp_image_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
+/// @brief Function-pointer for urBindlessImagesImportExternalMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalMemoryExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
     size_t,
+    ur_exp_external_mem_type_t,
     ur_exp_interop_mem_desc_t *,
     ur_exp_interop_mem_handle_t *);
 
@@ -1631,10 +1632,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseInteropExp_t)(
     ur_exp_interop_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreOpaqueFDExp_t)(
+/// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
+    ur_exp_external_semaphore_type_t,
     ur_exp_interop_semaphore_desc_t *,
     ur_exp_interop_semaphore_handle_t *);
 
@@ -1650,6 +1652,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesDestroyExternalSemaphoreExp_
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesWaitExternalSemaphoreExp_t)(
     ur_queue_handle_t,
     ur_exp_interop_semaphore_handle_t,
+    bool,
+    uint64_t,
     uint32_t,
     const ur_event_handle_t *,
     ur_event_handle_t *);
@@ -1659,6 +1663,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesWaitExternalSemaphoreExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSignalExternalSemaphoreExp_t)(
     ur_queue_handle_t,
     ur_exp_interop_semaphore_handle_t,
+    bool,
+    uint64_t,
     uint32_t,
     const ur_event_handle_t *,
     ur_event_handle_t *);
@@ -1676,10 +1682,10 @@ typedef struct ur_bindless_images_exp_dditable_t {
     ur_pfnBindlessImagesImageGetInfoExp_t pfnImageGetInfoExp;
     ur_pfnBindlessImagesMipmapGetLevelExp_t pfnMipmapGetLevelExp;
     ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
-    ur_pfnBindlessImagesImportOpaqueFDExp_t pfnImportOpaqueFDExp;
+    ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;
     ur_pfnBindlessImagesMapExternalArrayExp_t pfnMapExternalArrayExp;
     ur_pfnBindlessImagesReleaseInteropExp_t pfnReleaseInteropExp;
-    ur_pfnBindlessImagesImportExternalSemaphoreOpaqueFDExp_t pfnImportExternalSemaphoreOpaqueFDExp;
+    ur_pfnBindlessImagesImportExternalSemaphoreExp_t pfnImportExternalSemaphoreExp;
     ur_pfnBindlessImagesDestroyExternalSemaphoreExp_t pfnDestroyExternalSemaphoreExp;
     ur_pfnBindlessImagesWaitExternalSemaphoreExp_t pfnWaitExternalSemaphoreExp;
     ur_pfnBindlessImagesSignalExternalSemaphoreExp_t pfnSignalExternalSemaphoreExp;
