@@ -1,6 +1,10 @@
 // RUN: %{build} -o %t.out
-
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+//
+// On level_zero Q.fill uses piEnqueueKernelLaunch and not piextUSMEnqueueFill
+// as on other targets due to https://github.com/intel/llvm/issues/13787
+//
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
+//
 // REQUIRES: aspect-usm_shared_allocations
 // The test checks that the last parameter is not `nullptr` for all PI calls
 // that should discard events.
@@ -22,7 +26,9 @@
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueueFill(
+// Level-zero backend doesn't yet use piextUSMEnqueueFill
+// CHECK-L0: ---> piEnqueueKernelLaunch(
+// CHECK-OTHER: ---> piextUSMEnqueueFill(
 // CHECK:        pi_event * :
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS
@@ -78,7 +84,9 @@
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueueFill(
+// Level-zero backend doesn't yet use piextUSMEnqueueFill
+// CHECK-L0: ---> piEnqueueKernelLaunch(
+// CHECK-OTHER: ---> piextUSMEnqueueFill(
 // CHECK:        pi_event * :
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS
