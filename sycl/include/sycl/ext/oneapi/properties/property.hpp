@@ -210,7 +210,7 @@ enum PropKind : uint32_t {
   InputDataPlacement = 69,
   OutputDataPlacement = 70,
   // PropKindSize must always be the last value.
-  PropKindSize = 69,
+  PropKindSize = 71,
 };
 
 struct property_key_base_tag {};
