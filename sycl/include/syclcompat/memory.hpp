@@ -349,6 +349,8 @@ public:
         cgh.depends_on(_deps);
         cgh.host_task([buf = _buf] { std::free(buf); });
       });
+      // Wait here to ensure that the queue and lambda are not dropped before the buffer is freed
+      _q.wait();
     }
   }
 };
