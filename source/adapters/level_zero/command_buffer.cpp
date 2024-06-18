@@ -1177,20 +1177,13 @@ ur_result_t ur_exp_command_buffer_handle_t_::getZeCommandQueue(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *Event) {
-  auto Queue = Legacy(UrQueue);
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
-
-  const auto UseCopyEngine = false;
-  ze_command_queue_handle_t ZeCommandQueue;
-  CommandBuffer->getZeCommandQueue(Queue, false, ZeCommandQueue);
-
-  ze_fence_handle_t ZeFence;
-  CommandBuffer->getFence(ZeCommandQueue, ZeFence);
-
+// FIXME Refactor Document
+static ur_result_t
+waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
+                    ur_queue_handle_t Queue, uint32_t NumEventsInWaitList,
+                    const ur_event_handle_t *EventWaitList) {
+  _ur_ze_event_list_t TmpWaitList;
+  const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
     _ur_ze_event_list_t TmpWaitList;
@@ -1225,6 +1218,70 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   if (MustSignalWaitEvent) {
     ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->WaitEvent->ZeEvent));
   }
+  return UR_RESULT_SUCCESS;
+}
+
+// FIXME Refactor Document
+static ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
+                                   ur_queue_handle_t Queue,
+                                   ur_command_list_ptr_t SignalCommandList,
+                                   ur_event_handle_t &Event) {
+  // Execution event for this enqueue of the UR command-buffer
+  ur_event_handle_t RetEvent{};
+
+  UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
+                                       UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+                                       SignalCommandList, false, false, true));
+
+  if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
+      (!CommandBuffer->IsInOrderCmdList) &&
+      (CommandBuffer->IsProfilingEnabled)) {
+    // Multiple submissions of a command buffer implies that we need to save
+    // the event timestamps before resubmiting the command buffer. We
+    // therefore copy the these timestamps in a dedicated USM memory section
+    // before completing the command buffer execution, and then attach this
+    // memory to the event returned to users to allow to allow the profiling
+    // engine to recover these timestamps.
+    command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
+
+    Profiling->NumEvents = CommandBuffer->ZeEventsList.size();
+    Profiling->Timestamps =
+        new ze_kernel_timestamp_result_t[Profiling->NumEvents];
+
+    ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
+               (SignalCommandList->first, CommandBuffer->ZeEventsList.size(),
+                CommandBuffer->ZeEventsList.data(),
+                (void *)Profiling->Timestamps, 0, RetEvent->ZeEvent, 1,
+                &(CommandBuffer->SignalEvent->ZeEvent)));
+
+    RetEvent->CommandData = static_cast<void *>(Profiling);
+  } else {
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (SignalCommandList->first, RetEvent->ZeEvent, 1,
+                &(CommandBuffer->SignalEvent->ZeEvent)));
+  }
+
+  Event = RetEvent;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *Event) {
+  auto Queue = Legacy(UrQueue);
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+
+  const auto UseCopyEngine = false;
+  ze_command_queue_handle_t ZeCommandQueue;
+  CommandBuffer->getZeCommandQueue(Queue, false, ZeCommandQueue);
+
+  ze_fence_handle_t ZeFence;
+  CommandBuffer->getFence(ZeCommandQueue, ZeFence);
+
+  UR_CALL(waitForDependencies(CommandBuffer, Queue, NumEventsInWaitList,
+                              EventWaitList));
 
   // Submit reset events command-list. This command-list is of a batch
   // command-list type, regardless of the UR Queue type. We therefore need to
@@ -1271,44 +1328,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
              (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
 
   if (Event) {
-    UR_CALL(createEventAndAssociateQueue(
-        Queue, &RetEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
-        SignalCommandList, false, false, true));
-
-    if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
-        (!CommandBuffer->IsInOrderCmdList) &&
-        (CommandBuffer->IsProfilingEnabled)) {
-      // Multiple submissions of a command buffer implies that we need to save
-      // the event timestamps before resubmiting the command buffer. We
-      // therefore copy the these timestamps in a dedicated USM memory section
-      // before completing the command buffer execution, and then attach this
-      // memory to the event returned to users to allow to allow the profiling
-      // engine to recover these timestamps.
-      command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
-
-      Profiling->NumEvents = CommandBuffer->ZeEventsList.size();
-      Profiling->Timestamps =
-          new ze_kernel_timestamp_result_t[Profiling->NumEvents];
-
-      ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
-                 (SignalCommandList->first, CommandBuffer->ZeEventsList.size(),
-                  CommandBuffer->ZeEventsList.data(),
-                  (void *)Profiling->Timestamps, 0, RetEvent->ZeEvent, 1,
-                  &(CommandBuffer->SignalEvent->ZeEvent)));
-
-      RetEvent->CommandData = static_cast<void *>(Profiling);
-    } else {
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (SignalCommandList->first, RetEvent->ZeEvent, 1,
-                  &(CommandBuffer->SignalEvent->ZeEvent)));
-    }
+    UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, *Event));
   }
 
-  Queue->executeCommandList(SignalCommandList, false, false);
-
-  if (Event) {
-    *Event = RetEvent;
-  }
+  UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
   return UR_RESULT_SUCCESS;
 }
