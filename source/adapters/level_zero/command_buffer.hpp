@@ -31,8 +31,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ze_command_list_handle_t CommandListTranslated,
       ze_command_list_handle_t CommandListResetEvents,
       ze_command_list_handle_t CopyCommandList,
-      ZeStruct<ze_command_list_desc_t> ZeDesc,
-      ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
+      ur_event_handle_t SignalEvent,
+      ur_event_handle_t WaitEvent,
+      ur_event_handle_t AllResetEvent,
       const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
   ~ur_exp_command_buffer_handle_t_();
@@ -70,12 +71,17 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ze_command_list_handle_t ZeComputeCommandListTranslated;
   // Level Zero command list handle
   ze_command_list_handle_t ZeCommandListResetEvents;
-  // Level Zero command list descriptor
-  ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   // Level Zero Copy command list handle
   ze_command_list_handle_t ZeCopyCommandList;
-  // Level Zero Copy command list descriptor
-  ZeStruct<ze_command_list_desc_t> ZeCopyCommandListDesc;
+  // Event which will signals the most recent execution of the command-buffer
+  // has finished
+  ur_event_handle_t SignalEvent = nullptr;
+  // Event which a command-buffer waits on until the wait-list dependencies
+  // passed to a command-buffer enqueue have been satisfied.
+  ur_event_handle_t WaitEvent = nullptr;
+  // Event which a command-buffer waits on until the main command-list event
+  // have been reset.
+  ur_event_handle_t AllResetEvent = nullptr;
   // This flag is must be set to false if at least one copy command has been
   // added to `ZeCopyCommandList`
   bool MCopyCommandListEmpty = true;
@@ -94,15 +100,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
   // List of Level Zero events associated to submitted commands.
   std::vector<ze_event_handle_t> ZeEventsList;
-  // Event which will signals the most recent execution of the command-buffer
-  // has finished
-  ur_event_handle_t SignalEvent = nullptr;
-  // Event which a command-buffer waits on until the wait-list dependencies
-  // passed to a command-buffer enqueue have been satisfied.
-  ur_event_handle_t WaitEvent = nullptr;
-  // Event which a command-buffer waits on until the main command-list event
-  // have been reset.
-  ur_event_handle_t AllResetEvent = nullptr;
+
   // Indicates if command-buffer commands can be updated after it is closed.
   bool IsUpdatable = false;
   // Indicates if command buffer was finalized.

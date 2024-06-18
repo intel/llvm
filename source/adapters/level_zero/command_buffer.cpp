@@ -58,16 +58,15 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ze_command_list_handle_t CommandList,
     ze_command_list_handle_t CommandListTranslated,
     ze_command_list_handle_t CommandListResetEvents,
-    ze_command_list_handle_t CopyCommandList,
-    ZeStruct<ze_command_list_desc_t> ZeDesc,
-    ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
+    ze_command_list_handle_t CopyCommandList, ur_event_handle_t SignalEvent,
+    ur_event_handle_t WaitEvent, ur_event_handle_t AllResetEvent,
     const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
     : Context(Context), Device(Device), ZeComputeCommandList(CommandList),
       ZeComputeCommandListTranslated(CommandListTranslated),
       ZeCommandListResetEvents(CommandListResetEvents),
-      ZeCommandListDesc(ZeDesc), ZeCopyCommandList(CopyCommandList),
-      ZeCopyCommandListDesc(ZeCopyDesc), ZeFencesMap(), ZeActiveFence(nullptr),
-      SyncPoints(), NextSyncPoint(0),
+      ZeCopyCommandList(CopyCommandList), SignalEvent(SignalEvent),
+      WaitEvent(WaitEvent), AllResetEvent(AllResetEvent), ZeFencesMap(),
+      ZeActiveFence(nullptr), SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false),
       IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
       IsInOrderCmdList(IsInOrderCmdList) {
@@ -540,29 +539,17 @@ static ur_result_t enqueueCommandBufferFillHelper(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
-                         const ur_exp_command_buffer_desc_t *CommandBufferDesc,
-                         ur_exp_command_buffer_handle_t *CommandBuffer) {
-  // In-order command-lists are not available in old driver version.
-  bool CompatibleDriver = IsDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
-  const bool IsInOrder =
-      CompatibleDriver
-          ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
-          : false;
+static ur_result_t
+createMainCommandList(ur_context_handle_t Context, ur_device_handle_t Device,
+                      bool IsInOrder, bool isUpdatable, bool isCopy,
+                      ze_command_list_handle_t &CommandList) {
 
-  uint32_t QueueGroupOrdinal =
-      Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal;
+  auto type = isCopy ? ur_device_handle_t_::queue_group_info_t::type::MainCopy
+                     : ur_device_handle_t_::queue_group_info_t::type::Compute;
+  uint32_t QueueGroupOrdinal = Device->QueueGroup[type].ZeOrdinal;
 
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
-
-  ze_command_list_handle_t ZeCommandListResetEvents;
-  // Create a command-list for reseting the events associated to enqueued cmd.
-  ZE2UR_CALL(zeCommandListCreate,
-             (Context->ZeContext, Device->ZeDevice, &ZeCommandListDesc,
-              &ZeCommandListResetEvents));
 
   // For non-linear graph, dependencies between commands are explicitly enforced
   // by sync points when enqueuing. Consequently, relax the command ordering in
@@ -573,41 +560,77 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   DEBUG_LOG(ZeCommandListDesc.flags);
 
   ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
-  if (CommandBufferDesc && CommandBufferDesc->isUpdatable) {
+  if (isUpdatable) {
     ZeMutableCommandListDesc.flags = 0;
     ZeCommandListDesc.pNext = &ZeMutableCommandListDesc;
   }
 
-  ze_command_list_handle_t ZeComputeCommandList;
-  // TODO We could optimize this by pooling both Level Zero command-lists and UR
-  // command-buffers, then reusing them.
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
-                                   &ZeCommandListDesc, &ZeComputeCommandList));
+                                   &ZeCommandListDesc, &CommandList));
 
-  // Create a list for copy commands.
-  // Note that to simplify the implementation, the current implementation only
-  // uses the main copy engine and does not use the link engine even if
-  // available.
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t
+appendPreconditionEvents(ze_command_list_handle_t CommandList,
+                         ur_event_handle_t WaitEvent,
+                         ur_event_handle_t AllResetEvent) {
+  std::vector<ze_event_handle_t> PrecondEvents = {WaitEvent->ZeEvent,
+                                                  AllResetEvent->ZeEvent};
+  ZE2UR_CALL(
+      zeCommandListAppendBarrier,
+      (CommandList, nullptr, PrecondEvents.size(), PrecondEvents.data()));
+}
+
+static bool
+enableInOrder(ur_context_handle_t Context,
+              const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
+  // In-order command-lists are not available in old driver version.
+  bool CompatibleDriver = IsDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
+  return CompatibleDriver
+             ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
+             : false;
+}
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
+                         const ur_exp_command_buffer_desc_t *CommandBufferDesc,
+                         ur_exp_command_buffer_handle_t *CommandBuffer) {
+
+  ur_event_handle_t SignalEvent;
+  ur_event_handle_t WaitEvent;
+  ur_event_handle_t AllResetEvent;
+
+  UR_CALL(EventCreate(Context, nullptr, false, false, &SignalEvent, false,
+                      !CommandBufferDesc->enableProfiling));
+  UR_CALL(EventCreate(Context, nullptr, false, false, &WaitEvent, false,
+                      !CommandBufferDesc->enableProfiling));
+  UR_CALL(EventCreate(Context, nullptr, false, false, &AllResetEvent, false,
+                      !CommandBufferDesc->enableProfiling));
+
+  bool IsInOrder = enableInOrder(Context, CommandBufferDesc);
+  bool IsUpdatable = CommandBufferDesc && CommandBufferDesc->isUpdatable;
+
+  ze_command_list_handle_t ZeComputeCommandList = nullptr;
+  UR_CALL(createMainCommandList(Context, Device, IsInOrder, IsUpdatable, false,
+                                ZeComputeCommandList));
+  UR_CALL(
+      appendPreconditionEvents(ZeComputeCommandList, WaitEvent, AllResetEvent));
+
+  ze_command_list_handle_t ZeCommandListResetEvents = nullptr;
+  UR_CALL(createMainCommandList(Context, Device, false, false, false,
+                                ZeCommandListResetEvents));
+  ZE2UR_CALL(zeCommandListAppendEventReset,
+             (ZeCommandListResetEvents, SignalEvent->ZeEvent));
+
+  // Create a list for copy commands. Note that to simplify the implementation,
+  // the current implementation only uses the main copy engine and does not use
+  // the link engine even if available.
   ze_command_list_handle_t ZeCopyCommandList = nullptr;
-  ZeStruct<ze_command_list_desc_t> ZeCopyCommandListDesc;
   if (Device->hasMainCopyEngine()) {
-    uint32_t QueueGroupOrdinalCopy =
-        Device
-            ->QueueGroup
-                [ur_device_handle_t_::queue_group_info_t::type::MainCopy]
-            .ZeOrdinal;
-
-    ZeCopyCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinalCopy;
-    // Dependencies between commands are explicitly enforced by sync points when
-    // enqueuing. Consequently, relax the command ordering in the command list
-    // can enable the backend to further optimize the workload
-    ZeCopyCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
-
-    // TODO We could optimize this by pooling both Level Zero command-lists and
-    // UR command-buffers, then reusing them.
-    ZE2UR_CALL(zeCommandListCreate,
-               (Context->ZeContext, Device->ZeDevice, &ZeCopyCommandListDesc,
-                &ZeCopyCommandList));
+    UR_CALL(createMainCommandList(Context, Device, false, false, true,
+                                  ZeCopyCommandList));
+    UR_CALL(
+        appendPreconditionEvents(ZeCopyCommandList, WaitEvent, AllResetEvent));
   }
 
   ze_command_list_handle_t ZeComputeCommandListTranslated = nullptr;
@@ -618,46 +641,14 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   try {
     *CommandBuffer = new ur_exp_command_buffer_handle_t_(
         Context, Device, ZeComputeCommandList, ZeComputeCommandListTranslated,
-        ZeCommandListResetEvents, ZeCopyCommandList, ZeCommandListDesc,
-        ZeCopyCommandListDesc, CommandBufferDesc, IsInOrder);
+        ZeCommandListResetEvents, ZeCopyCommandList, SignalEvent, WaitEvent,
+        AllResetEvent, CommandBufferDesc, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  // Create signal & wait events to be used in the command-list for sync
-  // on command-buffer enqueue.
-  auto RetCommandBuffer = *CommandBuffer;
-  UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->SignalEvent, false,
-                      !RetCommandBuffer->IsProfilingEnabled));
-  UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->WaitEvent, false,
-                      !RetCommandBuffer->IsProfilingEnabled));
-  UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->AllResetEvent, false,
-                      !RetCommandBuffer->IsProfilingEnabled));
-
-  // Add prefix commands
-  ZE2UR_CALL(
-      zeCommandListAppendEventReset,
-      (ZeCommandListResetEvents, RetCommandBuffer->SignalEvent->ZeEvent));
-  std::vector<ze_event_handle_t> PrecondEvents = {
-      RetCommandBuffer->WaitEvent->ZeEvent,
-      RetCommandBuffer->AllResetEvent->ZeEvent};
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (ZeComputeCommandList, nullptr, PrecondEvents.size(),
-              PrecondEvents.data()));
-
-  if (Device->hasMainCopyEngine()) {
-    // The copy command-list must be executed once the preconditions have been
-    // met. We therefore begin this command-list with a barrier on the
-    // preconditions.
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (ZeCopyCommandList, nullptr, PrecondEvents.size(),
-                PrecondEvents.data()));
-  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -1164,6 +1155,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFence(
     ZeFence = ZeWorkloadFenceForQueue->second;
     ZE2UR_CALL(zeFenceReset, (ZeFence));
   }
+  this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1273,7 +1265,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   auto Queue = Legacy(UrQueue);
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  const auto UseCopyEngine = false;
   ze_command_queue_handle_t ZeCommandQueue;
   CommandBuffer->getZeCommandQueue(Queue, false, ZeCommandQueue);
 
@@ -1309,10 +1300,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
   }
 
-  // Execution event for this enqueue of the UR command-buffer
-  ur_event_handle_t RetEvent{};
-
-  // Create a command-list to signal RetEvent on completion
+  // Create a command-list to signal the Event on completion
   ur_command_list_ptr_t SignalCommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                   false, NumEventsInWaitList,
