@@ -1,6 +1,7 @@
 #pragma once
 #include <vulkan/vulkan.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -84,7 +85,13 @@ VkResult setupInstance() {
       VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME};
   ci.enabledExtensionCount = extensions.size();
   ci.ppEnabledExtensionNames = extensions.data();
-  std::vector<const char *> layers = {"VK_LAYER_KHRONOS_validation"};
+  std::vector<const char *> layers;
+  if (std::any_of(availableLayers.begin(), availableLayers.end(),
+                  [](auto &layer) {
+                    return layer.layerName == "VK_LAYER_KHRONOS_validation";
+                  })) {
+    layers.push_back("VK_LAYER_KHRONOS_validation");
+  }
   ci.enabledLayerCount = layers.size();
   ci.ppEnabledLayerNames = layers.data();
 
