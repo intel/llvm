@@ -23,15 +23,16 @@ namespace ur_sanitizer_layer {
 namespace {
 
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
-    return USM_SHADOW_BASE + (UPtr >> 3);
+    return USM_SHADOW_BASE + (UPtr >> ASAN_SHADOW_SCALE);
 }
 
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFF00000000000000ULL) { // Device USM
-        return USM_SHADOW_BASE + 0x200000000000ULL +
-               ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+        return USM_SHADOW_BASE + 0x80000000000ULL +
+               ((UPtr & 0xFFFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
     } else { // Only consider 47bit VA
-        return USM_SHADOW_BASE + ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
+        return USM_SHADOW_BASE +
+               ((UPtr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
     }
 }
 
