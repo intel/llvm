@@ -66,9 +66,6 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
   }
 }
 
-usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
-    InitializeDisjointPoolConfig();
-
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
