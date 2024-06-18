@@ -236,11 +236,6 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
-  /// Associate event with provided queue.
-  ///
-  /// @return
-  void associateWithQueue(const QueueImplPtr &Queue);
-
   /// Indicates if this event is not associated with any command and doesn't
   /// have native handle.
   ///
@@ -339,6 +334,10 @@ public:
 
   bool isHost() { return MIsHostEvent; }
 
+  void markAsProfilingTagEvent() { MProfilingTagEvent = true; }
+
+  bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -400,6 +399,10 @@ protected:
   // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
   // (if any) associated with that submission is stored here.
   sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
+
+  // Signifies whether this event is the result of a profiling tag command. This
+  // allows for profiling, even if the queue does not have profiling enabled.
+  bool MProfilingTagEvent = false;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

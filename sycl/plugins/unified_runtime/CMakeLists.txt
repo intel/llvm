@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
-  # Merge: 42d72b66 00edaab9
+  # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
+  # Merge: a53f89db 58f68518
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue May 21 10:15:03 2024 +0100
-  #     Merge pull request #1401 from ph0b/patch-1
-  #     [UR][L0] Return device version based on DeviceIpVersion
-  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
+  # Date:   Mon Jun 17 10:34:52 2024 +0100
+  #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
+  #     Fix return of component and composite device info queries
+  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

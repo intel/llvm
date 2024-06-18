@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
@@ -500,10 +501,16 @@ struct get_device_info_impl<std::vector<size_t>,
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         0, nullptr, &resultSize);
 
-    std::vector<size_t> result(resultSize / sizeof(size_t));
+    std::vector<uint32_t> result32(resultSize / sizeof(uint32_t));
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        resultSize, result.data(), nullptr);
+        resultSize, result32.data(), nullptr);
+
+    std::vector<size_t> result;
+    result.reserve(result32.size());
+    for (uint32_t value : result32) {
+      result.push_back(value);
+    }
     return result;
   }
 };
@@ -1209,11 +1216,21 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
+
+    // If the feature is unsupported or if the result was empty, return an empty
+    // list of devices.
+    if (Err == PI_ERROR_INVALID_VALUE || (Err == PI_SUCCESS && ResultSize == 0))
+      return {};
+
+    // Otherwise, if there was an error from PI it is unexpected and we should
+    // handle it accordingly.
+    Dev->getPlugin()->checkPiResult(Err);
+
     size_t DevCount = ResultSize / sizeof(pi_device);
     // Second call to get the list.
     std::vector<pi_device> Devs(DevCount);

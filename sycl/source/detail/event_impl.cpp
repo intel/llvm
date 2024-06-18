@@ -149,17 +149,24 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue) {
-  // Queue == nullptr means that it is a host task event
-  this->setContextImpl(queue_impl::getContext(Queue));
-  this->associateWithQueue(Queue);
-}
-
-void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue && Queue->MIsProfilingEnabled;
-  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
-  MState.store(Queue ? HES_Complete : HES_NotComplete);
+event_impl::event_impl(const QueueImplPtr &Queue)
+    : MQueue{Queue},
+      MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
+      MFallbackProfiling{MIsProfilingEnabled && Queue && Queue->isProfilingFallback()} {
+  if (Queue)
+    this->setContextImpl(Queue->getContextImplPtr());
+  if (!Queue) {
+    MState.store(HES_NotComplete);
+    if (Queue->has_property<property::queue::enable_profiling>()) {
+      MHostProfilingInfo.reset(new HostProfilingInfo());
+      if (!MHostProfilingInfo)
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Out of host memory " +
+                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
+    }
+    return;
+  }
+  MState.store(HES_Complete);
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -262,7 +269,7 @@ void event_impl::checkProfilingPreconditions() const {
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
   }
-  if (!MIsProfilingEnabled) {
+  if (!MIsProfilingEnabled && !MProfilingTagEvent) {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
@@ -274,6 +281,12 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  if (isProfilingTagEvent()) {
+    // For profiling tag events we rely on the submission time reported as
+    // the start time has undefined behavior.
+    return get_event_profiling_info<info::event_profiling::command_submit>(
+        this->getHandleRef(), this->getPlugin());
+  }
 
   // The delay between the submission and the actual start of a CommandBuffer
   // can be short. Consequently, the submission time, which is based on
@@ -303,24 +316,20 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
-
-  // For nop command start time is equal to submission time.
-  if (isNOP() && MSubmitTime)
-    return MSubmitTime;
-
-  if (MEvent) {
-    auto StartTime =
-        get_event_profiling_info<info::event_profiling::command_start>(
-            this->getHandleRef(), this->getPlugin());
-    if (!MFallbackProfiling) {
-      return StartTime;
-    } else {
-      auto DeviceBaseTime =
-          get_event_profiling_info<info::event_profiling::command_submit>(
+  if (!MIsHostEvent) {
+    if (MEvent) {
+      auto StartTime =
+          get_event_profiling_info<info::event_profiling::command_start>(
               this->getHandleRef(), this->getPlugin());
-      return MHostBaseTime - DeviceBaseTime + StartTime;
+      if (!MFallbackProfiling) {
+        return StartTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + StartTime;
+      }
     }
-  
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -334,22 +343,19 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
-
-  // For nop command end time is equal to submission time.
-  if (isNOP() && MSubmitTime)
-    return MSubmitTime;
-
-  if (MEvent) {
-    auto EndTime =
-        get_event_profiling_info<info::event_profiling::command_end>(
-            this->getHandleRef(), this->getPlugin());
-    if (!MFallbackProfiling) {
-      return EndTime;
-    } else {
-      auto DeviceBaseTime =
-          get_event_profiling_info<info::event_profiling::command_submit>(
+  if (!MIsHostEvent) {
+    if (MEvent) {
+      auto EndTime =
+          get_event_profiling_info<info::event_profiling::command_end>(
               this->getHandleRef(), this->getPlugin());
-      return MHostBaseTime - DeviceBaseTime + EndTime;
+      if (!MFallbackProfiling) {
+        return EndTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + EndTime;
+      }
     }
     return 0;
   }
@@ -526,7 +532,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled)
+  if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {

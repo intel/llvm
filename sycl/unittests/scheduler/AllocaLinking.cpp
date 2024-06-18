@@ -60,9 +60,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
@@ -77,9 +76,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
         range<1>(1), {ext::oneapi::property::buffer::use_pinned_host_memory()});
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
@@ -94,9 +92,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
