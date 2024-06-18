@@ -67,7 +67,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       ZeCommandListResetEvents(CommandListResetEvents),
       ZeCommandListDesc(ZeDesc), ZeCopyCommandList(CopyCommandList),
       ZeCopyCommandListDesc(ZeCopyDesc), ZeFencesMap(), ZeActiveFence(nullptr),
-      QueueProperties(), SyncPoints(), NextSyncPoint(0),
+      SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false),
       IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
       IsInOrderCmdList(IsInOrderCmdList) {
@@ -350,21 +350,22 @@ createSyncPoint(ur_command_t CommandType,
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
-    bool PreferCopyEngine, ze_command_list_handle_t &ZeCommandList) {
+    bool PreferCopyEngine, ze_command_list_handle_t *ZeCommandList) {
   // If the copy engine available, the command is enqueued in the
   // ZeCopyCommandList.
   if (PreferCopyEngine && this->UseCopyEngine()) {
     // We indicate that the ZeCopyCommandList contains commands to be
     // submitted.
     this->MCopyCommandListEmpty = false;
-    ZeCommandList = this->ZeCopyCommandList;
+    *ZeCommandList = this->ZeCopyCommandList;
   }
-  ZeCommandList = this->ZeComputeCommandList;
+  *ZeCommandList = this->ZeComputeCommandList;
+  return UR_RESULT_SUCCESS;
 }
 
-//FIXME Probably overkill?
+// FIXME Probably overkill?
 ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
-    bool PreferCopyEngine, ze_command_list_handle_t &ZeCommandList,
+    bool PreferCopyEngine, ze_command_list_handle_t *ZeCommandList,
     size_t PatternSize) {
   // If the copy engine available and patternsize is valid, the command is
   // enqueued in the ZeCopyCommandList, otherwise enqueue it in the compute
@@ -385,7 +386,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
                 .ZeProperties.maxMemoryFillPatternSize,
         UR_RESULT_ERROR_INVALID_VALUE);
   }
-  chooseCommandList(PreferCopyEngine, ZeCommandList);
+  UR_CALL(chooseCommandList(PreferCopyEngine, ZeCommandList));
 }
 
 // Shared by all memory read/write/copy PI interfaces.
@@ -412,7 +413,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
                             LaunchEvent));
 
     ze_command_list_handle_t ZeCommandList;
-    CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList);
+    UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (ZeCommandList, Dst, Src, Size, LaunchEvent->ZeEvent,
@@ -483,7 +484,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
                             LaunchEvent));
 
     ze_command_list_handle_t ZeCommandList;
-    CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList);
+    UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
@@ -510,8 +511,8 @@ static ur_result_t enqueueCommandBufferFillHelper(
             UR_RESULT_ERROR_INVALID_VALUE);
 
   ze_command_list_handle_t ZeCommandList;
-  CommandBuffer->chooseCommandList(PreferCopyEngine, ZeCommandList,
-                                   PatternSize);
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList,
+                                           PatternSize));
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
@@ -1149,31 +1150,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
       SyncPoint);
 }
 
+ur_result_t ur_exp_command_buffer_handle_t_::getFence(
+    ze_command_queue_handle_t &ZeCommandQueue, ze_fence_handle_t &ZeFence) {
+  // If we already have created a fence for this queue, first reset then reuse
+  // it, otherwise create a new fence.
+  //  ZeFence = this->ZeActiveFence;
+  auto ZeWorkloadFenceForQueue = this->ZeFencesMap.find(ZeCommandQueue);
+  if (ZeWorkloadFenceForQueue == this->ZeFencesMap.end()) {
+    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+    this->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
+  } else {
+    ZeFence = ZeWorkloadFenceForQueue->second;
+    ZE2UR_CALL(zeFenceReset, (ZeFence));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_exp_command_buffer_handle_t_::getZeCommandQueue(
+    ur_queue_handle_t Queue, bool UseCopyEngine,
+    ze_command_queue_handle_t &ZeCommandQueue) {
+  // Use compute engine rather than copy engine
+  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
+  uint32_t QueueGroupOrdinal;
+  ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) {
   auto Queue = Legacy(UrQueue);
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
-  // Use compute engine rather than copy engine
-  const auto UseCopyEngine = false;
-  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
-  uint32_t QueueGroupOrdinal;
-  auto &ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
 
-  // If we already have created a fence for this queue, first reset then reuse
-  // it, otherwise create a new fence.
-  ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence;
-  auto ZeWorkloadFenceForQueue =
-      CommandBuffer->ZeFencesMap.find(ZeCommandQueue);
-  if (ZeWorkloadFenceForQueue == CommandBuffer->ZeFencesMap.end()) {
-    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-    CommandBuffer->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
-  } else {
-    ZeFence = ZeWorkloadFenceForQueue->second;
-    ZE2UR_CALL(zeFenceReset, (ZeFence));
-  }
+  const auto UseCopyEngine = false;
+  ze_command_queue_handle_t ZeCommandQueue;
+  CommandBuffer->getZeCommandQueue(Queue, false, ZeCommandQueue);
+
+  ze_fence_handle_t ZeFence;
+  CommandBuffer->getFence(ZeCommandQueue, ZeFence);
 
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
@@ -1229,9 +1245,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // The Copy command-list is submitted to the main copy queue if it is not
   // empty.
   if (!CommandBuffer->MCopyCommandListEmpty) {
-    auto &QGroupCopy = Queue->getQueueGroup(true);
-    uint32_t QueueGroupOrdinal;
-    auto &ZeCopyCommandQueue = QGroupCopy.getZeQueue(&QueueGroupOrdinal);
+    ze_command_queue_handle_t ZeCopyCommandQueue;
+    CommandBuffer->getZeCommandQueue(Queue, true, ZeCopyCommandQueue);
     ZE2UR_CALL(
         zeCommandQueueExecuteCommandLists,
         (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
