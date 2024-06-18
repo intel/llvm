@@ -31,6 +31,7 @@ if __name__ == '__main__':
     add_argument(parser, "adapters", "generation of null adapter files.", True)
     add_argument(parser, "common", "generation of common files.", True)
     add_argument(parser, "tools", "generation of common files.", True)
+    add_argument(parser, "l0_queue", "generation of l0 queue abstractions.", True)
     parser.add_argument("--debug", action='store_true', help="dump intermediate data to disk.")
     parser.add_argument("--sections", type=list, default=None, help="Optional list of sections for which to generate source, default is all")
     parser.add_argument("--ver", type=str, default="1.0", help="specification version to generate.")
@@ -60,6 +61,8 @@ if __name__ == '__main__':
                 generate_code.generate_common(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
             if args.tools:
                 generate_code.generate_tools(toolspath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
+            if args.l0_queue:
+                generate_code.generate_level_zero_queue_api(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
 
     if args.debug:
         util.makoFileListWrite("generated.json")
