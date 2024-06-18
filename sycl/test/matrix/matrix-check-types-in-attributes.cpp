@@ -23,30 +23,20 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 
 constexpr size_t Size = 12;
 
-template <typename T> void test(sycl::queue &q) {
-  q.submit([&](sycl::handler &cgh) {
-    cgh.single_task([]() {
-      joint_matrix<sycl::sub_group, T, use::a, Size, Size, layout::row_major> m;
-    });
-  });
+template <typename T> SYCL_EXTERNAL void test() {
+  joint_matrix<sycl::sub_group, T, use::a, Size, Size, layout::row_major> m;
 }
 
-int main() {
-  sycl::queue q;
-
-  test<sycl::ext::oneapi::bfloat16>(q);
-  test<sycl::half>(q);
-  test<sycl::ext::oneapi::experimental::matrix::precision::tf32>(q);
-  test<float>(q);
-  test<double>(q);
-  test<int8_t>(q);
-  test<int16_t>(q);
-  test<int32_t>(q);
-  test<int64_t>(q);
-  test<uint8_t>(q);
-  test<uint16_t>(q);
-  test<uint32_t>(q);
-  test<uint64_t>(q);
-
-  return 0;
-}
+template SYCL_EXTERNAL void test<sycl::ext::oneapi::bfloat16>();
+template SYCL_EXTERNAL void test<sycl::half>();
+template SYCL_EXTERNAL void test<sycl::ext::oneapi::experimental::matrix::precision::tf32>();
+template SYCL_EXTERNAL void test<float>();
+template SYCL_EXTERNAL void test<double>();
+template SYCL_EXTERNAL void test<int8_t>();
+template SYCL_EXTERNAL void test<int16_t>();
+template SYCL_EXTERNAL void test<int32_t>();
+template SYCL_EXTERNAL void test<int64_t>();
+template SYCL_EXTERNAL void test<uint8_t>();
+template SYCL_EXTERNAL void test<uint16_t>();
+template SYCL_EXTERNAL void test<uint32_t>();
+template SYCL_EXTERNAL void test<uint64_t>();
