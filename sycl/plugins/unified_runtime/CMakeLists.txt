@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
-  # Merge: a53f89db 58f68518
+  # commit 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0
+  # Merge: 33eb5ea8 487f4f8a
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 17 10:34:52 2024 +0100
-  #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
-  #     Fix return of component and composite device info queries
-  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
+  # Date:   Mon Jun 17 14:31:13 2024 +0100
+  #     Merge pull request #1639 from przemektmalon/przemek/windows-interop
+  #     [Bindless][Exp] Windows & DX12 interop. Semaphore ops can take values.
+  set(UNIFIED_RUNTIME_TAG 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
