@@ -51,10 +51,12 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
 
   // FIXME Refactor Documentation
+  ur_result_t getFence(ze_command_queue_handle_t & ZeCommandQueue, ze_fence_handle_t &ZeFence);
+  ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine, ze_command_queue_handle_t& ZeCommandQueue);
   ur_result_t chooseCommandList(bool PreferCopyEngine,
-                                ze_command_list_handle_t &ZeCommandList);
+                                ze_command_list_handle_t *ZeCommandList);
   ur_result_t chooseCommandList(bool PreferCopyEngine,
-                                ze_command_list_handle_t &ZeCommandList,
+                                ze_command_list_handle_t *ZeCommandList,
                                 size_t PatternSize);
 
   // UR context associated with this command-buffer
@@ -84,9 +86,6 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Must be an element in ZeFencesMap, so is not required to be destroyed
   // itself.
   ze_fence_handle_t ZeActiveFence;
-  // Queue properties from command-buffer descriptor
-  // TODO: Do we need these?
-  ur_queue_properties_t QueueProperties;
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t, ur_event_handle_t>
       SyncPoints;
