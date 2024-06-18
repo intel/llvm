@@ -60,7 +60,7 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
-// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-post-link-opt -O2 -device-globals -spec-const=native -split=auto -emit-only-kernels-as-entry-points -symbols -emit-exported-symbols -lower-esimd"
+// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2 -device-globals -post-link-opt"
 
 // -fsycl-device-only behavior
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
