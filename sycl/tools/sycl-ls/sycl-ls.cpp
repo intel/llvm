@@ -71,9 +71,8 @@ std::string getDeviceTypeName(const device &Device) {
 
 const char *getArchName(const device &Device) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  try {
-    auto arch = Device.get_info<syclex::info::device::architecture>();
-    switch (arch) {
+  auto arch = Device.get_info<syclex::info::device::architecture>();
+  switch (arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
@@ -81,13 +80,6 @@ const char *getArchName(const device &Device) {
 #include <sycl/ext/oneapi/experimental/architectures.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
-    default:
-      return "unknown";
-    }
-  } catch (const sycl::exception &) {
-    // Note: device::architecture query is not support on FPGA,
-    // so this function will return "unknown" on FPGA.
-    return "unknown";
   }
 }
 
