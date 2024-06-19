@@ -163,7 +163,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1)
+    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();

@@ -327,6 +327,9 @@ bool device_impl::has(aspect Aspect) const {
   size_t return_size = 0;
 
   switch (Aspect) {
+  case aspect::host:
+  //Deprecated
+    return false;
   case aspect::cpu:
     return is_cpu();
   case aspect::gpu:

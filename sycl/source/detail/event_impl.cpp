@@ -155,15 +155,13 @@ event_impl::event_impl(const QueueImplPtr &Queue)
       MFallbackProfiling{MIsProfilingEnabled && Queue && Queue->isProfilingFallback()} {
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
-  if (!Queue) {
+  else {
     MState.store(HES_NotComplete);
-    if (Queue->has_property<property::queue::enable_profiling>()) {
-      MHostProfilingInfo.reset(new HostProfilingInfo());
-      if (!MHostProfilingInfo)
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Out of host memory " +
-                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
-    }
+    MHostProfilingInfo.reset(new HostProfilingInfo());
+    if (!MHostProfilingInfo)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Out of host memory " +
+                                codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
     return;
   }
   MState.store(HES_Complete);
@@ -381,13 +379,15 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  // Command is enqueued and PiEvent is ready
-  if (MEvent)
-    return get_event_info<info::event::command_execution_status>(
-        this->getHandleRef(), this->getPlugin());
-  // Command is blocked and not enqueued, PiEvent is not assigned yet
-  else if (MCommand)
-    return sycl::info::event_command_status::submitted;
+  if (!MIsHostEvent) {
+    // Command is enqueued and PiEvent is ready
+    if (MEvent)
+      return get_event_info<info::event::command_execution_status>(
+          this->getHandleRef(), this->getPlugin());
+    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    else if (MCommand)
+      return sycl::info::event_command_status::submitted;
+  }
 
   return MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
