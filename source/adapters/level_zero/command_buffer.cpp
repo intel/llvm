@@ -42,6 +42,10 @@ bool IsDriverVersionNewerOrSimilar(ur_context_handle_t Context,
           (DriverVersionBuild >= VersionBuild));
 }
 
+template <typename T> static T *getPointerFromVector(std::vector<T> &V) {
+  return V.size() == 0 ? nullptr : V.data();
+}
+
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
 bool PreferCopyEngineForFill = [] {
@@ -51,7 +55,305 @@ bool PreferCopyEngineForFill = [] {
   return (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
 }();
 
-}; // namespace
+/// Helper function for calculating work dimensions for kernels
+ur_result_t calculateKernelWorkDimensions(
+    ur_kernel_handle_t Kernel, ur_device_handle_t Device,
+    ze_group_count_t &ZeThreadGroupDimensions, uint32_t (&WG)[3],
+    uint32_t WorkDim, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize) {
+
+  UR_ASSERT(GlobalWorkSize, UR_RESULT_ERROR_INVALID_VALUE);
+  // If LocalWorkSize is not provided then Kernel must be provided to query
+  // suggested group size.
+  UR_ASSERT(LocalWorkSize || Kernel, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // New variable needed because GlobalWorkSize parameter might not be of size
+  // 3
+  size_t GlobalWorkSize3D[3]{1, 1, 1};
+  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
+
+  if (LocalWorkSize) {
+    WG[0] = ur_cast<uint32_t>(LocalWorkSize[0]);
+    WG[1] = WorkDim >= 2 ? ur_cast<uint32_t>(LocalWorkSize[1]) : 1;
+    WG[2] = WorkDim == 3 ? ur_cast<uint32_t>(LocalWorkSize[2]) : 1;
+  } else {
+    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize3D
+    // values do not fit to 32-bit that the API only supports currently.
+    bool SuggestGroupSize = true;
+    for (int I : {0, 1, 2}) {
+      if (GlobalWorkSize3D[I] > UINT32_MAX) {
+        SuggestGroupSize = false;
+      }
+    }
+    if (SuggestGroupSize) {
+      ZE2UR_CALL(zeKernelSuggestGroupSize,
+                 (Kernel->ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
+                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
+    } else {
+      for (int I : {0, 1, 2}) {
+        // Try to find a I-dimension WG size that the GlobalWorkSize3D[I] is
+        // fully divisable with. Start with the max possible size in
+        // each dimension.
+        uint32_t GroupSize[] = {
+            Device->ZeDeviceComputeProperties->maxGroupSizeX,
+            Device->ZeDeviceComputeProperties->maxGroupSizeY,
+            Device->ZeDeviceComputeProperties->maxGroupSizeZ};
+        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
+        while (GlobalWorkSize3D[I] % GroupSize[I]) {
+          --GroupSize[I];
+        }
+        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
+          logger::debug("calculateKernelWorkDimensions: can't find a WG size "
+                        "suitable for global work size > UINT32_MAX");
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+        }
+        WG[I] = GroupSize[I];
+      }
+      logger::debug("calculateKernelWorkDimensions: using computed WG "
+                    "size = {{{}, {}, {}}}",
+                    WG[0], WG[1], WG[2]);
+    }
+  }
+
+  // TODO: assert if sizes do not fit into 32-bit?
+  switch (WorkDim) {
+  case 3:
+    ZeThreadGroupDimensions.groupCountX =
+        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
+    ZeThreadGroupDimensions.groupCountY =
+        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
+    ZeThreadGroupDimensions.groupCountZ =
+        ur_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
+    break;
+  case 2:
+    ZeThreadGroupDimensions.groupCountX =
+        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
+    ZeThreadGroupDimensions.groupCountY =
+        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
+    WG[2] = 1;
+    break;
+  case 1:
+    ZeThreadGroupDimensions.groupCountX =
+        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
+    WG[1] = WG[2] = 1;
+    break;
+
+  default:
+    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Error handling for non-uniform group size case
+  if (GlobalWorkSize3D[0] !=
+      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 1st dimension");
+    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+  }
+  if (GlobalWorkSize3D[1] !=
+      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 2nd dimension");
+    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+  }
+  if (GlobalWorkSize3D[2] !=
+      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 3rd dimension");
+    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// Helper function for finding the Level Zero events associated with the
+/// commands in a command-buffer, each event is pointed to by a sync-point in
+/// the wait list.
+///
+/// @param[in] CommandBuffer to lookup the L0 events from.
+/// @param[in] NumSyncPointsInWaitList Length of \p SyncPointWaitList.
+/// @param[in] SyncPointWaitList List of sync points in \p CommandBuffer
+/// to find the L0 events for.
+/// @param[out] ZeEventList Return parameter for the L0 events associated with
+/// each sync-point in \p SyncPointWaitList.
+///
+/// @return UR_RESULT_SUCCESS or an error code on failure
+ur_result_t getEventsFromSyncPoints(
+    const ur_exp_command_buffer_handle_t &CommandBuffer,
+    size_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    std::vector<ze_event_handle_t> &ZeEventList) {
+  if (!SyncPointWaitList || NumSyncPointsInWaitList == 0)
+    return UR_RESULT_SUCCESS;
+
+  // For each sync-point add associated L0 event to the return list.
+  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
+    if (auto EventHandle = CommandBuffer->SyncPoints.find(SyncPointWaitList[i]);
+        EventHandle != CommandBuffer->SyncPoints.end()) {
+      ZeEventList.push_back(EventHandle->second->ZeEvent);
+    } else {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+
+ur_result_t createSyncPointIfNeeded(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint, bool host_visible,
+    std::vector<ze_event_handle_t> &ZeEventList,
+    ze_event_handle_t &ZeLaunchEvent) {
+
+  ZeLaunchEvent = nullptr;
+  if (!CommandBuffer->IsInOrderCmdList) {
+    //  std::vector<ze_event_handle_t> ZeEventList;
+    //  ur_event_handle_t LaunchEvent;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, host_visible,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = CommandType;
+    ZeLaunchEvent = LaunchEvent->ZeEvent;
+
+    // Get sync point and register the event with it.
+    // FIXME Refactor GetNextSyncPoint and RegisterSyncPoint seem redudant.
+    // Can be made into just one function.
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+// Shared by all memory read/write/copy PI interfaces.
+// Helper function for common code when enqueuing memory operations to a command
+// buffer.
+ur_result_t enqueueCommandBufferMemCopyHelper(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Dst, const void *Src, size_t Size, bool PreferCopyEngine,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
+
+  // FIXME Why doesn't the event need to be host visible
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
+
+  ze_command_list_handle_t ZeCommandList;
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
+
+  logger::debug("calling zeCommandListAppendMemoryCopy()");
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (ZeCommandList, Dst, Src, Size, ZeLaunchEvent, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
+
+  return UR_RESULT_SUCCESS;
+}
+
+// Helper function for common code when enqueuing rectangular memory operations
+// to a command buffer.
+ur_result_t enqueueCommandBufferMemCopyRectHelper(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Dst, const void *Src, ur_rect_offset_t SrcOrigin,
+    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
+    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
+    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
+
+  uint32_t SrcOriginX = ur_cast<uint32_t>(SrcOrigin.x);
+  uint32_t SrcOriginY = ur_cast<uint32_t>(SrcOrigin.y);
+  uint32_t SrcOriginZ = ur_cast<uint32_t>(SrcOrigin.z);
+
+  uint32_t SrcPitch = SrcRowPitch;
+  if (SrcPitch == 0)
+    SrcPitch = ur_cast<uint32_t>(Region.width);
+
+  if (SrcSlicePitch == 0)
+    SrcSlicePitch = ur_cast<uint32_t>(Region.height) * SrcPitch;
+
+  uint32_t DstOriginX = ur_cast<uint32_t>(DstOrigin.x);
+  uint32_t DstOriginY = ur_cast<uint32_t>(DstOrigin.y);
+  uint32_t DstOriginZ = ur_cast<uint32_t>(DstOrigin.z);
+
+  uint32_t DstPitch = DstRowPitch;
+  if (DstPitch == 0)
+    DstPitch = ur_cast<uint32_t>(Region.width);
+
+  if (DstSlicePitch == 0)
+    DstSlicePitch = ur_cast<uint32_t>(Region.height) * DstPitch;
+
+  uint32_t Width = ur_cast<uint32_t>(Region.width);
+  uint32_t Height = ur_cast<uint32_t>(Region.height);
+  uint32_t Depth = ur_cast<uint32_t>(Region.depth);
+
+  const ze_copy_region_t ZeSrcRegion = {SrcOriginX, SrcOriginY, SrcOriginZ,
+                                        Width,      Height,     Depth};
+  const ze_copy_region_t ZeDstRegion = {DstOriginX, DstOriginY, DstOriginZ,
+                                        Width,      Height,     Depth};
+
+  // FIXME Why doesn't the event need to be host visible
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
+
+  ze_command_list_handle_t ZeCommandList;
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
+
+  logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
+  ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+             (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
+              &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeLaunchEvent,
+              ZeEventList.size(), getPointerFromVector(ZeEventList)));
+
+  return UR_RESULT_SUCCESS;
+}
+
+// Helper function for enqueuing memory fills
+ur_result_t enqueueCommandBufferFillHelper(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
+    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
+  // Pattern size must be a power of two.
+  UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  // FIXME Why does the event need to be host visible?
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, true, ZeEventList, ZeLaunchEvent));
+
+  ze_command_list_handle_t ZeCommandList;
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList,
+                                           PatternSize));
+
+  logger::debug("calling zeCommandListAppendMemoryFill()");
+  ZE2UR_CALL(zeCommandListAppendMemoryFill,
+             (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeLaunchEvent,
+              ZeEventList.size(), getPointerFromVector(ZeEventList)));
+
+  return UR_RESULT_SUCCESS;
+}
+} // namespace
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device,
@@ -174,184 +476,11 @@ ur_exp_command_buffer_command_handle_t_::
     urKernelRelease(Kernel);
 }
 
-/// Helper function for calculating work dimensions for kernels
-ur_result_t calculateKernelWorkDimensions(
-    ur_kernel_handle_t Kernel, ur_device_handle_t Device,
-    ze_group_count_t &ZeThreadGroupDimensions, uint32_t (&WG)[3],
-    uint32_t WorkDim, const size_t *GlobalWorkSize,
-    const size_t *LocalWorkSize) {
-
-  UR_ASSERT(GlobalWorkSize, UR_RESULT_ERROR_INVALID_VALUE);
-  // If LocalWorkSize is not provided then Kernel must be provided to query
-  // suggested group size.
-  UR_ASSERT(LocalWorkSize || Kernel, UR_RESULT_ERROR_INVALID_VALUE);
-
-  // New variable needed because GlobalWorkSize parameter might not be of size 3
-  size_t GlobalWorkSize3D[3]{1, 1, 1};
-  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
-
-  if (LocalWorkSize) {
-    WG[0] = ur_cast<uint32_t>(LocalWorkSize[0]);
-    WG[1] = WorkDim >= 2 ? ur_cast<uint32_t>(LocalWorkSize[1]) : 1;
-    WG[2] = WorkDim == 3 ? ur_cast<uint32_t>(LocalWorkSize[2]) : 1;
-  } else {
-    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize3D
-    // values do not fit to 32-bit that the API only supports currently.
-    bool SuggestGroupSize = true;
-    for (int I : {0, 1, 2}) {
-      if (GlobalWorkSize3D[I] > UINT32_MAX) {
-        SuggestGroupSize = false;
-      }
-    }
-    if (SuggestGroupSize) {
-      ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (Kernel->ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
-                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
-    } else {
-      for (int I : {0, 1, 2}) {
-        // Try to find a I-dimension WG size that the GlobalWorkSize3D[I] is
-        // fully divisable with. Start with the max possible size in
-        // each dimension.
-        uint32_t GroupSize[] = {
-            Device->ZeDeviceComputeProperties->maxGroupSizeX,
-            Device->ZeDeviceComputeProperties->maxGroupSizeY,
-            Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
-        while (GlobalWorkSize3D[I] % GroupSize[I]) {
-          --GroupSize[I];
-        }
-        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
-          logger::debug("calculateKernelWorkDimensions: can't find a WG size "
-                        "suitable for global work size > UINT32_MAX");
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-        WG[I] = GroupSize[I];
-      }
-      logger::debug("calculateKernelWorkDimensions: using computed WG "
-                    "size = {{{}, {}, {}}}",
-                    WG[0], WG[1], WG[2]);
-    }
-  }
-
-  // TODO: assert if sizes do not fit into 32-bit?
-  switch (WorkDim) {
-  case 3:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    ZeThreadGroupDimensions.groupCountZ =
-        ur_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
-    break;
-  case 2:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    WG[2] = 1;
-    break;
-  case 1:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    WG[1] = WG[2] = 1;
-    break;
-
-  default:
-    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Error handling for non-uniform group size case
-  if (GlobalWorkSize3D[0] !=
-      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 1st dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[1] !=
-      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 2nd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[2] !=
-      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 3rd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-/// Helper function for finding the Level Zero events associated with the
-/// commands in a command-buffer, each event is pointed to by a sync-point in
-/// the wait list.
-///
-/// @param[in] CommandBuffer to lookup the L0 events from.
-/// @param[in] NumSyncPointsInWaitList Length of \p SyncPointWaitList.
-/// @param[in] SyncPointWaitList List of sync points in \p CommandBuffer
-/// to find the L0 events for.
-/// @param[out] ZeEventList Return parameter for the L0 events associated with
-/// each sync-point in \p SyncPointWaitList.
-///
-/// @return UR_RESULT_SUCCESS or an error code on failure
-static ur_result_t getEventsFromSyncPoints(
-    const ur_exp_command_buffer_handle_t &CommandBuffer,
-    size_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    std::vector<ze_event_handle_t> &ZeEventList) {
-  if (!SyncPointWaitList || NumSyncPointsInWaitList == 0)
-    return UR_RESULT_SUCCESS;
-
-  // For each sync-point add associated L0 event to the return list.
-  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
-    if (auto EventHandle = CommandBuffer->SyncPoints.find(SyncPointWaitList[i]);
-        EventHandle != CommandBuffer->SyncPoints.end()) {
-      ZeEventList.push_back(EventHandle->second->ZeEvent);
-    } else {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-// FIXME Refactor Naming?
-// FIXME Refactor Why do some events need to be host_visible and others don't
-static ur_result_t createSyncPointIfNeeded(
-    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
-    uint32_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint, bool host_visible,
-    std::vector<ze_event_handle_t> &ZeEventList,
-    ze_event_handle_t &ZeLaunchEvent) {
-
-  ZeLaunchEvent = nullptr;
-  if (!CommandBuffer->IsInOrderCmdList) {
-    //  std::vector<ze_event_handle_t> ZeEventList;
-    //  ur_event_handle_t LaunchEvent;
-    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                    SyncPointWaitList, ZeEventList));
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, host_visible,
-                        &LaunchEvent, false,
-                        !CommandBuffer->IsProfilingEnabled));
-    LaunchEvent->CommandType = CommandType;
-    ZeLaunchEvent = LaunchEvent->ZeEvent;
-
-    // Get sync point and register the event with it.
-    // FIXME Refactor GetNextSyncPoint and RegisterSyncPoint seem redudant. Can
-    // be made into just one function.
-    ur_exp_command_buffer_sync_point_t SyncPoint =
-        CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
-
-    if (RetSyncPoint) {
-      *RetSyncPoint = SyncPoint;
-    }
-  }
-
-  return UR_RESULT_SUCCESS;
+void ur_exp_command_buffer_handle_t_::RegisterSyncPoint(
+    ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
+  SyncPoints[SyncPoint] = Event;
+  NextSyncPoint++;
+  ZeEventsList.push_back(Event->ZeEvent);
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
@@ -395,133 +524,39 @@ ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
   return UR_RESULT_SUCCESS;
 }
 
-template <typename T> static T *getPointerFromVector(std::vector<T> &V) {
-  return V.size() == 0 ? nullptr : V.data();
-}
-
-// Shared by all memory read/write/copy PI interfaces.
-// Helper function for common code when enqueuing memory operations to a command
-// buffer.
-static ur_result_t enqueueCommandBufferMemCopyHelper(
-    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
-    void *Dst, const void *Src, size_t Size, bool PreferCopyEngine,
-    uint32_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
-
-  // FIXME Why doesn't the event need to be host visible
-  std::vector<ze_event_handle_t> ZeEventList;
-  ze_event_handle_t ZeLaunchEvent = nullptr;
-  UR_CALL(createSyncPointIfNeeded(
-      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
-      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
-
-  ze_command_list_handle_t ZeCommandList;
-  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
-
-  logger::debug("calling zeCommandListAppendMemoryCopy()");
-  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (ZeCommandList, Dst, Src, Size, ZeLaunchEvent, ZeEventList.size(),
-              getPointerFromVector(ZeEventList)));
-
+ur_result_t ur_exp_command_buffer_handle_t_::getFence(
+    ze_command_queue_handle_t &ZeCommandQueue, ze_fence_handle_t &ZeFence) {
+  // If we already have created a fence for this queue, first reset then reuse
+  // it, otherwise create a new fence.
+  //  ZeFence = this->ZeActiveFence;
+  auto ZeWorkloadFenceForQueue = this->ZeFencesMap.find(ZeCommandQueue);
+  if (ZeWorkloadFenceForQueue == this->ZeFencesMap.end()) {
+    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+    this->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
+  } else {
+    ZeFence = ZeWorkloadFenceForQueue->second;
+    ZE2UR_CALL(zeFenceReset, (ZeFence));
+  }
+  this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
 }
 
-// Helper function for common code when enqueuing rectangular memory operations
-// to a command buffer.
-static ur_result_t enqueueCommandBufferMemCopyRectHelper(
-    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
-    void *Dst, const void *Src, ur_rect_offset_t SrcOrigin,
-    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
-    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
-    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
-
-  uint32_t SrcOriginX = ur_cast<uint32_t>(SrcOrigin.x);
-  uint32_t SrcOriginY = ur_cast<uint32_t>(SrcOrigin.y);
-  uint32_t SrcOriginZ = ur_cast<uint32_t>(SrcOrigin.z);
-
-  uint32_t SrcPitch = SrcRowPitch;
-  if (SrcPitch == 0)
-    SrcPitch = ur_cast<uint32_t>(Region.width);
-
-  if (SrcSlicePitch == 0)
-    SrcSlicePitch = ur_cast<uint32_t>(Region.height) * SrcPitch;
-
-  uint32_t DstOriginX = ur_cast<uint32_t>(DstOrigin.x);
-  uint32_t DstOriginY = ur_cast<uint32_t>(DstOrigin.y);
-  uint32_t DstOriginZ = ur_cast<uint32_t>(DstOrigin.z);
-
-  uint32_t DstPitch = DstRowPitch;
-  if (DstPitch == 0)
-    DstPitch = ur_cast<uint32_t>(Region.width);
-
-  if (DstSlicePitch == 0)
-    DstSlicePitch = ur_cast<uint32_t>(Region.height) * DstPitch;
-
-  uint32_t Width = ur_cast<uint32_t>(Region.width);
-  uint32_t Height = ur_cast<uint32_t>(Region.height);
-  uint32_t Depth = ur_cast<uint32_t>(Region.depth);
-
-  const ze_copy_region_t ZeSrcRegion = {SrcOriginX, SrcOriginY, SrcOriginZ,
-                                        Width,      Height,     Depth};
-  const ze_copy_region_t ZeDstRegion = {DstOriginX, DstOriginY, DstOriginZ,
-                                        Width,      Height,     Depth};
-
-  // FIXME Why doesn't the event need to be host visible
-  std::vector<ze_event_handle_t> ZeEventList;
-  ze_event_handle_t ZeLaunchEvent = nullptr;
-  UR_CALL(createSyncPointIfNeeded(
-      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
-      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
-
-  ze_command_list_handle_t ZeCommandList;
-  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
-
-  logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
-  ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-             (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
-              &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeLaunchEvent,
-              ZeEventList.size(), getPointerFromVector(ZeEventList)));
-
+ur_result_t ur_exp_command_buffer_handle_t_::getZeCommandQueue(
+    ur_queue_handle_t Queue, bool UseCopyEngine,
+    ze_command_queue_handle_t &ZeCommandQueue) {
+  // Use compute engine rather than copy engine
+  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
+  uint32_t QueueGroupOrdinal;
+  ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
   return UR_RESULT_SUCCESS;
 }
 
-// Helper function for enqueuing memory fills
-static ur_result_t enqueueCommandBufferFillHelper(
-    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
-    void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
-    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
-  // Pattern size must be a power of two.
-  UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  // FIXME Why does the event need to be host visible?
-  std::vector<ze_event_handle_t> ZeEventList;
-  ze_event_handle_t ZeLaunchEvent = nullptr;
-  UR_CALL(createSyncPointIfNeeded(
-      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
-      RetSyncPoint, true, ZeEventList, ZeLaunchEvent));
-
-  ze_command_list_handle_t ZeCommandList;
-  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList,
-                                           PatternSize));
-
-  logger::debug("calling zeCommandListAppendMemoryFill()");
-  ZE2UR_CALL(zeCommandListAppendMemoryFill,
-             (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeLaunchEvent,
-              ZeEventList.size(), getPointerFromVector(ZeEventList)));
-
-  return UR_RESULT_SUCCESS;
-}
-
-static ur_result_t
-createMainCommandList(ur_context_handle_t Context, ur_device_handle_t Device,
-                      bool IsInOrder, bool isUpdatable, bool isCopy,
-                      ze_command_list_handle_t &CommandList) {
+namespace {
+ur_result_t createMainCommandList(ur_context_handle_t Context,
+                                  ur_device_handle_t Device, bool IsInOrder,
+                                  bool isUpdatable, bool isCopy,
+                                  ze_command_list_handle_t &CommandList) {
 
   auto type = isCopy ? ur_device_handle_t_::queue_group_info_t::type::MainCopy
                      : ur_device_handle_t_::queue_group_info_t::type::Compute;
@@ -550,10 +585,9 @@ createMainCommandList(ur_context_handle_t Context, ur_device_handle_t Device,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t
-appendPreconditionEvents(ze_command_list_handle_t CommandList,
-                         ur_event_handle_t WaitEvent,
-                         ur_event_handle_t AllResetEvent) {
+ur_result_t appendPreconditionEvents(ze_command_list_handle_t CommandList,
+                                     ur_event_handle_t WaitEvent,
+                                     ur_event_handle_t AllResetEvent) {
   std::vector<ze_event_handle_t> PrecondEvents = {WaitEvent->ZeEvent,
                                                   AllResetEvent->ZeEvent};
   ZE2UR_CALL(
@@ -562,15 +596,16 @@ appendPreconditionEvents(ze_command_list_handle_t CommandList,
   return UR_RESULT_SUCCESS;
 }
 
-static bool
-enableInOrder(ur_context_handle_t Context,
-              const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
+bool enableInOrder(ur_context_handle_t Context,
+                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
   // In-order command-lists are not available in old driver version.
   bool CompatibleDriver = IsDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
   return CompatibleDriver
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;
 }
+} // namespace
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
@@ -647,13 +682,6 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-void ur_exp_command_buffer_handle_t_::RegisterSyncPoint(
-    ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
-  SyncPoints[SyncPoint] = Event;
-  NextSyncPoint++;
-  ZeEventsList.push_back(Event->ZeEvent);
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   UR_ASSERT(CommandBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -698,10 +726,10 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t
-setKernelGlobalOffset(ur_exp_command_buffer_handle_t CommandBuffer,
-                      ur_kernel_handle_t Kernel,
-                      const size_t *GlobalWorkOffset) {
+namespace {
+ur_result_t setKernelGlobalOffset(ur_exp_command_buffer_handle_t CommandBuffer,
+                                  ur_kernel_handle_t Kernel,
+                                  const size_t *GlobalWorkOffset) {
 
   if (!CommandBuffer->Context->getPlatform()
            ->ZeDriverGlobalOffsetExtensionFound) {
@@ -716,7 +744,7 @@ setKernelGlobalOffset(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t
+ur_result_t
 setKernelPendingArguments(ur_exp_command_buffer_handle_t CommandBuffer,
                           ur_kernel_handle_t Kernel) {
 
@@ -737,7 +765,7 @@ setKernelPendingArguments(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t
+ur_result_t
 createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                     ur_kernel_handle_t Kernel, uint32_t WorkDim,
                     const size_t *LocalWorkSize,
@@ -774,6 +802,8 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
     uint32_t WorkDim, const size_t *GlobalWorkOffset,
@@ -1142,40 +1172,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
       SyncPoint);
 }
 
-ur_result_t ur_exp_command_buffer_handle_t_::getFence(
-    ze_command_queue_handle_t &ZeCommandQueue, ze_fence_handle_t &ZeFence) {
-  // If we already have created a fence for this queue, first reset then reuse
-  // it, otherwise create a new fence.
-  //  ZeFence = this->ZeActiveFence;
-  auto ZeWorkloadFenceForQueue = this->ZeFencesMap.find(ZeCommandQueue);
-  if (ZeWorkloadFenceForQueue == this->ZeFencesMap.end()) {
-    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-    this->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
-  } else {
-    ZeFence = ZeWorkloadFenceForQueue->second;
-    ZE2UR_CALL(zeFenceReset, (ZeFence));
-  }
-  this->ZeActiveFence = ZeFence;
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_exp_command_buffer_handle_t_::getZeCommandQueue(
-    ur_queue_handle_t Queue, bool UseCopyEngine,
-    ze_command_queue_handle_t &ZeCommandQueue) {
-  // Use compute engine rather than copy engine
-  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
-  uint32_t QueueGroupOrdinal;
-  ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
-  return UR_RESULT_SUCCESS;
-}
-
+namespace {
 // FIXME Refactor Document
-static ur_result_t
-waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
-                    ur_queue_handle_t Queue, uint32_t NumEventsInWaitList,
-                    const ur_event_handle_t *EventWaitList) {
-  _ur_ze_event_list_t TmpWaitList;
+ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
+                                ur_queue_handle_t Queue,
+                                uint32_t NumEventsInWaitList,
+                                const ur_event_handle_t *EventWaitList) {
   const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
@@ -1215,10 +1217,10 @@ waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
 }
 
 // FIXME Refactor Document
-static ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
-                                   ur_queue_handle_t Queue,
-                                   ur_command_list_ptr_t SignalCommandList,
-                                   ur_event_handle_t &Event) {
+ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
+                            ur_queue_handle_t Queue,
+                            ur_command_list_ptr_t SignalCommandList,
+                            ur_event_handle_t &Event) {
   // Execution event for this enqueue of the UR command-buffer
   ur_event_handle_t RetEvent{};
 
@@ -1258,6 +1260,7 @@ static ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
@@ -1340,7 +1343,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t validateCommandDesc(
+namespace {
+ur_result_t validateCommandDesc(
     ur_exp_command_buffer_command_handle_t Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
 
@@ -1410,7 +1414,7 @@ static ur_result_t validateCommandDesc(
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t updateKernelCommand(
+ur_result_t updateKernelCommand(
     ur_exp_command_buffer_command_handle_t Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
 
@@ -1639,6 +1643,7 @@ static ur_result_t updateKernelCommand(
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t Command,
