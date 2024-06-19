@@ -12,7 +12,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 auto constexpr AddEmH = R"===(
   int AddEm(int a, int b){
