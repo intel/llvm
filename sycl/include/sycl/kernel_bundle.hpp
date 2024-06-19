@@ -880,7 +880,7 @@ using registered_kernel_names_key = registered_kernel_names;
 template <>
 struct is_property_key_of<registered_kernel_names_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
-    : std::true_type{};
+    : std::true_type {};
 
 namespace detail {
 // forward decls
