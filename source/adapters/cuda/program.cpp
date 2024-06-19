@@ -354,16 +354,24 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
-  case UR_PROGRAM_BUILD_INFO_STATUS: {
+  case UR_PROGRAM_BUILD_INFO_STATUS:
     return ReturnValue(hProgram->BuildStatus);
-  }
   case UR_PROGRAM_BUILD_INFO_OPTIONS:
     return ReturnValue(hProgram->BuildOptions.c_str());
-  case UR_PROGRAM_BUILD_INFO_LOG:
-    return ReturnValue(hProgram->InfoLog, hProgram->MaxLogSize);
-  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE: {
-    return ReturnValue(hProgram->BinaryType);
+  case UR_PROGRAM_BUILD_INFO_LOG: {
+    // We only know the maximum log length, which CUDA guarantees will include
+    // the null terminator.
+    // To determine the actual length of the log, search for the first
+    // null terminator, not searching past the known maximum. If that does find
+    // one, it will return the length excluding the null terminator, so remember
+    // to include that.
+    auto LogLen =
+        std::min(hProgram->MaxLogSize,
+                 strnlen(hProgram->InfoLog, hProgram->MaxLogSize) + 1);
+    return ReturnValue(hProgram->InfoLog, LogLen);
   }
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    return ReturnValue(hProgram->BinaryType);
   default:
     break;
   }
