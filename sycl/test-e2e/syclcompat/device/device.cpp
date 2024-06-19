@@ -359,6 +359,39 @@ void test_max_nd_range() {
 #endif
 }
 
+void test_list_devices() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  DeviceTestsFixt dtf;
+
+  // Redirect std::cout to count new lines
+  CountingStream countingBuf(std::cout.rdbuf());
+  std::streambuf *orig_buf = std::cout.rdbuf();
+  std::cout.rdbuf(&countingBuf);
+
+  syclcompat::list_devices();
+
+  // Restore back std::cout
+  std::cout.rdbuf(orig_buf);
+
+  // Expected one line per device
+  assert(countingBuf.get_line_count() == dtf.get_n_devices());
+}
+
+void test_device_count() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  unsigned int count = syclcompat::device_count();
+  assert(count > 0);
+}
+
+void test_get_device_id() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::device dev = syclcompat::get_device(0);
+  unsigned int id = syclcompat::get_device_id(dev);
+  assert(id == 0);
+}
+
 int main() {
   test_at_least_one_device();
   test_matches_id();
@@ -377,6 +410,9 @@ int main() {
   test_version_parsing();
   test_image_max_attrs();
   test_max_nd_range();
+  test_list_devices();
+  test_device_count();
+  test_get_device_id();
 
   return 0;
 }

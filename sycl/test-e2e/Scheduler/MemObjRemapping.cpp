@@ -33,7 +33,7 @@ int main() {
     // CHECK-NEXT: :
     // CHECK-NEXT: :
     // CHECK-NEXT: : 1
-    auto AccA = BufA.get_access<access::mode::read>();
+    host_accessor AccA(BufA, read_only);
     for (std::size_t I = 0; I < Size; ++I) {
       assert(AccA[I] == I);
     }
@@ -45,13 +45,13 @@ int main() {
     // CHECK-NEXT: :
     // CHECK-NEXT: :
     // CHECK-NEXT: : 3
-    auto AccA = BufA.get_access<access::mode::write>();
+    host_accessor AccA(BufA, write_only);
     for (std::size_t I = 0; I < Size; ++I)
       AccA[I] = 2 * I;
   }
 
   // CHECK-NOT: piEnqueueMemBufferMap
-  auto AccA = BufA.get_access<access::mode::read>();
+  host_accessor AccA(BufA, read_only);
   for (std::size_t I = 0; I < Size; ++I) {
     assert(AccA[I] == 2 * I);
   }

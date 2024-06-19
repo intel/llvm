@@ -1047,9 +1047,11 @@ Constraints:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. The only property
-  that is valid to pass here is `property::graph::updatable`, to enable the
+* `propList` - Optional parameter for passing properties. Two properties
+  are valid to pass here. One is `property::graph::updatable` to enable the
   returned executable graph to be <<executable-graph-update, updated>>.
+  The other is <<enable-profiling, `property::graph::enable_profiling`>>
+  to enable profiling events returned from submissions of the executable graph.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
