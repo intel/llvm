@@ -94,22 +94,22 @@ program_impl::program_impl(
     }
   }
 
-    std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
-    std::vector<sycl::detail::pi::PiProgram> Programs;
-    bool NonInterOpToLink = false;
-    for (const auto &Prg : ProgramList) {
-      if (!Prg->MLinkable && NonInterOpToLink)
-        continue;
-      NonInterOpToLink |= !Prg->MLinkable;
-      Programs.push_back(Prg->MProgram);
-    }
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piProgramLink>(
-            MContext->getHandleRef(), Devices.size(), Devices.data(),
-            LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr,
-            nullptr, &MProgram);
-    Plugin->checkPiResult<compile_program_error>(Err);
+  std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
+  std::vector<sycl::detail::pi::PiProgram> Programs;
+  bool NonInterOpToLink = false;
+  for (const auto &Prg : ProgramList) {
+    if (!Prg->MLinkable && NonInterOpToLink)
+      continue;
+    NonInterOpToLink |= !Prg->MLinkable;
+    Programs.push_back(Prg->MProgram);
+  }
+  const PluginPtr &Plugin = getPlugin();
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piProgramLink>(
+          MContext->getHandleRef(), Devices.size(), Devices.data(),
+          LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr,
+          nullptr, &MProgram);
+  Plugin->checkPiResult<compile_program_error>(Err);
 }
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -236,22 +236,22 @@ void program_impl::link(std::string LinkOptions) {
   const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   if (!LinkOpts) {
     LinkOpts = LinkOptions.c_str();
-    }
+  }
 
-    // Plugin resets MProgram with a new pi_program as a result of the call to
-    // "piProgramLink". Thus, we need to release MProgram before the call to
-    // piProgramLink.
-    if (MProgram != nullptr)
-      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+  // Plugin resets MProgram with a new pi_program as a result of the call to
+  // "piProgramLink". Thus, we need to release MProgram before the call to
+  // piProgramLink.
+  if (MProgram != nullptr)
+    Plugin->call<PiApiKind::piProgramRelease>(MProgram);
 
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piProgramLink>(
-            MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
-            /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
-    Plugin->checkPiResult<compile_program_error>(Err);
-    MLinkOptions = LinkOptions;
-    MBuildOptions = LinkOptions;
-    MState = program_state::linked;
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piProgramLink>(
+          MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+          /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
+  Plugin->checkPiResult<compile_program_error>(Err);
+  MLinkOptions = LinkOptions;
+  MBuildOptions = LinkOptions;
+  MState = program_state::linked;
 }
 
 bool program_impl::has_kernel(std::string KernelName,
@@ -363,24 +363,23 @@ std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piKernelCreate>(
-            MProgram, KernelName.c_str(), &Result.first);
-    if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
-      throw invalid_object_error(
-          "This instance of program does not contain the kernel requested",
-          Err);
-    }
-    Plugin->checkPiResult(Err);
+  const PluginPtr &Plugin = getPlugin();
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piKernelCreate>(
+          MProgram, KernelName.c_str(), &Result.first);
+  if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
+    throw invalid_object_error(
+        "This instance of program does not contain the kernel requested", Err);
+  }
+  Plugin->checkPiResult(Err);
 
-    // Some PI Plugins (like OpenCL) require this call to enable USM
-    // For others, PI will turn this into a NOP.
-    if (getContextImplPtr()->getPlatformImpl()->supports_usm())
-      Plugin->call<PiApiKind::piKernelSetExecInfo>(
-          Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  if (getContextImplPtr()->getPlatformImpl()->supports_usm())
+    Plugin->call<PiApiKind::piKernelSetExecInfo>(
+        Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
-    return Result;
+  return Result;
 }
 
 std::vector<device>
