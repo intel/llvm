@@ -840,6 +840,11 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   StringRef A(T.getArchName());
   for (offloading::SYCLImage &Image : Images)
     Image.Target = A;
+  bool IsNativeCPU = true;
+  if(IsNativeCPU) {
+    for (offloading::SYCLImage &Image : Images)
+      Image.Target = "native_cpu";
+  }
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);
@@ -1028,7 +1033,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 } // namespace sycl
 
 namespace generic {
-Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args, bool IsNativeCPU = false) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1055,7 +1060,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
       "--no-default-config",
       "-o",
       *TempFileOrErr,
-      Args.MakeArgString("--target=" + Triple.getTriple()),
+      !IsNativeCPU ? Args.MakeArgString("--target=" + Triple.getTriple()) : "",
       Triple.isAMDGPU() ? Args.MakeArgString("-mcpu=" + Arch)
                         : Args.MakeArgString("-march=" + Arch),
       Args.MakeArgString("-" + OptLevel),
@@ -1064,11 +1069,17 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   if (!Triple.isNVPTX())
     CmdArgs.push_back("-Wl,--no-undefined");
 
+  if(IsNativeCPU) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-sycl-native-cpu-backend");
+    CmdArgs.push_back("-c");
+  }
+
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
+  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !IsNativeCPU) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -1146,6 +1157,17 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 
 Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                const ArgList &Args, bool IsSYCLKind = false) {
+  bool IsNativeCPU = true;
+  if(IsNativeCPU) {
+      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, Args);
+      if (!SYCLPostLinkFile)
+        return SYCLPostLinkFile.takeError();
+      auto OutputFile = sycl::runWrapperAndCompile(*SYCLPostLinkFile, Args);
+      if (!OutputFile)
+        return OutputFile.takeError();
+      return *OutputFile;
+    return StringRef("");
+  }
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
@@ -1315,7 +1337,8 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
   // Early exit for SPIR targets
-  if (Triple.isSPIROrSPIRV())
+  bool IsNativeCPU = true;
+  if (Triple.isSPIROrSPIRV() || IsNativeCPU)
     return Error::success();
 
   SmallVector<OffloadFile, 4> BitcodeInputFiles;
@@ -1852,6 +1875,13 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
       std::scoped_lock Guard(ImageMtx);
+      bool IsNativeCPU = true;
+      if(IsNativeCPU) {
+        auto NCpuObj = generic::clang(InputFiles, Args, true);
+        if (!NCpuObj)
+          return NCpuObj.takeError();
+        WrappedOutput.push_back(*NCpuObj);
+      }
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 
