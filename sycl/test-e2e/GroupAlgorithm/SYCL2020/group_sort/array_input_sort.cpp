@@ -209,10 +209,10 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   for (T &Elem : ArrayDataRandom)
     Elem = T(distribution(generator));
 
-  auto blocked =
-      oneapi_exp::properties{oneapi_exp::output_data_placement_blocked};
-  auto striped =
-      oneapi_exp::properties{oneapi_exp::output_data_placement_striped};
+  auto blocked = oneapi_exp::properties{oneapi_exp::input_data_placement<
+      oneapi_exp::group_algorithm_data_placement::blocked>};
+  auto striped = oneapi_exp::properties{oneapi_exp::input_data_placement<
+      oneapi_exp::group_algorithm_data_placement::striped>};
   RunOnData<UseGroupT::WorkGroup, 1, PerWI>(Q, ArrayDataRandom, std::less<T>{},
                                             blocked);
   RunOnData<UseGroupT::WorkGroup, 1, PerWI>(Q, ArrayDataRandom,

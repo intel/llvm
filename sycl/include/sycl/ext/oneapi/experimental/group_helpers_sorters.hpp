@@ -63,20 +63,6 @@ template <group_algorithm_data_placement Placement>
 inline constexpr output_data_placement_key::value_t<Placement>
     output_data_placement;
 
-inline constexpr input_data_placement_key::value_t<
-    group_algorithm_data_placement::blocked>
-    input_data_placement_blocked;
-inline constexpr input_data_placement_key::value_t<
-    group_algorithm_data_placement::striped>
-    input_data_placement_striped;
-
-inline constexpr output_data_placement_key::value_t<
-    group_algorithm_data_placement::blocked>
-    output_data_placement_blocked;
-inline constexpr output_data_placement_key::value_t<
-    group_algorithm_data_placement::striped>
-    output_data_placement_striped;
-
 namespace detail {
 
 template <typename Properties>

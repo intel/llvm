@@ -55,7 +55,8 @@ constexpr bool IsOutputBlocked(Properties properties) {
                     oneapi_exp::output_data_placement_key>())
     return properties.template get_property<
                oneapi_exp::output_data_placement_key>() ==
-           oneapi_exp::output_data_placement_blocked;
+           oneapi_exp::output_data_placement<
+               oneapi_exp::group_algorithm_data_placement::blocked>;
   else
     return true;
 }
