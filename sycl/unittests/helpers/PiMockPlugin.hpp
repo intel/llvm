@@ -502,6 +502,8 @@ inline pi_result mock_piextMemUnsampledImageCreate(
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalMemory`")]]
 inline pi_result
 mock_piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
                             int file_descriptor,
@@ -524,9 +526,25 @@ inline pi_result mock_piextMemReleaseInterop(pi_context context,
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalSemaphore`")]]
 inline pi_result mock_piextImportExternalSemaphoreOpaqueFD(
     pi_context context, pi_device device, int file_descriptor,
     pi_interop_semaphore_handle *ret_handle) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextImportExternalSemaphore(
+    pi_context context, pi_device device,
+    pi_external_semaphore_descriptor *sem_descriptor,
+    pi_interop_semaphore_handle *ret_handle) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextImportExternalMemory(pi_context context, pi_device device,
+                               pi_external_mem_descriptor *mem_descriptor,
+                               pi_interop_mem_handle *ret_handle) {
   return PI_SUCCESS;
 }
 
@@ -538,13 +556,14 @@ mock_piextDestroyExternalSemaphore(pi_context context, pi_device device,
 
 inline pi_result mock_piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    bool has_wait_value, uint64_t wait_value, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_signal_value, uint64_t signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
   return PI_SUCCESS;
