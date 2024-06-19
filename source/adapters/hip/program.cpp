@@ -473,36 +473,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
+  try {
+    std::unique_ptr<ur_program_handle_t_> RetProgram{
+        new ur_program_handle_t_{hContext, hDevice}};
 
-  std::unique_ptr<ur_program_handle_t_> RetProgram{
-      new ur_program_handle_t_{hContext, hDevice}};
-
-  if (pProperties) {
-    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
+    if (pProperties) {
+      if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+      } else if (pProperties->count == 0 &&
+                 pProperties->pMetadatas != nullptr) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+      UR_CHECK_ERROR(
+          RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
     }
-    Result =
-        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count);
-    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+
+    auto pBinary_string = reinterpret_cast<const char *>(pBinary);
+    if (size == 0) {
+      size = strlen(pBinary_string) + 1;
+    }
+
+    UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
+
+    UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
+    RetProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+
+    *phProgram = RetProgram.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-
-  auto pBinary_string = reinterpret_cast<const char *>(pBinary);
-  if (size == 0) {
-    size = strlen(pBinary_string) + 1;
-  }
-
-  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
-
-  Result = RetProgram->setBinary(pBinary_string, size);
-  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
-
-  *phProgram = RetProgram.release();
-  (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
-
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 // This entry point is only used for native specialization constants (SPIR-V),
