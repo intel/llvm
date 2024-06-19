@@ -96,13 +96,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
-    ur_native_handle_t hNativePlatform,
-    const ur_platform_native_properties_t *pProperties,
-    ur_platform_handle_t *phPlatform) {
-  std::ignore = hNativePlatform;
-  std::ignore = pProperties;
-  std::ignore = phPlatform;
-
+    ur_native_handle_t, ur_adapter_handle_t,
+    const ur_platform_native_properties_t *, ur_platform_handle_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
