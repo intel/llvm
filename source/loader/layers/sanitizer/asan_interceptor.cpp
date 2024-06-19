@@ -705,7 +705,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             char *ArgPointer = nullptr;
             UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
             ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
-                Kernel, ArgIndex, nullptr, &ArgPointer);
+                Kernel, ArgIndex, nullptr, ArgPointer);
             if (URes != UR_RESULT_SUCCESS) {
                 context.logger.error(
                     "Failed to set buffer {} as the {} arg to kernel {}: {}",
