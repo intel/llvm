@@ -112,8 +112,6 @@ using namespace llvm;
   llvm::PassPluginLibraryInfo get##Ext##PluginInfo();
 #include "llvm/Support/Extension.def"
 
-#include "llvm/Support/raw_ostream.h"
-
 namespace llvm {
 extern cl::opt<bool> PrintPipelinePasses;
 
