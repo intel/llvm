@@ -62,7 +62,7 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to PI device
-  ur_device_handle_t &getUrHandleRef() {
+  ur_device_handle_t &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);
@@ -75,7 +75,7 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return constant reference to PI device
-  const ur_device_handle_t &getUrHandleRef() const {
+  const ur_device_handle_t &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);

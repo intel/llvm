@@ -51,7 +51,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {
-      if (PlatImpl->getUrHandleRef() == UrPlatform)
+      if (PlatImpl->getHandleRef() == UrPlatform)
         return PlatImpl;
     }
 
@@ -163,7 +163,7 @@ std::vector<platform> platform_impl::get_platforms() {
   for (auto &Platform : PlatformsWithPlugin) {
     auto &Plugin = Platform.second;
     std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
-    Plugin->getPlatformId(getSyclObjImpl(Platform.first)->getUrHandleRef());
+    Plugin->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
     Platforms.push_back(Platform.first);
   }
 
@@ -575,7 +575,7 @@ bool platform_impl::supports_usm() const {
 ur_native_handle_t platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
   ur_native_handle_t Handle = nullptr;
-  Plugin->call(urPlatformGetNativeHandle, getUrHandleRef(), &Handle);
+  Plugin->call(urPlatformGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -584,7 +584,7 @@ typename Param::return_type platform_impl::get_info() const {
   if (is_host())
     return get_platform_info_host<Param>();
 
-  return get_platform_info<Param>(this->getUrHandleRef(), getPlugin());
+  return get_platform_info<Param>(this->getHandleRef(), getPlugin());
 }
 
 template <>
@@ -646,7 +646,7 @@ std::shared_ptr<device_impl>
 platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
   for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
     if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getUrHandleRef() == UrDevice)
+      if (Device->getHandleRef() == UrDevice)
         return Device;
     }
   }

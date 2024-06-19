@@ -154,7 +154,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   ur_context_handle_t TempContext;
   getPlugin()->call(urEventGetInfo, MEvent, UR_EVENT_INFO_CONTEXT,
                     sizeof(ur_context_handle_t), &TempContext, nullptr);
-  if (MContext->getUrHandleRef() != TempContext) {
+  if (MContext->getHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
@@ -474,7 +474,7 @@ ur_native_handle_t event_impl::getNative() {
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;
-    auto TempContext = MContext.get()->getUrHandleRef();
+    auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     Plugin->call(urEventCreateWithNativeHandle, nullptr, TempContext,
                  &NativeProperties, &MEvent);
@@ -526,7 +526,7 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
                     UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
                     sizeof(ur_event_status_t), &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getPlugin()->call(urQueueFlush, Queue->getUrHandleRef());
+    getPlugin()->call(urQueueFlush, Queue->getHandleRef());
   }
   MIsFlushed = true;
 }

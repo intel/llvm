@@ -1475,7 +1475,7 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   ur_bool_t SupportsOp = false;
-  Plugin->call(urContextGetInfo, ContextImpl->getUrHandleRef(), InfoQuery,
+  Plugin->call(urContextGetInfo, ContextImpl->getHandleRef(), InfoQuery,
                sizeof(ur_bool_t), &SupportsOp, nullptr);
   return SupportsOp;
 }
@@ -1688,7 +1688,7 @@ std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
   auto Ret = Dev->getPlugin()->call_nocheck(
-      urDeviceGetInfo, Dev->getUrHandleRef(),
+      urDeviceGetInfo, Dev->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

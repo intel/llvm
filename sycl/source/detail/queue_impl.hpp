@@ -192,20 +192,20 @@ public:
       // Add the function to capture meta data for the XPTI trace event
       PrepareNotify.addMetadata([&](auto TEvent) {
         xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getUrHandleRef()));
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
               reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
           xpti::addMetadata(TEvent, "queue_handle",
-                            reinterpret_cast<size_t>(getUrHandleRef()));
+                            reinterpret_cast<size_t>(getHandleRef()));
       });
       // Also publish to TLS
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -257,19 +257,19 @@ private:
       // Add the function to capture meta data for the XPTI trace event
       PrepareNotify.addMetadata([&](auto TEvent) {
         xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getUrHandleRef()));
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
               reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(TEvent, "queue_handle", getUrHandleRef());
+          xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
       // Also publish to TLS before notification
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -565,8 +565,8 @@ public:
   /// or out-of-order.
   ur_queue_handle_t createQueue(QueueOrder Order) {
     ur_queue_handle_t Queue{};
-    ur_context_handle_t Context = MContext->getUrHandleRef();
-    ur_device_handle_t Device = MDevice->getUrHandleRef();
+    ur_context_handle_t Context = MContext->getHandleRef();
+    ur_device_handle_t Device = MDevice->getHandleRef();
     const PluginPtr &Plugin = getPlugin();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
@@ -629,7 +629,7 @@ public:
 
   /// \return a raw PI queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
-  ur_queue_handle_t &getUrHandleRef() {
+  ur_queue_handle_t &getHandleRef() {
     if (!MEmulateOOO)
       return MUrQueues[0];
 

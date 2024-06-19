@@ -76,7 +76,7 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
-  Plugin->call(urContextGetInfo, Context->getUrHandleRef(),
+  Plugin->call(urContextGetInfo, Context->getHandleRef(),
                UR_CONTEXT_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
                /*param_value_size_ret=*/nullptr);
   assert(NumDevices > 0 &&
@@ -84,14 +84,14 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
 #endif
 
   ur_program_handle_t Program;
-  ur_device_handle_t UrDevice = getSyclObjImpl(Device)->getUrHandleRef();
+  ur_device_handle_t UrDevice = getSyclObjImpl(Device)->getHandleRef();
   ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
   ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = Metadata.size();
   Properties.pMetadatas = Metadata.data();
-  Plugin->call(urProgramCreateWithBinary, Context->getUrHandleRef(), UrDevice,
+  Plugin->call(urProgramCreateWithBinary, Context->getHandleRef(), UrDevice,
                DataLen, Data, &Properties, &Program);
 
   if (BinaryStatus != UR_RESULT_SUCCESS) {
@@ -106,7 +106,7 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
                                               size_t DataLen) {
   ur_program_handle_t Program = nullptr;
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urProgramCreateWithIL, Context->getUrHandleRef(), Data, DataLen,
+  Plugin->call(urProgramCreateWithIL, Context->getHandleRef(), Data, DataLen,
                nullptr, &Program);
   return Program;
 }
@@ -543,7 +543,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   }
 
   ur_bool_t MustBuildOnSubdevice = true;
-  ContextImpl->getPlugin()->call(urDeviceGetInfo, RootDevImpl->getUrHandleRef(),
+  ContextImpl->getPlugin()->call(urDeviceGetInfo, RootDevImpl->getHandleRef(),
                                  UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
                                  sizeof(ur_bool_t), &MustBuildOnSubdevice,
                                  nullptr);
@@ -592,7 +592,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getUrHandleRef(), DeviceLibReqMask);
+              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -611,7 +611,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   };
 
   uint32_t ImgId = Img.getImageID();
-  const ur_device_handle_t UrDevice = Dev->getUrHandleRef();
+  const ur_device_handle_t UrDevice = Dev->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), UrDevice);
 
@@ -658,7 +658,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // Should always come last!
   appendCompileEnvironmentVariablesThatAppend(CompileOpts);
   appendLinkEnvironmentVariablesThatAppend(LinkOpts);
-  ur_device_handle_t UrDevice = DeviceImpl->getUrHandleRef();
+  ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), UrDevice,
                              CompileOpts + LinkOpts, KernelName);
@@ -915,7 +915,7 @@ static ur_program_handle_t loadDeviceLibFallback(const ContextImplPtr Context,
   // options (image options) are supposed to be applied to library program as
   // well, and what actually happens to a SPIR-V program if we apply them.
   ur_result_t Error =
-      doCompile(Plugin, LibProg, 1, &Device, Context->getUrHandleRef(), "");
+      doCompile(Plugin, LibProg, 1, &Device, Context->getHandleRef(), "");
   if (Error != UR_RESULT_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(
@@ -1030,7 +1030,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   getSyclObjImpl(Context)->getPlugin()->call(
-      urDeviceSelectBinary, getSyclObjImpl(Device)->getUrHandleRef(),
+      urDeviceSelectBinary, getSyclObjImpl(Device)->getHandleRef(),
       UrBinaries.data(), UrBinaries.size(), &ImgInd);
   std::advance(ItBegin, ImgInd);
   return ItBegin->second;
@@ -1115,7 +1115,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   getSyclObjImpl(Context)->getPlugin()->call(
-      urDeviceSelectBinary, getSyclObjImpl(Device)->getUrHandleRef(),
+      urDeviceSelectBinary, getSyclObjImpl(Device)->getHandleRef(),
       UrBinaries.data(), UrBinaries.size(), &ImgInd);
 
   ImageIterator = ImageSet.begin();
@@ -1247,7 +1247,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
         Plugin->call_nocheck(urProgramBuildExp, Program.get(),
                              /*num devices =*/1, &Device, Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Error = Plugin->call_nocheck(urProgramBuild, Context->getUrHandleRef(),
+      Error = Plugin->call_nocheck(urProgramBuild, Context->getHandleRef(),
                                    Program.get(), Options.c_str());
     }
     if (Error != UR_RESULT_SUCCESS)
@@ -1258,18 +1258,18 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 
   // Include the main program and compile/link everything together
   auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
-                       Context->getUrHandleRef(), CompileOptions.c_str());
+                       Context->getHandleRef(), CompileOptions.c_str());
   Plugin->checkUrResult(Res);
   LinkPrograms.push_back(Program.get());
 
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    auto Res = Plugin->call_nocheck(urProgramLinkExp, Context->getUrHandleRef(),
+    auto Res = Plugin->call_nocheck(urProgramLinkExp, Context->getHandleRef(),
                                     /*num devices =*/1, &Device,
                                     LinkPrograms.size(), LinkPrograms.data(),
                                     LinkOptions.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck(urProgramLink, Context->getUrHandleRef(),
+      Res = Plugin->call_nocheck(urProgramLink, Context->getHandleRef(),
                                  LinkPrograms.size(), LinkPrograms.data(),
                                  LinkOptions.c_str(), &LinkedProg);
     }
@@ -1514,7 +1514,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   }
   if (!Prg.hasSetSpecConstants())
     return; // nothing to do
-  ur_program_handle_t PrgHandle = Prg.getUrHandleRef();
+  ur_program_handle_t PrgHandle = Prg.getHandleRef();
   // program_impl can't correspond to two different native programs
   assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
   NativePrg = NativePrg ? NativePrg : PrgHandle;
@@ -1608,7 +1608,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       detail::getSyclObjImpl(Dev);
   auto &Plugin = DeviceImpl->getPlugin();
 
-  const ur_device_handle_t &URDeviceHandle = DeviceImpl->getUrHandleRef();
+  const ur_device_handle_t &URDeviceHandle = DeviceImpl->getHandleRef();
 
   // Call piextDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
@@ -2112,7 +2112,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   std::vector<ur_device_handle_t> URDevices;
   URDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
-    URDevices.push_back(getSyclObjImpl(Dev)->getUrHandleRef());
+    URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
@@ -2123,7 +2123,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   appendCompileEnvironmentVariablesThatAppend(CompileOptions);
   ur_result_t Error = doCompile(
       Plugin, ObjectImpl->get_ur_program_ref(), Devs.size(), URDevices.data(),
-      getRawSyclObjImpl(InputImpl->get_context())->getUrHandleRef(),
+      getRawSyclObjImpl(InputImpl->get_context())->getHandleRef(),
       CompileOptions.c_str());
   if (Error != UR_RESULT_SUCCESS)
     throw sycl::exception(
@@ -2146,7 +2146,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   std::vector<ur_device_handle_t> URDevices;
   URDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
-    URDevices.push_back(getSyclObjImpl(Dev)->getUrHandleRef());
+    URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
@@ -2165,11 +2165,11 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
     auto Res = Plugin->call_nocheck(
-        urProgramLinkExp, ContextImpl->getUrHandleRef(), URDevices.size(),
+        urProgramLinkExp, ContextImpl->getHandleRef(), URDevices.size(),
         URDevices.data(), URPrograms.size(), URPrograms.data(),
         LinkOptionsStr.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck(urProgramLink, ContextImpl->getUrHandleRef(),
+      Res = Plugin->call_nocheck(urProgramLink, ContextImpl->getHandleRef(),
                                  URPrograms.size(), URPrograms.data(),
                                  LinkOptionsStr.c_str(), &LinkedProg);
     }
@@ -2315,7 +2315,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getUrHandleRef(), DeviceLibReqMask);
+              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -2346,7 +2346,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   }
 
   uint32_t ImgId = Img.getImageID();
-  ur_device_handle_t UrDevice = getRawSyclObjImpl(Devs[0])->getUrHandleRef();
+  ur_device_handle_t UrDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), UrDevice);
 
@@ -2377,7 +2377,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // call to getOrBuild, so starting with "1"
   for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const ur_device_handle_t UrDeviceAdd =
-        getRawSyclObjImpl(Devs[Idx])->getUrHandleRef();
+        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = UrDeviceAdd;

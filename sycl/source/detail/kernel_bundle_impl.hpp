@@ -367,7 +367,7 @@ public:
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
-      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getUrHandleRef();
+      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       DeviceVec.push_back(Dev);
     }
 
@@ -402,7 +402,7 @@ public:
     }();
 
     ur_program_handle_t UrProgram = nullptr;
-    Plugin->call(urProgramCreateWithIL, ContextImpl->getUrHandleRef(),
+    Plugin->call(urProgramCreateWithIL, ContextImpl->getHandleRef(),
                  spirv.data(), spirv.size(), nullptr, &UrProgram);
     // program created by piProgramCreate is implicitly retained.
 
@@ -410,7 +410,7 @@ public:
         Plugin->call_nocheck(urProgramBuildExp, UrProgram, DeviceVec.size(),
                              DeviceVec.data(), nullptr);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck(urProgramBuild, ContextImpl->getUrHandleRef(),
+      Res = Plugin->call_nocheck(urProgramBuild, ContextImpl->getHandleRef(),
                                  UrProgram, nullptr);
     }
     Plugin->checkUrResult(Res);

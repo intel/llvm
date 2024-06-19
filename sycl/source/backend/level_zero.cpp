@@ -33,7 +33,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   // Create PI device first.
   ur_device_handle_t UrDevice;
   Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle,
-               PlatformImpl->getUrHandleRef(), nullptr, &UrDevice);
+               PlatformImpl->getHandleRef(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
@@ -49,7 +49,7 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   ur_context_handle_t UrContext;
   std::vector<ur_device_handle_t> DeviceHandles;
   for (auto Dev : DeviceList) {
-    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getUrHandleRef());
+    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
   ur_context_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES;

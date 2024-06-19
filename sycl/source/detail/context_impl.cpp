@@ -56,10 +56,10 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
       std::vector<device> ComponentDevices = D.get_info<
           ext::oneapi::experimental::info::device::component_devices>();
       for (const auto &CD : ComponentDevices)
-        DeviceIds.push_back(getSyclObjImpl(CD)->getUrHandleRef());
+        DeviceIds.push_back(getSyclObjImpl(CD)->getHandleRef());
     }
 
-    DeviceIds.push_back(getSyclObjImpl(D)->getUrHandleRef());
+    DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
   getPlugin()->call(urContextCreate, DeviceIds.size(), DeviceIds.data(),
@@ -159,8 +159,8 @@ template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
-  return get_context_info<info::context::reference_count>(
-      this->getUrHandleRef(), this->getPlugin());
+  return get_context_info<info::context::reference_count>(this->getHandleRef(),
+                                                          this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())
@@ -285,8 +285,8 @@ context_impl::get_backend_info<info::device::backend_version>() const {
   // empty string as per specification.
 }
 
-ur_context_handle_t &context_impl::getUrHandleRef() { return MUrContext; }
-const ur_context_handle_t &context_impl::getUrHandleRef() const {
+ur_context_handle_t &context_impl::getHandleRef() { return MUrContext; }
+const ur_context_handle_t &context_impl::getHandleRef() const {
   return MUrContext;
 }
 
@@ -305,7 +305,7 @@ bool context_impl::hasDevice(
 DeviceImplPtr
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device D : MDevices)
-    if (getSyclObjImpl(D)->getUrHandleRef() == DeviceUR)
+    if (getSyclObjImpl(D)->getHandleRef() == DeviceUR)
       return getSyclObjImpl(D);
 
   return nullptr;
@@ -314,9 +314,9 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 ur_native_handle_t context_impl::getNative() const {
   const auto &Plugin = getPlugin();
   if (getBackend() == backend::opencl)
-    Plugin->call(urContextRetain, getUrHandleRef());
+    Plugin->call(urContextRetain, getHandleRef());
   ur_native_handle_t Handle;
-  Plugin->call(urContextGetNativeHandle, getUrHandleRef(), &Handle);
+  Plugin->call(urContextGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -344,7 +344,7 @@ void context_impl::addDeviceGlobalInitializer(
     const RTDeviceBinaryImage *BinImage) {
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getUrHandleRef());
+    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
     MDeviceGlobalInitializers.emplace(Key, BinImage);
   }
 }
@@ -356,7 +356,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
-      std::make_pair(NativePrg, DeviceImpl->getUrHandleRef()));
+      std::make_pair(NativePrg, DeviceImpl->getHandleRef()));
   if (ImgIt == MDeviceGlobalInitializers.end() ||
       ImgIt->second.MDeviceGlobalsFullyInitialized)
     return {};
@@ -435,11 +435,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // initialize events list.
       ur_event_handle_t InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
-      Plugin->call(
-          urEnqueueDeviceGlobalVariableWrite,
-          QueueImpl->getUrHandleRef(), NativePrg,
-          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
-          &USMPtr, 0, nullptr, &InitEvent);
+      Plugin->call(urEnqueueDeviceGlobalVariableWrite,
+                   QueueImpl->getHandleRef(), NativePrg,
+                   DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *),
+                   0, &USMPtr, 0, nullptr, &InitEvent);
 
       InitEventsRef.push_back(InitEvent);
     }
@@ -460,7 +459,7 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
     size_t NumBytes, size_t Offset) {
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getUrHandleRef();
+    KeyDevice = DeviceImpl->getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -483,7 +482,7 @@ void context_impl::memcpyFromHostOnlyDeviceGlobal(
 
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getUrHandleRef();
+    KeyDevice = DeviceImpl->getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -509,7 +508,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
-    ur_device_handle_t &DevHandle = getSyclObjImpl(Device)->getUrHandleRef();
+    ur_device_handle_t &DevHandle = getSyclObjImpl(Device)->getHandleRef();
     for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);

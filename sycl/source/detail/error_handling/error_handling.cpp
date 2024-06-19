@@ -96,7 +96,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   }
 
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
+  ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t CompileWGSize[3] = {0};
   Plugin->call(urKernelGetGroupInfo, Kernel, Device,
@@ -312,7 +312,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
+  ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxWISize[] = {0, 0, 0};
 
@@ -331,7 +331,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
   const PluginPtr &Plugin = DeviceImpl.getPlugin();
-  ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
+  ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
   Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,

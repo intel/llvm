@@ -147,7 +147,7 @@ static size_t deviceToID(const device &Device) {
   if (getSyclObjImpl(Device)->is_host())
     return 0;
   else
-    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getUrHandleRef());
+    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 #endif
 
@@ -500,8 +500,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
-      Plugin->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                   RawEvents.size(), &RawEvents[0], &Event);
+      Plugin->call(urEnqueueEventsWait, Queue->getHandleRef(), RawEvents.size(),
+                   &RawEvents[0], &Event);
     }
   }
 }
@@ -1947,7 +1947,7 @@ std::string instrumentationGetKernelName(
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
-    ur_kernel_handle_t KernelHandle = SyclKernel->getUrHandleRef();
+    ur_kernel_handle_t KernelHandle = SyclKernel->getHandleRef();
     Address = KernelHandle;
     KernelName = FunctionName;
   } else {
@@ -1995,7 +1995,7 @@ void instrumentationAddExtraKernelMetadata(
     EliminatedArgMask = KernelImpl->getKernelArgMask();
     Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (nullptr != SyclKernel) {
-    Program = SyclKernel->getUrProgramRef();
+    Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else {
@@ -2242,7 +2242,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
       sycl::info::kernel_device_specific::compile_work_group_size>(
-      Kernel, DeviceImpl.getUrHandleRef(), DeviceImpl.getPlugin());
+      Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
@@ -2400,7 +2400,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Plugin->call(urKernelGetGroupInfo, Kernel,
-                 Queue->getDeviceImplPtr()->getUrHandleRef(),
+                 Queue->getDeviceImplPtr()->getHandleRef(),
                  UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                  sizeof(RequiredWGSize), RequiredWGSize,
                  /* pPropSizeRet = */ nullptr);
@@ -2421,7 +2421,7 @@ static ur_result_t SetKernelParamsAndLaunch(
                                       Args...);
         }
         return Plugin->call_nocheck(urEnqueueKernelLaunch, Args...);
-      }(Queue->getUrHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
@@ -2484,13 +2484,13 @@ ur_result_t enqueueImpCommandBufferKernel(
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-    UrKernel = SyclKernelImpl->getUrHandleRef();
+    UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     UrProgram = DeviceImageImpl->get_ur_program_ref();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
-    UrKernel = Kernel->getUrHandleRef();
-    UrProgram = Kernel->getUrProgramRef();
+    UrKernel = Kernel->getHandleRef();
+    UrProgram = Kernel->getProgramRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -2523,7 +2523,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getUrHandleRef(),
+    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
                  UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                  sizeof(RequiredWGSize), RequiredWGSize,
                  /* pPropSizeRet = */ nullptr);
@@ -2589,7 +2589,7 @@ ur_result_t enqueueImpKernel(
 
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 
-    Kernel = SyclKernelImpl->getUrHandleRef();
+    Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
     Program = DeviceImageImpl->get_ur_program_ref();
@@ -2599,8 +2599,8 @@ ur_result_t enqueueImpKernel(
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
-    Kernel = MSyclKernel->getUrHandleRef();
-    Program = MSyclKernel->getUrProgramRef();
+    Kernel = MSyclKernel->getHandleRef();
+    Program = MSyclKernel->getProgramRef();
 
     // Non-cacheable kernels use mutexes from kernel_impls.
     // TODO this can still result in a race condition if multiple SYCL
@@ -2704,7 +2704,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
 
   const PluginPtr &Plugin = Queue->getPlugin();
 
-  ur_queue_handle_t ur_q = Queue->getUrHandleRef();
+  ur_queue_handle_t ur_q = Queue->getHandleRef();
   ur_result_t Error;
 
   auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
@@ -3155,7 +3155,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(), 0,
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(), 0,
                  nullptr, Event);
 
     return UR_RESULT_SUCCESS;
@@ -3172,7 +3172,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(),
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                  UrEvents.size(), &UrEvents[0], Event);
 
     return UR_RESULT_SUCCESS;
@@ -3183,11 +3183,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.
     if (!MQueue->isInOrder())
-      Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(),
+      Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                    /*num_events_in_wait_list=*/0,
                    /*event_wait_list=*/nullptr, /*event=*/nullptr);
 
-    Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getUrHandleRef(),
+    Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getHandleRef(),
                  /*blocking=*/false,
                  /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr,
                  Event);
@@ -3235,7 +3235,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     return MQueue->getPlugin()->call_nocheck(
         urCommandBufferEnqueueExp, CmdBufferCG->MCommandBuffer,
-        MQueue->getUrHandleRef(), RawEvents.size(),
+        MQueue->getHandleRef(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], Event);
   }
   case CG::CGTYPE::CopyImage: {
@@ -3258,7 +3258,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-                 MQueue->getUrHandleRef(), SemWait->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
                  0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
@@ -3272,8 +3272,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-                 MQueue->getUrHandleRef(),
-                 SemSignal->getInteropSemaphoreHandle(), 0, nullptr, nullptr);
+                 MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+                 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
   }

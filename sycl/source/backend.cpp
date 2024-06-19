@@ -131,7 +131,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                const property_list &PropList,
                                const async_handler &Handler, backend Backend) {
   ur_device_handle_t UrDevice =
-      Device ? getSyclObjImpl(*Device)->getUrHandleRef() : nullptr;
+      Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
@@ -163,7 +163,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   ur_queue_handle_t UrQueue = nullptr;
 
   Plugin->call(urQueueCreateWithNativeHandle, NativeHandle,
-               ContextImpl->getUrHandleRef(), UrDevice, &NativeProperties,
+               ContextImpl->getHandleRef(), UrDevice, &NativeProperties,
                &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
@@ -187,7 +187,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
   Properties.isNativeHandleOwned = !KeepOwnership;
 
   Plugin->call(urEventCreateWithNativeHandle, NativeHandle,
-               ContextImpl->getUrHandleRef(), &Properties, &UrEvent);
+               ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(UrEvent, Context));
 
@@ -209,7 +209,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   Properties.isNativeHandleOwned = !KeepOwnership;
 
   Plugin->call(urProgramCreateWithNativeHandle, NativeHandle,
-               ContextImpl->getUrHandleRef(), &Properties, &UrProgram);
+               ContextImpl->getHandleRef(), &Properties, &UrProgram);
   if (ContextImpl->getBackend() == backend::opencl)
     Plugin->call(urProgramRetain, UrProgram);
 
@@ -235,7 +235,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                                         nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Plugin->call_nocheck(urProgramCompile,
-                                     ContextImpl->getUrHandleRef(), UrProgram,
+                                     ContextImpl->getHandleRef(), UrProgram,
                                      nullptr);
         }
         Plugin->checkUrResult<errc::build>(Res);
@@ -245,9 +245,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         auto Res = Plugin->call_nocheck(urProgramBuildExp, UrProgram, 1, &Dev,
                                         nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Plugin->call_nocheck(urProgramBuild,
-                                     ContextImpl->getUrHandleRef(), UrProgram,
-                                     nullptr);
+          Res = Plugin->call_nocheck(
+              urProgramBuild, ContextImpl->getHandleRef(), UrProgram, nullptr);
         }
         Plugin->checkUrResult<errc::build>(Res);
       }
@@ -260,13 +259,12 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                               "Program and kernel_bundle state mismatch " +
                                   detail::codeToString(PI_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
-        auto Res = Plugin->call_nocheck(urProgramLinkExp,
-                                        ContextImpl->getUrHandleRef(), 1, &Dev,
-                                        1, &UrProgram, nullptr, &UrProgram);
+        auto Res =
+            Plugin->call_nocheck(urProgramLinkExp, ContextImpl->getHandleRef(),
+                                 1, &Dev, 1, &UrProgram, nullptr, &UrProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res =
-              Plugin->call_nocheck(urProgramLink, ContextImpl->getUrHandleRef(),
-                                   1, &UrProgram, nullptr, &UrProgram);
+          Res = Plugin->call_nocheck(urProgramLink, ContextImpl->getHandleRef(),
+                                     1, &UrProgram, nullptr, &UrProgram);
         }
         Plugin->checkUrResult<errc::build>(Res);
       }
@@ -349,8 +347,7 @@ kernel make_kernel(const context &TargetContext,
   Properties.stype = UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
   Plugin->call(urKernelCreateWithNativeHandle, NativeHandle,
-               ContextImpl->getUrHandleRef(), UrProgram, &Properties,
-               &UrKernel);
+               ContextImpl->getHandleRef(), UrProgram, &Properties, &UrKernel);
 
   if (Backend == backend::opencl)
     Plugin->call(urKernelRetain, UrKernel);

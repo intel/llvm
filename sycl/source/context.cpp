@@ -66,13 +66,13 @@ context::context(const std::vector<device> &DeviceList,
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
     const auto &NonHostPlatform =
-        detail::getSyclObjImpl(NonHostDevice.get_platform())->getUrHandleRef();
+        detail::getSyclObjImpl(NonHostDevice.get_platform())->getHandleRef();
     if (std::any_of(DeviceList.begin(), DeviceList.end(),
                     [&](const device &CurrentDevice) {
                       return (
                           detail::getSyclObjImpl(CurrentDevice)->is_host() ||
                           (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                               ->getUrHandleRef() != NonHostPlatform));
+                               ->getHandleRef() != NonHostPlatform));
                     }))
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",

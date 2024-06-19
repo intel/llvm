@@ -26,8 +26,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   ur_sampler_handle_t Sampler{};
   Plugin->call(urSamplerCreateWithNativeHandle,
                reinterpret_cast<ur_native_handle_t>(clSampler),
-               getSyclObjImpl(syclContext)->getUrHandleRef(), nullptr,
-               &Sampler);
+               getSyclObjImpl(syclContext)->getHandleRef(), nullptr, &Sampler);
 
   MContextToSampler[syclContext] = Sampler;
   bool NormalizedCoords;
@@ -126,7 +125,7 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
   const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin->call_nocheck(urSamplerCreate,
-                                     getSyclObjImpl(Context)->getUrHandleRef(),
+                                     getSyclObjImpl(Context)->getHandleRef(),
                                      &desc, &resultSampler);
 
   if (errcode_ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)

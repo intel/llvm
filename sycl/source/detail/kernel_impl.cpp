@@ -40,7 +40,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MURKernel(Kernel), MContext(ContextImpl),
-      MURProgram(ProgramImpl->getUrHandleRef()),
+      MProgram(ProgramImpl->getHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
       MKernelBundleImpl(std::move(KernelBundleImpl)), MKernelArgMaskPtr{
                                                           ArgMask} {
@@ -49,7 +49,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
   // Using the plugin from the passed ContextImpl
   getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
                     sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getUrHandleRef() != Context)
+  if (ContextImpl->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
@@ -61,10 +61,9 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask,
-                         ur_program_handle_t ProgramUR, std::mutex *CacheMutex)
-    : MURKernel(Kernel), MContext(std::move(ContextImpl)),
-      MURProgram(ProgramUR), MCreatedFromSource(false),
-      MDeviceImageImpl(std::move(DeviceImageImpl)),
+                         ur_program_handle_t Program, std::mutex *CacheMutex)
+    : MURKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
+      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
