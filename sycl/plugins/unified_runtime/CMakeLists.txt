@@ -110,13 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
+    # commit 2a31795d9d5a0994af33833016b2849cb4e357a6
+    # Merge: 06cb1b90 ec73afa7
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    # Date:   Tue Jun 18 14:37:38 2024 +0100
+    #     Merge pull request #1623 from igchor/legacy_path_queue
+    #     [L0] Create initial structure for supporting queue dispatcher
+    2a31795d9d5a0994af33833016b2849cb4e357a6
   )
 
   fetch_adapter_source(opencl

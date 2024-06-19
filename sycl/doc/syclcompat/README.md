@@ -2416,6 +2416,73 @@ template <typename RetT, typename AT, typename BT>
 inline constexpr RetT extend_vavrg4_sat(AT a, BT b, RetT c);
 ```
 
+Vectorized comparison APIs also provided in the math header behave similarly 
+and support a `std` comparison operator parameter which can be `greater`, 
+`less`, `greater_equal`, `less_equal`, `equal_to` or `not_equal_to`. These APIs 
+cover both the 2-elements *(16-bits each)* and 4-elements *(8-bits each)* 
+variants, as well as an additional `_add` variant that computes the sum of the 
+2/4 output elements.
+
+```cpp
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2(AT a, BT b, BinaryOperation cmp);
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp);
+
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4(AT a, BT b, BinaryOperation cmp);
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp);
+```
+
 The math header file provides APIs for bit-field insertion (`bfi_safe`) and
 bit-field extraction (`bfe_safe`). These are bounds-checked variants of
 underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future
