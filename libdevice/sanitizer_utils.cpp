@@ -373,6 +373,40 @@ bool __asan_internal_report_save(
 /// ASAN Error Reporters
 ///
 
+DeviceSanitizerMemoryType GetMemoryTypeByShadowValue(int shadow_value) {
+
+  switch (shadow_value) {
+  case kUsmDeviceRedzoneMagic:
+  case kUsmDeviceDeallocatedMagic:
+    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
+    break;
+  case kUsmHostRedzoneMagic:
+  case kUsmHostDeallocatedMagic:
+    memory_type = DeviceSanitizerMemoryType::USM_HOST;
+    break;
+  case kUsmSharedRedzoneMagic:
+  case kUsmSharedDeallocatedMagic:
+    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
+    break;
+  case kPrivateLeftRedzoneMagic:
+  case kPrivateMidRedzoneMagic:
+  case kPrivateRightRedzoneMagic:
+    memory_type = DeviceSanitizerMemoryType::PRIVATE;
+    break;
+  case kMemBufferRedzoneMagic:
+    memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
+    break;
+  case kSharedLocalRedzoneMagic:
+    memory_type = DeviceSanitizerMemoryType::LOCAL;
+    break;
+  case kDeviceGlobalRedzoneMagic:
+    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
+    break;
+  default:
+    memory_type = DeviceSanitizerMemoryType::UNKNOWN;
+  }
+}
+
 void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
                                 bool is_write, uptr poisoned_addr,
                                 const char __SYCL_CONSTANT__ *file,
@@ -387,54 +421,28 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   }
   // FIXME: check if shadow_address out-of-bound
 
-  DeviceSanitizerMemoryType memory_type;
+  DeviceSanitizerMemoryType memory_type =
+      GetMemoryTypeByShadowValue(shadow_value);
   DeviceSanitizerErrorType error_type;
 
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kUsmHostRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kUsmSharedRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
-  case kUsmDeviceDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
-  case kUsmHostDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
-  case kUsmSharedDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
   case kPrivateLeftRedzoneMagic:
   case kPrivateMidRedzoneMagic:
   case kPrivateRightRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::PRIVATE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kMemBufferRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kSharedLocalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::LOCAL;
+  case kDeviceGlobalRedzoneMagic:
     error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
-  case kDeviceGlobalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
+  case kUsmDeviceDeallocatedMagic:
+  case kUsmHostDeallocatedMagic:
+  case kUsmSharedDeallocatedMagic:
+    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
     break;
   default:
-    memory_type = DeviceSanitizerMemoryType::UNKNOWN;
     error_type = DeviceSanitizerErrorType::UNKNOWN;
   }
 
@@ -456,38 +464,7 @@ void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
   int shadow_value = *shadow;
 
   DeviceSanitizerErrorType error_type = DeviceSanitizerErrorType::MISALIGNED;
-  DeviceSanitizerMemoryType memory_type;
-
-  switch (shadow_value) {
-  case kUsmDeviceRedzoneMagic:
-  case kUsmDeviceDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    break;
-  case kUsmHostRedzoneMagic:
-  case kUsmHostDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    break;
-  case kUsmSharedRedzoneMagic:
-  case kUsmSharedDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    break;
-  case kPrivateLeftRedzoneMagic:
-  case kPrivateMidRedzoneMagic:
-  case kPrivateRightRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::PRIVATE;
-    break;
-  case kMemBufferRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
-    break;
-  case kSharedLocalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::LOCAL;
-    break;
-  case kDeviceGlobalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
-    break;
-  default:
-    memory_type = DeviceSanitizerMemoryType::UNKNOWN;
-  }
+  DeviceSanitizerMemoryType memory_type = GetMemoryTypeByShadowValue(shadow_value);
 
   __asan_internal_report_save(addr, as, file, line, func, is_write, size,
                               memory_type, error_type, is_recover);
