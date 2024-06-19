@@ -1229,13 +1229,13 @@ DINode *SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst,
     OffsetIdx = NonSemantic::OffsetIdx;
     FlagsIdx = NonSemantic::FlagsIdx;
   } else {
-    OperandCount = NonSemantic::OperandCount;
+    OperandCount = OpenCL::OperandCount;
     ParentIdx = OpenCL::ParentIdx;
     OffsetIdx = OpenCL::OffsetIdx;
     FlagsIdx = OpenCL::FlagsIdx;
   }
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= OperandCount && "Invalid number of operands");
+  assert(Ops.size() == OperandCount && "Invalid number of operands");
   DIType *Parent =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
