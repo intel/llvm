@@ -27,20 +27,12 @@ namespace ur_sanitizer_layer {
 
 bool IsInASanContext() { return (void *)__asan_init != nullptr; }
 
-bool MmapFixedNoReserve(uptr Addr, uptr Size) {
+uptr MmapNoReserve(uptr Addr, uptr Size) {
     Size = RoundUpTo(Size, EXEC_PAGESIZE);
     Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
-    void *P =
-        mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
-             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
-    return Addr == (uptr)P;
-}
-
-bool MmapFixedNoAccess(uptr Addr, uptr Size) {
-    void *P =
-        mmap((void *)Addr, Size, PROT_NONE,
-             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
-    return Addr == (uptr)P;
+    void *P = mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+    return (uptr)P;
 }
 
 bool Munmap(uptr Addr, uptr Size) { return munmap((void *)Addr, Size) == 0; }

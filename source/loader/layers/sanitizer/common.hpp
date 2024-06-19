@@ -140,8 +140,7 @@ enum class DeviceType : uint64_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
 bool IsInASanContext();
 
-bool MmapFixedNoReserve(uptr Addr, uptr Size);
-bool MmapFixedNoAccess(uptr Addr, uptr Size);
+uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
 
 void *GetMemFunctionPointer(const char *);

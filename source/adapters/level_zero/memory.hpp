@@ -26,6 +26,9 @@
 
 #include "ur_level_zero.hpp"
 
+struct ur_queue_handle_legacy_t_;
+using ur_queue_handle_legacy_t = ur_queue_handle_legacy_t_ *;
+
 struct ur_device_handle_t_;
 
 bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
@@ -44,7 +47,7 @@ const bool UseCopyEngineForD2DCopy = [] {
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
-                                 ur_queue_handle_t Queue, void *Dst,
+                                 ur_queue_handle_legacy_t Queue, void *Dst,
                                  ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
@@ -52,12 +55,13 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                                  bool PreferCopyEngine);
 
 ur_result_t enqueueMemCopyRectHelper(
-    ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
-    void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
-    ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
+    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
+    const void *SrcBuffer, void *DstBuffer, ur_rect_offset_t SrcOrigin,
+    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
+    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
+    ur_bool_t Blocking, uint32_t NumEventsInWaitList,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
+    bool PreferCopyEngine = false);
 
 struct ur_mem_handle_t_ : _ur_object {
   // Keeps the PI context of this memory handle.
