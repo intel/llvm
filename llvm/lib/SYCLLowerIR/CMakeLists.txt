@@ -57,6 +57,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLConditionalCallOnDevice.cpp
   SYCLDeviceRequirements.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp

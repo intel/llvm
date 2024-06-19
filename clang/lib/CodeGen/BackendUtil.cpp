@@ -55,6 +55,7 @@
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
+#include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
@@ -110,6 +111,8 @@ using namespace llvm;
 #define HANDLE_EXTENSION(Ext)                                                  \
   llvm::PassPluginLibraryInfo get##Ext##PluginInfo();
 #include "llvm/Support/Extension.def"
+
+#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 extern cl::opt<bool> PrintPipelinePasses;
@@ -995,6 +998,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
+        dbgs() << "Unique Prefix: " << LangOpts.SYCLUniquePrefix << "\n";
+        MPM.addPass(SYCLConditionalCallOnDevicePass(LangOpts.SYCLUniquePrefix));
         MPM.addPass(SYCLPropagateAspectsUsagePass(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
             /*ExcludeAspects=*/{"fp64"}));
