@@ -50,8 +50,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     RetErr = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return RetErr;
 }
@@ -119,9 +121,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t, uint32_t, const ur_device_handle_t *,
-    const ur_context_native_properties_t *, ur_context_handle_t *) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+    [[maybe_unused]] ur_native_handle_t hNativeContext,
+    [[maybe_unused]] uint32_t numDevices,
+    [[maybe_unused]] const ur_device_handle_t *phDevices,
+    [[maybe_unused]] const ur_context_native_properties_t *pProperties,
+    [[maybe_unused]] ur_context_handle_t *phContext) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(

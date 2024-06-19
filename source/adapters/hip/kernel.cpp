@@ -46,8 +46,10 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                                 hProgram, hProgram->getContext()});
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   *phKernel = RetKernel.release();

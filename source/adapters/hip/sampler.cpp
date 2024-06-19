@@ -14,20 +14,26 @@
 ur_result_t urSamplerCreate(ur_context_handle_t hContext,
                             const ur_sampler_desc_t *pDesc,
                             ur_sampler_handle_t *phSampler) {
-  std::unique_ptr<ur_sampler_handle_t_> RetImplSampl{
-      new ur_sampler_handle_t_(hContext)};
+  try {
+    std::unique_ptr<ur_sampler_handle_t_> RetImplSampl{
+        new ur_sampler_handle_t_(hContext)};
 
-  if (pDesc && pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
-    RetImplSampl->Props |= pDesc->normalizedCoords;
-    RetImplSampl->Props |= pDesc->filterMode << 1;
-    RetImplSampl->Props |= pDesc->addressingMode << 2;
-  } else {
-    // Set default values
-    RetImplSampl->Props |= true; // Normalized Coords
-    RetImplSampl->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
+    if (pDesc && pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
+      RetImplSampl->Props |= pDesc->normalizedCoords;
+      RetImplSampl->Props |= pDesc->filterMode << 1;
+      RetImplSampl->Props |= pDesc->addressingMode << 2;
+    } else {
+      // Set default values
+      RetImplSampl->Props |= true; // Normalized Coords
+      RetImplSampl->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
+    }
+
+    *phSampler = RetImplSampl.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-
-  *phSampler = RetImplSampl.release();
   return UR_RESULT_SUCCESS;
 }
 
