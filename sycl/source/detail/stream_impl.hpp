@@ -41,6 +41,15 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
+  // ABI break: remove
+  void initStreamHost(QueueImplPtr);
+
+  // ABI break: remove
+  void flush(const EventImplPtr &);
+
+  // ABI break: remove
+  void flush();
+
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
