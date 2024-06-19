@@ -112,6 +112,9 @@ protected:
   void SetUp() override {
     counter_piEnqueueKernelLaunch = 0;
     counter_piextUSMEnqueueMemcpy = 0;
+    counter_piextUSMEnqueueMemset = 0;
+    counter_piextUSMEnqueuePrefetch = 0;
+    counter_piextUSMEnqueueMemAdvise = 0;
     counter_piEnqueueEventsWaitWithBarrier = 0;
   }
 
@@ -127,7 +130,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskNoEvent) {
     oneapiext::single_task<TestKernel<>>(CGH, []() {});
   });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
@@ -136,7 +139,7 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
 
   oneapiext::single_task<TestKernel<>>(Q, []() {});
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
@@ -154,7 +157,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
   oneapiext::submit(Q,
                     [&](handler &CGH) { oneapiext::single_task(CGH, Kernel); });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
@@ -172,7 +175,7 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
 
   oneapiext::single_task(Q, Kernel);
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
@@ -183,7 +186,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
     oneapiext::parallel_for<TestKernel<>>(CGH, range<1>{32}, [](item<1>) {});
   });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
@@ -192,7 +195,7 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
 
   oneapiext::parallel_for<TestKernel<>>(Q, range<1>{32}, [](item<1>) {});
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
@@ -211,7 +214,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
     oneapiext::parallel_for(CGH, range<1>{32}, Kernel);
   });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
@@ -229,7 +232,7 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
 
   oneapiext::parallel_for(Q, range<1>{32}, Kernel);
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
@@ -241,7 +244,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
         CGH, nd_range<1>{range<1>{32}, range<1>{32}}, [](nd_item<1>) {});
   });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
@@ -251,7 +254,7 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
   oneapiext::nd_launch<TestKernel<>>(Q, nd_range<1>{range<1>{32}, range<1>{32}},
                                      [](nd_item<1>) {});
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
@@ -270,7 +273,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
     oneapiext::nd_launch(CGH, nd_range<1>{range<1>{32}, range<1>{32}}, Kernel);
   });
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
@@ -288,7 +291,7 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
 
   oneapiext::nd_launch(Q, nd_range<1>{range<1>{32}, range<1>{32}}, Kernel);
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitMemcpyNoEvent) {
@@ -303,7 +306,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemcpyNoEvent) {
     oneapiext::memcpy(CGH, Src, Dst, sizeof(int) * N);
   });
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, size_t{1});
 
   free(Src, Q);
   free(Dst, Q);
@@ -319,7 +322,7 @@ TEST_F(EnqueueFunctionsEventsTests, MemcpyShortcutNoEvent) {
 
   oneapiext::memcpy(Q, Src, Dst, sizeof(int) * N);
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, size_t{1});
 
   free(Src, Q);
   free(Dst, Q);
@@ -336,7 +339,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitCopyNoEvent) {
   oneapiext::submit(Q,
                     [&](handler &CGH) { oneapiext::copy(CGH, Dst, Src, N); });
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, size_t{1});
 
   free(Src, Q);
   free(Dst, Q);
@@ -352,7 +355,7 @@ TEST_F(EnqueueFunctionsEventsTests, CopyShortcutNoEvent) {
 
   oneapiext::memcpy(Q, Dst, Src, N);
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemcpy, size_t{1});
 
   free(Src, Q);
   free(Dst, Q);
@@ -369,7 +372,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemsetNoEvent) {
     oneapiext::memset(CGH, Dst, int{1}, sizeof(int) * N);
   });
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemset, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemset, size_t{1});
 
   free(Dst, Q);
 }
@@ -383,7 +386,7 @@ TEST_F(EnqueueFunctionsEventsTests, MemsetShortcutNoEvent) {
 
   oneapiext::memset(Q, Dst, 1, sizeof(int) * N);
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemset, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemset, size_t{1});
 
   free(Dst, Q);
 }
@@ -398,7 +401,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitPrefetchNoEvent) {
   oneapiext::submit(
       Q, [&](handler &CGH) { oneapiext::prefetch(CGH, Dst, sizeof(int) * N); });
 
-  ASSERT_EQ(counter_piextUSMEnqueuePrefetch, 1);
+  ASSERT_EQ(counter_piextUSMEnqueuePrefetch, size_t{1});
 
   free(Dst, Q);
 }
@@ -412,7 +415,7 @@ TEST_F(EnqueueFunctionsEventsTests, PrefetchShortcutNoEvent) {
 
   oneapiext::prefetch(Q, Dst, sizeof(int) * N);
 
-  ASSERT_EQ(counter_piextUSMEnqueuePrefetch, 1);
+  ASSERT_EQ(counter_piextUSMEnqueuePrefetch, size_t{1});
 
   free(Dst, Q);
 }
@@ -428,7 +431,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemAdviseNoEvent) {
     oneapiext::mem_advise(CGH, Dst, sizeof(int) * N, 1);
   });
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemAdvise, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemAdvise, size_t{1});
 
   free(Dst, Q);
 }
@@ -442,7 +445,7 @@ TEST_F(EnqueueFunctionsEventsTests, MemAdviseShortcutNoEvent) {
 
   oneapiext::mem_advise(Q, Dst, sizeof(int) * N, 1);
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemAdvise, 1);
+  ASSERT_EQ(counter_piextUSMEnqueueMemAdvise, size_t{1});
 
   free(Dst, Q);
 }
@@ -463,8 +466,8 @@ TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
          [&]() { HostTaskTimestamp = std::chrono::steady_clock::now(); });
    }).wait();
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
-  ASSERT_EQ(counter_piEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_piEnqueueEventsWaitWithBarrier, size_t{1});
   ASSERT_TRUE(HostTaskTimestamp > timestamp_piEnqueueEventsWaitWithBarrier);
 }
 

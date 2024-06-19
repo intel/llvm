@@ -75,8 +75,8 @@ TEST_F(DiscardEventTests, BarrierBeforeHostTask) {
          [&]() { HostTaskTimestamp = std::chrono::steady_clock::now(); });
    }).wait();
 
-  ASSERT_EQ(counter_piEnqueueKernelLaunch, 1);
-  ASSERT_EQ(counter_piEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(counter_piEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_piEnqueueEventsWaitWithBarrier, size_t{1});
   ASSERT_TRUE(HostTaskTimestamp > timestamp_piEnqueueEventsWaitWithBarrier);
 }
 
