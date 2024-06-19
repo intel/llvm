@@ -90,7 +90,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("cl_khr_fp64 ");
+    return ReturnValue("cl_khr_fp16, cl_khr_fp64 ");
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
