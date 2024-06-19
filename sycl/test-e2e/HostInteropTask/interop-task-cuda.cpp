@@ -21,7 +21,7 @@ template <typename T> class Init;
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
   auto Acc = Buffer.get_host_access();
-  for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+  for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
                 << ", expected val = " << Value << '\n';
@@ -37,16 +37,16 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     auto DstA = Dst.template get_access<mode::write>(CGH);
 
     auto Func = [=](interop_handle IH) {
-      auto HipStream = IH.get_native_queue<backend::ext_oneapi_cuda>();
+      auto Stream = IH.get_native_queue<backend::ext_oneapi_cuda>();
       auto SrcMem = IH.get_native_mem<backend::ext_oneapi_cuda>(SrcA);
       auto DstMem = IH.get_native_mem<backend::ext_oneapi_cuda>(DstA);
 
-      if (cuMemcpyAsync(DstMem, SrcMem, sizeof(DataT) * SrcA.get_count(),
-                        HipStream) != CUDA_SUCCESS) {
+      if (cuMemcpyAsync(DstMem, SrcMem, sizeof(DataT) * SrcA.size(), Stream) !=
+          CUDA_SUCCESS) {
         throw;
       }
 
-      if (cuStreamSynchronize(HipStream) != CUDA_SUCCESS) {
+      if (cuStreamSynchronize(Stream) != CUDA_SUCCESS) {
         throw;
       }
 
@@ -63,7 +63,7 @@ template <typename DataT> void modify(buffer<DataT, 1> &B, queue &Q) {
 
     auto Kernel = [=](item<1> Id) { Acc[Id] += 1; };
 
-    CGH.parallel_for<Modifier<DataT>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<Modifier<DataT>>(Acc.size(), Kernel);
   });
 }
 
@@ -91,8 +91,8 @@ void test_ht_buffer(queue &Q) {
   });
 }
 
-// A test that uses HIP interop to copy data from buffer A to buffer B, by
-// getting HIP ptrs and calling the cuMemcpyWithAsync. Then run a SYCL
+// A test that uses CUDA interop to copy data from buffer A to buffer B, by
+// getting CUDA ptrs and calling the cuMemcpyWithAsync. Then run a SYCL
 // kernel that modifies the data in place for B, e.g. increment one, then copy
 // back to buffer A. Run it on a loop, to ensure the dependencies and the
 // reference counting of the objects is not leaked.
@@ -121,13 +121,7 @@ void tests(queue &Q) {
 }
 
 int main() {
-  queue Q([](sycl::exception_list ExceptionList) {
-    if (ExceptionList.size() != 1) {
-      std::cerr << "Should be one exception in exception list" << std::endl;
-      std::abort();
-    }
-    std::rethrow_exception(*ExceptionList.begin());
-  });
+  queue Q;
   tests(Q);
   std::cout << "Test PASSED" << std::endl;
   return 0;
