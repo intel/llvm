@@ -998,7 +998,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
-        dbgs() << "Unique Prefix: " << LangOpts.SYCLUniquePrefix << "\n";
         MPM.addPass(SYCLConditionalCallOnDevicePass(LangOpts.SYCLUniquePrefix));
         MPM.addPass(SYCLPropagateAspectsUsagePass(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
