@@ -1594,10 +1594,18 @@ struct.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external memory handles
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_mem_descriptor {
   ResourceType external_resource;
+  external_mem_handle_type handle_type;
   size_t size_in_bytes;
 };
 
@@ -1609,9 +1617,13 @@ handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe
 a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
 for Windows NT resource handles.
 
-Once the user populates the `external_mem_descriptor` with the appropriate 
-`ResourceType` values, and the size of the external memory in bytes,
-they can then import that memory into SYCL through `import_external_memory`.
+The user must populate the `external_mem_descriptor` with the appropriate 
+`ResourceType` values, a `handle_type`, and the size of the external memory in 
+bytes, before they can then import that memory into SYCL through 
+`import_external_memory`. Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd` handle type
+is only used on Linux systems and is only compatible with the `resource_fd` 
+resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1690,16 +1702,32 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
+It is important to note, that the use of imported external semaphore objects
+within SYCL has the restriction in that imported external semaphores can only
+be used in conjuction with SYCL queues that have been constructed with the
+`property::queue::in_order` property. The semaphore synchronization mechanism
+is not supported for the default SYCL out-of-order queues. Use of the semaphore 
+synchronization mechanism with SYCL queues which were not constructed with the 
+`queue::in_order` property will result in undefined behaviour.
+
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external semaphore handles
+enum class external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_semaphore_descriptor {
   ResourceType external_resource;
+  external_semaphore_handle_type handle_type;
 };
 
 }
@@ -1710,9 +1738,12 @@ appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd`
 to describe a POSIX file descriptor resource on Linux systems, or a 
 `resource_win32_handle` for Windows NT resource handles.
 
-Once the user populates the `external_semaphore_descriptor` with the appropriate 
-`ResourceType` values, they can then import that semaphore into SYCL through 
-`import_external_semaphore`.
+The user must populate the `external_semaphore_descriptor` with the appropriate 
+`ResourceType` values, and `handle_type`, before they can then import that 
+semaphore into SYCL through `import_external_semaphore`. Note that some handle 
+types can only be used in combination with certain resource types, for example 
+the `opaque_fd` handle type is only used on Linux systems and is only 
+compatible with the `resource_fd` resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1728,7 +1759,6 @@ interop_semaphore_handle import_external_semaphore(
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-}
 
 template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
@@ -1739,8 +1769,11 @@ interop_semaphore_handle import_external_semaphore(
 ```
 
 The resulting `interop_semaphore_handle` can then be used in a SYCL command 
-group, to either wait until the semaphore is in the signaled state, or set the 
-semaphore to a signaled state.
+group, to either wait until the semaphore signalled, or signal the semaphore.
+
+If the type of semaphore imported supports setting the state of discrete 
+semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
+can specify which value the semaphore operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -1754,9 +1787,19 @@ public:
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
 
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value);
+
   void ext_oneapi_signal_external_semaphore(
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
+
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value);
 };
 
 class queue {
@@ -1773,6 +1816,21 @@ public:
           interop_semaphore_handle,
       const std::vector<event> &DepEvents);
 
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value, 
+      event DepEvent);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value, 
+      const std::vector<event> &DepEvents);
+
   event ext_oneapi_signal_external_semaphore(
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
@@ -1784,17 +1842,46 @@ public:
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle,
       const std::vector<event> &DepEvents);
+
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value,
+      event DepEvent);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
 
-Any operations submitted to the queue after a 
-`ext_oneapi_wait_external_semaphore` call will not begin until the imported 
-semaphore is in a signaled state.
+The behaviour of waiting on a semaphore will depend on the type of the 
+semaphore which was imported.
+
+If the semaphore does not support setting of a discrete state value (the 
+semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
+the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
+until the imported semaphore is in a signalled state. After this, the semaphore 
+will be reset to a non-signalled state.
+
+If the semaphore does support setting of a discrete state value (the semaphore 
+type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
+after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
+imported semaphore is in a state greater than or equal to the `wait_value`. The 
+state of this type of semaphore will not be altered by the call to 
+`ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
-will be set to the signaled state after all commands submitted to the queue 
-prior to the `ext_oneapi_signal_external_semaphore` call complete.
+will either be set to a signalled state, or the state of the semaphore will be 
+set to `signal_value`, depending on the type of semaphore which was imported.
+This singalling will be done after all commands submitted to the queue prior to 
+the `ext_oneapi_signal_external_semaphore` call complete.
 
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
@@ -2366,13 +2453,17 @@ int external_output_image_file_descriptor = /* passed from external API */
 // Extension: populate external memory descriptors
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    input_ext_mem_desc{external_input_image_file_descriptor, 
-                       img_size_in_bytes};
+    input_ext_mem_desc{
+      external_input_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    output_ext_mem_desc{external_output_image_file_descriptor,
-                        img_size_in_bytes};
+    output_ext_mem_desc{
+      external_output_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 // An external API semaphore will signal this semaphore before our SYCL commands
 // can begin execution
@@ -2386,11 +2477,13 @@ int done_semaphore_file_descriptor = /* passed from external API */;
 //            We assume POSIX file descriptor resource types
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    wait_external_semaphore_desc{wait_semaphore_file_descriptor};
+    wait_external_semaphore_desc{wait_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    done_external_semaphore_desc{done_semaphore_file_descriptor};
+    done_external_semaphore_desc{done_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 try {
   // Extension: import external semaphores
@@ -2682,4 +2775,15 @@ These features still need to be handled:
                     This function is redundant since images don't have a notion
                     of channel order, only the channel size. Use
                     `get_num_channels()` instead.
+|5.11|2024-05-27| - Added `external_mem_handle_type` and 
+                    `external_semaphore_handle_type` enums. These will allow 
+                    multiple handle types to be consumed by the same interop API.
+                  - Added `handle_type` field to the `external_mem_descriptor`
+                    and `external_semaphore_descriptor` structs. This allows
+                    multiple handle types to be consumed by the API, such as 
+                    file descriptors, Windows NT handles, and other handles in 
+                    the future.
+                  - Added semaphore operations which can accept values. These
+                    are only supported for certain semaphore types 
+                    (e.g. `win32_nt_dx12_fence`).
 |======================

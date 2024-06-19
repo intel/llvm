@@ -99,12 +99,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/wenju-he/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG fix-bindless-L0-copy)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
+  # Merge: 2a31795d 6fb77c98
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jun 18 17:51:45 2024 +0100
+  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
+  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
+  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/wenju-he/unified-runtime.git")
+    f8e1f07a012cb23e5e8e5666fbd8b46be8d4225b
   )
 
   fetch_adapter_source(opencl
