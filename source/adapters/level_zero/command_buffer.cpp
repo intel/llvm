@@ -718,30 +718,27 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint32_t WorkDim, const size_t *GlobalWorkOffset,
-    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-    uint32_t NumSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-      Kernel->Mutex, Kernel->Program->Mutex, CommandBuffer->Mutex);
+static ur_result_t
+setKernelGlobalOffset(ur_exp_command_buffer_handle_t CommandBuffer,
+                      ur_kernel_handle_t Kernel,
+                      const size_t *GlobalWorkOffset) {
 
-  if (GlobalWorkOffset != NULL) {
-    if (!CommandBuffer->Context->getPlatform()
-             ->ZeDriverGlobalOffsetExtensionFound) {
-      logger::debug("No global offset extension found on this driver");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-
-    ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
-               (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
-                GlobalWorkOffset[2]));
+  if (!CommandBuffer->Context->getPlatform()
+           ->ZeDriverGlobalOffsetExtensionFound) {
+    logger::debug("No global offset extension found on this driver");
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
+
+  ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
+             (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+              GlobalWorkOffset[2]));
+
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t
+setKernelPendingArguments(ur_exp_command_buffer_handle_t CommandBuffer,
+                          ur_kernel_handle_t Kernel) {
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
@@ -757,25 +754,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
   Kernel->PendingArguments.clear();
 
-  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
-  uint32_t WG[3];
+  return UR_RESULT_SUCCESS;
+}
 
-  UR_CALL(calculateKernelWorkDimensions(Kernel, CommandBuffer->Device,
-                                        ZeThreadGroupDimensions, WG, WorkDim,
-                                        GlobalWorkSize, LocalWorkSize));
-
-  ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
-
-  CommandBuffer->KernelsList.push_back(Kernel);
-  // Increment the reference count of the Kernel and indicate that the Kernel
-  // is in use. Once the event has been signaled, the code in
-  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
-  // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(urKernelRetain(Kernel));
+static ur_result_t
+createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
+                    ur_kernel_handle_t Kernel, uint32_t WorkDim,
+                    const size_t *LocalWorkSize,
+                    ur_exp_command_buffer_command_handle_t& Command) {
 
   // If command-buffer is updatable then get command id which is going to be
   // used if command is updated in the future. This
-  // zeCommandListGetNextCommandIdExp can be called only if command is
+  // zeCommandListGetNextCommandIdExp can be called only if the command is
   // updatable.
   uint64_t CommandId = 0;
   if (CommandBuffer->IsUpdatable) {
@@ -794,13 +784,58 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     DEBUG_LOG(CommandId);
   }
   try {
-    if (Command)
-      *Command = new ur_exp_command_buffer_command_handle_t_(
-          CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
+    Command = new ur_exp_command_buffer_command_handle_t_(
+        CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+    uint32_t WorkDim, const size_t *GlobalWorkOffset,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+    ur_exp_command_buffer_command_handle_t *Command) {
+  UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
+      Kernel->Mutex, Kernel->Program->Mutex, CommandBuffer->Mutex);
+
+  if (GlobalWorkOffset != NULL) {
+    UR_CALL(setKernelGlobalOffset(CommandBuffer, Kernel, GlobalWorkOffset));
+  }
+
+  // If there are any pending arguments set them now.
+  if (!Kernel->PendingArguments.empty()) {
+    UR_CALL(setKernelPendingArguments(CommandBuffer, Kernel));
+  }
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3];
+  UR_CALL(calculateKernelWorkDimensions(Kernel, CommandBuffer->Device,
+                                        ZeThreadGroupDimensions, WG, WorkDim,
+                                        GlobalWorkSize, LocalWorkSize));
+
+  ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+
+  CommandBuffer->KernelsList.push_back(Kernel);
+
+  // Increment the reference count of the Kernel and indicate that the Kernel
+  // is in use. Once the event has been signaled, the code in
+  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
+  // reference count on the kernel, using the kernel saved in CommandData.
+  UR_CALL(urKernelRetain(Kernel));
+
+  if (Command && CommandBuffer->IsUpdatable) {
+    UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
+                                *Command));
   }
 
   if (CommandBuffer->IsInOrderCmdList) {
