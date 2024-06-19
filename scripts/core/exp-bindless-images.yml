@@ -181,6 +181,30 @@ etors:
   - name: SEAMLESS
     desc: "Enable Seamless filtering"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Dictates the type of external memory handle."
+class: $xBindlessImages
+name: $x_exp_external_mem_type_t
+etors:
+  - name: OPAQUE_FD
+    desc: "Opaque file descriptor"
+  - name: WIN32_NT
+    desc: "Win32 NT handle"
+  - name: WIN32_NT_DX12_RESOURCE
+    desc: "Win32 NT DirectX 12 resource handle"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Dictates the type of external semaphore handle."
+class: $xBindlessImages
+name: $x_exp_external_semaphore_type_t
+etors:
+  - name: OPAQUE_FD
+    desc: "Opaque file descriptor"
+  - name: WIN32_NT
+    desc: "Win32 NT handle"
+  - name: WIN32_NT_DX12_FENCE
+    desc: "Win32 NT DirectX 12 fence handle"
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"
 name: $x_exp_file_descriptor_t
@@ -624,9 +648,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Import external memory in the form of a file descriptor"
+desc: "Import external memory"
 class: $xBindlessImages
-name: ImportOpaqueFDExp
+name: ImportExternalMemoryExp
 ordinal: "0"
 analogue:
     - "**cuImportExternalMemory**"
@@ -640,6 +664,9 @@ params:
     - type: size_t
       name: size
       desc: "[in] size of the external memory"
+    - type: $x_exp_external_mem_type_t
+      name: memHandleType
+      desc: "[in] type of external memory handle"
     - type: $x_exp_interop_mem_desc_t*
       name: pInteropMemDesc
       desc: "[in] the interop memory descriptor"
@@ -706,9 +733,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Import an external semaphore in the form of a file descriptor"
+desc: "Import an external semaphore"
 class: $xBindlessImages
-name: ImportExternalSemaphoreOpaqueFDExp
+name: ImportExternalSemaphoreExp
 ordinal: "0"
 analogue:
     - "**cuImportExternalSemaphore**"
@@ -719,6 +746,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
+    - type: $x_exp_external_semaphore_type_t
+      name: semHandleType
+      desc: "[in] type of external memory handle"
     - type: $x_exp_interop_semaphore_desc_t*
       name: pInteropSemaphoreDesc
       desc: "[in] the interop semaphore descriptor"
@@ -764,6 +794,14 @@ params:
     - type: $x_exp_interop_semaphore_handle_t
       name: hSemaphore
       desc: "[in] interop semaphore handle"
+    - type: bool
+      name: hasWaitValue
+      desc: |
+            [in] indicates whether the samephore is capable and should wait on a certain value.
+            Otherwise the semaphore is treated like a binary state, and `waitValue` is ignored.
+    - type: uint64_t
+      name: waitValue
+      desc: "[in] the value to be waited on"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -795,6 +833,14 @@ params:
     - type: $x_exp_interop_semaphore_handle_t
       name: hSemaphore
       desc: "[in] interop semaphore handle"
+    - type: bool
+      name: hasSignalValue
+      desc: | 
+            [in] indicates whether the samephore is capable and should signal on a certain value.
+            Otherwise the semaphore is treated like a binary state, and `signalValue` is ignored.
+    - type: uint64_t
+      name: signalValue
+      desc: "[in] the value to be signalled"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"

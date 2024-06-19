@@ -211,6 +211,9 @@ params:
     - type: $x_native_handle_t
       name: hNativePlatform
       desc: "[in][nocheck] the native handle of the platform."
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter associated with the native backend."
     - type: const $x_platform_native_properties_t*
       name: pProperties
       desc: "[in][optional] pointer to native platform properties struct."

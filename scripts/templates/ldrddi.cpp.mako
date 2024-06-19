@@ -132,7 +132,7 @@ namespace ur_loader
         %else:
         <%param_replacements={}%>
         %for i, item in enumerate(th.get_loader_prologue(n, tags, obj, meta)):
-        %if not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
+        %if not '_native_object_' in item['obj']:
         // extract platform's function pointer table
         auto dditable = reinterpret_cast<${item['obj']}*>( ${item['pointer']}${item['name']} )->dditable;
         auto ${th.make_pfn_name(n, tags, obj)} = dditable->${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
@@ -151,7 +151,7 @@ namespace ur_loader
         for( size_t i = ${item['range'][0]}; i < ${item['range'][1]}; ++i )
             ${item['name']}Local[ i ] = reinterpret_cast<${item['obj']}*>( ${item['name']}[ i ] )->handle;
         %else:
-        %if not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
+        %if not '_native_object_' in item['obj']:
         // convert loader handle to platform handle
         %if item['optional']:
         ${item['name']} = ( ${item['name']} ) ? reinterpret_cast<${item['obj']}*>( ${item['name']} )->handle : nullptr;
@@ -279,7 +279,7 @@ namespace ur_loader
         %if item['release']:
         // release loader handle
         ${item['factory']}.release( ${item['name']} );
-        %elif not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
+        %elif not '_native_object_' in item['obj']:
         try
         {
             %if 'typename' in item:

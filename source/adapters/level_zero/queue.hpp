@@ -27,9 +27,18 @@
 #include "common.hpp"
 #include "device.hpp"
 
+struct ur_queue_handle_legacy_t_;
+using ur_queue_handle_legacy_t = ur_queue_handle_legacy_t_ *;
+
 extern "C" {
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
 } // extern "C"
+
+namespace v2 {
+struct ur_queue_dispatcher_t {
+  // TODO
+};
+} // namespace v2
 
 struct ur_completion_batch;
 using ur_completion_batch_list = std::list<ur_completion_batch>;
@@ -70,7 +79,8 @@ struct ur_completion_batch {
 
   // Seals the event batch and appends a barrier to the command list.
   // Adding any further events after this, but before reset, is undefined.
-  ur_result_t seal(ur_queue_handle_t queue, ze_command_list_handle_t cmdlist);
+  ur_result_t seal(ur_queue_handle_legacy_t queue,
+                   ze_command_list_handle_t cmdlist);
 
   // Resets a complete batch back to an empty state. Cleanups internal state
   // but keeps allocated resources for reuse.
@@ -112,7 +122,7 @@ struct ur_completion_batches {
   // returned to indicate that there are no batches available.
   // This is safe, but will increase how many events are associated
   // with the active batch.
-  ur_result_t tryCleanup(ur_queue_handle_t queue,
+  ur_result_t tryCleanup(ur_queue_handle_legacy_t queue,
                          ze_command_list_handle_t cmdlist,
                          std::vector<ur_event_handle_t> &EventList,
                          std::vector<ur_event_handle_t> &EventListToCleanup);
@@ -149,10 +159,10 @@ private:
   ur_completion_batch_it active;
 };
 
-ur_result_t resetCommandLists(ur_queue_handle_t Queue);
+ur_result_t resetCommandLists(ur_queue_handle_legacy_t Queue);
 ur_result_t
-CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue, bool QueueLocked = false,
-                           bool QueueSynced = false,
+CleanupEventsInImmCmdLists(ur_queue_handle_legacy_t UrQueue,
+                           bool QueueLocked = false, bool QueueSynced = false,
                            ur_event_handle_t CompletedEvent = nullptr);
 
 // Structure describing the specific use of a command-list in a queue.
@@ -201,7 +211,7 @@ struct ur_command_list_info_t {
   bool CanReuse;
 
   // Helper functions to tell if this is a copy command-list.
-  bool isCopy(ur_queue_handle_t Queue) const;
+  bool isCopy(ur_queue_handle_legacy_t Queue) const;
 
   // An optional event completion batching mechanism for out-of-order immediate
   // command lists.
@@ -223,23 +233,24 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : _ur_object {
-  ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
-                     std::vector<ze_command_queue_handle_t> &CopyQueues,
-                     ur_context_handle_t Context, ur_device_handle_t Device,
-                     bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
-                     int ForceComputeIndex = -1);
+struct ur_queue_handle_legacy_t_ : _ur_object {
+  ur_queue_handle_legacy_t_(
+      std::vector<ze_command_queue_handle_t> &ComputeQueues,
+      std::vector<ze_command_queue_handle_t> &CopyQueues,
+      ur_context_handle_t Context, ur_device_handle_t Device,
+      bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
+      int ForceComputeIndex = -1);
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
   struct ur_queue_group_t {
-    ur_queue_handle_t Queue;
+    ur_queue_handle_legacy_t Queue;
     ur_queue_group_t() = delete;
 
     // The Queue argument captures the enclosing PI queue.
     // The Type argument specifies the type of this queue group.
     // The actual ZeQueues are populated at PI queue construction.
-    ur_queue_group_t(ur_queue_handle_t Queue, queue_type Type)
+    ur_queue_group_t(ur_queue_handle_legacy_t Queue, queue_type Type)
         : Queue(Queue), Type(Type) {}
 
     // The type of the queue group.
@@ -269,7 +280,8 @@ struct ur_queue_handle_t_ : _ur_object {
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
     // This function sets an immediate commandlist from the interop interface.
-    void setImmCmdList(ur_queue_handle_t queue, ze_command_list_handle_t);
+    void setImmCmdList(ur_queue_handle_legacy_t queue,
+                       ze_command_list_handle_t);
 
     // This function returns the next immediate commandlist to use.
     ur_command_list_ptr_t &getImmCmdList();
@@ -336,15 +348,15 @@ struct ur_queue_handle_t_ : _ur_object {
   pi_queue_group_by_tid_t CopyQueueGroupsByTID;
 
   // Keeps the PI context to which this queue belongs.
-  // This field is only set at ur_queue_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_queue_handle_t.
+  // This field is only set at ur_queue_handle_legacy_t_ creation time, and
+  // cannot change. Therefore it can be accessed without holding a lock on this
+  // ur_queue_handle_legacy_t_.
   const ur_context_handle_t Context;
 
   // Keeps the PI device to which this queue belongs.
-  // This field is only set at ur_queue_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_queue_handle_t.
+  // This field is only set at ur_queue_handle_legacy_t_ creation time, and
+  // cannot change. Therefore it can be accessed without holding a lock on this
+  // ur_queue_handle_legacy_t_.
   const ur_device_handle_t Device;
 
   // A queue may use either standard or immediate commandlists. At queue
@@ -687,7 +699,37 @@ struct ur_queue_handle_t_ : _ur_object {
 
   // Threshold for cleaning up the EventList for immediate command lists.
   size_t getImmdCmmdListsEventCleanupThreshold();
+
+  // Pointer to the unified handle.
+  ur_queue_handle_t_ *UnifiedHandle;
 };
+
+// Unified handle that represents either legacy Queue or new dispatcher.
+struct ur_queue_handle_t_ {
+  template <typename QType, typename... Args>
+  ur_queue_handle_t_(std::in_place_type_t<QType> tag, Args &&...args)
+      : Queue(tag, std::forward<Args>(args)...) {
+    if constexpr (std::is_same_v<QType, ur_queue_handle_legacy_t_>) {
+      std::get<ur_queue_handle_legacy_t_>(Queue).UnifiedHandle = this;
+    }
+  }
+
+  std::variant<ur_queue_handle_legacy_t_, v2::ur_queue_dispatcher_t> Queue;
+};
+
+template <typename QueueT> QueueT *GetQueue(ur_queue_handle_t Queue) {
+  if (!Queue)
+    return nullptr;
+  auto *Q = std::get_if<QueueT>(&Queue->Queue);
+  if (!Q) {
+    throw UR_RESULT_ERROR_INVALID_QUEUE;
+  }
+  return Q;
+}
+
+static inline ur_queue_handle_legacy_t Legacy(ur_queue_handle_t Queue) {
+  return GetQueue<ur_queue_handle_legacy_t_>(Queue);
+}
 
 // This helper function creates a ur_event_handle_t and associate a
 // ur_queue_handle_t. Note that the caller of this function must have acquired
@@ -702,16 +744,18 @@ struct ur_queue_handle_t_ : _ur_object {
 //        multiple devices.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
-ur_result_t createEventAndAssociateQueue(
-    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
-    ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
-    std::optional<bool> HostVisible = std::nullopt);
+ur_result_t
+createEventAndAssociateQueue(ur_queue_handle_legacy_t Queue,
+                             ur_event_handle_t *Event, ur_command_t CommandType,
+                             ur_command_list_ptr_t CommandList, bool IsInternal,
+                             bool IsMultiDevice,
+                             std::optional<bool> HostVisible = std::nullopt);
 
 // This helper function checks to see if an event for a command can be included
 // at the end of a command list batch. This will only be true if the event does
 // not have dependencies or the dependencies are not for events which exist in
 // this batch.
-bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+bool eventCanBeBatched(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
                        uint32_t NumEventsInWaitList,
                        const ur_event_handle_t *EventWaitList);
 
@@ -720,7 +764,7 @@ bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
 // dependencies, then this command can be enqueued without a signal event set in
 // a command list batch. The signal event will be appended at the end of the
 // batch to be signalled at the end of the command list.
-ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+ur_result_t setSignalEvent(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
                            const ur_event_handle_t *EventWaitList,

@@ -1021,8 +1021,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
+    ur_exp_external_mem_type_t memHandleType,
     ur_exp_interop_mem_desc_t *pInteropMemDesc,
     ur_exp_interop_mem_handle_t *phInteropMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
@@ -1039,15 +1040,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     void *pNext = const_cast<void *>(pInteropMemDesc->pNext);
     while (pNext != nullptr) {
       const ur_base_desc_t *BaseDesc =
-          reinterpret_cast<const ur_base_desc_t *>(pNext);
+          static_cast<const ur_base_desc_t *>(pNext);
       if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
-        const ur_exp_file_descriptor_t *FileDescriptor =
-            reinterpret_cast<const ur_exp_file_descriptor_t *>(pNext);
+        auto FileDescriptor =
+            static_cast<const ur_exp_file_descriptor_t *>(pNext);
 
         extMemDesc.handle.fd = FileDescriptor->fd;
         extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
       } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+
+        switch (memHandleType) {
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
+          extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32;
+          break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
+          extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE;
+          extMemDesc.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
+          break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        extMemDesc.handle.win32.handle = Win32Handle->handle;
       }
       pNext = const_cast<void *>(BaseDesc->pNext);
     }
@@ -1139,9 +1154,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
@@ -1157,15 +1172,27 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     void *pNext = const_cast<void *>(pInteropSemaphoreDesc->pNext);
     while (pNext != nullptr) {
       const ur_base_desc_t *BaseDesc =
-          reinterpret_cast<const ur_base_desc_t *>(pNext);
+          static_cast<const ur_base_desc_t *>(pNext);
       if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
-        const ur_exp_file_descriptor_t *FileDescriptor =
-            reinterpret_cast<const ur_exp_file_descriptor_t *>(pNext);
+        auto FileDescriptor =
+            static_cast<const ur_exp_file_descriptor_t *>(pNext);
 
         extSemDesc.handle.fd = FileDescriptor->fd;
         extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
       } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+          extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+          extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        extSemDesc.handle.win32.handle = Win32Handle->handle;
       }
       pNext = const_cast<void *>(BaseDesc->pNext);
     }
@@ -1204,8 +1231,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -1214,6 +1241,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS SemWaitParams = {};
+    if (hasValue) {
+      SemWaitParams.params.fence.value = waitValue;
+    }
 
     // Wait for one external semaphore
     UR_CHECK_ERROR(cuWaitExternalSemaphoresAsync(
@@ -1236,8 +1266,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -1246,6 +1276,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS SemSignalParams = {};
+    if (hasValue) {
+      SemSignalParams.params.fence.value = signalValue;
+    }
 
     // Signal one external semaphore
     UR_CHECK_ERROR(cuSignalExternalSemaphoresAsync(
