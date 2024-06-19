@@ -100,7 +100,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG aaron/kernelSetArgIndirectionFix)
+  set(UNIFIED_RUNTIME_TAG d8500a36b1bcfe3e195368d9d40792c7f46e817f)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
