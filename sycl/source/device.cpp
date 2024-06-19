@@ -121,8 +121,8 @@ std::vector<device> device::create_sub_devices() const {
 template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::ext_intel_partition_by_cslice>() const;
 
-bool device::has_extension(const std::string &extension_name) const {
-  return impl->has_extension(extension_name);
+bool device::has_extension(detail::string_view ext_name) const {
+  return impl->has_extension(ext_name.data());
 }
 
 template <typename Param>
