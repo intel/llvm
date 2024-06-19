@@ -374,36 +374,28 @@ bool __asan_internal_report_save(
 ///
 
 DeviceSanitizerMemoryType GetMemoryTypeByShadowValue(int shadow_value) {
-
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
   case kUsmDeviceDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    break;
+    return DeviceSanitizerMemoryType::USM_DEVICE;
   case kUsmHostRedzoneMagic:
   case kUsmHostDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    break;
+    return DeviceSanitizerMemoryType::USM_HOST;
   case kUsmSharedRedzoneMagic:
   case kUsmSharedDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    break;
+    return DeviceSanitizerMemoryType::USM_SHARED;
   case kPrivateLeftRedzoneMagic:
   case kPrivateMidRedzoneMagic:
   case kPrivateRightRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::PRIVATE;
-    break;
+    return DeviceSanitizerMemoryType::PRIVATE;
   case kMemBufferRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
-    break;
+    return DeviceSanitizerMemoryType::MEM_BUFFER;
   case kSharedLocalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::LOCAL;
-    break;
+    return DeviceSanitizerMemoryType::LOCAL;
   case kDeviceGlobalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
-    break;
+    return DeviceSanitizerMemoryType::DEVICE_GLOBAL;
   default:
-    memory_type = DeviceSanitizerMemoryType::UNKNOWN;
+    return DeviceSanitizerMemoryType::UNKNOWN;
   }
 }
 
