@@ -1424,8 +1424,6 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 #endif
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(Device);
     std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
@@ -1480,6 +1478,20 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // UR_USM_MEM_ADVICE_SET/MEM_ADVICE_CLEAR_READ_MOSTLY.
     }
 
+    // hipMemAdvise only supports managed memory allocated via
+    // hipMallocManaged. We can't support this API with any other types of
+    // pointer. We should ignore them and result UR_RESULT_SUCCESS but instead
+    // we report a warning.
+    // FIXME: Fix this up when there's a better warning mechanism.
+    if (auto ptrAttribs = getPointerAttributes(pMem);
+        !ptrAttribs || !ptrAttribs->isManaged) {
+      releaseEvent();
+      setErrorMessage("mem_advise is ignored as the pointer argument is not "
+                      "a shared USM pointer",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
     const auto DeviceID = Device->get();
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
       UR_CHECK_ERROR(
@@ -1493,7 +1505,11 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
           hipMemAdvise(pMem, size, hipMemAdviseUnsetCoarseGrain, DeviceID));
 #endif
     } else {
-      Result = setHipMemAdvise(HIPDevicePtr, size, advice, DeviceID);
+      ur_result_t Result =
+          setHipMemAdvise(HIPDevicePtr, size, advice, DeviceID);
+      assert((Result == UR_RESULT_SUCCESS ||
+              Result == UR_RESULT_ERROR_INVALID_ENUMERATION) &&
+             "Unexpected return code");
       // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid
       // but currently unmapped advice arguments as not supported by this
       // platform. Therefore, warn the user instead of throwing and aborting
@@ -1509,12 +1525,12 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 
     releaseEvent();
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   } catch (...) {
-    Result = UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
