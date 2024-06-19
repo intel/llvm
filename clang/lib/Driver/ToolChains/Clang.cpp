@@ -10658,8 +10658,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
+  // TODO Enable when SYCL RT supports dynamic linking
+  /*
   if (TCArgs.hasArg(options::OPT_shared))
     addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+  */
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
