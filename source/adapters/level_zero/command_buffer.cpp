@@ -726,8 +726,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint,
     ur_exp_command_buffer_command_handle_t *Command) {
-  UR_ASSERT(CommandBuffer && Kernel && Kernel->Program,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Kernel->Mutex, Kernel->Program->Mutex, CommandBuffer->Mutex);
@@ -1340,9 +1339,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
-  UR_ASSERT(Command, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(CommandDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(CommandDesc->newWorkDim <= 3,
             UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
