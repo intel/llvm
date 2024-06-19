@@ -272,7 +272,7 @@ public:
       ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                            nullptr, MSpecConstsBlob.data()};
       memBufferCreateHelper(
-          Plugin, detail::getSyclObjImpl(MContext)->getUrHandleRef(),
+          Plugin, detail::getSyclObjImpl(MContext)->getHandleRef(),
           UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
           MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
     }

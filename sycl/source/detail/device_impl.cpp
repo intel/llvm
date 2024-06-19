@@ -362,9 +362,9 @@ std::vector<device> device_impl::create_sub_devices() const {
 ur_native_handle_t device_impl::getNative() const {
   auto Plugin = getPlugin();
   if (getBackend() == backend::opencl)
-    Plugin->call(urDeviceRetain, getUrHandleRef());
+    Plugin->call(urDeviceRetain, getHandleRef());
   ur_native_handle_t Handle;
-  Plugin->call(urDeviceGetNativeHandle, getUrHandleRef(), &Handle);
+  Plugin->call(urDeviceGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -735,7 +735,7 @@ bool device_impl::has(aspect Aspect) const {
 
     typename sycl_to_ur<device>::type Result;
     bool CallSuccessful = getPlugin()->call_nocheck(
-        urDeviceGetInfo, getUrHandleRef(),
+        urDeviceGetInfo, getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::composite_device>::value,
         sizeof(Result), &Result, nullptr);

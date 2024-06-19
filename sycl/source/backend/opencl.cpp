@@ -61,7 +61,7 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
 
   std::shared_ptr<sycl::detail::platform_impl> PlatformImpl =
       getSyclObjImpl(SyclPlatform);
-  ur_platform_handle_t PluginPlatform = PlatformImpl->getUrHandleRef();
+  ur_platform_handle_t PluginPlatform = PlatformImpl->getHandleRef();
   const PluginPtr &Plugin = PlatformImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated
@@ -91,7 +91,7 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
 
   std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
       getSyclObjImpl(SyclDevice);
-  ur_device_handle_t PluginDevice = DeviceImpl->getUrHandleRef();
+  ur_device_handle_t PluginDevice = DeviceImpl->getHandleRef();
   const PluginPtr &Plugin = DeviceImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated

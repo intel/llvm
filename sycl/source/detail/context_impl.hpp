@@ -132,7 +132,7 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw plug-in context handle.
-  ur_context_handle_t &getUrHandleRef();
+  ur_context_handle_t &getHandleRef();
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -142,7 +142,7 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw plug-in context handle.
-  const ur_context_handle_t &getUrHandleRef() const;
+  const ur_context_handle_t &getHandleRef() const;
 
   /// Unlike `get_info<info::context::devices>', this function returns a
   /// reference.

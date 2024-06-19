@@ -103,12 +103,12 @@ program_impl::program_impl(
       if (!Prg->MLinkable && NonInterOpToLink)
         continue;
       NonInterOpToLink |= !Prg->MLinkable;
-      Programs.push_back(Prg->MURProgram);
+      Programs.push_back(Prg->MProgram);
     }
     const PluginPtr &Plugin = getPlugin();
     ur_result_t Err = Plugin->call_nocheck(
-        urProgramLink, MContext->getUrHandleRef(), Programs.size(),
-        Programs.data(), LinkOptions.c_str(), &MURProgram);
+        urProgramLink, MContext->getHandleRef(), Programs.size(),
+        Programs.data(), LinkOptions.c_str(), &MProgram);
     Plugin->checkUrResult<compile_program_error>(Err);
   }
 }
@@ -122,23 +122,23 @@ program_impl::program_impl(ContextImplPtr Context,
 program_impl::program_impl(ContextImplPtr Context,
                            ur_native_handle_t InteropProgram,
                            ur_program_handle_t Program)
-    : MURProgram(Program), MContext(Context), MLinkable(true) {
+    : MProgram(Program), MContext(Context), MLinkable(true) {
   const PluginPtr &Plugin = getPlugin();
-  if (MURProgram == nullptr) {
+  if (MProgram == nullptr) {
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
     Plugin->call(urProgramCreateWithNativeHandle, InteropProgram,
-                 MContext->getUrHandleRef(), nullptr, &MURProgram);
+                 MContext->getHandleRef(), nullptr, &MProgram);
   } else
     Plugin->call(urProgramRetain, Program);
 
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
-  Plugin->call(urProgramGetInfo, MURProgram, UR_PROGRAM_INFO_NUM_DEVICES,
+  Plugin->call(urProgramGetInfo, MProgram, UR_PROGRAM_INFO_NUM_DEVICES,
                sizeof(pi_uint32), &NumDevices, nullptr);
   std::vector<ur_device_handle_t> UrDevices(NumDevices);
-  Plugin->call(urProgramGetInfo, MURProgram, UR_PROGRAM_INFO_DEVICES,
+  Plugin->call(urProgramGetInfo, MProgram, UR_PROGRAM_INFO_DEVICES,
                sizeof(ur_device_handle_t) * NumDevices, UrDevices.data(),
                nullptr);
 
@@ -152,7 +152,7 @@ program_impl::program_impl(ContextImplPtr Context,
       [&UrDevices](const sycl::device &Dev) {
         return UrDevices.end() ==
                std::find(UrDevices.begin(), UrDevices.end(),
-                         detail::getSyclObjImpl(Dev)->getUrHandleRef());
+                         detail::getSyclObjImpl(Dev)->getHandleRef());
       });
   PlatformDevices.erase(NewEnd, PlatformDevices.end());
   MDevices = PlatformDevices;
@@ -160,7 +160,7 @@ program_impl::program_impl(ContextImplPtr Context,
   ur_device_handle_t Device = UrDevices[0];
   // TODO check build for each device instead
   ur_program_binary_type_t BinaryType = UR_PROGRAM_BINARY_TYPE_NONE;
-  Plugin->call(urProgramGetBuildInfo, MURProgram, Device,
+  Plugin->call(urProgramGetBuildInfo, MProgram, Device,
                UR_PROGRAM_BUILD_INFO_BINARY_TYPE,
                sizeof(ur_program_binary_type_t), &BinaryType, nullptr);
   if (BinaryType == UR_PROGRAM_BINARY_TYPE_NONE) {
@@ -170,10 +170,10 @@ program_impl::program_impl(ContextImplPtr Context,
         PI_ERROR_INVALID_PROGRAM);
   }
   size_t Size = 0;
-  Plugin->call(urProgramGetBuildInfo, MURProgram, Device,
+  Plugin->call(urProgramGetBuildInfo, MProgram, Device,
                UR_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  Plugin->call(urProgramGetBuildInfo, MURProgram, Device,
+  Plugin->call(urProgramGetBuildInfo, MProgram, Device,
                UR_PROGRAM_BUILD_INFO_OPTIONS, Size, OptionsVector.data(),
                nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
@@ -204,9 +204,9 @@ program_impl::program_impl(ContextImplPtr Context, ur_kernel_handle_t Kernel)
 
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host() && MURProgram != nullptr) {
+  if (!is_host() && MProgram != nullptr) {
     const PluginPtr &Plugin = getPlugin();
-    Plugin->call(urProgramRelease, MURProgram);
+    Plugin->call(urProgramRelease, MProgram);
   }
 }
 
@@ -217,9 +217,9 @@ cl_program program_impl::get() const {
         "This instance of program doesn't support OpenCL interoperability.",
         UR_RESULT_ERROR_INVALID_PROGRAM);
   }
-  getPlugin()->call(urProgramRetain, MURProgram);
+  getPlugin()->call(urProgramRetain, MProgram);
   ur_native_handle_t nativeHandle = nullptr;
-  getPlugin()->call(urProgramGetNativeHandle, MURProgram, &nativeHandle);
+  getPlugin()->call(urProgramGetNativeHandle, MProgram, &nativeHandle);
   return pi::cast<cl_program>(nativeHandle);
 }
 
@@ -251,17 +251,17 @@ void program_impl::link(std::string LinkOptions) {
     // Plugin resets MProgram with a new pi_program as a result of the call to
     // "piProgramLink". Thus, we need to release MProgram before the call to
     // piProgramLink.
-    if (MURProgram != nullptr)
-      Plugin->call(urProgramRelease, MURProgram);
+    if (MProgram != nullptr)
+      Plugin->call(urProgramRelease, MProgram);
 
     ur_result_t Err = Plugin->call_nocheck(
-        urProgramLinkExp, MContext->getUrHandleRef(), Devices.size(),
+        urProgramLinkExp, MContext->getHandleRef(), Devices.size(),
         Devices.data(),
-        /*num_input_programs*/ 1, &MURProgram, LinkOpts, &MURProgram);
+        /*num_input_programs*/ 1, &MProgram, LinkOpts, &MProgram);
     if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Err = Plugin->call_nocheck(urProgramLink, MContext->getUrHandleRef(),
-                                 /*num_input_programs*/ 1, &MURProgram,
-                                 LinkOpts, &MURProgram);
+      Err = Plugin->call_nocheck(urProgramLink, MContext->getHandleRef(),
+                                 /*num_input_programs*/ 1, &MProgram, LinkOpts,
+                                 &MProgram);
     }
     Plugin->checkUrResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
@@ -283,7 +283,7 @@ bool program_impl::has_kernel(std::string KernelName,
 
   ur_result_t Err = UR_RESULT_SUCCESS;
   for (ur_device_handle_t Device : Devices) {
-    Err = Plugin->call_nocheck(urProgramGetFunctionPointer, Device, MURProgram,
+    Err = Plugin->call_nocheck(urProgramGetFunctionPointer, Device, MProgram,
                                KernelName.c_str(), &function_ptr);
     if (Err != UR_RESULT_SUCCESS &&
         Err != UR_RESULT_ERROR_INVALID_FUNCTION_NAME &&
@@ -324,7 +324,7 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
   std::vector<std::vector<char>> Result;
   const PluginPtr &Plugin = getPlugin();
   std::vector<size_t> BinarySizes(MDevices.size());
-  Plugin->call(urProgramGetInfo, MURProgram, UR_PROGRAM_INFO_BINARY_SIZES,
+  Plugin->call(urProgramGetInfo, MProgram, UR_PROGRAM_INFO_BINARY_SIZES,
                sizeof(size_t) * BinarySizes.size(), BinarySizes.data(),
                nullptr);
 
@@ -334,7 +334,7 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     Pointers.push_back(Result[I].data());
   }
   // TODO: This result isn't used?
-  Plugin->call(urProgramGetInfo, MURProgram, UR_PROGRAM_INFO_BINARIES,
+  Plugin->call(urProgramGetInfo, MProgram, UR_PROGRAM_INFO_BINARIES,
                sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
   return Result;
 }
@@ -349,12 +349,12 @@ void program_impl::compile(const std::string &Options) {
   }
   // TODO: Use urProgramCompileExt?
   ur_result_t Err = Plugin->call_nocheck(
-      urProgramCompile, MContext->getUrHandleRef(), MURProgram, CompileOpts);
+      urProgramCompile, MContext->getHandleRef(), MProgram, CompileOpts);
 
   if (Err != UR_RESULT_SUCCESS) {
     throw compile_program_error(
         "Program compilation error:\n" +
-            ProgramManager::getProgramBuildLog(MURProgram, MContext),
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
         Err);
   }
   MCompileOptions = Options;
@@ -367,18 +367,18 @@ void program_impl::build(const std::string &Options) {
   const PluginPtr &Plugin = getPlugin();
   ProgramManager::getInstance().flushSpecConstants(*this);
   ur_result_t Err =
-      Plugin->call_nocheck(urProgramBuildExp, MURProgram, Devices.size(),
+      Plugin->call_nocheck(urProgramBuildExp, MProgram, Devices.size(),
                            Devices.data(), Options.c_str());
 
   if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    Err = Plugin->call_nocheck(urProgramBuild, MContext->getUrHandleRef(),
-                               MURProgram, Options.c_str());
+    Err = Plugin->call_nocheck(urProgramBuild, MContext->getHandleRef(),
+                               MProgram, Options.c_str());
   }
 
   if (Err != UR_RESULT_SUCCESS) {
     throw compile_program_error(
         "Program build error:\n" +
-            ProgramManager::getProgramBuildLog(MURProgram, MContext),
+            ProgramManager::getProgramBuildLog(MProgram, MContext),
         Err);
   }
   MBuildOptions = Options;
@@ -387,7 +387,7 @@ void program_impl::build(const std::string &Options) {
 std::vector<ur_device_handle_t> program_impl::get_ur_devices() const {
   std::vector<ur_device_handle_t> UrDevices;
   for (const auto &Device : MDevices) {
-    UrDevices.push_back(getSyclObjImpl(Device)->getUrHandleRef());
+    UrDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
   }
   return UrDevices;
 }
@@ -397,7 +397,7 @@ program_impl::get_ur_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<ur_kernel_handle_t, const KernelArgMask *> Result;
 
   const PluginPtr &Plugin = getPlugin();
-  ur_result_t Err = Plugin->call_nocheck(urKernelCreate, MURProgram,
+  ur_result_t Err = Plugin->call_nocheck(urKernelCreate, MProgram,
                                          KernelName.c_str(), &Result.first);
   if (Err == UR_RESULT_ERROR_INVALID_KERNEL_NAME) {
     throw invalid_object_error(
@@ -419,8 +419,8 @@ std::vector<device>
 program_impl::sort_devices_by_cl_device_id(std::vector<device> Devices) {
   std::sort(Devices.begin(), Devices.end(),
             [](const device &id1, const device &id2) {
-              return (detail::getSyclObjImpl(id1)->getUrHandleRef() <
-                      detail::getSyclObjImpl(id2)->getUrHandleRef());
+              return (detail::getSyclObjImpl(id1)->getHandleRef() <
+                      detail::getSyclObjImpl(id2)->getHandleRef());
             });
   return Devices;
 }
@@ -447,7 +447,7 @@ void program_impl::create_ur_program_with_kernel_name(
   const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
       KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
-  MURProgram = PM.createURProgram(Img, get_context(), {FirstDevice});
+  MProgram = PM.createURProgram(Img, get_context(), {FirstDevice});
 }
 
 void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
@@ -459,7 +459,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
   using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
-  NativePrg = NativePrg ? NativePrg : getUrHandleRef();
+  NativePrg = NativePrg ? NativePrg : getHandleRef();
 
   for (SCItTy SCIt : SCRange) {
     auto SCEntry = SpecConstRegistry.find((*SCIt)->Name);
@@ -494,9 +494,9 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 ur_native_handle_t program_impl::getNative() const {
   const auto &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call(urProgramRetain, MURProgram);
+    Plugin->call(urProgramRetain, MProgram);
   ur_native_handle_t Handle = nullptr;
-  Plugin->call(urProgramGetNativeHandle, MURProgram, &Handle);
+  Plugin->call(urProgramGetNativeHandle, MProgram, &Handle);
   return Handle;
 }
 

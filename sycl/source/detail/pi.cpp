@@ -196,7 +196,7 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                ur_context_extended_deleter_t func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
-  auto contextHandle = impl->getUrHandleRef();
+  auto contextHandle = impl->getHandleRef();
   const auto &Plugin = impl->getPlugin();
   Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
 }

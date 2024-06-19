@@ -116,7 +116,7 @@ public:
     return pi::cast<cl_platform_id>(nativeHandle);
   }
 
-  const ur_platform_handle_t &getUrHandleRef() const { return MUrPlatform; }
+  const ur_platform_handle_t &getHandleRef() const { return MUrPlatform; }
 
   /// Returns all available SYCL platforms in the system.
   ///

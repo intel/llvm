@@ -87,7 +87,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       RetVal = nullptr;
     }
   } else {
-    ur_context_handle_t C = CtxImpl->getUrHandleRef();
+    ur_context_handle_t C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;;
 
@@ -173,14 +173,14 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       }
     }
   } else {
-    ur_context_handle_t C = CtxImpl->getUrHandleRef();
+    ur_context_handle_t C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
     ur_device_handle_t Dev;
 
     switch (Kind) {
     case alloc::device: {
-      Dev = DevImpl->getUrHandleRef();
+      Dev = DevImpl->getHandleRef();
 
       ur_usm_desc_t UsmDesc{};
       UsmDesc.align = Alignment;
@@ -206,7 +206,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       break;
     }
     case alloc::shared: {
-      Dev = DevImpl->getUrHandleRef();
+      Dev = DevImpl->getHandleRef();
 
       ur_usm_desc_t UsmDesc{};
       UsmDesc.align = Alignment;
@@ -296,7 +296,7 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
     // need to use alignedFree here for Windows
     detail::OSUtil::alignedFree(Ptr);
   } else {
-    ur_context_handle_t C = CtxImpl->getUrHandleRef();
+    ur_context_handle_t C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     Plugin->call(urUSMFree, C, Ptr);
   }
@@ -590,7 +590,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   if (CtxImpl->is_host())
     return alloc::host;
 
-  ur_context_handle_t URCtx = CtxImpl->getUrHandleRef();
+  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_usm_type_t AllocTy;
 
   // query type using PI function
@@ -653,7 +653,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     return Devs[0];
   }
 
-  ur_context_handle_t URCtx = CtxImpl->getUrHandleRef();
+  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_device_handle_t DeviceId;
 
   // query device using PI function
@@ -677,7 +677,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
                                         const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  ur_context_handle_t URCtx = CtxImpl->getUrHandleRef();
+  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   // Call the PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   Plugin->call(urUSMImportExp, URCtx, const_cast<void *>(Ptr), Size);
@@ -685,7 +685,7 @@ static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
 
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  ur_context_handle_t URCtx = CtxImpl->getUrHandleRef();
+  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   // Call the PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   Plugin->call(urUSMReleaseExp, URCtx, const_cast<void *>(Ptr));

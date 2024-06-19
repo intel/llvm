@@ -47,7 +47,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
   Plugin->call(urMemBufferCreateWithNativeHandle, MemObject,
-               MInteropContext->getUrHandleRef(), &MemProperties,
+               MInteropContext->getHandleRef(), &MemProperties,
                &MInteropMemObject);
 
   // Get the size of the buffer in bytes
@@ -57,7 +57,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
                sizeof(Context), &Context, nullptr);
 
-  if (MInteropContext->getUrHandleRef() != Context)
+  if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         UR_RESULT_ERROR_INVALID_CONTEXT);
@@ -111,13 +111,13 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   Plugin->call(urMemImageCreateWithNativeHandle, MemObject,
-               MInteropContext->getUrHandleRef(), &Format, &Desc,
+               MInteropContext->getHandleRef(), &Format, &Desc,
                &NativeProperties, &MInteropMemObject);
 
   Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
                sizeof(Context), &Context, nullptr);
 
-  if (MInteropContext->getUrHandleRef() != Context)
+  if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         UR_RESULT_ERROR_INVALID_CONTEXT);
