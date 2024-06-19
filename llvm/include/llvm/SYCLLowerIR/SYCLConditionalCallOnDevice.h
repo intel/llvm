@@ -24,7 +24,8 @@ namespace llvm {
 class SYCLConditionalCallOnDevicePass
     : public PassInfoMixin<SYCLConditionalCallOnDevicePass> {
 public:
-  SYCLConditionalCallOnDevicePass(std::string SYCLUniquePrefix = "") : UniquePrefix(SYCLUniquePrefix) {}
+  SYCLConditionalCallOnDevicePass(std::string SYCLUniquePrefix = "")
+      : UniquePrefix(SYCLUniquePrefix) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:

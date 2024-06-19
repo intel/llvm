@@ -20,8 +20,8 @@
 
 using namespace llvm;
 
-PreservedAnalyses SYCLConditionalCallOnDevicePass::run(Module &M,
-                                                   ModuleAnalysisManager &) {
+PreservedAnalyses
+SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
   // find call_if_on_device_conditionally function
   SmallVector<Function *, 4> FCallers;
   for (Function &F : M.functions()) {
@@ -85,7 +85,7 @@ PreservedAnalyses SYCLConditionalCallOnDevicePass::run(Module &M,
 
         // Create the new call instruction
         CallInst *NewCall =
-            CallInst::Create(NewFCaller, Args, /*	NameStr = */"", Call);
+            CallInst::Create(NewFCaller, Args, /*	NameStr = */ "", Call);
         NewCall->setCallingConv(Call->getCallingConv());
         NewCall->setDebugLoc(Call->getDebugLoc());
 
