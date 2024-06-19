@@ -569,6 +569,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -576,6 +578,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -5919,7 +5923,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Import external memory in the form of a file descriptor
+/// @brief Import external memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -5933,16 +5937,20 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t
+        memHandleType, ///< [in] type of external memory handle
     ur_exp_interop_mem_desc_t
         *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
@@ -6019,7 +6027,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Import an external semaphore in the form of a file descriptor
+/// @brief Import an external semaphore
 ///
 /// @remarks
 ///   _Analogues_
@@ -6033,14 +6041,18 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE < semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pInteropSemaphoreDesc`
 ///         + `NULL == phInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t
+        semHandleType, ///< [in] type of external memory handle
     ur_exp_interop_semaphore_desc_t
         *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
@@ -6098,7 +6110,13 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
+                      ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `waitValue` is ignored.
+    uint64_t waitValue,           ///< [in] the value to be waited on
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6135,7 +6153,13 @@ ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
+                        ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `signalValue` is ignored.
+    uint64_t signalValue,         ///< [in] the value to be signalled
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
