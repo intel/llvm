@@ -109,7 +109,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
 
   fetch_adapter_source(level_zero
-    "https://github.com/wenju-he/unified-runtime.git")
+    "https://github.com/wenju-he/unified-runtime.git"
     f8e1f07a012cb23e5e8e5666fbd8b46be8d4225b
   )
 
