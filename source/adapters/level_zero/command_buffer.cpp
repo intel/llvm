@@ -318,31 +318,37 @@ static ur_result_t getEventsFromSyncPoints(
 
 // FIXME Refactor Naming?
 // FIXME Refactor Why do some events need to be host_visible and others don't
-static ur_result_t
-createSyncPoint(ur_command_t CommandType,
-                ur_exp_command_buffer_handle_t CommandBuffer,
-                uint32_t NumSyncPointsInWaitList,
-                const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-                ur_exp_command_buffer_sync_point_t *RetSyncPoint,
-                bool host_visible, std::vector<ze_event_handle_t> &ZeEventList,
-                ur_event_handle_t &LaunchEvent) {
-  //  std::vector<ze_event_handle_t> ZeEventList;
-  //  ur_event_handle_t LaunchEvent;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
-  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, host_visible,
-                      &LaunchEvent, false, !CommandBuffer->IsProfilingEnabled));
-  LaunchEvent->CommandType = CommandType;
+static ur_result_t createSyncPointIfNeeded(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint, bool host_visible,
+    std::vector<ze_event_handle_t> &ZeEventList,
+    ze_event_handle_t &ZeLaunchEvent) {
 
-  // Get sync point and register the event with it.
-  // FIXME Refactor GetNextSyncPoint and RegisterSyncPoint seem redudant. Can be
-  // made into just one function.
-  ur_exp_command_buffer_sync_point_t SyncPoint =
-      CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+  ZeLaunchEvent = nullptr;
+  if (!CommandBuffer->IsInOrderCmdList) {
+    //  std::vector<ze_event_handle_t> ZeEventList;
+    //  ur_event_handle_t LaunchEvent;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, host_visible,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = CommandType;
+    ZeLaunchEvent = LaunchEvent->ZeEvent;
 
-  if (RetSyncPoint) {
-    *RetSyncPoint = SyncPoint;
+    // Get sync point and register the event with it.
+    // FIXME Refactor GetNextSyncPoint and RegisterSyncPoint seem redudant. Can
+    // be made into just one function.
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -352,7 +358,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
     bool PreferCopyEngine, ze_command_list_handle_t *ZeCommandList) {
   // If the copy engine available, the command is enqueued in the
   // ZeCopyCommandList.
-  if (PreferCopyEngine && this->UseCopyEngine()) {
+  if (PreferCopyEngine && this->UseCopyEngine() && !this->IsInOrderCmdList) {
     // We indicate that the ZeCopyCommandList contains commands to be
     // submitted.
     this->MCopyCommandListEmpty = false;
@@ -386,6 +392,11 @@ ur_result_t ur_exp_command_buffer_handle_t_::chooseCommandList(
         UR_RESULT_ERROR_INVALID_VALUE);
   }
   UR_CALL(chooseCommandList(PreferCopyEngine, ZeCommandList));
+  return UR_RESULT_SUCCESS;
+}
+
+template <typename T> static T *getPointerFromVector(std::vector<T> &V) {
+  return V.size() == 0 ? nullptr : V.data();
 }
 
 // Shared by all memory read/write/copy PI interfaces.
@@ -397,31 +408,22 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
-  if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-               (CommandBuffer->ZeComputeCommandList, Dst, Src, Size, nullptr, 0,
-                nullptr));
 
-    logger::debug("calling zeCommandListAppendMemoryCopy()");
-  } else {
-    // FIXME Why doesn't the event need to be host visible
-    std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent = nullptr;
-    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
-                            SyncPointWaitList, RetSyncPoint, false, ZeEventList,
-                            LaunchEvent));
+  // FIXME Why doesn't the event need to be host visible
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
 
-    ze_command_list_handle_t ZeCommandList;
-    UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
+  ze_command_list_handle_t ZeCommandList;
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
 
-    ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-               (ZeCommandList, Dst, Src, Size, LaunchEvent->ZeEvent,
-                ZeEventList.size(), ZeEventList.data()));
+  logger::debug("calling zeCommandListAppendMemoryCopy()");
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (ZeCommandList, Dst, Src, Size, ZeLaunchEvent, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
 
-    logger::debug("calling zeCommandListAppendMemoryCopy() with"
-                  "  ZeEvent {}",
-                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
-  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -467,33 +469,21 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   const ze_copy_region_t ZeDstRegion = {DstOriginX, DstOriginY, DstOriginZ,
                                         Width,      Height,     Depth};
 
-  if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-               (CommandBuffer->ZeComputeCommandList, Dst, &ZeDstRegion,
-                DstPitch, DstSlicePitch, Src, &ZeSrcRegion, SrcPitch,
-                SrcSlicePitch, nullptr, 0, nullptr));
+  // FIXME Why doesn't the event need to be host visible
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
 
-    logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
-  } else {
-    // FIXME Why doesn't the event need to be host visible
-    std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
-                            SyncPointWaitList, RetSyncPoint, false, ZeEventList,
-                            LaunchEvent));
+  ze_command_list_handle_t ZeCommandList;
+  UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
 
-    ze_command_list_handle_t ZeCommandList;
-    UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList));
-
-    ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-               (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
-                &ZeSrcRegion, SrcPitch, SrcSlicePitch, LaunchEvent->ZeEvent,
-                ZeEventList.size(), ZeEventList.data()));
-
-    logger::debug("calling zeCommandListAppendMemoryCopyRegion() with"
-                  "  ZeEvent {}",
-                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
-  }
+  logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
+  ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+             (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
+              &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeLaunchEvent,
+              ZeEventList.size(), getPointerFromVector(ZeEventList)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -509,32 +499,21 @@ static ur_result_t enqueueCommandBufferFillHelper(
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  // FIXME Why does the event need to be host visible?
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      CommandType, CommandBuffer, NumSyncPointsInWaitList, SyncPointWaitList,
+      RetSyncPoint, true, ZeEventList, ZeLaunchEvent));
+
   ze_command_list_handle_t ZeCommandList;
   UR_CALL(CommandBuffer->chooseCommandList(PreferCopyEngine, &ZeCommandList,
                                            PatternSize));
 
-  if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (CommandBuffer->ZeComputeCommandList, Ptr, Pattern, PatternSize,
-                Size, nullptr, 0, nullptr));
-
-    logger::debug("calling zeCommandListAppendMemoryFill()");
-  } else {
-    // FIXME Why does the event need to be host visible?
-    std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
-                            SyncPointWaitList, RetSyncPoint, true, ZeEventList,
-                            LaunchEvent));
-
-    ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (ZeCommandList, Ptr, Pattern, PatternSize, Size,
-                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
-
-    logger::debug("calling zeCommandListAppendMemoryFill() with"
-                  "  ZeEvent {}",
-                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
-  }
+  logger::debug("calling zeCommandListAppendMemoryFill()");
+  ZE2UR_CALL(zeCommandListAppendMemoryFill,
+             (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeLaunchEvent,
+              ZeEventList.size(), getPointerFromVector(ZeEventList)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -580,6 +559,7 @@ appendPreconditionEvents(ze_command_list_handle_t CommandList,
   ZE2UR_CALL(
       zeCommandListAppendBarrier,
       (CommandList, nullptr, PrecondEvents.size(), PrecondEvents.data()));
+  return UR_RESULT_SUCCESS;
 }
 
 static bool
@@ -838,28 +818,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                 *Command));
   }
 
-  if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
-                &ZeThreadGroupDimensions, nullptr, 0, nullptr));
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointIfNeeded(
+      UR_COMMAND_KERNEL_LAUNCH, CommandBuffer, NumSyncPointsInWaitList,
+      SyncPointWaitList, RetSyncPoint, false, ZeEventList, ZeLaunchEvent));
 
-    logger::debug("calling zeCommandListAppendLaunchKernel()");
-  } else {
-    std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(createSyncPoint(UR_COMMAND_KERNEL_LAUNCH, CommandBuffer,
-                            NumSyncPointsInWaitList, SyncPointWaitList,
-                            RetSyncPoint, false, ZeEventList, LaunchEvent));
-
-    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
-                &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
-                ZeEventList.size(), ZeEventList.data()));
-
-    logger::debug("calling zeCommandListAppendLaunchKernel() with"
-                  "  ZeEvent {}",
-                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
-  }
+  logger::debug("calling zeCommandListAppendLaunchKernel()");
+  ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+             (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
+              &ZeThreadGroupDimensions, ZeLaunchEvent, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1048,10 +1017,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   } else {
     // FIXME Why does the event need to be host visible?
     std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(createSyncPoint(UR_COMMAND_USM_PREFETCH, CommandBuffer,
-                            NumSyncPointsInWaitList, SyncPointWaitList,
-                            RetSyncPoint, true, ZeEventList, LaunchEvent));
+    ze_event_handle_t ZeLaunchEvent = nullptr;
+    UR_CALL(createSyncPointIfNeeded(
+        UR_COMMAND_USM_PREFETCH, CommandBuffer, NumSyncPointsInWaitList,
+        SyncPointWaitList, RetSyncPoint, true, ZeEventList, ZeLaunchEvent));
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
@@ -1067,7 +1036,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     // Level Zero does not have a completion "event" with the prefetch API,
     // so manually add command to signal our event.
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandBuffer->ZeComputeCommandList, LaunchEvent->ZeEvent));
+               (CommandBuffer->ZeComputeCommandList, ZeLaunchEvent));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1112,10 +1081,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   } else {
     // FIMXE Why does the event need to be host visible?
     std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
-    UR_CALL(createSyncPoint(UR_COMMAND_USM_ADVISE, CommandBuffer,
-                            NumSyncPointsInWaitList, SyncPointWaitList,
-                            RetSyncPoint, true, ZeEventList, LaunchEvent));
+    ze_event_handle_t ZeLaunchEvent = nullptr;
+    UR_CALL(createSyncPointIfNeeded(
+        UR_COMMAND_USM_ADVISE, CommandBuffer, NumSyncPointsInWaitList,
+        SyncPointWaitList, RetSyncPoint, true, ZeEventList, ZeLaunchEvent));
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
@@ -1130,7 +1099,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     // Level Zero does not have a completion "event" with the advise API,
     // so manually add command to signal our event.
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandBuffer->ZeComputeCommandList, LaunchEvent->ZeEvent));
+               (CommandBuffer->ZeComputeCommandList, ZeLaunchEvent));
   }
 
   return UR_RESULT_SUCCESS;
