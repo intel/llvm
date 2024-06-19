@@ -17,12 +17,12 @@ namespace logger {
 Logger create_logger(std::string logger_name, bool skip_prefix = false,
                      bool skip_linebreak = false);
 
-inline Logger &get_logger(std::string name = "common") {
-    static Logger logger = create_logger(std::move(name));
+inline Logger &get_logger(const char *name = "common") {
+    static Logger logger = create_logger(name);
     return logger;
 }
 
-inline void init(std::string name) { get_logger(std::move(name)); }
+inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
