@@ -5886,26 +5886,18 @@ class OffloadingActionBuilder final {
           llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
           LibraryPaths.emplace_back(WithInstallPath.c_str());
 
+          // TODO: check if the isNVPTX() path can also use
+          // TC->getTripleString() so that the conditional could be removed
+          const std::string TrStr =
+              isNativeCPU ? TC->getTripleString() : "nvptx64-nvidia-cuda";
+
           // Select remangled libclc variant
-          std::string LibSpirvTargetName =
-
-              isNativeCPU ?
-                          // Select libclc variant based on target triple.
-                          // On Windows long is 32 bits, so we have to select
-                          // the right remangled libclc version.
-                  ((TC->getAuxTriple()->isOSWindows()
-                        ? "remangled-l32-signed_char.libspirv-"
-                        : "remangled-l64-signed_char.libspirv-") +
-                   TC->getTripleString() + ".bc")
-                          :
-
-                          (TC->getAuxTriple()->isOSWindows()
-                               ? "remangled-l32-signed_char.libspirv-nvptx64-"
-                                 "nvidia-cuda."
-                                 "bc"
-                               : "remangled-l64-signed_char.libspirv-nvptx64-"
-                                 "nvidia-cuda."
-                                 "bc");
+          StringRef LibSpirvTargetNamePref =
+              TC->getAuxTriple()->isOSWindows()
+                  ? "remangled-l32-signed_char.libspirv-"
+                  : "remangled-l64-signed_char.libspirv-";
+          llvm::Twine LibSpirvTargetNameTemp = LibSpirvTargetNamePref + TrStr;
+          llvm::Twine LibSpirvTargetName = LibSpirvTargetNameTemp + ".bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
             SmallString<128> LibSpirvTargetFile(LibraryPath);
@@ -5917,7 +5909,6 @@ class OffloadingActionBuilder final {
             }
           }
         }
-
         if (!LibSpirvFile.empty()) {
           Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                              Args.MakeArgString(LibSpirvFile));
