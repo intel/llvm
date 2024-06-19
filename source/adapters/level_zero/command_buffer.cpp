@@ -406,7 +406,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
   } else {
     // FIXME Why doesn't the event need to be host visible
     std::vector<ze_event_handle_t> ZeEventList;
-    ur_event_handle_t LaunchEvent;
+    ur_event_handle_t LaunchEvent = nullptr;
     UR_CALL(createSyncPoint(CommandType, CommandBuffer, NumSyncPointsInWaitList,
                             SyncPointWaitList, RetSyncPoint, false, ZeEventList,
                             LaunchEvent));
@@ -761,7 +761,7 @@ static ur_result_t
 createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                     ur_kernel_handle_t Kernel, uint32_t WorkDim,
                     const size_t *LocalWorkSize,
-                    ur_exp_command_buffer_command_handle_t& Command) {
+                    ur_exp_command_buffer_command_handle_t &Command) {
 
   // If command-buffer is updatable then get command id which is going to be
   // used if command is updated in the future. This
@@ -1371,20 +1371,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+static ur_result_t validateCommandDesc(
     ur_exp_command_buffer_command_handle_t Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
-  UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(CommandDesc->newWorkDim <= 3,
-            UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  // Lock command, kernel and command buffer for update.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Guard(
-      Command->Mutex, Command->CommandBuffer->Mutex, Command->Kernel->Mutex);
-  UR_ASSERT(Command->CommandBuffer->IsUpdatable,
-            UR_RESULT_ERROR_INVALID_OPERATION);
-  UR_ASSERT(Command->CommandBuffer->IsFinalized,
-            UR_RESULT_ERROR_INVALID_OPERATION);
+  auto CommandBuffer = Command->CommandBuffer;
+  auto SupportedFeatures =
+      Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
+          ->mutableCommandFlags;
+  logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
   uint32_t Dim = CommandDesc->newWorkDim;
   if (Dim != 0) {
@@ -1409,25 +1404,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     }
   }
 
-  auto CommandBuffer = Command->CommandBuffer;
-  const void *NextDesc = nullptr;
-  auto SupportedFeatures =
-      Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
-          ->mutableCommandFlags;
-  logger::debug("Mutable features supported by device {}", SupportedFeatures);
-
-  // We need the created descriptors to live till the point when
-  // zexCommandListUpdateMutableCommandsExp is called at the end of the
-  // function.
-  std::vector<std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>>
-      ArgDescs;
-  std::vector<std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>>
-      OffsetDescs;
-  std::vector<std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>>>
-      GroupSizeDescs;
-  std::vector<std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>>>
-      GroupCountDescs;
-
   // Check if new global offset is provided.
   size_t *NewGlobalWorkOffset = CommandDesc->pNewGlobalWorkOffset;
   UR_ASSERT(!NewGlobalWorkOffset ||
@@ -1439,6 +1415,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       logger::error("No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
+  }
+
+  // Check if new group size is provided.
+  size_t *NewLocalWorkSize = CommandDesc->pNewLocalWorkSize;
+  UR_ASSERT(!NewLocalWorkSize ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  // Check if new global size is provided and we need to update group count.
+  size_t *NewGlobalWorkSize = CommandDesc->pNewGlobalWorkSize;
+  UR_ASSERT(!NewGlobalWorkSize ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  UR_ASSERT(!(NewGlobalWorkSize && !NewLocalWorkSize) ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  UR_ASSERT(
+      (!CommandDesc->numNewMemObjArgs && !CommandDesc->numNewPointerArgs &&
+       !CommandDesc->numNewValueArgs) ||
+          (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t updateKernelCommand(
+    ur_exp_command_buffer_command_handle_t Command,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
+
+  // We need the created descriptors to live till the point when
+  // zeCommandListUpdateMutableCommandsExp is called at the end of the
+  // function.
+  std::vector<std::variant<
+      std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>>>>
+      Descs;
+
+  const auto CommandBuffer = Command->CommandBuffer;
+  const void *NextDesc = nullptr;
+
+  uint32_t Dim = CommandDesc->newWorkDim;
+  size_t *NewGlobalWorkOffset = CommandDesc->pNewGlobalWorkOffset;
+  size_t *NewLocalWorkSize = CommandDesc->pNewLocalWorkSize;
+  size_t *NewGlobalWorkSize = CommandDesc->pNewGlobalWorkSize;
+
+  // Check if a new global offset is provided.
+  if (NewGlobalWorkOffset && Dim > 0) {
     auto MutableGroupOffestDesc =
         std::make_unique<ZeStruct<ze_mutable_global_offset_exp_desc_t>>();
     MutableGroupOffestDesc->commandId = Command->CommandId;
@@ -1451,15 +1477,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     DEBUG_LOG(MutableGroupOffestDesc->offsetY);
     MutableGroupOffestDesc->offsetZ = Dim == 3 ? NewGlobalWorkOffset[2] : 0;
     DEBUG_LOG(MutableGroupOffestDesc->offsetZ);
+
     NextDesc = MutableGroupOffestDesc.get();
-    OffsetDescs.push_back(std::move(MutableGroupOffestDesc));
+    Descs.push_back(std::move(MutableGroupOffestDesc));
   }
 
-  // Check if new group size is provided.
-  size_t *NewLocalWorkSize = CommandDesc->pNewLocalWorkSize;
-  UR_ASSERT(!NewLocalWorkSize ||
-                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
-            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  // Check if a new group size is provided.
   if (NewLocalWorkSize && Dim > 0) {
     auto MutableGroupSizeDesc =
         std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
@@ -1473,29 +1496,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     DEBUG_LOG(MutableGroupSizeDesc->groupSizeY);
     MutableGroupSizeDesc->groupSizeZ = Dim == 3 ? NewLocalWorkSize[2] : 1;
     DEBUG_LOG(MutableGroupSizeDesc->groupSizeZ);
+
     NextDesc = MutableGroupSizeDesc.get();
-    GroupSizeDescs.push_back(std::move(MutableGroupSizeDesc));
+    Descs.push_back(std::move(MutableGroupSizeDesc));
   }
 
-  // Check if new global size is provided and we need to update group count.
-  size_t *NewGlobalWorkSize = CommandDesc->pNewGlobalWorkSize;
-  UR_ASSERT(!NewGlobalWorkSize ||
-                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT),
-            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
-  UR_ASSERT(!(NewGlobalWorkSize && !NewLocalWorkSize) ||
-                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
-            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
-
+  // Check if a new global size is provided and if we need to update the group
+  // count.
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   if (NewGlobalWorkSize && Dim > 0) {
-    uint32_t WG[3];
-    // If new global work size is provided but new local work size is not
-    // provided then we still need to update local work size based on size
-    // suggested by the driver for the kernel.
+    // If a new global work size is provided but a new local work size is not
+    // then we still need to update local work size based on the size suggested
+    // by the driver for the kernel.
     bool UpdateWGSize = NewLocalWorkSize == nullptr;
+
+    uint32_t WG[3];
     UR_CALL(calculateKernelWorkDimensions(
         Command->Kernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG,
         Dim, NewGlobalWorkSize, NewLocalWorkSize));
+
     auto MutableGroupCountDesc =
         std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
     MutableGroupCountDesc->commandId = Command->CommandId;
@@ -1506,8 +1525,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountX);
     DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountY);
     DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountZ);
+
     NextDesc = MutableGroupCountDesc.get();
-    GroupCountDescs.push_back(std::move(MutableGroupCountDesc));
+    Descs.push_back(std::move(MutableGroupCountDesc));
 
     if (UpdateWGSize) {
       auto MutableGroupSizeDesc =
@@ -1524,15 +1544,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       DEBUG_LOG(MutableGroupSizeDesc->groupSizeZ);
 
       NextDesc = MutableGroupSizeDesc.get();
-      GroupSizeDescs.push_back(std::move(MutableGroupSizeDesc));
+      Descs.push_back(std::move(MutableGroupSizeDesc));
     }
   }
-
-  UR_ASSERT(
-      (!CommandDesc->numNewMemObjArgs && !CommandDesc->numNewPointerArgs &&
-       !CommandDesc->numNewValueArgs) ||
-          (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS),
-      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
   // Check if new memory object arguments are provided.
   for (uint32_t NewMemObjArgNum = CommandDesc->numNewMemObjArgs;
@@ -1557,6 +1571,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
       }
     }
+
     ur_mem_handle_t NewMemObjArg = NewMemObjArgDesc.hNewMemObjArg;
     // The NewMemObjArg may be a NULL pointer in which case a NULL value is used
     // for the kernel argument declared as a pointer to global or constant
@@ -1566,6 +1581,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       UR_CALL(NewMemObjArg->getZeHandlePtr(ZeHandlePtr, UrAccessMode,
                                            CommandBuffer->Device));
     }
+
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
@@ -1580,7 +1596,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     DEBUG_LOG(ZeMutableArgDesc->pArgValue);
 
     NextDesc = ZeMutableArgDesc.get();
-    ArgDescs.push_back(std::move(ZeMutableArgDesc));
+    Descs.push_back(std::move(ZeMutableArgDesc));
   }
 
   // Check if there are new pointer arguments.
@@ -1588,6 +1604,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
        NewPointerArgNum-- > 0;) {
     ur_exp_command_buffer_update_pointer_arg_desc_t NewPointerArgDesc =
         CommandDesc->pNewPointerArgList[NewPointerArgNum];
+
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
@@ -1602,7 +1619,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     DEBUG_LOG(ZeMutableArgDesc->pArgValue);
 
     NextDesc = ZeMutableArgDesc.get();
-    ArgDescs.push_back(std::move(ZeMutableArgDesc));
+    Descs.push_back(std::move(ZeMutableArgDesc));
   }
 
   // Check if there are new value arguments.
@@ -1610,6 +1627,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
        NewValueArgNum-- > 0;) {
     ur_exp_command_buffer_update_value_arg_desc_t NewValueArgDesc =
         CommandDesc->pNewValueArgList[NewValueArgNum];
+
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
@@ -1634,18 +1652,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     }
     ZeMutableArgDesc->pArgValue = ArgValuePtr;
     DEBUG_LOG(ZeMutableArgDesc->pArgValue);
+
     NextDesc = ZeMutableArgDesc.get();
-    ArgDescs.push_back(std::move(ZeMutableArgDesc));
+    Descs.push_back(std::move(ZeMutableArgDesc));
   }
 
   ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc;
   MutableCommandDesc.pNext = NextDesc;
   MutableCommandDesc.flags = 0;
-
-  // We must synchronize mutable command list execution before mutating.
-  if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
-    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
-  }
 
   auto Plt = CommandBuffer->Context->getPlatform();
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
@@ -1653,7 +1667,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   ZE2UR_CALL(
       Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
       (CommandBuffer->ZeComputeCommandListTranslated, &MutableCommandDesc));
-  ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t Command,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
+  UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(CommandDesc->newWorkDim <= 3,
+            UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  // Lock command, kernel and command buffer for update.
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Guard(
+      Command->Mutex, Command->CommandBuffer->Mutex, Command->Kernel->Mutex);
+
+  UR_ASSERT(Command->CommandBuffer->IsUpdatable,
+            UR_RESULT_ERROR_INVALID_OPERATION);
+  UR_ASSERT(Command->CommandBuffer->IsFinalized,
+            UR_RESULT_ERROR_INVALID_OPERATION);
+
+  UR_CALL(validateCommandDesc(Command, CommandDesc));
+
+  // We must synchronize mutable command list execution before mutating.
+  if (ze_fence_handle_t &ZeFence = Command->CommandBuffer->ZeActiveFence) {
+    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
+  }
+
+  UR_CALL(updateKernelCommand(Command, CommandDesc));
+
+  ZE2UR_CALL(zeCommandListClose,
+             (Command->CommandBuffer->ZeComputeCommandList));
 
   return UR_RESULT_SUCCESS;
 }
