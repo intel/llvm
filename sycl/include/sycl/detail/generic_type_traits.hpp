@@ -342,6 +342,8 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
     // we use the "else" version only. I suspect that's an issues with
     // non-uniform groups implementation.
@@ -350,6 +352,10 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     else
       return static_cast<typename MatchingVec::vector_t>(
           x.template as<MatchingVec>());
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
     return x.template as<MatchingVec>();
 #endif

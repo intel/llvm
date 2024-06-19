@@ -176,9 +176,24 @@
 // piextMemSampledImageCreate
 // 15.52 Added piEnqueueTimestampRecordingExp and
 //       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
+// 15.53 Added new extension functions that enable importing various external
+//       handle types:
+//         - piextImportExternalMemory
+//         - piextImportExternalSemaphore
+//       Deprecated no longer necessary functions:
+//         - piextImportExternalSemaphoreOpaqueFD
+//         - piextMemImportOpaqueFD
+//       The following interop semaphore related functions now take extra
+//       `bool` and `pi_uint64` values:
+//         - `piextWaitExternalSemaphore`
+//         - `piextSignalExternalSemaphore`
+//       The `pi_external_mem_handle_type` enum now has a new
+//       `win32_nt_dx12_resource` value.
+//       the `pi_external_semaphore_handle_type` enum now has a new
+//       `win32_nt_dx12_fence` value.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 52
+#define _PI_H_VERSION_MINOR 53
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1160,6 +1175,60 @@ struct pi_device_binaries_struct {
   _pi_offload_entry *HostEntriesEnd;
 };
 using pi_device_binaries = pi_device_binaries_struct *;
+
+// This union encapsulates the two external handles we currently support.
+// When choosing the correct field from the union we need to look at the value
+// of the enum `pi_external_mem_handle_type` or
+// `pi_external_semaphore_handle_type`.
+union pi_external_handle {
+  // Used universally for all Linux based interoperability functionality.
+  // The associated enum `pi_external_mem_handle_type` in
+  // `pi_external_mem_descriptor` should always be set to
+  // `pi_external_mem_handle_type::opaque_fd`. Likewise for semaphore handles.
+  int file_descriptor;
+
+  // Could be Win32 NT, KMT, or various DX12 handle types.
+  // The `void *` type is used for all of these.
+  // The exact handle type depends on the enum `pi_external_mem_handle_type`.
+  // This enum is found in `pi_external_mem_descriptor`.
+  // It could be a regular NT handle type (`win32_nt_handle`) or a DX12 specific
+  // resource handle type (`win32_nt_dx12_resource`), etc.
+  void *win32_handle;
+};
+
+// This enum enumerates the specific external memory handles types that we want
+// to import.
+enum class pi_external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
+// This struct holds all the information required to import external memory.
+struct pi_external_mem_descriptor {
+  // The type of the external memory handle.
+  pi_external_mem_handle_type handleType;
+  // Union encapsulates both Opaque FD (linux) and Win32 handles (Windows).
+  pi_external_handle handle;
+  // Size of the external memory in bytes.
+  size_t memorySizeBytes;
+};
+
+// This enum enumerates the specific external semaphore handles types that we
+// want to import.
+enum class pi_external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
+// This struct holds all the information required to import external semaphores.
+struct pi_external_semaphore_descriptor {
+  // The type of the external semaphore handle.
+  pi_external_semaphore_handle_type handleType;
+  // Union encapsulates both Opaque FD (linux) and Win32 handles (Windows).
+  pi_external_handle handle;
+};
 
 // Opaque types that make reading build log errors easier.
 struct _pi_platform;
@@ -2856,6 +2925,9 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
     const pi_image_mem_handle mem_handle, pi_image_info param_name,
     void *param_value, size_t *param_value_size_ret);
 
+/// [DEPRECATED] This function is deprecated in favor of
+/// `piextImportExternalMemory`
+///
 /// API to import external memory in the form of a file descriptor.
 ///
 /// \param context is the pi_context
@@ -2864,9 +2936,23 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
 /// \param file_descriptor is the file descriptor
 /// \param ret_handle is the returned interop memory handle to the external
 /// memory
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalMemory`")
+pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
+                                 size_t size, int file_descriptor,
+                                 pi_interop_mem_handle *ret_handle);
+
+/// API to import external memory
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param mem_descriptor is the interop memory descriptor
+/// \param ret_handle is the returned interop memory handle to the external
+/// memory
 __SYCL_EXPORT pi_result
-piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
-                       int file_descriptor, pi_interop_mem_handle *ret_handle);
+piextImportExternalMemory(pi_context context, pi_device device,
+                          pi_external_mem_descriptor *mem_descriptor,
+                          pi_interop_mem_handle *ret_handle);
 
 /// API to map an interop memory handle to an image memory handle.
 ///
@@ -2890,6 +2976,9 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
 
+/// [DEPRECATED] This function is deprecated in favor of
+/// `piextImportExternalSemaphore`
+///
 /// API to import an external semaphore in the form of a file descriptor.
 ///
 /// \param context is the pi_context
@@ -2897,9 +2986,24 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(
 /// \param file_descriptor is the file descriptor
 /// \param ret_handle is the returned interop semaphore handle to the external
 /// semaphore
-__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context context, pi_device device, int file_descriptor,
-    pi_interop_semaphore_handle *ret_handle);
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalSemaphore`")
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
+                                     int file_descriptor,
+                                     pi_interop_semaphore_handle *ret_handle);
+
+/// API to import an external semaphore
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param sem_descriptor is the interop semaphore descriptor
+/// \param ret_handle is the returned interop semaphore handle to the external
+/// semaphore
+__SYCL_EXPORT pi_result
+piextImportExternalSemaphore(pi_context context, pi_device device,
+                             pi_external_semaphore_descriptor *sem_descriptor,
+                             pi_interop_semaphore_handle *ret_handle);
 
 /// API to destroy the external semaphore handle.
 ///
@@ -2915,12 +3019,20 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
 ///
 /// \param command_queue is the queue instructed to wait
 /// \param sem_handle is the interop semaphore handle
+/// \param has_wait_value indicates whether the semaphore is capable of setting
+///                       user defined state passed through `wait_value`.
+///                       Otherwise `wait_value` is ignored.
+/// \param wait_value is the user defined value of the semaphore state for
+///                   which this operation will wait upon, provided the
+///                   semaphore type has this capability, and
+///                   `has_wait_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_wait_value, pi_uint64 wait_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
@@ -2929,12 +3041,19 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 ///
 /// \param command_queue is the queue instructed to signal
 /// \param sem_handle is the interop semaphore handle to signal
+/// \param has_signal_value indicates whether the semaphore is capable of
+///                         setting user defined state passed through
+///                         `signal_value`. Otherwise `signal_value` is ignored.
+/// \param signal_value is the user defined value to which the state of the
+///                     semaphore will be set, provided the semaphore type has
+///                     this capability, and `has_signal_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_signal_value, pi_uint64 signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 

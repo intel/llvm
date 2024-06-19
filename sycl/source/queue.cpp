@@ -227,24 +227,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->getCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  auto LastEvent = QueueImpl->getLastEvent();
-  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
-
-  // If either the queue discards events or the last event was otherwise
-  // discarded, we return them as they are. The barrier implementation will fall
-  // back to enqueuing a barrier in this case.
-  if (QueueImpl->MDiscardEvents || LastEventImpl->isDiscarded())
-    return LastEvent;
-
-  // If last event is default constructed event then we want to associate it
-  // with the queue and record submission time if profiling is enabled. Such
-  // event corresponds to NOP and its submit time is same as start time and
-  // end time.
-  if (!LastEventImpl->isContextInitialized()) {
-    LastEventImpl->associateWithQueue(QueueImpl);
-    LastEventImpl->setSubmissionTime();
-  }
-  return detail::createSyclObjFromImpl<event>(LastEventImpl);
+  return QueueImpl->getLastEvent();
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -255,7 +238,8 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents) {
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
+      !impl->MIsProfilingEnabled) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
     if(!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
@@ -282,7 +266,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
         return !EventImpl->isContextInitialized() || EventImpl->isNOP();
       });
   if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
-      AllEventsEmptyOrNop) {
+      !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
     if(!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
