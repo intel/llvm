@@ -24,8 +24,8 @@ set(SYCL_PI_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
 # Override default to enable building tests from unified-runtime
-set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications.")
-set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
+set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
+set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UMF_ENABLE_POOL_TRACKING ON)
 set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_TRACING ON)
