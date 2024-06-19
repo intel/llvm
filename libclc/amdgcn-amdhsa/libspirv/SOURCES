@@ -56,6 +56,7 @@ math/pow.cl
 math/remainder.cl
 math/round.cl
 math/rsqrt.cl
+math/scalbln.cl
 math/sin.cl
 math/sincos.cl
 math/sinh.cl
