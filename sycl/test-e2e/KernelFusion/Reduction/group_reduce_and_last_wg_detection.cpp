@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -o %t.out
 // RUN: %{run} %t.out
 
 // COM: When ran on HIP and CUDA, this algorithm launches 'memcpy' commands

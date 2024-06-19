@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} %} -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion with a combination of kernels that require a work-group

@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test fusion cancellation on event::wait() happening before

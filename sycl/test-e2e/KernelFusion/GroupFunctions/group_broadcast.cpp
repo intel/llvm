@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -o %t.out
 // RUN: %{run} %t.out
 
 // Test fusion works with group_broadcast.

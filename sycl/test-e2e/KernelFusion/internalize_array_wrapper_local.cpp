@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Test local internalization of a nested array type.
