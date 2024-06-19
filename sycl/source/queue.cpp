@@ -242,7 +242,7 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
       !impl->MIsProfilingEnabled) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
-    if(!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
+    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
       return InOrderLastEvent;
   }
 
@@ -269,7 +269,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
-    if(!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
+    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
       return InOrderLastEvent;
   }
 

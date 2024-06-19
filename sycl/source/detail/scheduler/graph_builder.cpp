@@ -943,8 +943,7 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 
 Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue,
-    bool EventNeeded,
+    std::vector<Command *> &ToEnqueue, bool EventNeeded,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();

@@ -80,7 +80,7 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-  /// TODO: Unused. Remove with ABI break.
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, IsHost, /*CallerNeedsEvent=*/true) {}
 
@@ -89,8 +89,8 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool IsHost)
-      : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
-                /*CallerNeedsEvent=*/true) {}
+    : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
+              /*CallerNeedsEvent=*/true) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                  bool CallerNeedsEvent)
@@ -1830,8 +1830,6 @@ void handler::registerDynamicParameter(
   MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
 }
 
-bool handler::eventNeeded() const {
-  return MImpl->MEventNeeded;
-}
+bool handler::eventNeeded() const { return MImpl->MEventNeeded; }
 } // namespace _V1
 } // namespace sycl

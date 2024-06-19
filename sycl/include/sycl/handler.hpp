@@ -501,7 +501,7 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param IsHost indicates if this handler is created for SYCL host device.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
-///          is needed by the caller.
+  ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost,

@@ -35,7 +35,7 @@ public:
                bool EventNeeded)
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
-        MEventNeeded(EventNeeded){};
+        MEventNeeded(EventNeeded) {};
 
   handler_impl() = default;
 

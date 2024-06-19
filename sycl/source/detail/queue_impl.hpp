@@ -365,9 +365,7 @@ public:
   bool is_host() const { return MHostQueue; }
 
   /// \return true if the discard event property was set at time of creation.
-  bool hasDiscardEventsProperty() const {
-    return MDiscardEvents;
-  }
+  bool hasDiscardEventsProperty() const { return MDiscardEvents; }
 
   /// \return true if this queue allows for discarded events.
   bool supportsDiscardingPiEvents() const {
@@ -877,16 +875,15 @@ protected:
   ///        same as Self.
   /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
   ///        same as Self.
-  /// \param CallerNeedsEvent is a boolean indicating whether the event is required
-  ///        by the user after the call.
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
-                    bool CallerNeedsEvent,
-                    const detail::code_location &Loc,
+                    bool CallerNeedsEvent, const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.

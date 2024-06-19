@@ -2711,7 +2711,6 @@ private:
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc);
 
-
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///

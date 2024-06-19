@@ -35,9 +35,9 @@ inline pi_result redefined_piEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 thread_local size_t counter_piEnqueueEventsWaitWithBarrier = 0;
 thread_local std::chrono::time_point<std::chrono::steady_clock>
     timestamp_piEnqueueEventsWaitWithBarrier;
-inline pi_result after_piEnqueueEventsWaitWithBarrier(
-    pi_queue, pi_uint32,
-    const pi_event *, pi_event *) {
+inline pi_result after_piEnqueueEventsWaitWithBarrier(pi_queue, pi_uint32,
+                                                      const pi_event *,
+                                                      pi_event *) {
   ++counter_piEnqueueEventsWaitWithBarrier;
   timestamp_piEnqueueEventsWaitWithBarrier = std::chrono::steady_clock::now();
   return PI_SUCCESS;
