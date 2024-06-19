@@ -216,9 +216,7 @@ public:
   }
 
   /// \return the Plugin associated with the context of this program.
-  const PluginPtr &getPlugin() const {
-    return MContext->getPlugin();
-  }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   ContextImplPtr getContextImplPtr() const { return MContext; }
 

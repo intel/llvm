@@ -83,8 +83,7 @@ protected:
 
     detail::Command *NewCmd = MS.addCG(
         std::move(CmdGroup),
-        Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
-        ToEnqueue);
+        Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl, ToEnqueue);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
   }

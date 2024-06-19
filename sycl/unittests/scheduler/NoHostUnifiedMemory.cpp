@@ -152,8 +152,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No special handling required: alloca commands are created one after
     // another and the transfer is done via a write operation.
-    detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(nullptr, &Req);
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(nullptr, &Req);
     std::vector<detail::Command *> AuxCmds;
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);

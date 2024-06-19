@@ -245,7 +245,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   checkCleanupOnLeafUpdate(
       MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         detail::Command *Leaf = *Record->MWriteLeaves.begin();
-        MS.addEmptyCmd(Leaf, {&MockReq}, detail::Command::BlockReason::HostTask, ToEnqueue);
+        MS.addEmptyCmd(Leaf, {&MockReq}, detail::Command::BlockReason::HostTask,
+                       ToEnqueue);
       });
   checkCleanupOnLeafUpdate(
       MS, nullptr, Buf, MockReq, [&](detail::MemObjRecord *Record) {

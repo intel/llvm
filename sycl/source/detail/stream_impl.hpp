@@ -68,7 +68,7 @@ public:
     return PropList_.get_property<propertyT>();
   }
 
-  void generateFlushCommand(handler& cgh);
+  void generateFlushCommand(handler &cgh);
 
 private:
   // Size of the stream buffer

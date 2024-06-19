@@ -38,8 +38,8 @@ void event_impl::ensureContextInitialized() {
     return;
 
   const device SyclDevice;
-  this->setContextImpl(detail::queue_impl::getDefaultOrNew(
-      detail::getSyclObjImpl(SyclDevice)));
+  this->setContextImpl(
+      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
 }
 
 event_impl::~event_impl() {
@@ -134,8 +134,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 event_impl::event_impl(sycl::detail::pi::PiEvent Event,
                        const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)),
-      MIsFlushed(true), MState(HES_Complete) {
+      MContext(detail::getSyclObjImpl(SyclContext)), MIsFlushed(true),
+      MState(HES_Complete) {
 
   sycl::detail::pi::PiContext TempContext;
   getPlugin()->call<PiApiKind::piEventGetInfo>(
@@ -150,9 +150,9 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue && Queue->isProfilingFallback()} {
+    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
+      MFallbackProfiling{MIsProfilingEnabled && Queue &&
+                         Queue->isProfilingFallback()} {
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
@@ -412,7 +412,7 @@ event_impl::get_backend_info<info::platform::version>() const {
   }
   // If the queue has been released, no platform will be associated
   // so return empty string.
-  return ""; 
+  return "";
 }
 
 template <>
@@ -571,7 +571,7 @@ bool event_impl::isCompleted() {
 
 void event_impl::setCommand(void *Cmd) {
   MCommand = Cmd;
-  auto TypedCommand = static_cast<Command*>(Cmd);
+  auto TypedCommand = static_cast<Command *>(Cmd);
   if (TypedCommand)
     MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
 }

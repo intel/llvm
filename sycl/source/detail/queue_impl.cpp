@@ -361,7 +361,8 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
   const CG::CGTYPE Type = Handler.getType();
-  event Event = detail::createSyclObjFromImpl<event>(std::make_shared<detail::event_impl>());
+  event Event = detail::createSyclObjFromImpl<event>(
+      std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CG::Kernel)
     Streams = std::move(Handler.MStreamStorage);
@@ -385,12 +386,12 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
 
   auto EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
-    // We don't want stream flushing to be blocking operation that is why submit a
-    // host task to print stream buffer. It will fire up as soon as the kernel
+    // We don't want stream flushing to be blocking operation that is why submit
+    // a host task to print stream buffer. It will fire up as soon as the kernel
     // finishes execution.
-    event FlushEvent = submit_impl([&](handler &ServiceCGH) {
-      Stream->generateFlushCommand(ServiceCGH);
-    }, Self, PrimaryQueue, SecondaryQueue, Loc, {});
+    event FlushEvent = submit_impl(
+        [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
+        Self, PrimaryQueue, SecondaryQueue, Loc, {});
     EventImpl->attachEventToComplete(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -707,7 +708,7 @@ void queue_impl::revisitUnenqueuedCommandsState(
               Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
               [](const EventImplPtr &CommandEvent) {
                 return (CommandEvent->isHost() ? CommandEvent->isCompleted()
-                                                : CommandEvent->isEnqueued());
+                                               : CommandEvent->isEnqueued());
               }),
           Deps.UnenqueuedCmdEvents.end());
     }

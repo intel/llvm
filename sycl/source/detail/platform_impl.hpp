@@ -103,9 +103,7 @@ public:
   }
 
   /// \return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const {
-    return pi::cast<cl_platform_id>(MPlatform);
-  }
+  cl_platform_id get() const { return pi::cast<cl_platform_id>(MPlatform); }
 
   /// Returns raw underlying plug-in platform handle.
   ///
@@ -114,9 +112,7 @@ public:
   /// is in use.
   ///
   /// \return a raw plug-in platform handle.
-  const sycl::detail::pi::PiPlatform &getHandleRef() const {
-    return MPlatform;
-  }
+  const sycl::detail::pi::PiPlatform &getHandleRef() const { return MPlatform; }
 
   /// Returns all available SYCL platforms in the system.
   ///

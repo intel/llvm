@@ -220,22 +220,22 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
                                             std::string CompileOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
-    create_pi_program_with_kernel_name(
-        KernelName,
-        /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
-    compile(CompileOptions);
+  create_pi_program_with_kernel_name(
+      KernelName,
+      /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
+  compile(CompileOptions);
   MState = program_state::compiled;
 }
 
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
-    check_device_feature_support<info::device::is_linker_available>(MDevices);
-    std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
-    const PluginPtr &Plugin = getPlugin();
-    const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
-    if (!LinkOpts) {
-      LinkOpts = LinkOptions.c_str();
+  check_device_feature_support<info::device::is_linker_available>(MDevices);
+  std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
+  const PluginPtr &Plugin = getPlugin();
+  const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  if (!LinkOpts) {
+    LinkOpts = LinkOptions.c_str();
     }
 
     // Plugin resets MProgram with a new pi_program as a result of the call to
@@ -251,7 +251,7 @@ void program_impl::link(std::string LinkOptions) {
     Plugin->checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
-  MState = program_state::linked;
+    MState = program_state::linked;
 }
 
 bool program_impl::has_kernel(std::string KernelName,

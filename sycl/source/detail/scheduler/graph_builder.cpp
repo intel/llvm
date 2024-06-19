@@ -54,9 +54,10 @@ static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
 
-static bool isOnSameContext(const ContextImplPtr Context, const QueueImplPtr& Queue)
-{
-  // Covers case for host usage (nullptr == nullptr) and existing device contexts comparison.
+static bool isOnSameContext(const ContextImplPtr Context,
+                            const QueueImplPtr &Queue) {
+  // Covers case for host usage (nullptr == nullptr) and existing device
+  // contexts comparison.
   return Context == queue_impl::getContext(Queue);
 }
 
@@ -289,8 +290,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
-  AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Context);
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
       new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
@@ -298,8 +298,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
   // dependencies become invalid if requirement is stored by pointer.
   const Requirement *StoredReq = UpdateCommand->getRequirement();
 
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Context);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
     Command *ConnCmd =
@@ -353,8 +352,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
   auto Context = queue_impl::getContext(Queue);
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Context);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
   Deps.insert(AllocaCmdDst);
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
@@ -434,8 +432,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
-  assert(!HostAllocaCmd->getQueue() &&
-         "Host alloca command expected");
+  assert(!HostAllocaCmd->getQueue() && "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
 
   AllocaCommandBase *LinkedAllocaCmd = HostAllocaCmd->MLinkedAllocaCmd;
@@ -490,8 +487,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   if (nullptr == Record || !Record->MMemModified)
     return nullptr;
 
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, nullptr);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, nullptr);
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
@@ -531,7 +527,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
     SYCLMemObj->handleWriteAccessorCreation();
   }
-  // Host accessor is not attached to any queue so no QueueImplPtr object to be sent to getOrInsertMemObjRecord.
+  // Host accessor is not attached to any queue so no QueueImplPtr object to be
+  // sent to getOrInsertMemObjRecord.
   MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
   if (MPrintOptionsArray[BeforeAddHostAcc])
     printGraphAsDot("before_addHostAccessor");
@@ -556,8 +553,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
       insertUpdateHostReqCmd(Record, Req, nullptr, ToEnqueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd =
-      addEmptyCmd(UpdateHostAccCmd, {Req}, Command::BlockReason::HostAccessor, ToEnqueue);
+  EmptyCommand *EmptyCmd = addEmptyCmd(
+      UpdateHostAccCmd, {Req}, Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -621,8 +618,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
       CanBypassDep |= !doOverlap(Dep.MDepRequirement, Req);
 
       // Going through copying memory between contexts is not supported.
-      if (Dep.MDepCommand)
-      {
+      if (Dep.MDepCommand) {
         auto DepQueue = Dep.MDepCommand->getQueue();
         CanBypassDep &= isOnSameContext(Context, DepQueue);
       }
@@ -686,7 +682,8 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }
-  // host task & host accessor is covered with no device context but provide required support.
+  // host task & host accessor is covered with no device context but provide
+  // required support.
   if (Ctx == nullptr)
     return true;
 
@@ -705,8 +702,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(
-      Record, Req, Context, /*AllowConst=*/false);
+  AllocaCommandBase *AllocaCmd =
+      findAllocaForReq(Record, Req, Context, /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
@@ -736,8 +733,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // TODO the case where the first alloca is made with a discard mode and
       // the user pointer is read-only is still not handled: it leads to
       // unnecessary copy on devices with unified host memory support.
-      const bool HostUnifiedMemory =
-          checkHostUnifiedMemory(Context);
+      const bool HostUnifiedMemory = checkHostUnifiedMemory(Context);
       SYCLMemObjI *MemObj = Req->MSYCLMemObj;
       const bool InitFromUserData = Record->MAllocaCommands.empty() &&
                                     (HostUnifiedMemory || MemObj->isInterop());
@@ -828,10 +824,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           AllocaCmd->MIsActive = false;
         } else {
           LinkedAllocaCmd->MIsActive = false;
-          Record->MCurContext =Context;
+          Record->MCurContext = Context;
 
-          std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Context);
+          std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
           for (Command *Dep : Deps) {
             Command *ConnCmd = AllocaCmd->addDep(
                 DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
@@ -871,8 +866,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 
 EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     Command *Cmd, const std::vector<Requirement *> &Reqs,
-    Command::BlockReason Reason,
-    std::vector<Command *> &ToEnqueue) {
+    Command::BlockReason Reason, std::vector<Command *> &ToEnqueue) {
   EmptyCommand *EmptyCmd = new EmptyCommand();
 
   if (!EmptyCmd)
@@ -1343,8 +1337,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
             /* DepEvents = */ {DepEvent}),
         CG::CodeplayHostTask,
         /* Payload */ {}));
-    ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), nullptr);
+    ConnectCmd = new ExecCGCommand(std::move(ConnectCG), nullptr);
   } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
@@ -1719,13 +1712,11 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
-        insertMemoryMove(Record, Req,
-                        nullptr,
-                         ToEnqueue);
+        insertMemoryMove(Record, Req, nullptr, ToEnqueue);
       insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
     }
     std::set<Command *> Deps =
-        findDepsForReq(Record, Req,  queue_impl::getContext(Queue));
+        findDepsForReq(Record, Req, queue_impl::getContext(Queue));
 
     for (Command *Dep : Deps) {
       if (Dep != NewCmd.get()) {

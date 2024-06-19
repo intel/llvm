@@ -56,13 +56,13 @@ context::context(const std::vector<device> &DeviceList,
     throw invalid_parameter_error("DeviceList is empty.",
                                   PI_ERROR_INVALID_VALUE);
   }
-  
+
   const auto &RefPlatform =
       detail::getSyclObjImpl(DeviceList[0].get_platform())->getHandleRef();
   if (std::any_of(DeviceList.begin(), DeviceList.end(),
                   [&](const device &CurrentDevice) {
                     return (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                              ->getHandleRef() != RefPlatform);
+                                ->getHandleRef() != RefPlatform);
                   }))
     throw invalid_parameter_error(
         "Can't add devices across platforms to a single context.",

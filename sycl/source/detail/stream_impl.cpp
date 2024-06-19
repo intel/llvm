@@ -76,14 +76,15 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
-void stream_impl::generateFlushCommand(handler& cgh)
-{
+void stream_impl::generateFlushCommand(handler &cgh) {
   // Create accessor to the flush buffer even if not using it yet. Otherwise
   // kernel will be a leaf for the flush buffer and scheduler will not be able
   // to cleanup the kernel. TODO: get rid of finalize method by using host
   // accessor to the flush buffer.
-  host_accessor<char, 1, access::mode::read_write> FlushBuffHostAcc(FlushBuf_, cgh);
-  host_accessor<char, 1, access::mode::read_write> BufHostAcc (Buf_, cgh, range<1>(BufferSize_), id<1>(OffsetSize));
+  host_accessor<char, 1, access::mode::read_write> FlushBuffHostAcc(FlushBuf_,
+                                                                    cgh);
+  host_accessor<char, 1, access::mode::read_write> BufHostAcc(
+      Buf_, cgh, range<1>(BufferSize_), id<1>(OffsetSize));
 
   cgh.host_task([=] {
     if (!BufHostAcc.empty()) {
@@ -106,14 +107,14 @@ void stream_impl::generateFlushCommand(handler& cgh)
   });
 }
 
-  // ABI break: remove
-  void stream_impl::initStreamHost(QueueImplPtr ){};
+// ABI break: remove
+void stream_impl::initStreamHost(QueueImplPtr){};
 
-  // ABI break: remove
-  void stream_impl::flush(const EventImplPtr &) {};
+// ABI break: remove
+void stream_impl::flush(const EventImplPtr &) {};
 
-  // ABI break: remove
-  void stream_impl::flush() {};
+// ABI break: remove
+void stream_impl::flush() {};
 
 } // namespace detail
 } // namespace _V1

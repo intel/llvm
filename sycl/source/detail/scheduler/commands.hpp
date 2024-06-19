@@ -373,10 +373,11 @@ public:
   std::string MSubmissionFunctionName;
 
   // This flag allows to control whether event should be set complete
-  // after successfull enqueue of command. Event is considered as "host" event if
-  // there is no backend representation of event (i.e. getHandleRef() return reference to nullptr value).
-  // By default the flag is set to true due to most of host operations are
-  // synchronous. The only asynchronous operation currently is host-task.
+  // after successfull enqueue of command. Event is considered as "host" event
+  // if there is no backend representation of event (i.e. getHandleRef() return
+  // reference to nullptr value). By default the flag is set to true due to most
+  // of host operations are synchronous. The only asynchronous operation
+  // currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 
   /// Indicates that the node will be freed by graph cleanup. Such nodes should
@@ -792,8 +793,7 @@ void SetArgBasedOnType(
     const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, detail::ArgDesc &Arg,
-    size_t NextTrueIndex);
+    const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);
 
 void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,

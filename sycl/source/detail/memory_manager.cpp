@@ -398,9 +398,11 @@ void *MemoryManager::allocateMemBuffer(
     sycl::detail::pi::PiEvent &OutEventToWait) {
   void *MemPtr;
   if (!TargetContext)
-    MemPtr = allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
+    MemPtr =
+        allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
   else if (UserPtr && InteropContext)
-    MemPtr = allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
+    MemPtr =
+        allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
                                  InteropContext, PropsList, OutEventToWait);
   else
     MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
@@ -665,7 +667,8 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::detail::pi::PiEvent &OutEvent,
              const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
-  assert(SrcQueue && "Source mem object and target mem object queues are expected to be not nullptr");
+  assert(SrcQueue && "Source mem object and target mem object queues are "
+                     "expected to be not nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();
@@ -778,9 +781,9 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
   if (!SrcQueue) {
     if (!TgtQueue)
       copyH2H(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
-              nullptr, DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
+              SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem, nullptr,
+              DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
+              std::move(DepEvents), OutEvent, OutEventImpl);
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
@@ -1235,7 +1238,8 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
                         const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
                         sycl::detail::pi::PiEvent *OutEvent,
                         const detail::EventImplPtr &OutEventImpl) {
-  assert(Queue && "Copy to device global USM must be called with a valid device queue");
+  assert(Queue &&
+         "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
@@ -1337,7 +1341,9 @@ static void memcpyToDeviceGlobalDirect(
     size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-  assert(Queue && "Direct copy to device global must be called with a valid device queue");
+  assert(
+      Queue &&
+      "Direct copy to device global must be called with a valid device queue");
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1352,7 +1358,8 @@ static void memcpyFromDeviceGlobalDirect(
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-  assert(Queue && "Direct copy from device global must be called with a valid device queue");
+  assert(Queue && "Direct copy from device global must be called with a valid "
+                  "device queue");
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1762,7 +1769,8 @@ void MemoryManager::copy_image_bindless(
     sycl::detail::pi::PiImageRegion CopyExtent,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-  assert(Queue && "Copy image bindless must be called with a valid device queue");
+  assert(Queue &&
+         "Copy image bindless must be called with a valid device queue");
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)

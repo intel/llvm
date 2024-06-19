@@ -209,8 +209,9 @@ void SYCLMemObjT::detachMemoryObject(
       !MOwnNativeHandle ||
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
-   if (MRecord && MRecord->MCurContext && MRecord->MCurContext->isOwnedByRuntime() &&
-      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
+  if (MRecord && MRecord->MCurContext &&
+      MRecord->MCurContext->isOwnedByRuntime() && !InteropObjectsUsed &&
+      (!MHostPtrProvided || MIsInternal)) {
     bool okToDefer = GlobalHandler::instance().isOkToDefer();
     if (okToDefer)
       Scheduler::getInstance().deferMemObjRelease(Self);

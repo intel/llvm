@@ -33,8 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
       MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
-      MPropList(PropList),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
 

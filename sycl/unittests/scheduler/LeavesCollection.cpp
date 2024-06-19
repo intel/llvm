@@ -36,8 +36,7 @@ createGenericCommand(const std::shared_ptr<queue_impl> &Q) {
   return std::shared_ptr<Command>{new MockCommand(Q, Command::RUN_CG)};
 }
 
-std::shared_ptr<Command>
-createEmptyCommand(const Requirement &Req) {
+std::shared_ptr<Command> createEmptyCommand(const Requirement &Req) {
   EmptyCommand *Cmd = new EmptyCommand();
   Cmd->addRequirement(/* DepCmd = */ nullptr, /* AllocaCmd = */ nullptr, &Req);
   Cmd->MBlockReason = Command::BlockReason::HostAccessor;

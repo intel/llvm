@@ -34,8 +34,7 @@ device_impl::device_impl(sycl::detail::pi::PiDevice Device,
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          sycl::detail::pi::PiDevice Device,
                          PlatformImplPtr Platform, const PluginPtr &Plugin)
-    : MDevice(Device),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
+    : MDevice(Device), MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
@@ -328,7 +327,7 @@ bool device_impl::has(aspect Aspect) const {
 
   switch (Aspect) {
   case aspect::host:
-  //Deprecated
+    // Deprecated
     return false;
   case aspect::cpu:
     return is_cpu();

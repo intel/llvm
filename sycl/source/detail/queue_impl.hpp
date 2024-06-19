@@ -13,8 +13,8 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/handler_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -194,14 +194,13 @@ public:
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
-          xpti::addMetadata(
-              TEvent, "sycl_device",
-              reinterpret_cast<size_t>(MDevice->getHandleRef()));
+          xpti::addMetadata(TEvent, "sycl_device",
+                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         xpti::addMetadata(TEvent, "queue_handle",
-                            reinterpret_cast<size_t>(getHandleRef()));
+                          reinterpret_cast<size_t>(getHandleRef()));
       });
       // Also publish to TLS
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -257,9 +256,8 @@ private:
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
-          xpti::addMetadata(
-              TEvent, "sycl_device",
-              reinterpret_cast<size_t>(MDevice->getHandleRef()));
+          xpti::addMetadata(TEvent, "sycl_device",
+                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
@@ -751,9 +749,8 @@ public:
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
- 
-  static ContextImplPtr getContext(const QueueImplPtr& Queue)
-  {
+
+  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
   }
 

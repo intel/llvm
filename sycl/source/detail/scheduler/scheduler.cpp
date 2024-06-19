@@ -110,13 +110,13 @@ EventImplPtr Scheduler::addCG(
     Command *NewCmd = nullptr;
     switch (Type) {
     case CG::UpdateHost:
-      NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
-                                             AuxiliaryCmds);
+      NewCmd =
+          MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       NewEvent = NewCmd->getEvent();
       break;
     case CG::CodeplayHostTask: {
-      auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
-                                        nullptr, AuxiliaryCmds);
+      auto Result =
+          MGraphBuilder.addCG(std::move(CommandGroup), nullptr, AuxiliaryCmds);
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;

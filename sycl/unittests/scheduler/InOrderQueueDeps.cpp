@@ -91,8 +91,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   // Check that sequential memory movements submitted to the same in-order
   // queue do not depend on each other.
-  detail::Command *Cmd =
-      MS.insertMemoryMove(Record, &Req, nullptr, AuxCmds);
+  detail::Command *Cmd = MS.insertMemoryMove(Record, &Req, nullptr, AuxCmds);
   detail::EnqueueResultT Res;
   auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);

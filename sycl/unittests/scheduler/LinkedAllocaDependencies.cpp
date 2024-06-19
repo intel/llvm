@@ -69,8 +69,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
                       std::vector<sycl::detail::Command *> &) {};
 
   std::shared_ptr<sycl::detail::MemObjRecord> Record{
-      new sycl::detail::MemObjRecord(nullptr, 10,
-                                     AllocaDep)};
+      new sycl::detail::MemObjRecord(nullptr, 10, AllocaDep)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;

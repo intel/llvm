@@ -64,18 +64,14 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to PI device
-  sycl::detail::pi::PiDevice &getHandleRef() {
-    return MDevice;
-  }
+  sycl::detail::pi::PiDevice &getHandleRef() { return MDevice; }
 
   /// Get constant reference to PI device
   ///
   /// For host device an exception is thrown
   ///
   /// \return constant reference to PI device
-  const sycl::detail::pi::PiDevice &getHandleRef() const {
-    return MDevice;
-  }
+  const sycl::detail::pi::PiDevice &getHandleRef() const { return MDevice; }
 
   /// Check if device is a CPU device
   ///
@@ -90,9 +86,7 @@ public:
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const {
-    return MType == PI_DEVICE_TYPE_ACC;
-  }
+  bool is_accelerator() const { return MType == PI_DEVICE_TYPE_ACC; }
 
   /// Return device type
   ///
