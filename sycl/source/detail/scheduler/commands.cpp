@@ -2445,22 +2445,20 @@ static pi_result SetKernelParamsAndLaunch(
         LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-  } else {
-    pi_result Error =
-        [&](auto... Args) {
-          if (IsCooperative) {
-            return Plugin
-                ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                    Args...);
-          }
-          return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-              Args...);
-        }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-          &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-          RawEvents.empty() ? nullptr : &RawEvents[0],
-          OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-    return Error;
   }
+  pi_result Error =
+      [&](auto... Args) {
+        if (IsCooperative) {
+          return Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                  Args...);
+        }
+        return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+  return Error;
 }
 
 // The function initialize accessors and calls lambda.
