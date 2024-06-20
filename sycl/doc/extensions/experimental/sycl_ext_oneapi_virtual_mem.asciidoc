@@ -118,9 +118,12 @@ The interfaces make the distinction between device granularity, which is the
 granularity required for physical memory allocations, and context granularity,
 which is the granularity required for virtual memory range reservations.
 
-In addition, contexts may specify a recommended granularity for a given device
-to potentially achieve higher performance. Distinction between minimum and
-recommended is specified by the context and may vary between devices.
+The queries provide both a minimum and a recommended granularity. The minimum
+device granularity is the smallest granularity that is supported for physical
+memory allocations, and the minimum context granularity is the smallest
+granularity that is supported from virtual memory range reservations. However,
+the recommended granularity may be larger than these minimums and may provide
+better performance.
 
 The interfaces for querying these granularities are defined as:
 
@@ -133,10 +136,6 @@ enum class granularity_mode : /*unspecified*/ {
 };
 
 size_t get_mem_granularity(const device &syclDevice, const context &syclContext,
-                           granularity_mode mode = granularity_mode::recommended);
-size_t get_mem_granularity(const queue &syclQueue,
-                           granularity_mode mode = granularity_mode::recommended);
-size_t get_mem_granularity(const physical_mem &syclPhysicalMem,
                            granularity_mode mode = granularity_mode::recommended);
 
 size_t get_mem_granularity(const context &syclContext,
@@ -156,12 +155,6 @@ minimum or recommended granularity.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
-
-|`size_t get_mem_granularity(const queue &syclQueue, granularity_mode mode = granularity_mode::recommended)` |
-Same as `get_mem_granularity(syclQueue.get_device(), syclQueue.get_context(), mode)`.
-
-|`size_t get_mem_granularity(const physical_mem &syclPhysicalMem, granularity_mode mode = granularity_mode::recommended)` |
-Same as `get_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context(), mode)`.
 
 |`size_t get_mem_granularity(const context &syclContext, granularity_mode mode = granularity_mode::recommended)` |
 Returns the granularity of virtual memory range reservations on in the
@@ -313,6 +306,10 @@ Writing to any address in the virtual memory range with access mode set to
 An accessible pointer behaves the same as a pointer to device USM memory and can
 be used in place of a device USM pointer in any interface accepting one.
 
+A virtual memory range cannot be simultaneously mapped to more than one
+physical memory region. Attempting to violate this results in undefined
+behavior.
+
 |`context get_context() const` |
 Returns the SYCL context associated with the instance of `physical_mem`.
 
@@ -356,14 +353,10 @@ respectively. Otherwise, it is considered inaccessible and accessing it will res
 in undefined behavior.
 
 The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
-virtual memory ranges previously mapped to `physical_mem`. `ptr` and
+virtual memory ranges previously mapped to `physical_mem`. `ptr`
 must be aligned to the minimum memory granularity of `syclContext` and
 `numBytes` must be a multiple of the minimum memory granularity of
 `syclContext`.
-
-A virtual memory address cannot be simultaneously mapped to more than one
-physical memory region. Attempting to violate this results in undefined
-behavior.
 
 Writing to any address in the virtual memory range with access mode set to
 `address_access_mode::read` results in undefined behavior.
@@ -376,7 +369,7 @@ Returns the access mode of the virtual memory range specified by `ptr` and
 `numBytes`.
 
 The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
-virtual memory ranges previously mapped to `physical_mem`. `ptr` and
+virtual memory ranges previously mapped to `physical_mem`. `ptr`
 must be aligned to the minimum memory granularity of `syclContext` and
 `numBytes` must be a multiple of the minimum memory granularity of `syclContext`.
 
@@ -385,7 +378,7 @@ Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
 must not be a proper sub-range of a previously mapped range. `syclContext` must
 be the same as the context returned by the `get_context()` member function on
-all the `physical_mem` the address ranges are currently mapped to.
+all the `physical_mem` the address range is currently mapped to.
 
 After this call, the full range will again be ready to be mapped through a call
 to `physical_mem::map()`.

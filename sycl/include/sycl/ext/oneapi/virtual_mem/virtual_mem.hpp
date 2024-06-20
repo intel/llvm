@@ -30,20 +30,6 @@ __SYCL_EXPORT size_t
 get_mem_granularity(const device &SyclDevice, const context &SyclContext,
                     granularity_mode Mode = granularity_mode::recommended);
 
-inline size_t
-get_mem_granularity(const queue &SyclQueue,
-                    granularity_mode Mode = granularity_mode::recommended) {
-  return get_mem_granularity(SyclQueue.get_device(), SyclQueue.get_context(),
-                             Mode);
-}
-
-inline size_t
-get_mem_granularity(const physical_mem &SyclPhysicalMem,
-                    granularity_mode Mode = granularity_mode::recommended) {
-  return get_mem_granularity(SyclPhysicalMem.get_device(),
-                             SyclPhysicalMem.get_context(), Mode);
-}
-
 __SYCL_EXPORT size_t
 get_mem_granularity(const context &SyclContext,
                     granularity_mode Mode = granularity_mode::recommended);
