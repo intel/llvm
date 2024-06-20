@@ -68,11 +68,12 @@ template <typename O>
 struct is_property_value_of<cuda::cluster_size_key<3>, O>
     : is_property_key_of<cuda::cluster_size_key<3>, O> {};
 
+namespace detail {
 template <typename PropertiesT, int Dim> constexpr bool hasClusterDim() {
   return PropertiesT::template has_property<
       sycl::ext::oneapi::experimental::cuda::cluster_size_key<Dim>>();
 }
-
+} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
