@@ -589,11 +589,11 @@ public:
             << SemaSYCL::KernelCallRecursiveFunction;
       }
 
-      if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
+/*      if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
         if (Method->isVirtual() &&
             !SemaSYCLRef.getLangOpts().SYCLAllowVirtualFunctions)
           SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << SemaSYCL::KernelCallVirtualFunction;
+              << SemaSYCL::KernelCallVirtualFunction;*/
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
