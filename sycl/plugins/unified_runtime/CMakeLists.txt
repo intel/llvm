@@ -104,7 +104,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit ded4b88acc091011ed7b24362ee3e61ee332955d
+    # Merge: 0e5bbcb2 f8e1f07a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 16:30:13 2024 +0100
+    #     Merge pull request #1470 from wenju-he/fix-bindless-L0-copy
+    #     [L0][Bindless Image] Bug fixes and sampled image support
+    ded4b88acc091011ed7b24362ee3e61ee332955d
   )
 
   fetch_adapter_source(opencl
@@ -124,7 +130,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 14:33:26 2024 +0100
+    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
+    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
+    0e5bbcb2f8709643abf08cb83469787e866e3598
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
