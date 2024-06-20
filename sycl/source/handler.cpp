@@ -285,17 +285,21 @@ event handler::finalize() {
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
-              if (MImpl->MKernelUsesClusterLaunch) {
-                Result = PI_ERROR_UNSUPPORTED_FEATURE;
+              if (!MImpl->MKernelUsesClusterLaunch &&
+                  !MImpl->MKernelIsCooperative) {
+                MQueue->getPlugin()
+                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+                Result = PI_SUCCESS;
               }
               if (MImpl->MKernelIsCooperative) {
                 MQueue->getPlugin()
                     ->call<
                         detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
                         Args...);
-              } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+                Result = PI_SUCCESS;
+              }
+              if (MImpl->MKernelUsesClusterLaunch) {
+                Result = PI_ERROR_UNSUPPORTED_FEATURE;
               }
             }(/* queue */
               nullptr,
@@ -309,7 +313,6 @@ event handler::finalize() {
               /* num_events_in_wait_list */ 0,
               /* event_wait_list */ nullptr,
               /* event */ nullptr);
-            Result = PI_SUCCESS;
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
