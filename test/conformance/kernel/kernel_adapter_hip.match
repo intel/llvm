@@ -1,12 +1,5 @@
 urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/AMD_HIP_BACKEND___{{.*}}_
 urKernelGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_FUNCTION_NAME
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_ARGS
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_REFERENCE_COUNT
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_CONTEXT
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_PROGRAM
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_ATTRIBUTES
-urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
 urKernelSetArgLocalTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
 urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
 urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_

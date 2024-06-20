@@ -394,6 +394,7 @@ struct ur_mem_handle_t_ {
   }
 
   ~ur_mem_handle_t_() {
+    clear();
     if (isBuffer() && isSubBuffer()) {
       urMemRelease(std::get<BufferMem>(Mem).Parent);
       return;
