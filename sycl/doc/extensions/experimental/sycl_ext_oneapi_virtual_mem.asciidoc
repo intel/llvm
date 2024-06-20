@@ -307,8 +307,9 @@ An accessible pointer behaves the same as a pointer to device USM memory and can
 be used in place of a device USM pointer in any interface accepting one.
 
 A virtual memory range cannot be simultaneously mapped to more than one
-physical memory region. Attempting to violate this results in undefined
-behavior.
+physical memory region. Likewise, multiple virtual memory ranges cannot be
+mapped onto the same physical memory region. Attempting to violate either of
+these restrictions will result in undefined behavior.
 
 |`context get_context() const` |
 Returns the SYCL context associated with the instance of `physical_mem`.
@@ -381,7 +382,7 @@ Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
 must not be a proper sub-range of a previously mapped range. `syclContext` must
 be the same as the context returned by the `get_context()` member function on
-all the `physical_mem` the address range is currently mapped to.
+the `physical_mem` the address range is currently mapped to.
 
 After this call, the full range will again be ready to be mapped through a call
 to `physical_mem::map()`.
