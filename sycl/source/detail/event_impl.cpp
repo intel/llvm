@@ -48,7 +48,7 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal(bool *Success) {
-  if (MEvent) {
+  if (!MIsHostEvent && MEvent) {
     // Wait for the native event
     sycl::detail::pi::PiResult Err =
         getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
@@ -390,7 +390,7 @@ event_impl::get_info<info::event::command_execution_status>() {
       return sycl::info::event_command_status::submitted;
   }
 
-  return MState.load() != HES_Complete
+  return MIsHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
 }

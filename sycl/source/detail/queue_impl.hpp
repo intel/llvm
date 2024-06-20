@@ -93,7 +93,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -749,6 +749,9 @@ public:
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+  void doUnenqueuedCommandCleanup(
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph);
 
   static ContextImplPtr getContext(const QueueImplPtr &Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
@@ -790,13 +793,12 @@ protected:
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
       const CG::CGTYPE Type = Handler.getType();
-
+      std::lock_guard<std::mutex> Lock{MMutex};
       // The following code supports barrier synchronization if host task is
       // involved in the scenario. Native barriers cannot handle host task
       // dependency so in the case where some commands were not enqueued
       // (blocked), we track them to prevent barrier from being enqueued
       // earlier.
-      std::lock_guard<std::mutex> Lock{MMutex};
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
       if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -814,6 +816,10 @@ protected:
         } else
           Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
+      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      for (auto &UpdatedGraph : MMissedCleanupRequests)
+        doUnenqueuedCommandCleanup(UpdatedGraph);
+      MMissedCleanupRequests.clear();
     }
   }
 
@@ -965,6 +971,10 @@ protected:
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
+
+  std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
+      MMissedCleanupRequests;
+  std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };

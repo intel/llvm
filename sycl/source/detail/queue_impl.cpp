@@ -696,6 +696,19 @@ void queue_impl::revisitUnenqueuedCommandsState(
     const EventImplPtr &CompletedHostTask) {
   if (MIsInorder)
     return;
+
+  std::unique_lock<std::mutex> Lock{MMutex, std::try_to_lock};
+  if (Lock.owns_lock())
+    doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
+  else {
+    std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+    MMissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+  }
+}
+
+void queue_impl::doUnenqueuedCommandCleanup(
+    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+        &Graph) {
   auto tryToCleanup = [](DependencyTrackingItems &Deps) {
     if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
       Deps.LastBarrier = nullptr;
@@ -713,14 +726,12 @@ void queue_impl::revisitUnenqueuedCommandsState(
           Deps.UnenqueuedCmdEvents.end());
     }
   };
-  std::lock_guard<std::mutex> Lock{MMutex};
   // Barrier enqueue could be significantly postponed due to host task
   // dependency if any. No guarantee that it will happen while same graph deps
   // are still recording.
-  if (auto Graph = CompletedHostTask->getCommandGraph()) {
-    if (Graph == getCommandGraph())
-      tryToCleanup(MExtGraphDeps);
-  } else
+  if (Graph && Graph == getCommandGraph())
+    tryToCleanup(MExtGraphDeps);
+  else
     tryToCleanup(MDefaultGraphDeps);
 }
 

@@ -2954,16 +2954,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-        assert(MQueue->getDeviceImplPtr()->getBackend() ==
-               backend::ext_intel_esimd_emulator);
-        if (MEvent != nullptr)
-          MEvent->setHostEnqueueTime();
-        MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-        return PI_SUCCESS;
+      assert(MQueue->getDeviceImplPtr()->getBackend() ==
+             backend::ext_intel_esimd_emulator);
+      if (MEvent != nullptr)
+        MEvent->setHostEnqueueTime();
+      MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
+          nullptr,
+          reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
+          NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+          &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+      return PI_SUCCESS;
     }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
