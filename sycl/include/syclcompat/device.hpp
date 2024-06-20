@@ -938,4 +938,7 @@ static inline unsigned int get_device_id(const sycl::device &dev) {
   return detail::dev_mgr::instance().get_device_id(dev);
 }
 
+static inline unsigned int device_count() {
+  return detail::dev_mgr::instance().device_count();
+}
 } // namespace syclcompat

@@ -16,5 +16,4 @@ math/native_sqrt.cl
 math/rint.cl
 math/round.cl
 math/trunc.cl
-shared/helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
