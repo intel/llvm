@@ -201,6 +201,10 @@ def m_Group : OptionGroup<"<m group>">, Group<CompileOnly_Group>,
               DocName<"Target-dependent compilation options">,
               Visibility<[ClangOption, CLOption]>;
 
+def hlsl_Group : OptionGroup<"<HLSL group>">, Group<f_Group>,
+                   DocName<"HLSL options">,
+                   Visibility<[ClangOption]>;
+
 // Feature groups - these take command line options that correspond directly to
 // target specific features and can be translated directly from command line
 // options.
@@ -7369,6 +7373,12 @@ def as_secure_log_file : Separate<["-"], "as-secure-log-file">,
 
 } // let Visibility = [CC1Option, CC1AsOption]
 
+let Visibility = [CC1Option, FC1Option] in {
+def mlink_builtin_bitcode : Separate<["-"], "mlink-builtin-bitcode">,
+  HelpText<"Link and internalize needed symbols from the given bitcode file "
+           "before performing optimizations.">;
+} // let Visibility = [CC1Option, FC1Option]
+
 let Visibility = [CC1Option] in {
 
 def llvm_verify_each : Flag<["-"], "llvm-verify-each">,
@@ -7471,9 +7481,6 @@ defm constructor_aliases : BoolMOption<"constructor-aliases",
           " emitting complete constructors and destructors as aliases when possible">>;
 def mlink_bitcode_file : Separate<["-"], "mlink-bitcode-file">,
   HelpText<"Link the given bitcode file before performing optimizations.">;
-def mlink_builtin_bitcode : Separate<["-"], "mlink-builtin-bitcode">,
-  HelpText<"Link and internalize needed symbols from the given bitcode file "
-           "before performing optimizations.">;
 defm link_builtin_bitcode_postopt: BoolMOption<"link-builtin-bitcode-postopt",
   CodeGenOpts<"LinkBitcodePostopt">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption], "Link builtin bitcodes after the "
@@ -8241,6 +8248,11 @@ def fdeclare_spirv_builtins
     : Flag<["-"], "fdeclare-spirv-builtins">,
       HelpText<"Add SPIR-V builtin function declarations (experimental)">,
       MarshallingInfoFlag<LangOpts<"DeclareSPIRVBuiltins">>;
+
+def fhlsl_strict_availability : Flag<["-"], "fhlsl-strict-availability">,
+  HelpText<"Enables strict availability diagnostic mode for HLSL built-in functions.">,
+  Group<hlsl_Group>,
+  MarshallingInfoFlag<LangOpts<"HLSLStrictAvailability">>;
 
 def fpreserve_vec3_type : Flag<["-"], "fpreserve-vec3-type">,
   HelpText<"Preserve 3-component vector type">,
