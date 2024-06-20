@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only       \
-// RUN:  -Wno-sycl-2017-compat  %s
+// RUN:   %s
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
 // RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only         \
-// RUN:  -Wno-sycl-2017-compat  %s
+// RUN:   %s
 //
 // Ensure SYCL type restrictions are applied to accessors as well.
 
