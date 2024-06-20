@@ -527,7 +527,7 @@ private:
 
   void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
-  detail::CG::CGTYPE getType() const { return MCGType; }
+  detail::CG::CGTYPE getType() { return MCGType; }
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
