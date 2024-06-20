@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
-  # Merge: e18c691d 0f2d1f42
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed May 29 15:02:39 2024 +0100
-  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
-  #     [UR] Fix Multi Device Event Cache for shared Root Device
-  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
+  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
+  # Merge: 2a31795d 6fb77c98
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jun 18 17:51:45 2024 +0100
+  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
+  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
+  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -115,13 +115,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit e16d01c02f1c1c18af19d3c882c08f791c2345d9
-    # Merge: a3895dbf 483a6325
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:04:43 2024 +0100
-    #     Merge pull request #1603 from konradkusiak97/queueFillOPENCLctsFix
-    #     [OpenCL] Modify fill emulation to work for patterns which are not powers of 2
-    e16d01c02f1c1c18af19d3c882c08f791c2345d9
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
@@ -131,18 +125,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
-    # Merge: 30c5c553 67338dbe
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:04:14 2024 +0100
-    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
-    #     [HIP] Implement kernel set spec constant query
-    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 14:33:26 2024 +0100
+    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
+    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
+    0e5bbcb2f8709643abf08cb83469787e866e3598
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
