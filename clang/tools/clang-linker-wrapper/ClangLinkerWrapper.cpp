@@ -596,8 +596,8 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
     return SYCLPostLinkPath.takeError();
 
   // Create a new file to write the output of sycl-post-link to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName) + ".sycl-post-link", "table");
+  auto TempFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + ".sycl-post-link", "table");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
