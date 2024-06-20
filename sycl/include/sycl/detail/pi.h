@@ -191,7 +191,8 @@
 //       `win32_nt_dx12_resource` value.
 //       the `pi_external_semaphore_handle_type` enum now has a new
 //       `win32_nt_dx12_fence` value.
-// 15.54 Added mappings to UR launch properties extension (piextEnqueueKernelLaunchCustom)
+// 15.54 Added mappings to UR launch properties extension
+// (piextEnqueueKernelLaunchCustom)
 
 #define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 54
