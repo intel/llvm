@@ -1164,6 +1164,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +
                                              toString(RecoverableSanitizers)));
+
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-mapping-scale=4");
     }
     return;
   }

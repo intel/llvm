@@ -8,6 +8,7 @@
 // SYCL-ASAN-SAME: "-mllvm" "-asan-constructor-kind=none"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-stack=0"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-globals=0"
+// SYCL-ASAN-SAME: "-mllvm" "-asan-mapping-scale=4"
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=address -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-XARCH-DEVICE %s

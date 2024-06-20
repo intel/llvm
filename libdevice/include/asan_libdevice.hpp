@@ -78,7 +78,7 @@ struct LaunchInfo {
   DeviceSanitizerReport SanitizerReport[ASAN_MAX_NUM_REPORTS];
 };
 
-constexpr unsigned ASAN_SHADOW_SCALE = 3;
+constexpr unsigned ASAN_SHADOW_SCALE = 4;
 constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
 // Based on the observation, only the last 24 bits of the address of the private
