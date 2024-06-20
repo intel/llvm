@@ -123,6 +123,8 @@ public:
 
   // Extra information for semaphore interoperability
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MWaitValue;
+  std::optional<uint64_t> MSignalValue;
 
   // The user facing node type, used for operations which are recorded to a
   // graph. Since some operations may actually be a different type than the user

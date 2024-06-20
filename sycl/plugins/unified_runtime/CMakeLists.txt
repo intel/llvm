@@ -100,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
+  # Merge: 2a31795d 6fb77c98
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Tue Jun 18 17:51:45 2024 +0100
+  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
+  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
+  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
+    # commit ded4b88acc091011ed7b24362ee3e61ee332955d
+    # Merge: 0e5bbcb2 f8e1f07a
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    # Date:   Wed Jun 19 16:30:13 2024 +0100
+    #     Merge pull request #1470 from wenju-he/fix-bindless-L0-copy
+    #     [L0][Bindless Image] Bug fixes and sampled image support
+    ded4b88acc091011ed7b24362ee3e61ee332955d
   )
 
   fetch_adapter_source(opencl
@@ -131,18 +131,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
-    # Merge: abe85cc9 3e011c70
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Jun 13 10:22:34 2024 +0100
-    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
-    #     [HIP] Enable more ordering and scope capabilities for atomic fences
-    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 14:33:26 2024 +0100
+    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
+    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
+    0e5bbcb2f8709643abf08cb83469787e866e3598
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
