@@ -119,13 +119,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/GeorgeWeb/unified-runtime.git
+    33e185272ac06aa8b3132a4cbbf6c3497cd8ce76
   )
 
   fetch_adapter_source(hip
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/GeorgeWeb/unified-runtime.git
+    33e185272ac06aa8b3132a4cbbf6c3497cd8ce76
   )
 
   fetch_adapter_source(native_cpu
