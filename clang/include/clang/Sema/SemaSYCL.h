@@ -115,9 +115,6 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-  /// Save the function decl used for creating free function shims.
-  void setFreeFunctionCDecl(FunctionDecl *FFD);
-
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -169,9 +166,6 @@ private:
 
     /// Size of the kernel object.
     int64_t ObjSize = 0;
-
-    // FunctionDecl for creating free function shims.
-    const FunctionDecl *FreeFunctionCDecl;
 
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel,
