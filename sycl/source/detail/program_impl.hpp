@@ -129,14 +129,13 @@ public:
   /// \return a valid OpenCL cl_program instance.
   cl_program get() const;
 
-  /// \return a reference to a raw PI program handle. PI program is not
+  /// \return a reference to a raw UR program handle. UR program is not
   /// retained before return.
-  pi_program &getHandleRef() { return MProgram; }
-  /// \return a constant reference to a raw PI program handle. PI program is
-  /// not retained before return.
-  const pi_program &getHandleRef() const { return MProgram; }
+  ur_program_handle_t &getHandleRef() { return MProgram; }
 
-  const ur_program_handle_t &getUrHandleRef() const { return MURProgram; }
+  /// \return a constant reference to a raw UR program handle. UR program is
+  /// not retained before return.
+  const ur_program_handle_t &getHandleRef() const { return MProgram; }
 
   /// \return true if this SYCL program is a host program.
   bool is_host() const { return MContext->is_host(); }
@@ -380,8 +379,7 @@ private:
   /// \param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
-  pi_program MProgram = nullptr;
-  ur_program_handle_t MURProgram = nullptr;
+  ur_program_handle_t MProgram = nullptr;
   program_state MState = program_state::none;
   std::mutex MMutex;
   ContextImplPtr MContext;

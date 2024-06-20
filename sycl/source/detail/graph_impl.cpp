@@ -705,8 +705,8 @@ void exec_graph_impl::createCommandBuffers(
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res = Plugin->call_nocheck(
-      urCommandBufferCreateExp, ContextImpl->getUrHandleRef(),
-      DeviceImpl->getUrHandleRef(), &Desc, &OutCommandBuffer);
+      urCommandBufferCreateExp, ContextImpl->getHandleRef(),
+      DeviceImpl->getHandleRef(), &Desc, &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
   }
@@ -901,8 +901,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         if (NewEvent != nullptr)
           NewEvent->setHostEnqueueTime();
         ur_result_t Res = Queue->getPlugin()->call_nocheck(
-            urCommandBufferEnqueueExp, CommandBuffer, Queue->getUrHandleRef(),
-            0, nullptr, OutEvent);
+            urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
+            nullptr, OutEvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
               make_error_code(errc::invalid),
@@ -1315,10 +1315,10 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
     SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
-    UrKernel = SyclKernelImpl->getUrHandleRef();
+    UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
-    UrKernel = Kernel->getUrHandleRef();
+    UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -1345,7 +1345,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getUrHandleRef(),
+    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
                  UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                  sizeof(RequiredWGSize), RequiredWGSize,
                  /* param_value_size_ret = */ nullptr);

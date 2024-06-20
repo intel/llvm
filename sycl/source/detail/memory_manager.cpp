@@ -339,7 +339,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
 
   ur_mem_handle_t NewMem = nullptr;
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  Plugin->call(urMemImageCreate, TargetContext->getUrHandleRef(), CreationFlags,
+  Plugin->call(urMemImageCreate, TargetContext->getHandleRef(), CreationFlags,
                &Format, &Desc, UserPtr, &NewMem);
   return NewMem;
 }
@@ -380,7 +380,7 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
     *Next = &ChannelProperties;
   }
 
-  memBufferCreateHelper(Plugin, TargetContext->getUrHandleRef(), CreationFlags,
+  memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
                         Size, &NewMem, &AllocProps);
   return NewMem;
 }
@@ -501,7 +501,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const ur_queue_handle_t Queue = TgtQueue->getUrHandleRef();
+  const ur_queue_handle_t Queue = TgtQueue->getHandleRef();
   const PluginPtr &Plugin = TgtQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
@@ -577,7 +577,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const ur_queue_handle_t Queue = SrcQueue->getUrHandleRef();
+  const ur_queue_handle_t Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
@@ -657,7 +657,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
              const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const ur_queue_handle_t Queue = SrcQueue->getUrHandleRef();
+  const ur_queue_handle_t Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
@@ -828,7 +828,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     size_t RangeMultiplier = AccRange[0] * AccRange[1] * AccRange[2];
 
     if (RangesUsable && OffsetUsable) {
-      Plugin->call(urEnqueueMemBufferFill, Queue->getUrHandleRef(),
+      Plugin->call(urEnqueueMemBufferFill, Queue->getHandleRef(),
                    pi::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
                    Offset[0] * ElementSize, RangeMultiplier * ElementSize,
                    DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -900,7 +900,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   void *MappedPtr = nullptr;
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
   const PluginPtr &Plugin = Queue->getPlugin();
-  memBufferMapHelper(Plugin, Queue->getUrHandleRef(),
+  memBufferMapHelper(Plugin, Queue->getHandleRef(),
                      pi::cast<ur_mem_handle_t>(Mem), false, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
                      DepEvents.data(), &OutEvent, &MappedPtr);
@@ -917,9 +917,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   // Using the plugin of the Queue.
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  memUnmapHelper(Plugin, Queue->getUrHandleRef(),
-                 pi::cast<ur_mem_handle_t>(Mem), MappedPtr, DepEvents.size(),
-                 DepEvents.data(), &OutEvent);
+  memUnmapHelper(Plugin, Queue->getHandleRef(), pi::cast<ur_mem_handle_t>(Mem),
+                 MappedPtr, DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
@@ -934,9 +933,8 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      SrcQueue->getPlugin()->call(urEnqueueEventsWait,
-                                  SrcQueue->getUrHandleRef(), DepEvents.size(),
-                                  DepEvents.data(), OutEvent);
+      SrcQueue->getPlugin()->call(urEnqueueEventsWait, SrcQueue->getHandleRef(),
+                                  DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -948,7 +946,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMMemcpy, SrcQueue->getUrHandleRef(),
+  Plugin->call(urEnqueueUSMMemcpy, SrcQueue->getHandleRef(),
                /* blocking */ false, DstMem, SrcMem, Len, DepEvents.size(),
                DepEvents.data(), OutEvent);
 }
@@ -974,7 +972,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -987,7 +985,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   unsigned char FillByte = static_cast<unsigned char>(Pattern);
-  Plugin->call(urEnqueueUSMFill, Queue->getUrHandleRef(), Mem, sizeof(FillByte),
+  Plugin->call(urEnqueueUSMFill, Queue->getHandleRef(), Mem, sizeof(FillByte),
                &FillByte, Length, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
@@ -1010,7 +1008,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMPrefetch, Queue->getUrHandleRef(), Mem, Length, 0,
+  Plugin->call(urEnqueueUSMPrefetch, Queue->getHandleRef(), Mem, Length, 0,
                DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
@@ -1032,7 +1030,7 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMAdvise, Queue->getUrHandleRef(), Mem, Length, Advice,
+  Plugin->call(urEnqueueUSMAdvise, Queue->getHandleRef(), Mem, Length, Advice,
                OutEvent);
 }
 
@@ -1059,7 +1057,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1072,7 +1070,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   const PluginPtr &Plugin = Queue->getPlugin();
 
   bool SupportsUSMMemcpy2D = false;
-  Plugin->call(urContextGetInfo, Queue->getContextImplPtr()->getUrHandleRef(),
+  Plugin->call(urContextGetInfo, Queue->getContextImplPtr()->getHandleRef(),
                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool),
                &SupportsUSMMemcpy2D, nullptr);
 
@@ -1080,7 +1078,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // Direct memcpy2D is supported so we use this function.
-    Plugin->call(urEnqueueUSMMemcpy2D, Queue->getUrHandleRef(),
+    Plugin->call(urEnqueueUSMMemcpy2D, Queue->getHandleRef(),
                  /*blocking=*/false, DstMem, DstPitch, SrcMem, SrcPitch, Width,
                  Height, DepEvents.size(), DepEvents.data(), OutEvent);
     return;
@@ -1110,7 +1108,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
-    Plugin->call(urEnqueueUSMMemcpy, Queue->getUrHandleRef(),
+    Plugin->call(urEnqueueUSMMemcpy, Queue->getHandleRef(),
                  /* blocking */ false, DstItBegin, SrcItBegin, Width,
                  DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
     CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
@@ -1119,7 +1117,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 if (OutEventImpl != nullptr)
 OutEventImpl->setHostEnqueueTime();
 // Then insert a wait to coalesce the copy events.
-Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                          CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
@@ -1147,7 +1145,7 @@ if (Width == 0 || Height == 0) {
 if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
 }
     return;
@@ -1159,7 +1157,7 @@ if (!DepEvents.empty()) {
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueUSMFill2D, Queue->getUrHandleRef(), DstMem, Pitch,
+  Plugin->call(urEnqueueUSMFill2D, Queue->getHandleRef(), DstMem, Pitch,
                Pattern.size(), Pattern.data(), Width, Height, DepEvents.size(),
                DepEvents.data(), OutEvent);
 }
@@ -1188,7 +1186,7 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1326,7 +1324,7 @@ memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueDeviceGlobalVariableWrite, Queue->getUrHandleRef(),
+  Plugin->call(urEnqueueDeviceGlobalVariableWrite, Queue->getHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Src, DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -1340,7 +1338,7 @@ memcpyFromDeviceGlobalDirect(QueueImplPtr Queue,
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getUrHandleRef(),
+  Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Dest, DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -1747,7 +1745,7 @@ void MemoryManager::copy_image_bindless(
         "NULL pointer argument in bindless image copy operation.");
 
   const detail::PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urBindlessImagesImageCopyExp, Queue->getUrHandleRef(), Dst, Src,
+  Plugin->call(urBindlessImagesImageCopyExp, Queue->getHandleRef(), Dst, Src,
                &Format, &Desc, Flags, SrcOffset, DstOffset, CopyExtent,
                HostExtent, DepEvents.size(), DepEvents.data(), OutEvent);
 }

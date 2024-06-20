@@ -77,7 +77,7 @@ public:
   kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask, ur_program_handle_t ProgramUR,
+              const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
 
   /// Constructs a SYCL kernel for host device
@@ -161,7 +161,7 @@ public:
   ///
   /// \return a constant reference to a valid PiKernel instance with raw
   /// kernel object.
-  const ur_kernel_handle_t &getUrHandleRef() const { return MURKernel; }
+  const ur_kernel_handle_t &getHandleRef() const { return MURKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -187,8 +187,7 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
-  pi_program getProgramRef() const { return MProgram; }
-  ur_program_handle_t getUrProgramRef() const { return MURProgram; }
+  ur_program_handle_t getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
@@ -201,8 +200,7 @@ public:
 private:
   ur_kernel_handle_t MURKernel = nullptr;
   const ContextImplPtr MContext;
-  const pi_program MProgram = nullptr;
-  const ur_program_handle_t MURProgram = nullptr;
+  const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
@@ -227,7 +225,7 @@ inline typename Param::return_type kernel_impl::get_info() const {
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
-  return get_kernel_info<Param>(this->getUrHandleRef(), getPlugin());
+  return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
 }
 
 template <>
@@ -254,7 +252,7 @@ kernel_impl::get_info(const device &Device) const {
     return get_kernel_device_specific_info_host<Param>(Device);
   }
   return get_kernel_device_specific_info<Param>(
-      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(),
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
       getPlugin());
 }
 
@@ -267,7 +265,7 @@ kernel_impl::get_info(const device &Device,
                         PI_ERROR_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<Param>(
-      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(), WGSize,
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
       getPlugin());
 }
 
@@ -278,7 +276,7 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
         ext::oneapi::experimental::info::kernel_queue_specific::
             max_num_work_group_sync>(const queue &Queue) const {
   const auto &Plugin = getPlugin();
-  const auto &Handle = getUrHandleRef();
+  const auto &Handle = getHandleRef();
   const auto MaxWorkGroupSize =
       Queue.get_device().get_info<info::device::max_work_group_size>();
   pi_uint32 GroupCount = 0;
