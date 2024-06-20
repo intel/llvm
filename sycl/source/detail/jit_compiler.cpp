@@ -702,6 +702,10 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
         "Cannot jit kernel with invalid kernel function name");
     return nullptr;
   }
+  auto &PM = detail::ProgramManager::getInstance();
+  if (auto CachedKernel =
+          PM.getCachedMaterializedKernel(KernelName, SpecConstBlob))
+    return CachedKernel;
 
   auto &RawDeviceImage = BinImage->getRawData();
   auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
@@ -741,10 +745,12 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
   }
 
   auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
-  auto PIDeviceBinaries =
-      createPIDeviceBinary(MaterializerKernelInfo, TargetFormat);
-  auto &PM = detail::ProgramManager::getInstance();
-  PM.addImages(PIDeviceBinaries);
+  pi_device_binary_struct MaterializedRawDeviceImage{RawDeviceImage};
+  MaterializedRawDeviceImage.BinaryStart =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart;
+  MaterializedRawDeviceImage.BinaryEnd =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart +
+      MaterializerKernelInfo.BinaryInfo.BinarySize;
 
   const bool OrigCacheCfg = SYCLConfig<SYCL_CACHE_IN_MEM>::get();
   if (OrigCacheCfg) {
@@ -755,8 +761,13 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
     }
     SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
   }
-  auto NewKernel = std::get<0>(PM.getOrCreateKernel(
-      Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName));
+
+  RTDeviceBinaryImage MaterializedRTDevBinImage{&MaterializedRawDeviceImage};
+  const auto &Context = Queue->get_context();
+  const auto &Device = Queue->get_device();
+  auto NewKernel = PM.getOrCreateMaterializedKernel(
+      MaterializedRTDevBinImage, Context, Device, KernelName, SpecConstBlob);
+
   if (OrigCacheCfg) {
     if (0 != setenv("SYCL_CACHE_IN_MEM", "1", true)) {
       throw sycl::exception(

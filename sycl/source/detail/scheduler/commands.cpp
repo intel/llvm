@@ -2419,11 +2419,14 @@ static pi_result SetKernelParamsAndLaunch(
     const std::string &KernelName) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
-  auto &SpecConstBlob = DeviceImageImpl->get_spec_const_blob_ref();
-  if (SYCLConfig<SYCL_JIT_KERNELS>::get() && !SpecConstBlob.empty()) {
+  if (SYCLConfig<SYCL_JIT_KERNELS>::get()) {
+    std::vector<unsigned char> Empty;
     Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
-        Queue, BinImage, KernelName, SpecConstBlob);
+        Queue, BinImage, KernelName,
+        DeviceImageImpl.get() ? DeviceImageImpl->get_spec_const_blob_ref()
+                              : Empty);
   }
+
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     SetArgBasedOnType(Plugin, Kernel, DeviceImageImpl, getMemAllocationFunc,

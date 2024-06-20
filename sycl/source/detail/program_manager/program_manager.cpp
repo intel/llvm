@@ -2404,6 +2404,71 @@ ProgramManager::getOrCreateKernel(const context &Context,
                          BuildResult->Val.second);
 }
 
+sycl::detail::pi::PiKernel ProgramManager::getCachedMaterializedKernel(
+    const std::string &KernelName,
+    const std::vector<unsigned char> &SpecializationConsts) {
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::getCachedMaterializedKernel\n"
+              << "KernelName: " << KernelName << "\n";
+
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    if (auto KnownMaterializations = m_MaterializedKernels.find(KernelName);
+        KnownMaterializations != m_MaterializedKernels.end()) {
+      if (DbgProgMgr > 0)
+        std::cerr << ">>> There are:" << KnownMaterializations->second.size()
+                  << " materialized kernels.\n";
+      if (auto Kernel =
+              KnownMaterializations->second.find(SpecializationConsts);
+          Kernel != KnownMaterializations->second.end()) {
+        if (DbgProgMgr > 0)
+          std::cerr << ">>> Kernel in the chache\n";
+        return Kernel->second;
+      }
+    }
+  }
+
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> Kernel not in the chache\n";
+
+  return nullptr;
+}
+
+sycl::detail::pi::PiKernel ProgramManager::getOrCreateMaterializedKernel(
+    const RTDeviceBinaryImage &Img, const context &Context,
+    const device &Device, const std::string &KernelName,
+    const std::vector<unsigned char> &SpecializationConsts) {
+  // Check if we already have the kernel in the cache.
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::getOrCreateMaterializedKernel\n"
+              << "KernelName: " << KernelName << "\n";
+
+  if (auto CachedKernel =
+          getCachedMaterializedKernel(KernelName, SpecializationConsts))
+    return CachedKernel;
+
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> Adding the kernel to the cache.\n";
+  auto Program = createPIProgram(Img, Context, Device);
+  auto DeviceImpl = detail::getSyclObjImpl(Device);
+  auto &Plugin = DeviceImpl->getPlugin();
+  ProgramPtr ProgramManaged(
+      Program, Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
+  // TODO: JKB: Flags and zeros.
+  auto BuildProgram =
+      build(std::move(ProgramManaged), detail::getSyclObjImpl(Context), "", "",
+            DeviceImpl->getHandleRef(), 0);
+  sycl::detail::pi::PiKernel PiKernel{nullptr};
+  Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
+      BuildProgram.get(), KernelName.c_str(), &PiKernel);
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    m_MaterializedKernels[KernelName][SpecializationConsts] = PiKernel;
+  }
+
+  return PiKernel;
+}
+
 bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &Img) {
   return !checkDevSupportDeviceRequirements(Dev, Img).has_value();
