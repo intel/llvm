@@ -10677,7 +10677,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // See if device code splitting is requested
   if (IsDeviceAsanEnabled) {
     addArgs(PostLinkArgs, TCArgs, {"-split=kernel"});
-  } else if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
+  } else if (Arg *A =
+                 TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
     if (CodeSplitValue == "per_kernel")
       addArgs(PostLinkArgs, TCArgs, {"-split=kernel"});
