@@ -24,3 +24,17 @@ TEST_P(urQueueGetNativeHandleTest, InvalidNullPointerNativeHandle) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urQueueGetNativeHandle(queue, nullptr, nullptr));
 }
+
+TEST_P(urQueueGetNativeHandleTest, InOrderQueueSameNativeHandle) {
+    ur_queue_handle_t in_order_queue;
+    ur_native_handle_t native_handle1 = nullptr, native_handle2 = nullptr;
+    ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &in_order_queue));
+    if (auto error =
+            urQueueGetNativeHandle(in_order_queue, nullptr, &native_handle1)) {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
+        return;
+    }
+    ASSERT_SUCCESS(
+        urQueueGetNativeHandle(in_order_queue, nullptr, &native_handle2));
+    ASSERT_EQ(native_handle1, native_handle2);
+}
