@@ -152,37 +152,42 @@ public:
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = sycl::runtime_error>
   void checkUrResult(ur_result_t result) const {
-    char *message = nullptr;
-    /* TODO: hook up adapter specific error
-    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
-      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+    const char *message = nullptr;
+
+    if (result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      int32_t error;
+      result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &error);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         std::clog << message << std::endl;
+      }
 
       // If it is a warning do not throw code
-      if (pi_result == PI_SUCCESS)
+      if (result == UR_RESULT_SUCCESS) {
         return;
-    }*/
+      }
+    }
     __SYCL_CHECK_OCL_CODE_THROW(result, Exception, message);
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkUrResult(ur_result_t result) const {
-    /*
-    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
-      char *message = nullptr;
-      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+    if (result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      int32_t error;
+      const char *message = nullptr;
+      result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &error);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         std::clog << message << std::endl;
+      }
 
       // If it is a warning do not throw code
-      if (pi_result == PI_SUCCESS)
+      if (result == UR_RESULT_SUCCESS) {
         return;
-    }*/
+      }
+    }
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(result, errc);
   }
 
