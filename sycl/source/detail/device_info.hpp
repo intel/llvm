@@ -413,7 +413,7 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     Plugin->call(urDeviceGetInfo, Dev->getHandleRef(), info_partition, 0,
                  nullptr, &resultSize);
 
-    size_t arrayLength = resultSize / sizeof(ur_device_partition_property_t);
+    size_t arrayLength = resultSize / sizeof(ur_device_partition_t);
     if (arrayLength == 0) {
       return {};
     }

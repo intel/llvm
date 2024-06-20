@@ -179,7 +179,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call(urMemGetNativeHandle, Mem, /*Dev*/ nullptr, &PtrHandle);
+    Plugin->call_nocheck(urMemGetNativeHandle, Mem, /*Dev*/ nullptr, &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
