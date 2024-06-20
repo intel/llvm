@@ -1293,7 +1293,7 @@ template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image_array(const unsampled_image_handle &imageHandle
                         [[maybe_unused]],
                         const CoordT &coords [[maybe_unused]],
-                        const unsigned int arrayLayer [[maybe_unused]]) {
+                        unsigned int arrayLayer [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2,
@@ -1402,7 +1402,7 @@ template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image_array(const sampled_image_handle &imageHandle
                         [[maybe_unused]],
                         const CoordT &coords [[maybe_unused]],
-                        const unsigned int arrayLayer [[maybe_unused]]) {
+                        unsigned int arrayLayer [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2,
@@ -1446,7 +1446,7 @@ template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT sample_image_array(const sampled_image_handle &imageHandle
                          [[maybe_unused]],
                          const CoordT &coords [[maybe_unused]],
-                         const unsigned int arrayLayer [[maybe_unused]]) {
+                         unsigned int arrayLayer [[maybe_unused]]) {
   detail::assert_sample_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2,
@@ -1524,7 +1524,7 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
 template <typename DataT, typename CoordT>
 void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
-                       const unsigned int arrayLayer [[maybe_unused]],
+                       unsigned int arrayLayer [[maybe_unused]],
                        const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
