@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (linux && gpu-intel-dg2)
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %{run} %t.out
 
 #include <iostream>
 #include <limits>
