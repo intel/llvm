@@ -494,11 +494,10 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set
     for (const auto &F : M) {
-      if (// A function that can be imported may still be defined in one split image.
-          // Only add import property if this is not the image where the function is
-          // defined.
-          F.isDeclaration() &&
-          module_split::canBeImportedFunction(F)) {
+      if ( // A function that can be imported may still be defined in one split
+           // image. Only add import property if this is not the image where the
+           // function is defined.
+          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
 
         // StripDeadPrototypes is called during module splitting
         // cleanup.  At this point all function decls should have uses.

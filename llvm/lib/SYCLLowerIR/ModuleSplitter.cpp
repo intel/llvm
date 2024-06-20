@@ -180,8 +180,7 @@ public:
     // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
 
-      if (SupportDynamicLinking &&
-          canBeImportedFunction(F))
+      if (SupportDynamicLinking && canBeImportedFunction(F))
         continue;
 
       // case (1), see comment above the class definition
@@ -1225,8 +1224,7 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
-  if (F.isIntrinsic() ||
-      F.getName().starts_with("__") ||
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
       !llvm::sycl::utils::isSYCLExternalFunction(&F))
     return false;
 
