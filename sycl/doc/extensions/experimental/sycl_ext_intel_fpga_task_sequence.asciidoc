@@ -214,7 +214,7 @@ _PropertyListT_ enables properties to be associated with a `task_sequence`
  +
  Asynchronously invoke the task_sequence's associated Callable `f` with `args`.
  Calling `async` on a task_sequence to start a new invocation may block if the
- number of outstanding invocations is equal to the invocation capacity.
+ number of outstanding invocations is greater than or equal to the invocation capacity.
  Calling `async` on a task_sequence with mismatched argument types with respect
  to the Callable `f`'s argument types is malformed.
 
