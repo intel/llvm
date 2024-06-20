@@ -483,7 +483,7 @@ threads go through the following execution flow:
  output data structure.
 
  - _T2_ cannot write its results until space is available in _D_. Hence
- , none of the other task threads can be picked to be strengthened to the
+, none of the other task threads can be picked to be strengthened to the
  stronger progress guarantee.
 
  - `get` is invoked. _T1_'s results get removed from _D_.
