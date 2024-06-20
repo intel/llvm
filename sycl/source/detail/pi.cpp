@@ -408,6 +408,8 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
     }
   }
 
+  urLoaderConfigSetCodeLocationCallback(config, codeLocationCallback, nullptr);
+
   ur_device_init_flags_t device_flags = 0;
   urLoaderInit(device_flags, config);
 

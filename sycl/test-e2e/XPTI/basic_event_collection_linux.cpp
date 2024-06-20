@@ -38,6 +38,7 @@
 // CHECK-NEXT: Edge create
 // CHECK-DAG:   queue_id : {{.*}}
 // CHECK-DAG:   event : {{.*}}
+// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
 // CHECK-NEXT: Task begin
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
