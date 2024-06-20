@@ -741,14 +741,6 @@ bool device_impl::has(aspect Aspect) const {
     return be == sycl::backend::ext_oneapi_level_zero ||
            be == sycl::backend::opencl;
   }
-  case aspect::ext_oneapi_queue_profiling_tag: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
@@ -868,10 +860,8 @@ bool device_impl::extOneapiCanCompile(
 // coordinationScope
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
-    ext::oneapi::experimental::execution_scope threadScope,
-    ext::oneapi::experimental::execution_scope coordinationScope) {
-  std::ignore = threadScope;
-  std::ignore = coordinationScope;
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
   return sycl::ext::oneapi::experimental::forward_progress_guarantee::
       weakly_parallel;
 }
@@ -886,16 +876,17 @@ device_impl::getProgressGuarantee(
   using forward_progress_guarantee =
       ext::oneapi::experimental::forward_progress_guarantee;
   using execution_scope = ext::oneapi::experimental::execution_scope;
+  const int executionScopeSize = 4;
+  (void)coordinationScope;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
-  // between coordinationScope and threadScope and return the weakest of
-  // these. Counterintuitively, this corresponds to taking the max of the enum
-  // values because of how the forward_progress_guarantee enum values are
-  // declared.
-  int guaranteeNum =
-      static_cast<int>(getImmediateProgressGuarantee(coordinationScope));
-  for (int currentScope = static_cast<int>(coordinationScope) - 1;
-       currentScope > threadScopeNum; --currentScope) {
+  // between root_group and threadScope and then return the weakest of these.
+  // Counterintuitively, this corresponds to taking the max of the enum values
+  // because of how the forward_progress_guarantee enum values are declared.
+  int guaranteeNum = static_cast<int>(
+      getImmediateProgressGuarantee(execution_scope::root_group));
+  for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
+       --currentScope) {
     guaranteeNum = std::max(guaranteeNum,
                             static_cast<int>(getImmediateProgressGuarantee(
                                 static_cast<execution_scope>(currentScope))));
