@@ -247,9 +247,10 @@ template <> struct is_property_key<fpga_cluster_key> : std::true_type {};
  Valid values for `N` are values greater than or equal to `-1`.
 
 |`fpga_cluster`
-|The `fpga_cluster` property adds a request, to the extent possible, for the
+|The `fpga_cluster` property is a request for the
  compiler to implement statically-scheduled clusters using the specified
- clustering method. The following values are supported:
+ clustering method for all clusters in the annotated kernel, when possible. The 
+ following values are supported:
 
  * `stall_enable`: Directs the compiler to prefer generating an enable signal to
     freeze the cluster when the cluster is stalled whenever possible.
@@ -257,11 +258,8 @@ template <> struct is_property_key<fpga_cluster_key> : std::true_type {};
  * `stall_free`: Directs the compiler to prefer using an exit FIFO to hold
     output data from clusters when the cluster is stalled whenever possible.
 
- *Note*: Not all clusters can be implemented with the provided preference.
-
- If the `fpga_cluster` property is not specified, the default behavior is
- equivalent to one of the values listed above, but the choice is implementation
- defined.
+ *Note*: Some clusters cannot be implemented with some cluster types so the 
+ request isn't guaranteed to be followed. 
 
  The following properties have been provided for convenience:
  `stall_enable_clusters`,

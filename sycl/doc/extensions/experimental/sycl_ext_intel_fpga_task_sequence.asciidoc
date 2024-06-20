@@ -216,13 +216,13 @@ _PropertyListT_ enables properties to be associated with a `task_sequence`
  Calling `async` on a task_sequence to start a new invocation may block if the
  number of outstanding invocations is greater than or equal to the invocation capacity.
  Calling `async` on a task_sequence with mismatched argument types with respect
- to the Callable `f`'s argument types is malformed.
+ to the Callable `f` 's argument types is malformed.
 
 |\\__unspecified__ get()
 |Available only in device functions. +
  +
  Retrieves a return value from the task_sequence, which is the same return type
- as the associated Callable `f`'s return type. Calling `get` on a task_sequence
+ as the associated Callable `f` 's return type. Calling `get` on a task_sequence
  to retrieve a return value from the task_sequence will block if there are no
  return values to retrieve.
 |===
