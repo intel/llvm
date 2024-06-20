@@ -1,4 +1,5 @@
-// Checks whether or not event Dependencies are honored by piExtEnqueueLaunchKernelCustom
+// Checks whether or not event Dependencies are honored by
+// piExtEnqueueLaunchKernelCustom
 // REQUIRES: cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
@@ -56,10 +57,15 @@ int main() {
                 it);
           });
     });
+    queue.submit([&](sycl::handler &CGH) {
+      auto a_acc =
+          a_buf.template get_access<sycl::access::mode::read_write>(CGH);
+      CGH.parallel_for(4096, [=](auto i) { a_acc[i] *= 5; });
+    });
   }
 
   for (auto v : a) {
-    if (v != 3) {
+    if (v != 15) {
       return 1;
     }
   }
