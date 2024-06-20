@@ -893,11 +893,13 @@ make_kernel_bundle_from_source(
     const std::string &Source,
     std::vector<std::pair<std::string, std::string>> IncludePairsVec);
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes,
     std::vector<std::pair<std::string, std::string>> IncludePairsVec);
+#endif
 
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
