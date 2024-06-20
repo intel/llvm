@@ -1,5 +1,5 @@
 ; Test that when the -support-dynamic-linking option is used,
-; dependencies to SYCL External functions do not cause the SYCL External function
+; dependencies to a function that can be imported do not cause the function
 ; to be added to a device image.
 
 ; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
@@ -27,8 +27,10 @@
 
 ; Function internal does not have a sycl-module-id. Thus it is not a SYCL External function
 ; and is included in the device image.
+; Function __private starts with "__" and thus is included in the device image.
 ; CHECK-SYM-2: childB
 ; CHECK-LL-2: define weak_odr spir_func void @internal() {
+; CHECK-LL-2: define weak_odr spir_func void @__private() #0 {
 ; CHECK-LL-2: define weak_odr spir_func void @childB() #0 {
 ; CHECK-LL-2: attributes #0 = { "sycl-module-id"="a.cpp" }
 
@@ -43,8 +45,13 @@ define weak_odr spir_func void @internal() {
   ret void
 }
 
+define weak_odr spir_func void @__private() #0 {
+  ret void
+}
+
 define weak_odr spir_func void @childB() #0 {
   call void @internal()
+  call void @__private()
   ret void
 }
 

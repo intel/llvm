@@ -302,6 +302,8 @@ struct ModuleSplitterSettings {
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
+bool canBeImportedFunction(const Function &F);
+
 } // namespace module_split
 
 } // namespace llvm

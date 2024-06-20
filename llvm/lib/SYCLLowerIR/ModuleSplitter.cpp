@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -180,7 +181,7 @@ public:
     for (const auto &F : M.functions()) {
 
       if (SupportDynamicLinking &&
-          llvm::sycl::utils::isSYCLExternalFunction(&F))
+          canBeImportedFunction(F))
         continue;
 
       // case (1), see comment above the class definition
@@ -1221,6 +1222,22 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   }
 
   return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  if (F.isIntrinsic() ||
+      F.getName().starts_with("__") ||
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split
