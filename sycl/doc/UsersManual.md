@@ -450,7 +450,7 @@ and not recommended to use in production environment.
 
     By default, the use of -fsycl will always perform a device compilation
     that targets spir64 for JIT compilation.  Use -fno-spirv to disable this
-    behavior when targeting AOT devices.
+    behavior.
 
 # Example: SYCL device code compilation
 
