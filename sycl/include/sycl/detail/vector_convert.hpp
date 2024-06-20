@@ -65,7 +65,8 @@
 
 #include <type_traits>
 
-#ifdef __SYCL_DEVICE_ONLY__
+// Enable on only intel devices.
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
 extern "C" {
 // For converting BF16 to other types.
 extern __DPCPP_SYCL_EXTERNAL float __imf_bfloat162float(uint16_t x);
@@ -148,7 +149,7 @@ extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_short_as_bfloat16(short x);
 extern __DPCPP_SYCL_EXTERNAL uint16_t
 __imf_ushort_as_bfloat16(unsigned short x);
 }
-#endif
+#endif // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
 
 namespace sycl {
 
@@ -306,22 +307,9 @@ inline NativeToT ConvertFromBF16Scalar(bfloat16 val) {
 template <typename NativeFromT, sycl::rounding_mode RoundingMode>
 bfloat16 ConvertToBF16Scalar(NativeFromT val) {
 
-  static_assert(RoundingMode == sycl::rounding_mode::rte ||
-                    RoundingMode == sycl::rounding_mode::automatic,
-                "We only support RTE \
-    rounding mode when converting to Bfloat16.");
-
-  float fval;
-  if constexpr (std::is_same_v<NativeFromT, float>)
-    fval = val;
-  else {
-    // Convert to float and initialize a bfloat16 with it.
-    // By default, initialization of bfloat16 from float uses RTE rounding mode.
-    fval = convertImpl<NativeFromT, float, sycl::rounding_mode::rte,
-                       NativeFromT, float>(val);
-  }
-
-  return bfloat16{fval};
+  constexpr int rm = static_cast<int>(RoundingMode);
+  return sycl::ext::oneapi::detail::ConvertToBfloat16::
+      getBfloat16WithRoundingMode<NativeFromT, rm>(val);
 }
 
 #else
@@ -651,6 +639,8 @@ inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
   return sycl::bit_cast<NativeBFT>(dst);
 }
 
+/* Emit _imf_* funcs only on Intel hardware.  */
+#if defined(__SPIR__) || defined(__SPIRV__)
 #define EXPAND_BF16_ROUNDING_MODE(type, type_str, rmode, rmode_str)            \
   template <typename NativeToT, sycl::rounding_mode RoundingMode>              \
   std::enable_if_t<(std::is_same_v<NativeToT, type> && RoundingMode == rmode), \
@@ -664,6 +654,30 @@ inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
   ConvertToBF16Scalar(NativeFromT val) {                                       \
     return __imf_##type_str##2bfloat16_##rmode_str(val);                       \
   }
+
+#else // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
+/* On non-Intel HWs, convert BF16 to float (losslessly) and convert float*/ /* to
+                                                                               the desired type. */
+#define EXPAND_BF16_ROUNDING_MODE(type, type_str, rmode, rmode_str)            \
+  template <typename NativeToT, sycl::rounding_mode RoundingMode>              \
+  std::enable_if_t<(std::is_same_v<NativeToT, type> && RoundingMode == rmode), \
+                   NativeToT>                                                  \
+  ConvertFromBF16Scalar(uint16_t val) {                                        \
+    bfloat16 bfval = sycl::bit_cast<bfloat16>(val);                            \
+    float fval = static_cast<float>(bfval);                                    \
+    return convertImpl<fval, NativeToT, RoundingMode, 1, float, NativeToT>(    \
+        fval);                                                                 \
+  }                                                                            \
+  template <typename NativeFromT, sycl::rounding_mode RoundingMode>            \
+  std::enable_if_t<                                                            \
+      (std::is_same_v<NativeFromT, type> && RoundingMode == rmode), uint16_t>  \
+  ConvertToBF16Scalar(NativeFromT val) {                                       \
+    constexpr int rm = static_cast<int>(RoundingMode);                         \
+    bfloat16 bfval = sycl::ext::oneapi::detail::ConvertToBfloat16::            \
+        getBfloat16WithRoundingMode<NativeFromT, rm>(val);                     \
+    return sycl::bit_cast<uint16_t>(bfval);                                    \
+  }
+#endif // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
 
 #define EXPAND_BF16_TYPE(type, type_str)                                       \
   EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::automatic,    \
@@ -688,14 +702,8 @@ EXPAND_BF16_TYPE(unsigned long long, ull)
 template <typename NativeToT, sycl::rounding_mode RoundingMode>
 std::enable_if_t<std::is_same_v<NativeToT, float>, NativeToT>
 ConvertFromBF16Scalar(uint16_t val) {
-  return __imf_bfloat162float(val);
-}
-
-// Cast from BF16 to uint16_t.
-template <typename NativeToT, sycl::rounding_mode RoundingMode>
-std::enable_if_t<std::is_same_v<NativeToT, uint16_t>, NativeToT>
-ConvertFromBF16Scalar(uint16_t val) {
-  return __imf_bfloat16_as_short(val);
+  bfloat16 bfval = sycl::bit_cast<bfloat16>(val);
+  return static_cast<float>(bfval);
 }
 
 // Conversion of double to BF16 is lossless, so we accept all
@@ -703,13 +711,22 @@ ConvertFromBF16Scalar(uint16_t val) {
 template <typename NativeFromT, sycl::rounding_mode RoundingMode>
 std::enable_if_t<std::is_same_v<NativeFromT, double>, uint16_t>
 ConvertToBF16Scalar(NativeFromT val) {
+#if defined(__SPIR__) || defined(__SPIRV__)
   return __imf_double2bfloat16(val);
+#else
+  constexpr int rm = static_cast<int>(RoundingMode);
+  bfloat16 bfval =
+      sycl::ext::oneapi::detail::ConvertToBfloat16::getBfloat16WithRoundingMode<
+          NativeFromT, rm>(val);
+  return sycl::bit_cast<uint16_t>(bfval);
+#endif
 }
 
 template <typename NativeFromT, sycl::rounding_mode RoundingMode>
 std::enable_if_t<std::is_same_v<NativeFromT, float>, uint16_t>
 ConvertToBF16Scalar(NativeFromT val) {
 
+#if defined(__SPIR__) || defined(__SPIRV__)
   if constexpr (RoundingMode == sycl::rounding_mode::automatic ||
                 RoundingMode == sycl::rounding_mode::rte)
     return __imf_float2bfloat16_rn(val);
@@ -721,6 +738,13 @@ ConvertToBF16Scalar(NativeFromT val) {
     return __imf_float2bfloat16_rz(val);
   else
     static_assert(false, "Invalid rounding mode.");
+#else
+  constexpr int rm = static_cast<int>(RoundingMode);
+  bfloat16 bfval =
+      sycl::ext::oneapi::detail::ConvertToBfloat16::getBfloat16WithRoundingMode<
+          float, rm>(val);
+  return sycl::bit_cast<uint16_t>(bfval);
+#endif
 }
 
 #endif // __SYCL_DEVICE_ONLY__
