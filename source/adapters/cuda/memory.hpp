@@ -20,6 +20,12 @@
 #include "device.hpp"
 #include "event.hpp"
 
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                           const ur_device_handle_t);
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                                 const ur_device_handle_t,
+                                                 CUstream);
+
 // Handler for plain, pointer-based CUDA allocations
 struct BufferMem {
 
@@ -288,7 +294,7 @@ public:
 ///
 /// The ur_mem_handle_t is responsible for memory allocation and migration
 /// across devices in the same ur_context_handle_t. If a kernel writes to a
-/// ur_mem_handle_t then it will write to LastEventWritingToMemObj. Then all
+/// ur_mem_handle_t then it will write to LastQueueWritingToMemObj. Then all
 /// subsequent operations that want to read from the ur_mem_handle_t must wait
 /// on the event referring to the last write.
 ///
@@ -308,61 +314,7 @@ public:
 ///
 /// Migrations will occur in both cases if the most recent version of data
 /// is on a different device, marked by
-/// LastEventWritingToMemObj->getQueue()->getDevice()
-///
-/// Example trace:
-/// ~~~~~~~~~~~~~~
-///
-/// =====> urContextCreate([device0, device1], ...) // associated with [q0, q1]
-///             -> OUT: hContext
-///
-/// =====> urMemBufferCreate(hContext,...);
-///             -> No native allocations made
-///             -> OUT: hBuffer
-///
-/// =====> urEnqueueMemBufferWrite(q0, hBuffer,...);
-///             -> Allocation made on q0 ie device0
-///             -> New allocation initialized with host data.
-///
-/// =====> urKernelSetArgMemObj(hKernel0, hBuffer, ...);
-///             -> ur_kernel_handle_t associated with a ur_program_handle_t,
-///                which is in turn unique to a device. So we can set the kernel
-///                arg with the ptr of the device specific allocation.
-///             -> hKernel0->getProgram()->getDevice() == device0
-///             -> allocateMemObjOnDeviceIfNeeded(device0);
-///                   -> Native allocation already made on device0, continue.
-///
-/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
-///             -> Suppose that hKernel0 writes to hBuffer.
-///             -> Call hBuffer->setLastEventWritingToMemObj with return event
-///                from this operation
-///             -> Enqueue native kernel launch
-///
-/// =====> urKernelSetArgMemObj(hKernel1, hBuffer, ...);
-///             -> hKernel1->getProgram()->getDevice() == device1
-///             -> New allocation will be made on device1 when calling
-///                getPtr(device1)
-///                   -> No native allocation on device1
-///                   -> Make native allocation on device1
-///
-/// =====> urEnqueueKernelLaunch(q1, hKernel1, ...);
-///             -> Suppose hKernel1 wants to read from hBuffer and not write.
-///             -> migrateMemoryToDeviceIfNeeded(device1);
-///                   -> hBuffer->LastEventWritingToMemObj is not nullptr
-///                   -> Check if memory has been migrated to device1 since the
-///                      last write
-///                        -> Hasn't been migrated
-///                   -> Wait on LastEventWritingToMemObj.
-///                   -> Migrate memory from device0's native allocation to
-///                      device1's native allocation.
-///             -> Enqueue native kernel launch
-///
-/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
-///             -> migrateMemoryToDeviceIfNeeded(device0);
-///                   -> hBuffer->LastEventWritingToMemObj refers to an event
-///                      from q0
-///                        -> Migration not necessary
-///             -> Enqueue native kernel launch
+/// LastQueueWritingToMemObj->getDevice()
 ///
 struct ur_mem_handle_t_ {
   // Context where the memory object is accessible
@@ -381,15 +333,13 @@ struct ur_mem_handle_t_ {
   // Has the memory been migrated to a device since the last write?
   std::vector<bool> HaveMigratedToDeviceSinceLastWrite;
 
-  // We should wait on this event prior to migrating memory across allocations
-  // in this ur_mem_handle_t_
-  ur_event_handle_t LastEventWritingToMemObj{nullptr};
+  // Queue with most up to date data of ur_mem_handle_t_
+  ur_queue_handle_t LastQueueWritingToMemObj{nullptr};
 
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
 
   ur_mutex MemoryAllocationMutex; // A mutex for allocations
-  ur_mutex MemoryMigrationMutex;  // A mutex for memory transfers
 
   /// A UR Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
@@ -478,20 +428,17 @@ struct ur_mem_handle_t_ {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
-    assert(NewEvent && "Invalid event!");
-    // This entry point should only ever be called when using multi device ctx
-    assert(Context->Devices.size() > 1);
-    urEventRetain(NewEvent);
-    if (LastEventWritingToMemObj != nullptr) {
-      urEventRelease(LastEventWritingToMemObj);
+  void setLastQueueWritingToMemObj(ur_queue_handle_t WritingQueue) {
+    urQueueRetain(WritingQueue);
+    if (LastQueueWritingToMemObj != nullptr) {
+      urQueueRelease(LastQueueWritingToMemObj);
     }
-    LastEventWritingToMemObj = NewEvent;
+    LastQueueWritingToMemObj = WritingQueue;
     for (const auto &Device : Context->getDevices()) {
       // This event is never an interop event so will always have an associated
       // queue
       HaveMigratedToDeviceSinceLastWrite[Context->getDeviceIndex(Device)] =
-          Device == NewEvent->getQueue()->getDevice();
+          Device == WritingQueue->getDevice();
     }
   }
 };

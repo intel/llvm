@@ -400,18 +400,12 @@ etors:
 - name: BINDLESS_IMAGES_MIPMAP_FREE_EXP
   desc: Enumerator for $xBindlessImagesMipmapFreeExp
   value: '142'
-- name: BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP
-  desc: Enumerator for $xBindlessImagesImportOpaqueFDExp
-  value: '143'
 - name: BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
   desc: Enumerator for $xBindlessImagesMapExternalArrayExp
   value: '144'
 - name: BINDLESS_IMAGES_RELEASE_INTEROP_EXP
   desc: Enumerator for $xBindlessImagesReleaseInteropExp
   value: '145'
-- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP
-  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreOpaqueFDExp
-  value: '146'
 - name: BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesDestroyExternalSemaphoreExp
   value: '147'
@@ -589,6 +583,12 @@ etors:
 - name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
   desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
   value: '225'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalMemoryExp
+  value: '226'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
+  value: '227'
 ---
 type: enum
 desc: Defines structure types
