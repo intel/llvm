@@ -13,6 +13,7 @@
 #include <fstream>
 #include <random>
 #include <regex>
+#include <sstream>
 
 #include "kernel_compiler_sycl.hpp"
 
