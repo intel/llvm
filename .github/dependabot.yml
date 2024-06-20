@@ -1,0 +1,9 @@
+# Run dependencies versions update
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/third_party" # Location of package manifests
+    schedule:
+      interval: "daily"
+    # Run only required security updates
+    open-pull-requests-limit: 0

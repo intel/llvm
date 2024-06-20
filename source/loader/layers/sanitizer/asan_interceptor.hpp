@@ -131,7 +131,7 @@ struct ContextInfo {
 };
 
 struct USMLaunchInfo {
-    LaunchInfo *Data;
+    LaunchInfo *Data = nullptr;
 
     ur_context_handle_t Context = nullptr;
     ur_device_handle_t Device = nullptr;

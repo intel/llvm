@@ -891,6 +891,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpImageCopyFlags(enum ur_exp_image_c
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerCubemapFilterMode(enum ur_exp_sampler_cubemap_filter_mode_t value, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_external_mem_type_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalMemType(enum ur_exp_external_mem_type_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_external_semaphore_type_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalSemaphoreType(enum ur_exp_external_semaphore_type_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_file_descriptor_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2075,12 +2091,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMipmapGetLevelExpParams
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMipmapFreeExpParams(const struct ur_bindless_images_mipmap_free_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_import_opaque_fd_exp_params_t struct
+/// @brief Print ur_bindless_images_import_external_memory_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportOpaqueFdExpParams(const struct ur_bindless_images_import_opaque_fd_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalMemoryExpParams(const struct ur_bindless_images_import_external_memory_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_map_external_array_exp_params_t struct
@@ -2099,12 +2115,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMapExternalArrayExpPara
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseInteropExpParams(const struct ur_bindless_images_release_interop_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t struct
+/// @brief Print ur_bindless_images_import_external_semaphore_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalSemaphoreOpaqueFdExpParams(const struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalSemaphoreExpParams(const struct ur_bindless_images_import_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_destroy_external_semaphore_exp_params_t struct

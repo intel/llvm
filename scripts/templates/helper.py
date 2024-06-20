@@ -653,7 +653,7 @@ def get_adapter_handles(specs):
     objs = []
     for s in specs:
         for obj in s['objects']:
-            if obj_traits.is_handle(obj) and not obj_traits.is_loader_only(obj):
+            if obj_traits.is_handle(obj) and not (obj_traits.is_loader_only(obj) or 'native' in obj['name']):
                 objs.append(obj)
 
     return objs

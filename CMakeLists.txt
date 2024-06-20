@@ -25,6 +25,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # Build Options
+option(UR_BUILD_EXAMPLES "Build example applications." ON)
 option(UR_BUILD_TESTS "Build unit tests." ON)
 option(UR_BUILD_TOOLS "build ur tools" ON)
 option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
@@ -258,7 +259,9 @@ install(
     EXPORT ${PROJECT_NAME}-targets)
 
 add_subdirectory(source)
-add_subdirectory(examples)
+if(UR_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 if(UR_BUILD_TESTS)
     add_subdirectory(test)
 endif()

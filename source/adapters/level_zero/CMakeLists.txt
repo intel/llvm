@@ -5,22 +5,27 @@
 
 
 set(TARGET_NAME ur_adapter_level_zero)
+set(UR_LEVEL_ZERO_LOADER_LIBRARY "" CACHE FILEPATH "Path of the Level Zero Loader library")
+set(UR_LEVEL_ZERO_INCLUDE_DIR "" CACHE FILEPATH "Directory containing the Level Zero Headers")
+set(UR_LEVEL_ZERO_LOADER_REPO "" CACHE STRING "Github repo to get the Level Zero loader sources from")
+set(UR_LEVEL_ZERO_LOADER_TAG "" CACHE STRING " GIT tag of the Level Loader taken from github repo")
 
-# Copy L0 loader/headers locally to the build to avoid leaking their path.
+# Copy Level Zero loader/headers locally to the build to avoid leaking their path.
 set(LEVEL_ZERO_COPY_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader)
-if (DEFINED L0_LIBRARY)
-  get_filename_component(LEVEL_ZERO_LIB_NAME "${L0_LIBRARY}" NAME)
+if (NOT UR_LEVEL_ZERO_LOADER_LIBRARY STREQUAL "")
+  get_filename_component(LEVEL_ZERO_LIB_NAME "${UR_LEVEL_ZERO_LOADER_LIBRARY}" NAME)
   set(LEVEL_ZERO_LIBRARY ${LEVEL_ZERO_COPY_DIR}/${LEVEL_ZERO_LIB_NAME})
-  message(STATUS "Copying Level Zero loader and headers to local build tree")
-  file(COPY ${L0_LIBRARY} DESTINATION ${LEVEL_ZERO_COPY_DIR} FOLLOW_SYMLINK_CHAIN)
+  message(STATUS "Level Zero Adapter: Copying Level Zero loader to local build tree")
+  file(COPY ${UR_LEVEL_ZERO_LOADER_LIBRARY} DESTINATION ${LEVEL_ZERO_COPY_DIR} FOLLOW_SYMLINK_CHAIN)
 endif()
-if (DEFINED L0_INCLUDE_DIR)
+if (NOT UR_LEVEL_ZERO_INCLUDE_DIR STREQUAL "")
   set(LEVEL_ZERO_INCLUDE_DIR ${LEVEL_ZERO_COPY_DIR}/level_zero)
-  file(COPY ${L0_INCLUDE_DIR}/level_zero DESTINATION ${LEVEL_ZERO_COPY_DIR})
+  message(STATUS "Level Zero Adapter: Copying Level Zero headers to local build tree")
+  file(COPY ${UR_LEVEL_ZERO_INCLUDE_DIR}/level_zero DESTINATION ${LEVEL_ZERO_COPY_DIR})
 endif()
 
 if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
-    message(STATUS "Download Level Zero loader and headers from github.com")
+    message(STATUS "Level Zero Adapter: Download Level Zero loader and headers from github.com")
 
     # Workaround warnings/errors for Level Zero build
     set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
@@ -33,19 +38,23 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
     endif()
 
-    set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-    set(LEVEL_ZERO_LOADER_TAG v1.16.1)
+    if (UR_LEVEL_ZERO_LOADER_REPO STREQUAL "")
+        set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
+    endif()
+    if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
+        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.0)
+    endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
     set(CMAKE_INCLUDE_CURRENT_DIR OFF)
     # Prevent L0 loader from exporting extra symbols
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
-    message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
+    message(STATUS "Level Zero Adapter: Will fetch Level Zero Loader from ${UR_LEVEL_ZERO_LOADER_REPO}")
     include(FetchContent)
     FetchContent_Declare(level-zero-loader
-        GIT_REPOSITORY    ${LEVEL_ZERO_LOADER_REPO}
-        GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
+        GIT_REPOSITORY    ${UR_LEVEL_ZERO_LOADER_REPO}
+        GIT_TAG           ${UR_LEVEL_ZERO_LOADER_TAG}
     )
     if(MSVC)
         set(USE_Z7 ON)
