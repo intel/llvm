@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -o %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion where one kernel in the fusion list specifies an

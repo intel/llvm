@@ -1,4 +1,4 @@
-// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -I . -o %t.out
+// RUN: %{build} %{embed-ir} -I . -o %t.out
 // RUN: %{run} %t.out
 
 #include "../../helpers.hpp"

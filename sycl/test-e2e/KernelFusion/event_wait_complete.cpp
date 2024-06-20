@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} %if any-device-is-hip || any-device-is-cuda %{ -fsycl-embed-ir %} -o %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
 // RUN: %{run} %t.out
 
 // Test validity of events after complete_fusion.
