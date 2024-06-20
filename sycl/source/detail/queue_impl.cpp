@@ -299,12 +299,12 @@ void queue_impl::addEvent(const event &Event) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    if (EImpl->isHost() || MEmulateOOO)
+    if (MEmulateOOO)
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
-  else if (EImpl->isHost() || MEmulateOOO || EImpl->getHandleRef() == nullptr) {
+  else if (MEmulateOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));

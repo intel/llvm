@@ -262,7 +262,8 @@ void event_impl::wait_and_throw(
 void event_impl::checkProfilingPreconditions() const {
   std::weak_ptr<queue_impl> EmptyPtr;
 
-  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
+  if (!MIsHostEvent && !EmptyPtr.owner_before(MQueue) &&
+      !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
@@ -300,7 +301,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // made by forcing the re-sync of submit time to start time is less than
   // 0.5ms. These timing values were obtained empirically using an integrated
   // Intel GPU).
-  if (MEventFromSubmittedExecCommandBuffer && MEvent) {
+  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && MEvent) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
             this->getHandleRef(), this->getPlugin());
@@ -546,6 +547,12 @@ void event_impl::setSubmissionTime() {
                   e.what());
         std::rethrow_exception(std::current_exception());
       }
+    } else {
+      // Returning host time
+      using namespace std::chrono;
+      MSubmitTime =
+          duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+              .count();
     }
   } else {
     // Capture the host timestamp for a return value of function call
