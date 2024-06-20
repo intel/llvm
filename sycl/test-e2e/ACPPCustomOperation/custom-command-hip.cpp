@@ -26,7 +26,7 @@ template <typename T> class Init;
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
   auto Acc = Buffer.get_host_access();
-  for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+  for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
                 << ", expected val = " << Value << '\n';
@@ -46,7 +46,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       auto SrcMem = IH.get_native_mem<backend::ext_oneapi_hip>(SrcA);
       auto DstMem = IH.get_native_mem<backend::ext_oneapi_hip>(DstA);
 
-      if (hipMemcpyWithStream(DstMem, SrcMem, sizeof(DataT) * SrcA.get_count(),
+      if (hipMemcpyWithStream(DstMem, SrcMem, sizeof(DataT) * SrcA.size(),
                               hipMemcpyDefault, HipStream) != hipSuccess) {
         throw;
       }
@@ -58,7 +58,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       if (Q.get_backend() != IH.get_backend())
         throw;
     };
-    CGH.ACPP_custom_operation(Func);
+    CGH.AdaptiveCpp_custom_operation(Func);
   });
 }
 
@@ -68,7 +68,7 @@ template <typename DataT> void modify(buffer<DataT, 1> &B, queue &Q) {
 
     auto Kernel = [=](item<1> Id) { Acc[Id] += 1; };
 
-    CGH.parallel_for<Modifier<DataT>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<Modifier<DataT>>(Acc.size(), Kernel);
   });
 }
 
@@ -92,7 +92,7 @@ void test_ht_buffer(queue &Q) {
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
-    CGH.ACPP_custom_operation(Func);
+    CGH.AdaptiveCpp_custom_operation(Func);
   });
 }
 
