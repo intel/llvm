@@ -1,7 +1,7 @@
-// REQUIRES: cuda || (linux && gpu-intel-dg2)
+// REQUIRES: cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: env UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %t.out
 
 #include "bindless_helpers.hpp"
 #include <iostream>
