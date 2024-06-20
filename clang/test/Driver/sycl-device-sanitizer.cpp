@@ -15,3 +15,17 @@
 // SYCL-ASAN-FILTER: clang{{.*}} "-fsycl-is-device"
 // SYCL-ASAN-FILTER-SAME: -fsanitize=address
 // SYCL-ASAN-FILTER-SAME: "-mllvm" "-asan-stack=0"
+
+// RUN: %clangxx -fsycl -fsanitize=address %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
+
+// RUN: %clangxx -fsycl -Xarch_device -fsanitize=address %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
+
+// RUN: %clangxx -fsycl -Xsycl-target-frontend -fsanitize=address %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
+
+// RUN: %clangxx -fsycl -fsanitize=address -fsycl-device-code-split=per_source %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
+
+// SYCL-ASAN-SPLIT: sycl-post-link{{.*}} "-split=kernel"

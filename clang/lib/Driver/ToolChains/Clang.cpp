@@ -10635,8 +10635,49 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
                                               ArgStringList &PostLinkArgs) {
+  // FIXME: Due to the limitations of device sanitizer implementation, we need
+  // to always split device code per kernel if device sanitizer is enabled.
+  bool IsDeviceAsanEnabled = [&] {
+    if (Arg *A = TCArgs.getLastArg(options::OPT_fsanitize_EQ,
+                                   options::OPT_fno_sanitize_EQ)) {
+      if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+          A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        if (SanitizeVal == "address")
+          return true;
+      }
+    } else {
+      // -Xsycl-target-frontend
+      if (llvm::any_of(TCArgs.getAllArgValues(options::OPT_Xsycl_frontend),
+                       [](const std::string &Arg) {
+                         return Arg.find("-fsanitize=address") !=
+                                std::string::npos;
+                       }))
+        return true;
+
+      // -Xsycl-target-frontend=
+      if (llvm::any_of(TCArgs.getAllArgValues(options::OPT_Xsycl_frontend_EQ),
+                       [](const std::string &Arg) {
+                         return Arg.find("-fsanitize=address") !=
+                                std::string::npos;
+                       }))
+        return true;
+
+      // -Xarch_device
+      if (llvm::any_of(TCArgs.getAllArgValues(options::OPT_Xarch_device),
+                       [](const std::string &Arg) {
+                         return Arg.find("-fsanitize=address") !=
+                                std::string::npos;
+                       }))
+        return true;
+    }
+    return false;
+  }();
+
   // See if device code splitting is requested
-  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
+  if (IsDeviceAsanEnabled) {
+    addArgs(PostLinkArgs, TCArgs, {"-split=kernel"});
+  } else if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
     if (CodeSplitValue == "per_kernel")
       addArgs(PostLinkArgs, TCArgs, {"-split=kernel"});
