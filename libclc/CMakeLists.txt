@@ -404,6 +404,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # have to be explicity declared in the soruce.
     list( APPEND flags -Xclang -fdeclare-spirv-builtins)
 
+    if( ${ARCH} STREQUAL "amdgcn" )
+      # Enable cross address space memory ordering for atomic operations.
+      list( APPEND flags -Xclang -mamdgpu-cross-addr-space-atomic-memory-ordering )
+    endif()
+
     set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
