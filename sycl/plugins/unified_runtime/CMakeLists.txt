@@ -100,17 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
-  # Merge: a53f89db 58f68518
+  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
+  # Merge: 2a31795d 6fb77c98
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 17 10:34:52 2024 +0100
-  #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
-  #     Fix return of component and composite device info queries
-  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
+  # Date:   Tue Jun 18 17:51:45 2024 +0100
+  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
+  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
+  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit ded4b88acc091011ed7b24362ee3e61ee332955d
+    # Merge: 0e5bbcb2 f8e1f07a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 16:30:13 2024 +0100
+    #     Merge pull request #1470 from wenju-he/fix-bindless-L0-copy
+    #     [L0][Bindless Image] Bug fixes and sampled image support
+    ded4b88acc091011ed7b24362ee3e61ee332955d
   )
 
   fetch_adapter_source(opencl
@@ -130,7 +136,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 19 14:33:26 2024 +0100
+    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
+    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
+    0e5bbcb2f8709643abf08cb83469787e866e3598
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
