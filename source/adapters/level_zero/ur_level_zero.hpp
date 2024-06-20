@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>
