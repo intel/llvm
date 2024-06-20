@@ -1,3 +1,0 @@
-urContextCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urContextCreateWithNativeHandleTest.SuccessWithOwnedNativeHandle/AMD_HIP_BACKEND___{{.*}}_
-urContextCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle/AMD_HIP_BACKEND___{{.*}}_

@@ -23,6 +23,8 @@ inline constexpr auto level_to_str(Level level) {
         return "WARNING";
     case Level::ERR:
         return "ERROR";
+    case Level::QUIET:
+        return "QUIET";
     default:
         return "";
     }
@@ -37,7 +39,8 @@ inline auto str_to_level(std::string name) {
     const lvl_name lvl_names[] = {{"debug", Level::DEBUG},
                                   {"info", Level::INFO},
                                   {"warning", Level::WARN},
-                                  {"error", Level::ERR}};
+                                  {"error", Level::ERR},
+                                  {"quiet", Level::QUIET}};
 
     for (auto const &item : lvl_names) {
         if (item.name.compare(name) == 0) {
@@ -47,8 +50,8 @@ inline auto str_to_level(std::string name) {
     throw std::invalid_argument(
         std::string("Parsing error: no valid log level for string '") + name +
         std::string("'.") +
-        std::string(
-            "\nValid log level names are: debug, info, warning and error"));
+        std::string("\nValid log level names are: debug, info, warning, error, "
+                    "and quiet"));
 }
 
 } // namespace logger

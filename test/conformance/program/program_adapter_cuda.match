@@ -7,7 +7,6 @@ urProgramBuildTest.BuildFailure/NVIDIA_CUDA_BACKEND___{{.*}}_
 # CUDA doesn't expose kernel numbers or names
 urProgramGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_NUM_KERNELS
 urProgramGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
-
 {{OPT}}urProgramSetSpecializationConstantsTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}
 {{OPT}}urProgramSetSpecializationConstantsTest.UseDefaultValue/NVIDIA_CUDA_BACKEND___{{.*}}
 urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/NVIDIA_CUDA_BACKEND___{{.*}}

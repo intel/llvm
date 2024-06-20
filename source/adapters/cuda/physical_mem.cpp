@@ -32,8 +32,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   default:
     UR_CHECK_ERROR(Result);
   }
-  *phPhysicalMem = new ur_physical_mem_handle_t_(ResHandle, hContext, hDevice);
-
+  try {
+    *phPhysicalMem =
+        new ur_physical_mem_handle_t_(ResHandle, hContext, hDevice);
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -53,10 +59,10 @@ urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
 
     ScopedContext Active(hPhysicalMem->getDevice());
     UR_CHECK_ERROR(cuMemRelease(hPhysicalMem->get()));
-    return UR_RESULT_SUCCESS;
   } catch (ur_result_t err) {
     return err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
+  return UR_RESULT_SUCCESS;
 }

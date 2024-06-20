@@ -36,9 +36,9 @@ ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        CUevent EventNative)
     : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{std::numeric_limits<uint32_t>::max()}, EventID{0},
-      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
-      Stream{nullptr}, Context{Context} {
+      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
+      EventID{0}, EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr},
+      Queue{nullptr}, Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 

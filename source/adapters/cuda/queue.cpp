@@ -167,12 +167,11 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t Err) {
-
     return Err;
-
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 
