@@ -115,21 +115,24 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   auto TID = M.thread();
   uint32_t CPU = M.cpu();
   std::string Name;
-  xpti::uid_t invalid_uid;
+  xpti::uid128_t invalid_uid;
 
-  if ((int64_t)Payload->uid.functionId() != xpti::invalid_id) {
+  xpti::framework::uid_object_t UId = Payload->uid;
+  if ((int64_t)UId.functionId() != xpti::invalid_id) {
     Name = truncate(Payload->name);
+    UId = Event->uid128;
   } else {
     Name = "<unknown>";
+    UId = xpti::framework::uid_object_t();
   }
 
-  xpti::uid_t ID = Event ? Event->uid : invalid_uid;
   // Lock while we print information
   std::lock_guard<std::mutex> Lock(GIOMutex);
   // Print the record information; Windows complains about %lu and Linux
   // complains about %llu; picking one.
   printf("%-25lu: name=%-35s cpu=%3d event_id=[%10lu, %10lu, %5lu]\n", Time,
-         Name.c_str(), CPU, ID.p1, ID.p2, ID.instance);
+         Name.c_str(), CPU, UId.getUId().p1, UId.getUId().p2,
+         UId.getUId().instance);
   // Go through all available meta-data for an event and print it out
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (const auto &Item : *Metadata) {
@@ -138,8 +141,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
     std::cout << xpti::readMetadata(Item) << "\n";
   }
 
-  if ((int32_t)Payload->uid.fileId() != xpti::invalid_id &&
-      Payload->line_no > 0) {
+  if ((int32_t)UId.fileId() != xpti::invalid_id && Payload->line_no > 0) {
     printf("---[Source file:line no] %s:%d\n", Payload->source_file,
            Payload->line_no);
   }

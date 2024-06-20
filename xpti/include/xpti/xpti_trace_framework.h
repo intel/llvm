@@ -76,11 +76,11 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
 XPTI_EXPORT_API void xptiFinalize(const char *stream);
 
 /// @brief Returns universal ID
-/// @details Universal ID is a tuple of values, that can be used to correlate
+/// @details Universal ID is a unique 64-bit value that can be used to correlate
 /// events from different software layers. It is generated once for top SW layer
 /// and then re-used by subsequent layers to identify original source code
 /// location. This value is stored in thread-local storage.
-XPTI_EXPORT_API xpti::uid_t xptiGetUniversalId();
+XPTI_EXPORT_API uint64_t xptiGetUniversalId();
 
 /// @brief Update universal ID value
 /// @details Save new universal ID value to thread-local storage. This function
@@ -88,7 +88,7 @@ XPTI_EXPORT_API xpti::uid_t xptiGetUniversalId();
 /// updating tracepoint information. See xptiGetUniversalId() for more info
 /// about universal IDs.
 /// @param uid Unique identifier.
-XPTI_EXPORT_API void xptiSetUniversalId(xpti::uid_t &uid);
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
 
 /// @brief Returns stashed tuple<std::string, uint64_t>
 /// @details The XPTI Framework allows the notification mechanism to stash a
@@ -196,7 +196,18 @@ XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id);
 /// valid for the lifetime of the application.
 /// @param payload The payload object that is registered with the system.
 /// @return The universal ID object for the payload.
-XPTI_EXPORT_API xpti::uid_t xptiRegisterPayload(xpti::payload_t *payload);
+XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload);
+
+/// @brief Register a payload with the framework and returns 128-bit key
+/// @details Since a payload may contain multiple strings that may have been
+/// defined on the stack, it is recommended the payload object is registered
+/// with the system as soon as possible. The framework will register all the
+/// strings in the payload in the string table and replace the pointers to
+/// strings on the stack with the pointers from the string table that should be
+/// valid for the lifetime of the application.
+/// @param payload The payload object that is registered with the system.
+/// @return The universal ID object for the payload.
+XPTI_EXPORT_API xpti::uid128_t xptiRegisterPayload128(xpti::payload_t *payload);
 
 /// @brief Register a stream by its name and get a stream ID
 /// @details When events in a given stream have to be notified to the
@@ -289,7 +300,7 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedTracePoint(
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
     const char *tool_name, uint8_t user_defined_event);
 
-/// @brief Creates a trace point event
+/// @brief Creates a trace point event with 64-bit and 128-bit keys
 /// @details When the application or runtime wants to instrument interesting
 /// sections of the code, they can create trace point events that represent
 /// these sections and use the created event to notify subscribers that such an
@@ -329,10 +340,64 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
 /// the instance number of this event. If the same event is attempted to be
 /// created again, the instance ID give you an indication of how many times this
 /// section has been visited.
-/// @return The trace event representing the section's payload is returned.
+/// @return The trace event representing the section's payload is returned. This
+/// event structure will have both the 64-bit UID represented by `uid` and the
+/// 128-bit UID represented by `uid128` populated.
+///
+/// @note This API call will be slower than xptiMakeEvent128() as it will be
+/// generating the 64-bit ID in addition to the 128-bit ID as this is supposed
+/// to provide backward compatibility
 XPTI_EXPORT_API xpti::trace_event_data_t *
 xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
               xpti::trace_activity_type_t activity, uint64_t *instance_no);
+
+/// @brief Creates a trace point event with 128-bit keys
+/// @details When the application or runtime wants to instrument interesting
+/// sections of the code, they can create trace point events that represent
+/// these sections and use the created event to notify subscribers that such an
+/// event ocurred. Each created event will have a unique ID. If the same payload
+/// is provided to the xptiMakeEvent() function, the same trace event is
+/// returned after looking up the invariant information in the payload
+/// parameter. If the unique ID or the event itself has been cached, there will
+/// be no lookup costs. However, if they are not cached, the same payload is
+/// provded each time the section is encountered and the event that has been
+/// created previously will be returned. This will however incur a lookup cost
+/// and it is recommended that this be avoided to keep the instrumentation
+/// overheads minimal.
+///
+/// @code
+///   uint64_t InstanceNo;
+///   trace_event_data_t *MyEvent;
+///   xpti::payload_t Payload("foo", "foo.cpp", 100, 0, (void *)this);
+///   MyEvent = xptiMakeEvent128("foo", &Payload,
+///                              xpti::trace_event_type_t::algorithm,
+///                              xpti::trace_activity_type_t::active,
+///                              &InstanceNo);
+///
+///   // Cache MyEvent locally so it can be used the next time around by
+///   // avoiding a lookup as lookups can be expensive. However, if the event is
+///   // a part of an object and tracks its lifetime, the it will be created in
+///   // the constructor and destroyed in the destructor and cached as a member
+///   // variable.
+/// @endcode
+///
+/// @param name The name of the event, typically the function name or kernel
+/// name, etc
+/// @param payload The payload that uniquely describes the trace point which can
+/// be done by the function name, source file name and line number within the
+/// source file and the address of the function, for example.
+/// @param event The event type of the current trace event being created, as in
+/// is it a graph event or an algorithm event, etc.
+/// @param activity The activity type for the event - as in active, background,
+/// overhead etc.
+/// @param instance_no This value is returned by the framework and represents
+/// the instance number of this event. If the same event is attempted to be
+/// created again, the instance ID give you an indication of how many times this
+/// section has been visited.
+/// @return The trace event representing the section's payload is returned.
+XPTI_EXPORT_API xpti::trace_event_data_t *
+xptiMakeEvent128(const char *name, xpti::payload_t *payload, uint16_t event,
+                 xpti::trace_activity_type_t activity, uint64_t *instance_no);
 
 /// @brief Retrieves a trace event given the unique id of the event
 /// @details If the unique ID of a trace event is cached, this function allows
@@ -342,7 +407,18 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
 /// performed
 /// @return The trace event with unique ID equal to uid. If the unique ID is not
 /// present, then nullptr will be returned.
-XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(xpti::uid_t &uid);
+XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid);
+
+/// @brief Retrieves a trace event given the unique id of the event
+/// @details If the unique ID of a trace event is cached, this function allows
+/// you to query the framework for the trace event data structure.
+///
+/// @param uid The unique ID of the event for which the lookup needs to be
+/// performed
+/// @return The trace event with unique ID equal to uid. If the provided unique
+/// ID is not registered, then nullptr will be returned.
+XPTI_EXPORT_API const xpti::trace_event_data_t *
+xptiFindEvent128(xpti::uid128_t *uid);
 
 /// @brief Retrieves the payload information associated with an event
 /// @details An event encapsulates the unique payload it represents and this
@@ -360,7 +436,17 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object);
 ///
 /// @param uid The universal ID for which the payload is to be retrieved.
 /// @return The payload data structure pointer for the event.
-XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(xpti::uid_t &uid);
+XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid);
+
+/// @brief Retrieves the payload information associated with an universal ID
+/// @details An universal ID references the unique payload it represents and
+/// this function allows you to query the payload with the universal ID.
+///
+/// @param uid The universal ID with 128-bit key for which the payload is to be
+/// retrieved.
+/// @return The payload data structure pointer for the event.
+XPTI_EXPORT_API const xpti::payload_t *
+xptiQueryPayloadByUID128(xpti::uid128_t *uid);
 
 /// @brief Registers a callback for a trace point type
 /// @details Subscribers receive notifications to the trace point types they
@@ -591,7 +677,7 @@ XPTI_EXPORT_API xpti::trace_point_data_t xptiGetTracepointScopeData();
 /// @param payload The payload to be registered and published.
 /// @return The trace point data associated with the registered payload.
 XPTI_EXPORT_API xpti::trace_point_data_t
-xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t &payload);
+xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t *payload);
 
 /// @brief Sets the trace point scope data.
 /// @details This function is used to set the trace point scope data in the
@@ -600,7 +686,7 @@ xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t &payload);
 /// @param data The trace point data to be set.
 /// @return Result of the operation, success or failure.
 XPTI_EXPORT_API xpti::result_t
-xptiSetTracepointScopeData(xpti::trace_point_data_t &data);
+xptiSetTracepointScopeData(xpti::trace_point_data_t *data);
 
 /// @brief Unsets the trace point scope data.
 /// @details This function is used to unset the trace point scope data in the
@@ -629,8 +715,8 @@ typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
                                             const char *);
 typedef void (*xpti_finalize_t)(const char *);
-typedef xpti::uid_t (*xpti_get_universal_id_t)();
-typedef void (*xpti_set_universal_id_t)(xpti::uid_t &uid);
+typedef uint64_t (*xpti_get_universal_id_t)();
+typedef void (*xpti_set_universal_id_t)(uint64_t uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::result_t (*xpti_stash_tuple_t)(const char *key, uint64_t value);
 typedef xpti::result_t (*xpti_get_stashed_tuple_t)(char **key, uint64_t &value);
@@ -640,7 +726,8 @@ typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);
 typedef xpti::string_id_t (*xpti_register_object_t)(const char *, size_t,
                                                     uint8_t);
 typedef xpti::object_data_t (*xpti_lookup_object_t)(xpti::object_id_t);
-typedef xpti::uid_t (*xpti_register_payload_t)(xpti::payload_t *);
+typedef uint64_t (*xpti_register_payload_t)(xpti::payload_t *);
+typedef xpti::uid128_t (*xpti_register_payload128_t)(xpti::payload_t *);
 typedef uint8_t (*xpti_register_stream_t)(const char *);
 typedef xpti::result_t (*xpti_unregister_stream_t)(const char *);
 typedef uint16_t (*xpti_register_user_defined_tp_t)(const char *, uint8_t);
@@ -648,10 +735,17 @@ typedef uint16_t (*xpti_register_user_defined_et_t)(const char *, uint8_t);
 typedef xpti::trace_event_data_t *(*xpti_make_event_t)(
     const char *, xpti::payload_t *, uint16_t, xpti::trace_activity_type_t,
     uint64_t *);
-typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(xpti::uid_t &uid);
+typedef xpti::trace_event_data_t *(*xpti_make_event128_t)(
+    const char *, xpti::payload_t *, uint16_t, xpti::trace_activity_type_t,
+    uint64_t *);
+typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(uint64_t uid);
+typedef const xpti::trace_event_data_t *(*xpti_find_event128_t)(
+    xpti::uid128_t *uid);
 typedef const xpti::payload_t *(*xpti_query_payload_t)(
     xpti::trace_event_data_t *);
-typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(xpti::uid_t &uid);
+typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(uint64_t uid);
+typedef const xpti::payload_t *(*xpti_query_payload_by_uid128_t)(
+    xpti::uid128_t *uid);
 typedef xpti::result_t (*xpti_register_cb_t)(uint8_t, uint16_t,
                                              xpti::tracepoint_callback_api_t);
 typedef xpti::result_t (*xpti_unregister_cb_t)(uint8_t, uint16_t,
@@ -676,9 +770,9 @@ typedef xpti::result_t (*xpti_set_default_trace_type_t)(
     xpti::trace_point_type_t);
 typedef xpti::trace_point_data_t (*xpti_get_trace_point_scope_data_t)();
 typedef xpti::trace_point_data_t (
-    *xpti_register_payload_and_prepare_tracepoint_data_t)(xpti::payload_t &);
+    *xpti_register_payload_and_prepare_tracepoint_data_t)(xpti::payload_t *);
 typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
-    xpti::trace_point_data_t &);
+    xpti::trace_point_data_t *);
 typedef void (*xpti_unset_trace_point_scope_data_t)();
 typedef void (*xpti_enable_tracepoint_scope_notification_t)(bool);
 typedef bool (*xpti_check_tracepoint_scope_notification_t)();

@@ -250,7 +250,7 @@ public:
 
   uint8_t streamID() { return MTP ? MTP->streamId() : 0; }
 
-  uint64_t instanceID() { return MTP ? MTP->uid().instance : 0; }
+  uint64_t instanceID() { return MTP ? MTP->uid128().instance : 0; }
 
   XPTIScope &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {

@@ -729,9 +729,9 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
                     << ", Instance:" << Instance << ", TraceType: " << TraceType
                     << std::endl;
           if (Event) {
-            std::cout << "UID: {p1: " << Event->uid.p1
-                      << ", p2: " << Event->uid.p2
-                      << ", instance: " << Event->uid.instance << "}"
+            std::cout << "UID: {p1: " << Event->uid128.p1
+                      << ", p2: " << Event->uid128.p2
+                      << ", instance: " << Event->uid128.instance << "}"
                       << std::endl;
             if (Event->reserved.payload) {
               std::cout << "Payload: {name: " << Event->reserved.payload->name
@@ -766,9 +766,9 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
                     << ", Instance:" << Instance << ", TraceType: " << TraceType
                     << std::endl;
           if (Event) {
-            std::cout << "UID: {p1: " << Event->uid.p1
-                      << ", p2: " << Event->uid.p2
-                      << ", instance: " << Event->uid.instance << "}"
+            std::cout << "UID: {p1: " << Event->uid128.p1
+                      << ", p2: " << Event->uid128.p2
+                      << ", instance: " << Event->uid128.instance << "}"
                       << std::endl;
             if (Event->reserved.payload) {
               std::cout << "Payload: {name: " << Event->reserved.payload->name

@@ -50,9 +50,12 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
   xpti::hash_t Hash;
 
   ASSERT_NE(NewResult, nullptr);
-  EXPECT_EQ(Hash.combine_short(NewResult->uid),
-            Hash.combine_short(Result->uid));
-  EXPECT_EQ(Result->uid, NewResult->uid);
+  EXPECT_EQ(Hash.combine_short(NewResult->uid128),
+            Hash.combine_short(Result->uid128));
+
+  xpti::framework::uid_object_t Res = Result->uid128;
+  xpti::framework::uid_object_t NewRes = NewResult->uid128;
+  EXPECT_EQ(Res, NewRes);
   EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);
   EXPECT_STREQ(Result->reserved.payload->name, "foo");
   EXPECT_STREQ(Result->reserved.payload->source_file, "foo.cpp");
@@ -75,19 +78,24 @@ TEST_F(xptiCorrectnessTest, xptiTPayloadTest) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
   xpti::hash_t Hash;
 
-  auto UID = xptiRegisterPayload(&p);
-  EXPECT_EQ(UID, p.uid);
-  EXPECT_EQ(UID.isValid(), true);
-  EXPECT_EQ(p.isValid(), true);
+  auto UID = xptiRegisterPayload128(&p);
+  xpti::framework::uid_object_t OUId = UID;
+  xpti::framework::uid_object_t PUId = p.uid;
+  EXPECT_EQ(OUId, PUId);
+  EXPECT_EQ(OUId.isValid(), true);
+  EXPECT_EQ(PUId.isValid(), true);
 
-  auto Payload = const_cast<xpti::payload_t *>(xptiQueryPayloadByUID(UID));
+  auto Payload = const_cast<xpti::payload_t *>(xptiQueryPayloadByUID128(&UID));
   EXPECT_NE(Payload, nullptr);
-  EXPECT_EQ(Payload->uid, UID);
-  EXPECT_EQ(Payload->uid.isValid(), true);
-  EXPECT_GT(Payload->uid.instance, 0);
+  PUId = Payload->uid;
+
+  EXPECT_EQ(PUId, OUId);
+  EXPECT_EQ(PUId.isValid(), true);
+  EXPECT_GT(PUId.getUId().instance, 0);
   // Registering it again should change the instance number
-  auto NewUID = xptiRegisterPayload(&p);
-  EXPECT_GT(NewUID.instance, UID.instance);
+  auto NewUID = xptiRegisterPayload128(&p);
+  xpti::framework::uid_object_t NUId = NewUID;
+  EXPECT_GT(NewUID.instance, OUId.getUId().instance);
   EXPECT_EQ(Hash.combine_short(NewUID), Hash.combine_short(UID));
 }
 
@@ -95,31 +103,38 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeDataTest) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
   xpti::framework::tracepoint_scope_t t(p, false);
   auto ScopeData = xptiGetTracepointScopeData();
+  xpti::framework::uid_object_t SDUId = ScopeData.uid128;
+  xpti::framework::uid_object_t SDPUId = ScopeData.payload->uid;
+  xpti::framework::uid_object_t SDEUId = ScopeData.event->uid128;
+  auto Tuid = t.uid128();
+  xpti::framework::uid_object_t TUId = Tuid;
   EXPECT_EQ(ScopeData.isValid(), true);
-  EXPECT_EQ(ScopeData.uid.isValid(), true);
-  EXPECT_EQ(ScopeData.uid, t.uid());
+  EXPECT_EQ(SDUId.isValid(), true);
+  EXPECT_EQ(SDUId, TUId);
   EXPECT_EQ(ScopeData.payload->isValid(), true);
   EXPECT_NE(ScopeData.payload, nullptr);
   EXPECT_EQ(ScopeData.payload, t.payload());
   EXPECT_NE(ScopeData.event, nullptr);
   EXPECT_EQ(ScopeData.event, t.traceEvent());
 
-  EXPECT_EQ(ScopeData.event->uid, t.uid());
-  EXPECT_EQ(ScopeData.event->uid, ScopeData.uid);
-  EXPECT_EQ(ScopeData.payload->uid, ScopeData.uid);
-  EXPECT_EQ(ScopeData.payload->uid, ScopeData.event->uid);
-  EXPECT_EQ(ScopeData.payload->uid, t.uid());
+  EXPECT_EQ(SDEUId, TUId);
+  EXPECT_EQ(SDEUId, SDUId);
+  EXPECT_EQ(SDPUId, SDUId);
+  EXPECT_EQ(SDPUId, SDEUId);
+  EXPECT_EQ(SDPUId, TUId);
 
+  xpti::framework::uid_object_t SDEPUId = Tuid;
   EXPECT_EQ(ScopeData.payload, ScopeData.event->reserved.payload);
-  EXPECT_EQ(ScopeData.payload->uid, ScopeData.event->reserved.payload->uid);
-  EXPECT_EQ(ScopeData.event->uid, ScopeData.uid);
+  EXPECT_EQ(SDPUId, SDEPUId);
+  EXPECT_EQ(SDEUId, SDUId);
 }
 
 void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
   xpti::framework::tracepoint_scope_t t(*p, false);
   xpti::hash_t Hash;
 
-  uint64_t hash = Hash.combine_short(t.uid());
+  auto Tuid = t.uid128();
+  uint64_t hash = Hash.combine_short(Tuid);
   uids.push_back(hash);
 
   if (uids.size() < 5) {
@@ -132,7 +147,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
   std::vector<uint64_t> uids;
   xpti::payload_t p("foo", "foo.cpp", 10, 0);
 
-  auto uid = xptiRegisterPayload(&p);
+  auto uid = xptiRegisterPayload128(&p);
 
   uint64_t id = xpti::invalid_uid;
   nestedScopeTest(&p, uids);
@@ -140,25 +155,24 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
     EXPECT_NE(e, xpti::invalid_uid);
     if (id != xpti::invalid_uid) {
       EXPECT_EQ(e, id);
-      std::cerr << "E: " << e << " ID: " << id << std::endl;
       id = e;
     }
   }
   // UID should not be able to query the trace point data here as it would have
   // been released when it went of out scope
-  auto Event = xptiFindEvent(uid);
+  auto Event = xptiFindEvent128(&uid);
   EXPECT_EQ(Event, nullptr);
   // UID should be able to query the payload data here as it is still valid
-  auto Payload = xptiQueryPayloadByUID(uid);
+  auto Payload = xptiQueryPayloadByUID128(&uid);
   EXPECT_NE(Payload, nullptr);
 
   uids.clear();
   xpti::payload_t p1("bar", "foo.cpp", 15, 0);
   {
-    xpti::uid_t uid;
+    xpti::uid128_t uid;
     {
       xpti::framework::tracepoint_scope_t t(p1, false);
-      uid = t.uid();
+      uid = t.uid128();
       EXPECT_NE(t.traceEvent(), nullptr);
       auto ScopeData = xptiGetTracepointScopeData();
       EXPECT_EQ(ScopeData.isValid(), true);
@@ -174,13 +188,14 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
       EXPECT_NE(t.traceEvent(), nullptr);
 
       // UID should be able to query both payload and event in this case
-      auto Event = xptiFindEvent(t.uid());
+      auto UID = t.uid128();
+      auto Event = xptiFindEvent128(&UID);
       EXPECT_NE(Event, nullptr);
-      auto Payload = xptiQueryPayloadByUID(t.uid());
+      auto Payload = xptiQueryPayloadByUID128(&UID);
       EXPECT_NE(Payload, nullptr);
     }
     // The Event for the uid would have goine out of scope and deleted
-    auto Event = xptiFindEvent(uid);
+    auto Event = xptiFindEvent128(&uid);
     EXPECT_EQ(Event, nullptr);
   }
 }
@@ -641,7 +656,7 @@ TEST_F(xptiCorrectnessTest, xptiGetUniqueId) {
 }
 
 TEST_F(xptiCorrectnessTest, xptiQueryMetadata) {
-  xpti::uid_t Id0;
+  xpti::uid128_t Id0;
   uint64_t instance;
   /// Simulates the specialization of a Kernel as used by MKL where
   /// the same kernel may be compiled multiple times
@@ -673,7 +688,7 @@ T getMetadataByKey(xpti::metadata_t *Metadata, const char *key) {
 }
 
 TEST_F(xptiCorrectnessTest, xptiAddMetadata) {
-  xpti::uid_t Id0;
+  xpti::uid128_t Id0;
   uint64_t instance;
   /// Simulates the specialization of a Kernel as used by MKL where
   /// the same kernel may be compiled multiple times
@@ -698,21 +713,24 @@ TEST_F(xptiCorrectnessTest, xptiAddMetadata) {
 }
 
 TEST_F(xptiCorrectnessTest, xptiUniversalIDTest) {
-  xpti::uid_t Id0;
+  xpti::uid128_t Id0;
   uint64_t instance;
   /// Simulates the specialization of a Kernel as used by MKL where
   /// the same kernel may be compiled multiple times
   xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
-  Id0.p1 = XPTI_PACK32_RET64(Result->uid.fileId(), Result->uid.functionId());
-  Id0.p2 = XPTI_PACK32_RET64(0, Result->uid.lineNo());
+  xpti::framework::uid_object_t ResO = Result->uid128;
+
+  Id0.p1 = XPTI_PACK32_RET64(ResO.fileId(), ResO.functionId());
+  Id0.p2 = XPTI_PACK32_RET64(0, ResO.lineNo());
   auto Result1 = xptiMakeEvent("foo", &Payload, 0,
                                (xpti::trace_activity_type_t)1, &instance);
   xpti::hash_t Hash;
-  EXPECT_EQ(Hash.combine_short(Result->uid), Hash.combine_short(Id0));
+  EXPECT_EQ(Hash.combine_short(Result->uid128), Hash.combine_short(Id0));
   EXPECT_NE(Result, Result1);
-  EXPECT_EQ(Hash.combine_short(Result->uid), Hash.combine_short(Result1->uid));
+  EXPECT_EQ(Hash.combine_short(Result->uid128),
+            Hash.combine_short(Result1->uid128));
 }
 
 TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
@@ -728,7 +746,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
 
   for (int i = 0; i < 1000000; ++i) {
     xpti::hash_t Hash;
-    xpti::uid_t id;
+    xpti::uid128_t id;
     id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
     id.p2 = XPTI_PACK32_RET64(0, MLineNo(Gen));
 
@@ -737,7 +755,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
     HashSet.insert(hash);
   }
 
-  xpti::uid_t id1, id2;
+  xpti::uid128_t id1, id2;
   uint32_t sid = MStringID(Gen), ln = MLineNo(Gen), kid = MStringID(Gen),
            addr = MAddr(Gen);
   id1.p1 = XPTI_PACK32_RET64(sid, kid);
@@ -752,7 +770,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
 
 TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   using namespace std;
-  map<xpti::uid_t, uint64_t> MapTest;
+  map<xpti::uid128_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
   uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
@@ -763,7 +781,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
-    xpti::uid_t id;
+    xpti::uid128_t id;
     id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
     id.p2 = XPTI_PACK32_RET64(0, MLineNo(Gen));
 
@@ -776,17 +794,19 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   for (auto &e : MapTest) {
     EXPECT_EQ(Hash.combine_short(e.first), e.second);
   }
-  xpti::uid_t prev;
+  xpti::framework::uid_object_t prev;
   for (auto &e : MapTest) {
-    bool test = prev < e.first;
+    xpti::uid128_t uid = e.first;
+    xpti::framework::uid_object_t curr(uid);
+    bool test = prev < curr;
     EXPECT_EQ(test, true);
-    prev = e.first;
+    prev = curr;
   }
 }
 
 TEST_F(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
   using namespace std;
-  unordered_map<xpti::uid_t, uint64_t> MapTest;
+  unordered_map<xpti::uid128_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
   uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
@@ -798,7 +818,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
-    xpti::uid_t id;
+    xpti::uid128_t id;
     id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
     id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
 

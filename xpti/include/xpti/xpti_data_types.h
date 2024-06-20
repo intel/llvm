@@ -25,103 +25,36 @@ constexpr uint8_t default_vendor = 0;
 /// location of the trace point. In the case the end-user opts out of embedding
 /// the code location information in the trace point, other pieces of
 /// information are leveraged to generate a unique 64-bit ID.
-struct uid_t {
+struct uid128_t {
   /// Contains string ID for file name in upper 32-bits and the function name in
   /// lower 32-bits
   uint64_t p1 = 0;
   /// Contains the line number in the lower 32-bits and the column number in the
   /// upper 32-bits.
   uint64_t p2 = 0;
+  /// Added for backward compatibility
+  uint64_t p3 = 0;
   /// A mutable value to hold instance information, which is the count of the
   /// number of occurrences of a given UID
   uint64_t instance = 0;
-
-  /// @brief Compares two `uid_t` objects.
-  ///
-  /// This operator overload allows for the comparison of two `uid_t` objects.
-  /// A `uid_t` object is considered less than another if its `p1` field is
-  /// less than the other's, or if their `p1` fields are equal and its `p2`
-  /// field is less than the other's.
-  ///
-  /// @param rhs The right-hand side `uid_t` object in the comparison.
-  /// @return Returns true if the left-hand side `uid_t` object is less than
-  /// the right-hand side one, and false otherwise.
-  bool operator<(const uid_t &rhs) const {
-    if (p1 < rhs.p1)
-      return true;
-    if (p1 == rhs.p1 && p2 < rhs.p2)
-      return true;
-    return false;
-  }
-
-  /// @brief Checks if the uid_t object is valid.
-  ///
-  /// This method checks if the uid_t object is valid by checking if any of the
-  /// hash parts (`p1`, `p2`, `p3`) or the `instance` member is not zero. The
-  /// `instance` member is a unique identifier for the instance of the uid_t
-  /// object. If any of these members is not zero, it means that the uid_t
-  /// object is considered valid.
-  ///
-  /// @return Returns true if the uid_t object is valid (i.e., if any of the
-  /// hash parts or the `instance` member is not zero), and false otherwise.
-  ///
-  bool isValid() { return (p1 != 0 || p2 != 0) && (instance != 0); }
-
-  /// @brief Returns the file ID from the uid_t object.
-  ///
-  /// This method extracts the file ID from the first 64-bit field (p1) of the
-  /// uid_t object by shifting it 32 bits to the right.
-  ///
-  /// @return A 64-bit value that represents the file ID.
-  uint64_t fileId() { return p1 >> 32; }
-
-  /// @brief Returns the function ID from the uid_t object.
-  ///
-  /// This method extracts the function ID from the first 64-bit field (p1) of
-  /// the uid_t object by applying a bitwise AND operation with a mask that has
-  /// the lower 32 bits set to 1.
-  ///
-  /// @return A 64-bit value that represents the function ID.
-  uint64_t functionId() { return p1 & 0x00000000ffffffff; }
-
-  /// @brief Returns the line number from the uid_t object.
-  ///
-  /// This method extracts the line number from the second 64-bit field (p2) of
-  /// the uid_t object by applying a bitwise AND operation with a mask that has
-  /// the lower 32 bits set to 1.
-  ///
-  /// @return A 32-bit value that represents the line number.
-  uint32_t lineNo() { return (uint32_t)(p2 & 0x00000000ffffffff); }
-
-  /// @brief Returns the column number from the uid_t object.
-  ///
-  /// This method extracts the column number from the second 64-bit field (p2)
-  /// of the uid_t object by shifting it 32 bits to the right.
-  ///
-  /// @return A 32-bit value that represents the column number.
-  uint32_t columnNo() { return (uint32_t)(p2 >> 32); }
-
-  /// @brief Overload of operator== to compare two xpti::uid_t objects.
-  ///
-  /// This operator overload allows for the comparison of two xpti::uid_t
-  /// objects. Two uid_t objects are considered equal if their p1 and p2 fields
-  /// are equal. The p1 field contains the combined file ID and function ID, and
-  /// the p2 field contains the combined line number and column number.
-  ///
-  /// @param rhs The right-hand side xpti::uid_t object in the comparison.
-  /// @return Returns true if the p1 and p2 fields of the two xpti::uid_t
-  /// objects are equal, and false otherwise.
-  bool operator==(const xpti::uid_t &rhs) const {
-    // Two uid_t objects are considered equal if their p1, p2, and p3 fields are
-    // equal. p1 contains the combined file ID and function ID, p2 contains the
-    // combined line number and column number, and p3 contains the object
-    // address or a unique 64-bit value.
-    return (p1 == rhs.p1 && p2 == rhs.p2);
-  }
 };
 
-/// @brief Constructs a uid_t object with the given file ID, function ID, line
-/// number, and column number.
+/// @typedef uid64_t
+/// @brief Defines a 64-bit unique identifier type that maps to a uid128_t.
+///
+/// This type is used throughout the system to uniquely identify tracepoints.
+/// The 64-bit size ensures a large enough space to generate unique IDs for the
+/// lifetime of the application or system being traced or monitored and is
+/// compatible with previous versions of the XPTI API.
+///
+/// The `uid64_t` is typically used to maintain backward compatibility, but adds
+/// an additional lookup overhead as all framework implementations are for
+/// 128-bit keys to avoid collisions.
+///
+using uid64_t = uint64_t;
+
+/// @brief Constructs a uid128_t object with the given file ID, function ID,
+/// line number, and column number.
 ///
 /// This function takes a file ID and a function ID, both as 64-bit values,
 /// and a line number and a column number, both as integers. It then combines
@@ -132,13 +65,54 @@ struct uid_t {
 /// @param FuncID A 64-bit value that represents the function ID.
 /// @param Line An integer that represents the line number.
 /// @param Col An integer that represents the column number.
-inline uid_t make_uid(uint64_t FileID, uint64_t FuncID, int Line, int Col) {
-  uid_t uid;
+inline uid128_t make_uid(uint64_t FileID, uint64_t FuncID, int Line, int Col) {
+  uid128_t uid;
   uid.p1 = (FileID << 32) | FuncID;
   uid.p2 = ((uint64_t)Col << 32) | Line;
   uid.instance = 1;
   return uid;
 }
+
+// Primarily here for backward compatibility
+struct uid_t {
+  /// Contains string ID for file name in upper 32-bits and the line number in
+  /// lower 32-bits
+  uint64_t p1 = 0;
+  /// Contains the string ID for kernel name in lower 32-bits; in the case
+  /// dynamic stack walk is performed, the upper 32-bits contain the string ID
+  /// of the caller->callee combination string.
+  uint64_t p2 = 0;
+  /// Contains the address of the kernel object or SYCL object references and
+  /// only the lower 32-bits will be used to generate the hash
+  uint64_t p3 = 0;
+
+  uid_t() = default;
+  /// Computes a hash that is a bijection between N^3 and N
+  /// (x,y,z) |-> (x) + (x+y+1)/2 + (x+y+z+2)/3
+  uint64_t hash() const {
+    /// Use lower 32-bits of the address
+    uint32_t v3 = (uint32_t)(p3 & 0x00000000ffffffff);
+    /// Use p1 and p2 as is; since p1 and p2 upper 32-bits is built from string
+    /// IDs, they are more than likely to be less than 16 bits. Combining
+    /// 48-bits of one value with ~16-bits/~32-bits will should not overflow a
+    /// 64-bit accumulator.
+    return (p1 + (p1 + p2 + 1) / 2 + (p1 + p2 + v3 + 2) / 3);
+  }
+
+  bool operator<(const uid_t &rhs) const {
+    if (p1 < rhs.p1)
+      return true;
+    if (p1 == rhs.p1 && p2 < rhs.p2)
+      return true;
+    if (p1 == rhs.p1 && p2 == rhs.p2 && p3 < rhs.p3)
+      return true;
+    return false;
+  }
+
+  bool operator==(const uid_t &rhs) const {
+    return p1 == rhs.p1 && p2 == rhs.p2 && p3 == rhs.p3;
+  }
+};
 
 /// @brief Hash generation helper
 /// @details The Universal ID concept in XPTI requires a good hashing function
@@ -254,7 +228,7 @@ struct hash_t {
   /// @return A 64-bit value that represents the combined file ID, function ID,
   /// line number, and column number.
   ///
-  uint64_t combine(const xpti::uid_t &uid) {
+  uint64_t combine(const xpti::uid128_t &uid) {
     uint64_t FileID = uid.p1 >> 32;
     uint64_t FuncID = uid.p1 & 0x00000000ffffffff;
     uint32_t Line = (uint32_t)(uid.p2 & 0x00000000ffffffff);
@@ -275,7 +249,7 @@ struct hash_t {
   /// @return A 64-bit value that represents the combined file ID, function ID,
   /// line number, and column number.
   ///
-  uint64_t combine_short(const xpti::uid_t &uid) {
+  uint64_t combine_short(const xpti::uid128_t &uid) {
     uint64_t FileID = uid.p1 >> 32;
     uint64_t FuncID = uid.p1 & 0x00000000ffffffff;
     uint32_t Line = (uint32_t)(uid.p2 & 0x00000000ffffffff);
@@ -374,6 +348,9 @@ struct object_data_t {
 /// values are available. It's set to `0` by default, indicating that none of
 /// these components are available.
 ///
+/// @var cuint64_t uid
+/// The Universal ID for this payload.
+///
 /// @fn bool payload_t::isValid()
 /// Checks whether the payload is valid. A payload is considered valid if its
 /// `flags` member is not `0`, indicating that at least one component of the
@@ -382,6 +359,8 @@ struct object_data_t {
 struct payload_t {
   /// Name of the trace point; graph, algorithm, lock names, for example.
   const char *name = nullptr;
+  /// Stack trace indicated by caller/callee as "caller->callee"
+  const char *stack_trace = nullptr;
   /// Absolute path of the source file; may have to be unicode string
   const char *source_file = nullptr;
   /// Line number information to correlate the trace point
@@ -390,14 +369,19 @@ struct payload_t {
   /// trace point; currently none of the compiler builtins return a valid
   /// column no
   uint32_t column_no = 0;
+  /// Kernel/lambda/function address
+  const void *code_ptr_va = nullptr;
+  /// Internal bookkeeping slot - do not change.
+  uint64_t internal;
   /// Flags indicating whether string name, codepointer, source file and hash
   /// values are available
   uint64_t flags = 0;
   /// @brief  Contains the computed UID for the payload
-  /// @details The UID is accurate, except for the instance ID for a given
-  /// payload. The instance ID in xpti::trace_event_data_t::uid is always
-  /// accurate w.r.t to the event data reference
-  uid_t uid;
+  /// @details The UID is accurate representation of a payload, except that the
+  /// instance ID for a given payload in not available. The instance ID in
+  /// xpti::trace_event_data_t::uid is always accurate w.r.t to the event data
+  /// reference
+  uid128_t uid;
 
   payload_t() = default;
 
@@ -715,45 +699,136 @@ enum class metadata_type_t {
   boolean = 5
 };
 
+/// @struct reserved_data_t
+/// @brief Holds additional data associated with a trace event.
+///
+/// This structure is designed to extend the trace event data with a reference
+/// to the payload and any user-defined metadata. The payload provides detailed
+/// information about the trace point, while the metadata allows for the
+/// association of key-value pairs with a trace event instance.
+///
+/// @var payload_t* payload
+/// A pointer to the associated payload field. This payload is used to construct
+/// the universal ID (128-bit key) for the trace event, combining xpti::uid_t
+/// and uint64_t values that represent the payload.
+///
+/// @var metadata_t metadata
+/// Additional metadata that may be defined by the user as key-value pairs. This
+/// metadata is associated with a trace event instance, allowing for the storage
+/// of extra information that can be used for analysis or debugging.
+///
 struct reserved_data_t {
-  /// Has a reference to the associated payload field for an event
+  /// Has a reference to the associated payload field that is used to construct
+  /// the universal ID (128-bit key using xpti::uid_t and uint64_t which
+  /// represents the payload to define the UID)
   payload_t *payload = nullptr;
   /// Has additional metadata that may be defined by the user as key-value
-  /// pairs
+  /// pairs and is associated  with a trace event instance
   metadata_t metadata;
 };
 
+/// @struct trace_event_data_t
+/// @brief Encapsulates data related to a trace event.
+///
+/// This structure is designed to hold all necessary information about a trace
+/// event, including its unique identifiers, type, classification, and any
+/// associated source or target IDs for graph-based event tracing. It also
+/// includes a reserved data slot for future expansion and a 128-bit unique
+/// identifier for extracting the instance ID of the current trace event,
+/// especially if multiple trace events are active for the same tracepoint
+/// location.
+///
+/// @var uint64_t uid
+/// 64-bit unique identifier that corresponds to the trace point location. This
+/// ID is used to uniquely identify the event in the tracing system. This ID is
+/// a pseudo 64-bit equivalent of the 128-bit counterpart and is available to
+/// provide backward compatibility.
+///
+/// @var uint16_t event_type
+/// Specifies the type of the event, categorized by the `trace_event_type_t`
+/// enumeration. This allows for processing of events based on their type.
+///
+/// @var uint16_t activity_type
+/// Classifies the event into categories such as active, overhead, barrier,
+/// etc., as defined by the `trace_activity_type_t` enumeration. This
+/// classification aids in analyzing the behavior and performance impact of
+/// different types of events. The default for a trace event is
+/// "unkown_activity".
+///
+/// @var uint32_t unused
+/// Just a dummy slot to align to 64-bit boundaries.
+///
+/// @var uint64_t source_id
+/// For events that represent edges in a graph (e.g., dependencies between
+/// tasks), this field identifies the source node. It is only set if the
+/// `event_type` is "graph" and the trace type is "edge_create".
+///
+/// @var uint64_t target_uid
+/// Similar to `source_id`, for graph-based events, this field identifies the
+/// target node of an edge. It is set under the same conditions as `source_id`.
+///
+/// @var reserved_data_t reserved
+/// A reserved slot that can be used for memory growth or to accommodate
+/// additional data required by the framework in the future. It includes a
+/// reference to a payload and user-defined metadata.
+///
+/// @var xpti::uid_t uid128
+/// A 128-bit unique identifier for the trace event. This identifier combines
+/// multiple pieces of information to uniquely identify a code location or
+/// activity, allowing for differentiation between multiple instances of the
+/// same event or code location.
+///
 struct trace_event_data_t {
-  /// Unique id that corresponds to an event type or event group type
-  uid_t uid;
+  /// Unique id that corresponds to trace point location
+  uint64_t uid = xpti::invalid_uid;
   /// The type of event
-  uint16_t event_type;
+  uint16_t event_type = (uint16_t)trace_event_type_t::unknown_event;
   /// How this event is classified: active, overhead, barrier etc
-  uint16_t activity_type;
+  uint16_t activity_type = (uint16_t)trace_activity_type_t::unknown_activity;
   /// Unused 32-bit slot that could be used for any ids that need to be
   /// propagated in the future
   uint32_t unused;
   /// If event_type is "graph" and trace_type is "edge_create", then the
   /// source ID is set
-  uid_t source_uid;
+  uint64_t source_id = xpti::invalid_uid;
   /// If event_type is "graph" and trace_type is "edge_create", then the
   /// target ID is set
-  uid_t target_uid;
+  uint64_t target_id = xpti::invalid_uid;
   /// A reserved slot for memory growth, if required by the framework
   reserved_data_t reserved;
+  /// @var xpti::uid_t uid128
+  /// @brief Represents a unique identifier for tracing events.
+  ///
+  /// This identifier combines multiple pieces of information to uniquely
+  /// identify a code location representing a Universal ID the activity that
+  /// follows. Since metadata needs to be mutable or instance specific, the
+  /// instance counter is used to count the occurrences of a given UID, allowing
+  /// for differentiation between multiple instances of the same code location
+  /// and is associated with the trace event.
+  ///
+  xpti::uid128_t uid128;
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// source ID is set to its 128-bit UID
+  xpti::uid128_t source_id128;
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// target ID is set to its 128-bit UID
+  xpti::uid128_t target_id128;
 };
 
 /// @struct trace_point_data_t
-/// @brief This struct represents a trace point's data in the tracing framework.
+/// @brief This struct represents a trace point's data in the tracing framework
+/// and is populated with the current tracepoint's information before stashing
+/// it in TLS.
 ///
-/// It contains a unique identifier (uid) and a payload.
+/// It contains a unique identifiers (uid128, uid64), the payload used to
+/// construct the UIDs and the corresponding trace event.
 ///
 struct trace_point_data_t {
   /// @brief This is a unique identifier for the trace point.
   ///
-  /// It is of type uid_t, which encodes the payload information.
+  /// It is a 64-bit unsigned integer, which represents the payload information.
   ///
-  uid_t uid;
+  xpti::uid128_t uid128;
 
   /// @brief This is a pointer to the payload associated with the trace point.
   ///
@@ -774,15 +849,26 @@ struct trace_point_data_t {
   ///
   trace_event_data_t *event = nullptr;
 
+  /// @brief This is a 64-bit unique identifier representation for the `uid128`
+  /// for the trace point.
+  ///
+  /// It is of type uint16_t, which is the key to lookup the payload information
+  /// through `xptiQueryPayloadByUID()` call. This information is optional and
+  /// has to be populated by the compatibility API for use with the legacy APIs.
+  ///
+  xpti::uid64_t uid64 = xpti::invalid_uid;
+
   /// @brief This method checks if the trace point data is valid.
   ///
-  /// It returns true if both the uid is valid (as determined by the uid's
-  /// isValid method) and the payload pointer is not null. Otherwise, it
-  /// returns false.
+  /// It returns true if both the uids are valid, the payload and event pointers
+  /// are not null. Otherwise, it returns false.
   ///
-  /// @return True if uid is valid and payload is not null, false otherwise.
+  /// @return True if data is valid, false otherwise.
   ///
-  bool isValid() { return (uid.isValid() && payload && event); }
+  bool isValid() {
+    return ((((uid128.p1 != 0) || (uid128.p2 != 0)) && uid128.instance > 0) &&
+            payload && event);
+  }
 };
 
 /// Describes offload buffer
@@ -1027,9 +1113,9 @@ namespace std {
 // Specializations for std::unordered_map
 
 // Specialization of std::hash for xpti::uid_t
-template <> struct hash<xpti::uid_t> {
+template <> struct hash<xpti::uid128_t> {
   // Overload of operator() to calculate hash of xpti::uid_t
-  size_t operator()(const xpti::uid_t &UID) const {
+  size_t operator()(const xpti::uid128_t &UID) const {
     xpti::hash_t Hash;
     // The hash is calculated by combining the file ID, function ID, and line
     // number from the uid_t object into a single 64-bit value.
@@ -1038,9 +1124,9 @@ template <> struct hash<xpti::uid_t> {
 };
 
 // Specialization of std::equal_to for xpti::uid_t
-template <> struct equal_to<xpti::uid_t> {
+template <> struct equal_to<xpti::uid128_t> {
   // Overload of operator() to compare two xpti::uid_t objects
-  bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
+  bool operator()(const xpti::uid128_t &lhs, const xpti::uid128_t &rhs) const {
     // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
     // p1 contains the combined file ID and function ID, p2 contains the
     // combined line number and column number.
@@ -1048,9 +1134,9 @@ template <> struct equal_to<xpti::uid_t> {
   }
 };
 
-template <> struct less<xpti::uid_t> {
+template <> struct less<xpti::uid128_t> {
   // Overload of operator() to compare two xpti::uid_t objects
-  bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
+  bool operator()(const xpti::uid128_t &lhs, const xpti::uid128_t &rhs) const {
     // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
     // p1 contains the combined file ID and function ID, p2 contains the
     // combined line number and column number. For one to be less than the
@@ -1062,6 +1148,10 @@ template <> struct less<xpti::uid_t> {
       return true;
     return false;
   }
+};
+/// Specialize std::hash to support xpti::uid_t
+template <> struct hash<xpti::uid_t> {
+  std::size_t operator()(const xpti::uid_t &key) const { return key.hash(); }
 };
 
 } // namespace std

@@ -120,7 +120,7 @@ void TestPerformance::runDataStructureTestsThreads(
     }
     ModelRow[(int)DSColumns::STInsertLookup] = ElapsedTime;
 
-    std::vector<xpti::uid_t> UIds;
+    std::vector<xpti::uid128_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     UIds.resize(MTracepoints);
     Events.resize(MTracepoints);
@@ -139,7 +139,7 @@ void TestPerformance::runDataStructureTestsThreads(
             fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &MInstanceID);
         if (Ev) {
-          UIds[LookupIndex] = Ev->uid;
+          UIds[LookupIndex] = Ev->uid128;
           Events[LookupIndex] = Ev;
         }
       }
@@ -172,7 +172,7 @@ void TestPerformance::runDataStructureTestsThreads(
         record &r = MRecords[i];
         uint64_t LookupIndex = r.lookup;
         xpti::trace_event_data_t *Ev = const_cast<xpti::trace_event_data_t *>(
-            xptiFindEvent(UIds[LookupIndex]));
+            xptiFindEvent128(&UIds[LookupIndex]));
       }
     }
     ModelRow[(int)DSColumns::TPFWCache] = ElapsedTime;
@@ -214,7 +214,7 @@ void TestPerformance::runDataStructureTestsThreads(
     ModelRow[(int)DSColumns::Threads] = NumThreads;
 
     {
-      std::vector<xpti::uid_t> UIds;
+      std::vector<xpti::uid128_t> UIds;
       std::vector<xpti::trace_event_data_t *> Events;
       UIds.resize(MTracepoints);
       Events.resize(MTracepoints);
@@ -300,7 +300,8 @@ void TestPerformance::runDataStructureTestsThreads(
                 fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
                 xpti::trace_activity_type_t::active, &MInstanceID);
             if (Ev) {
-              UIds[LookupIndex] = Ev->uid;
+              auto &UIDLhs = UIds[LookupIndex];
+              UIDLhs = Ev->uid128;
               Events[LookupIndex] = Ev;
             }
           }
@@ -344,7 +345,7 @@ void TestPerformance::runDataStructureTestsThreads(
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev =
                 const_cast<xpti::trace_event_data_t *>(
-                    xptiFindEvent(UIds[LookupIndex]));
+                    xptiFindEvent128(&UIds[LookupIndex]));
           }
         };
 
@@ -364,7 +365,7 @@ void TestPerformance::runDataStructureTestsThreads(
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev =
                 const_cast<xpti::trace_event_data_t *>(
-                    xptiFindEvent(UIds[LookupIndex]));
+                    xptiFindEvent128(&UIds[LookupIndex]));
           }
         };
         {
@@ -428,7 +429,7 @@ void TestPerformance::runInstrumentationTestsThreads(
   uint64_t TimeInNS;
   double ElapsedTime;
 
-  std::vector<xpti::uid_t> tp_ids;
+  std::vector<xpti::uid128_t> tp_ids;
   tp_ids.resize(MTracepoints);
   std::vector<xpti::trace_event_data_t *> Events;
   Events.resize(MTracepoints);
@@ -456,7 +457,7 @@ void TestPerformance::runInstrumentationTestsThreads(
               fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
               xpti::trace_activity_type_t::active, &MInstanceID);
           if (Ev) {
-            tp_ids[i] = Ev->uid;
+            tp_ids[i] = Ev->uid128;
             Events[i] = Ev;
           }
         }
@@ -493,7 +494,7 @@ void TestPerformance::runInstrumentationTestsThreads(
               fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
               xpti::trace_activity_type_t::active, &MInstanceID);
           if (Ev) {
-            tp_ids[i] = Ev->uid;
+            tp_ids[i] = Ev->uid128;
             Events[i] = Ev;
           }
         }

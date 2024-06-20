@@ -71,9 +71,9 @@ TEST_F(xptiApiTest, xptiLookupStringGoodInput) {
 
 TEST_F(xptiApiTest, xptiRegisterPayloadGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
-  xpti::uid_t Invalid;
+  xpti::uid128_t Invalid;
 
-  auto ID = xptiRegisterPayload(&p);
+  auto ID = xptiRegisterPayload128(&p);
   xpti::hash_t Hash;
   EXPECT_NE(Hash.combine_short(ID), Hash.combine_short(Invalid));
   EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(p.uid));
@@ -81,10 +81,10 @@ TEST_F(xptiApiTest, xptiRegisterPayloadGoodInput) {
 
 TEST_F(xptiApiTest, xptiRegisterPayloadBadInput) {
   xpti::payload_t p;
-  xpti::uid_t Invalid;
+  xpti::uid128_t Invalid;
   xpti::hash_t Hash;
 
-  auto ID = xptiRegisterPayload(&p);
+  auto ID = xptiRegisterPayload128(&p);
   EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(Invalid));
 }
 
@@ -150,18 +150,18 @@ TEST_F(xptiApiTest, xptiMakeEventGoodInput) {
   auto NewResult = xptiMakeEvent("foo", &Payload, 0,
                                  (xpti::trace_activity_type_t)1, &instance);
   EXPECT_NE(Result, NewResult);
-  EXPECT_EQ(Result->uid.p1, NewResult->uid.p1);
-  EXPECT_EQ(Result->uid.p2, NewResult->uid.p2);
-  EXPECT_NE(Result->uid.instance, NewResult->uid.instance);
+  EXPECT_EQ(Result->uid128.p1, NewResult->uid128.p1);
+  EXPECT_EQ(Result->uid128.p2, NewResult->uid128.p2);
+  EXPECT_NE(Result->uid128.instance, NewResult->uid128.instance);
   EXPECT_EQ(instance, 2u);
 }
 
 TEST_F(xptiApiTest, xptiFindEventBadInput) {
-  xpti::uid_t Invalid, Fake;
+  xpti::uid128_t Invalid, Fake;
   Fake = xpti::make_uid(100, 100, 100, 100);
-  auto Result = xptiFindEvent(Invalid);
+  auto Result = xptiFindEvent128(&Invalid);
   EXPECT_EQ(Result, nullptr);
-  Result = xptiFindEvent(Fake);
+  Result = xptiFindEvent128(&Fake);
   EXPECT_EQ(Result, nullptr);
 }
 
@@ -173,7 +173,7 @@ TEST_F(xptiApiTest, xptiFindEventGoodInput) {
                               (xpti::trace_activity_type_t)1, &Instance);
   ASSERT_NE(Result, nullptr);
   EXPECT_EQ(Instance, 1u);
-  auto NewResult = xptiFindEvent(Result->uid);
+  auto NewResult = xptiFindEvent128(&Result->uid128);
   EXPECT_EQ(Result, NewResult);
 }
 
@@ -194,24 +194,27 @@ TEST_F(xptiApiTest, xptiQueryPayloadGoodInput) {
   EXPECT_STREQ(Payload.name, NewResult->name);
   EXPECT_STREQ(Payload.source_file, NewResult->source_file);
   // NewResult->name_sid will have a string ID whereas 'Payload' will not
-  EXPECT_EQ(Result->uid.functionId(), NewResult->uid.functionId());
-  EXPECT_EQ(Result->uid.fileId(), NewResult->uid.fileId());
-  EXPECT_EQ(Result->uid.lineNo(), NewResult->uid.lineNo());
-  EXPECT_NE(Payload.uid.functionId(), NewResult->uid.functionId());
-  EXPECT_NE(Payload.uid.fileId(), NewResult->uid.fileId());
-  EXPECT_NE(Payload.uid.lineNo(), NewResult->uid.lineNo());
+  auto Res1 = xpti::framework::uid_object_t(Result->uid128);
+  auto Res2 = xpti::framework::uid_object_t(NewResult->uid);
+  EXPECT_EQ(Res1.functionId(), Res2.functionId());
+  EXPECT_EQ(Res1.fileId(), Res2.fileId());
+  EXPECT_EQ(Res1.lineNo(), Res2.lineNo());
+  Res1 = Payload.uid;
+  EXPECT_NE(Res1.functionId(), Res2.functionId());
+  EXPECT_NE(Res1.fileId(), Res2.fileId());
+  EXPECT_NE(Res1.lineNo(), Res2.lineNo());
 }
 
 TEST_F(xptiApiTest, xptiQueryPayloadByUIDGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
-  xpti::uid_t Invalid;
+  xpti::uid128_t Invalid;
 
-  auto ID = xptiRegisterPayload(&p);
+  auto ID = xptiRegisterPayload128(&p);
   xpti::hash_t Hash;
   EXPECT_NE(Hash.combine_short(ID), Hash.combine_short(Invalid));
   EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(p.uid));
 
-  auto pp = xptiQueryPayloadByUID(ID);
+  auto pp = xptiQueryPayloadByUID128(&ID);
   EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(pp->uid));
   EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(pp->uid));
 }
@@ -256,13 +259,13 @@ TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
   xpti::trace_point_data_t Data;
   auto ScopeData = xptiGetTracepointScopeData();
   EXPECT_EQ(ScopeData.isValid(), false);
-  auto Result = xptiSetTracepointScopeData(Data);
+  auto Result = xptiSetTracepointScopeData(&Data);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
   xpti::payload_t Payload("foo", "foo.cpp", 1, 4);
 
   Data.payload = &Payload;
-  Data.uid = Payload.uid = xptiRegisterPayload(&Payload);
-  Result = xptiSetTracepointScopeData(Data);
+  Data.uid128 = Payload.uid = xptiRegisterPayload128(&Payload);
+  Result = xptiSetTracepointScopeData(&Data);
   // Data.event is nullptr
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
   EXPECT_EQ(Data.isValid(), false);
@@ -272,8 +275,8 @@ TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
   Data.event = xptiMakeEvent("foo", &NewPayload, 0,
                              (xpti::trace_activity_type_t)1, &Instance);
   Data.payload = Data.event->reserved.payload;
-  Data.uid = Data.event->uid;
-  Result = xptiSetTracepointScopeData(Data);
+  Data.uid128 = Data.event->uid128;
+  Result = xptiSetTracepointScopeData(&Data);
   // Data.event is nullptr
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
@@ -281,7 +284,8 @@ TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
   EXPECT_EQ(ScopeData.isValid(), true);
   // As ScopeData is not set
   EXPECT_EQ(Data.payload, ScopeData.payload);
-  EXPECT_EQ(Hash.combine_short(ScopeData.uid), Hash.combine_short(Data.uid));
+  EXPECT_EQ(Hash.combine_short(ScopeData.uid128),
+            Hash.combine_short(Data.uid128));
   xptiUnsetTracepointScopeData();
   ScopeData = xptiGetTracepointScopeData();
   EXPECT_EQ(ScopeData.isValid(), false);

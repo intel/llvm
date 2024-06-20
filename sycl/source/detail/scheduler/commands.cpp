@@ -578,8 +578,13 @@ void Command::emitEdgeEventForCommandDependence(
   if (EdgeEvent) {
     xpti_td *SrcEvent = static_cast<xpti_td *>(Cmd->MTraceEvent);
     xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
-    EdgeEvent->source_uid = SrcEvent->uid;
-    EdgeEvent->target_uid = TgtEvent->uid;
+    // Since we are moving to the 128-bit key with this version of the SYCL
+    // runtime, we will not be setting `target_id` and `source_id` fields
+    // for a trace event as they are 64-bit ids. The 18-bit ids for the
+    // source and target nodes will be stored in `source_id128` and
+    // `target_id128` instead.
+    EdgeEvent->source_id128 = SrcEvent->uid128;
+    EdgeEvent->target_id128 = TgtEvent->uid128;
     if (IsCommand) {
       xpti::addMetadata(EdgeEvent, "access_mode",
                         static_cast<int>(AccMode.value()));
@@ -647,8 +652,13 @@ void Command::emitEdgeEventForEventDependence(
       // Source node represents the event and this event needs to be completed
       // before target node can execute
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
-      EdgeEvent->source_uid = NodeEvent->uid;
-      EdgeEvent->target_uid = TgtEvent->uid;
+      // Since we are moving to the 128-bit key with this version of the SYCL
+      // runtime, we will not be setting `target_id` and `source_id` fields
+      // for a trace event as they are 64-bit ids. The 18-bit ids for the
+      // source and target nodes will be stored in `source_id128` and
+      // `target_id128` instead.
+      EdgeEvent->source_id128 = NodeEvent->uid128;
+      EdgeEvent->target_id128 = TgtEvent->uid128;
       xpti::addMetadata(EdgeEvent, "event",
                         reinterpret_cast<size_t>(PiEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -934,8 +944,13 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
                         xpti_at::active, &EdgeInstanceNo);
       if (EdgeEvent) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
-        EdgeEvent->target_uid = TgtTraceEvent->uid;
-        EdgeEvent->source_uid = SrcTraceEvent->uid;
+        // Since we are moving to the 128-bit key with this version of the SYCL
+        // runtime, we will not be setting `target_id` and `source_id` fields
+        // for a trace event as they are 64-bit ids. The 18-bit ids for the
+        // source and target nodes will be stored in `source_id128` and
+        // `target_id128` instead.
+        EdgeEvent->target_id128 = TgtTraceEvent->uid128;
+        EdgeEvent->source_id128 = SrcTraceEvent->uid128;
         xpti::addMetadata(EdgeEvent, "memory_object",
                           reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
