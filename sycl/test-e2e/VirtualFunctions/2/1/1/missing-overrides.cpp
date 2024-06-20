@@ -13,16 +13,13 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 class Base {
 public:
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
-  virtual void increment(int *) { /* do nothhing */
-  }
+  virtual void increment(int *) { /* do nothhing */ }
 
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
-  virtual void multiply(int *) { /* do nothhing */
-  }
+  virtual void multiply(int *) { /* do nothhing */ }
 
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
-  virtual void substract(int *) { /* do nothhing */
-  }
+  virtual void substract(int *) { /* do nothhing */ }
 };
 
 class IncrementBy1 : public Base {
