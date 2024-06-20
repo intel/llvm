@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit 33eb5ea82b46a794ce54027a0cc0c073e5f9112b
+  # Merge: a53f89db 58f68518
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Mon Jun 17 10:34:52 2024 +0100
+  #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
+  #     Fix return of component and composite device info queries
+  set(UNIFIED_RUNTIME_TAG 33eb5ea82b46a794ce54027a0cc0c073e5f9112b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c86cd84a86761204f302a1c5148a8455561b8e6
-    # Merge: f23ee23a a4617787
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Jun 14 10:54:08 2024 +0100
-    #     Merge pull request #1749 from nrspruit/fix_NonBlocking_LastCommand
-    #     [L0] Maintain Lock of Queue while syncing the Last Command Event and update Last Command Event only if matching
-    2c86cd84a86761204f302a1c5148a8455561b8e6
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -131,13 +125,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
-    # Merge: abe85cc9 3e011c70
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Jun 13 10:22:34 2024 +0100
-    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
-    #     [HIP] Enable more ordering and scope capabilities for atomic fences
-    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
