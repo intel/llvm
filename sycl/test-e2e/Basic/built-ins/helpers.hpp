@@ -32,7 +32,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
     return;
   bool result;
   {
-    sycl::buffer<bool, 1> SuccessBuf{&result, sycl::range<1>{}};
+    sycl::buffer<bool, 1> SuccessBuf{&result, sycl::range<1>{1}};
 
     // Make sure we don't use fp64 on devices that don't support it.
     sycl::detail::get_elem_type_t<ExpectedTy> d(delta);
