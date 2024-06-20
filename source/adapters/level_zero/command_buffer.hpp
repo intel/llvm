@@ -36,12 +36,6 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
 
   ~ur_exp_command_buffer_handle_t_();
 
-//  void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
-//                         ur_event_handle_t Event) {
-//    SyncPoints[SyncPoint] = Event;
-//    NextSyncPoint++;
-//  }
-
   void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          ur_event_handle_t Event);
 
@@ -52,16 +46,26 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Indicates if a copy engine is available for use
   bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
 
-  // FIXME Refactor Documentation
-  ur_result_t getFence(ze_command_queue_handle_t &ZeCommandQueue,
-                       ze_fence_handle_t &ZeFence);
-  ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
-                                ze_command_queue_handle_t &ZeCommandQueue);
+  /**
+   * Obtains a fence for a specific L0 queue. If there is already an available
+   * fence for this queue, it will be reused.
+   * @param[in] ZeCommandQueue The L0 queue associated with the fence.
+   * @param[out] ZeFence The fence.
+   * @return UR_RESULT_SUCCESS or an error code on failure
+   */
+  ur_result_t getFenceForQueue(ze_command_queue_handle_t &ZeCommandQueue,
+                               ze_fence_handle_t &ZeFence);
+
+  /**
+   * Chooses which command list to use when appending a command to this command
+   * buffer.
+   * @param[in] PreferCopyEngine If true, will try to choose a copy engine
+   * command-list. Will choose a compute command-list otherwise.
+   * @param[out] ZeCommandList The chosen command list.
+   * @return UR_RESULT_SUCCESS or an error code on failure
+   */
   ur_result_t chooseCommandList(bool PreferCopyEngine,
                                 ze_command_list_handle_t *ZeCommandList);
-  ur_result_t chooseCommandList(bool PreferCopyEngine,
-                                ze_command_list_handle_t *ZeCommandList,
-                                size_t PatternSize);
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
