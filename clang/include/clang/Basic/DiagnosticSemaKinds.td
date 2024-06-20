@@ -3200,9 +3200,8 @@ def err_attribute_bad_sve_vector_size : Error<
 def err_attribute_arm_feature_sve_bits_unsupported : Error<
   "%0 is only supported when '-msve-vector-bits=<bits>' is specified with a "
   "value of 128, 256, 512, 1024 or 2048">;
-def warn_attribute_arm_sm_incompat_builtin : Warning<
-  "builtin call has undefined behaviour when called from a %0 function">,
-  InGroup<DiagGroup<"undefined-arm-streaming">>;
+def err_attribute_arm_sm_incompat_builtin : Error<
+  "builtin can only be called from a %0 function">;
 def warn_attribute_arm_za_builtin_no_za_state : Warning<
   "builtin call is not valid when calling from a function without active ZA state">,
   InGroup<DiagGroup<"undefined-arm-za">>;
@@ -8779,6 +8778,9 @@ def err_typecheck_incomplete_type_not_modifiable_lvalue : Error<
 def err_typecheck_lvalue_casts_not_supported : Error<
   "assignment to cast is illegal, lvalue casts are not supported">;
 
+def note_typecheck_add_deref_star_not_modifiable_lvalue : Note<
+  "add '*' to dereference it">; 
+
 def err_typecheck_duplicate_vector_components_not_mlvalue : Error<
   "vector is not assignable (contains duplicate components)">;
 def err_block_decl_ref_not_modifiable_lvalue : Error<
@@ -9015,6 +9017,11 @@ def err_cuda_ovl_target : Error<
   "cannot overload %select{__device__|__global__|__host__|__host__ __device__}2 function %3">;
 def note_cuda_ovl_candidate_target_mismatch : Note<
     "candidate template ignored: target attributes do not match">;
+def warn_offload_incompatible_redeclare : Warning<
+  "target-attribute based function overloads are not supported by NVCC and will be treated as a function redeclaration:"
+  "new declaration is %select{__device__|__global__|__host__|__host__ __device__}0 function, "
+  "old declaration is %select{__device__|__global__|__host__|__host__ __device__}1 function">,
+  InGroup<DiagGroup<"nvcc-compat">>, DefaultIgnore;
 
 def err_cuda_device_builtin_surftex_cls_template : Error<
     "illegal device builtin %select{surface|texture}0 reference "
