@@ -508,7 +508,7 @@ typedef enum {
 
   // Timestamp enqueue
   PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
-  
+
   // Virtual memory support
   PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x2011E,
 } _pi_device_info;
