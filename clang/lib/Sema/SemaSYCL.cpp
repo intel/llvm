@@ -36,7 +36,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1180,7 +1179,6 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
               "__sycl_kernel_" + MangledName.substr(EndNums);
   }
   StableName = NewName;
-  std::cerr << "NewName = " << NewName << std::endl;
   return {NewName, StableName};
 }
 
@@ -5090,11 +5088,6 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 }
 
 void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
-  if (FD->getLanguageLinkage() == CLanguageLinkage) {
-    const IdentifierInfo* II = FD->getIdentifier();
-    std::cerr << "ConstructFreeFunctionKernel: "
-      << (II ? II->getName().data() : "Unnamed") << std::endl;
-  }
   SyclKernelArgsSizeChecker argsSizeChecker(SemaSYCLRef, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
   SyclKernelDeclCreator kernel_decl(
