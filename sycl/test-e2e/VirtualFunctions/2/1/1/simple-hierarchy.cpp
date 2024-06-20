@@ -4,7 +4,7 @@
 // RUN: %{build} -o %t.out -Xclang -fsycl-allow-virtual-functions
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <algorithm>
 
