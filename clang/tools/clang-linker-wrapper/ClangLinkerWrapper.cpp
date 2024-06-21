@@ -161,7 +161,7 @@ void printCommands(ArrayRef<StringRef> CmdArgs) {
   llvm::errs() << " \"" << CmdArgs.front() << "\" ";
   for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE;
        ++IC) {
-    llvm::sys::printArg(llvm::errs(), *IC, false);
+    llvm::sys::printArg(llvm::errs(), *IC, /*Quote*/false);
     llvm::errs() << (std::next(IC) != IE ? " " : "\n");
   }
 }
