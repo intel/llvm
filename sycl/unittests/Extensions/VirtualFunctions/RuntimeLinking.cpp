@@ -38,11 +38,11 @@ static sycl::unittest::PiImage generateImage(const std::string &KernelName,
   sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
   std::string VFSet = "set-a";
   uint64_t PropSize = VFSet.size();
-  std::vector<char> Storage(/* bytes for size */8 + PropSize);
+  std::vector<char> Storage(/* bytes for size */ 8 + PropSize);
   std::uninitialized_copy(&PropSize, &PropSize + sizeof(uint64_t),
                           Storage.data());
   std::uninitialized_copy(VFSet.data(), VFSet.data() + PropSize,
-                          Storage.data() + /* bytes for size */8);
+                          Storage.data() + /* bytes for size */ 8);
   sycl::unittest::PiProperty Prop("uses-virtual-functions-set", Storage,
                                   PI_PROPERTY_TYPE_BYTE_ARRAY);
   Props.push_back(Prop);
@@ -54,29 +54,31 @@ static sycl::unittest::PiImage generateImage(const std::string &KernelName,
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels({KernelName});
 
-  sycl::unittest::PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  sycl::unittest::PiImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                     // Compile options
+      "",                                     // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
 
   return Img;
 }
 
 static constexpr unsigned char PROGRAM_A = 42;
 static constexpr unsigned char PROGRAM_B = 84;
+static constexpr unsigned char PROGRAM_LINKED = 128;
 
-static sycl::unittest::PiImage Imgs[] = {
-  generateImage("KernelA", PROGRAM_A), generateImage("KernelB", PROGRAM_B)
-};
-
+static sycl::unittest::PiImage Imgs[] = {generateImage("KernelA", PROGRAM_A),
+                                         generateImage("KernelB", PROGRAM_B)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 static unsigned NumOfPiProgramCreateCalls = 0;
+static unsigned NumOfPiProgramLinkCalls = 0;
+std::vector<unsigned char> LinkedPrograms;
 
 static pi_result redefined_piProgramCreate(pi_context, const void *il,
                                            size_t length, pi_program *res) {
@@ -87,22 +89,52 @@ static pi_result redefined_piProgramCreate(pi_context, const void *il,
   return PI_SUCCESS;
 }
 
+static pi_result
+redefined_piProgramLink(pi_context context, pi_uint32 num_devices,
+                        const pi_device *device_list, const char *options,
+                        pi_uint32 num_input_programs,
+                        const pi_program *input_programs,
+                        void (*pfn_notify)(pi_program program, void *user_data),
+                        void *user_data, pi_program *ret_program) {
+  for (pi_uint32 I = 0; I < num_input_programs; ++I)
+    LinkedPrograms.push_back(
+        *reinterpret_cast<DummyHandlePtrT>(input_programs[I])->MData);
+
+  ++NumOfPiProgramLinkCalls;
+
+  *ret_program = createDummyHandleWithData<pi_program>(
+      const_cast<unsigned char *>(&PROGRAM_LINKED));
+  return PI_SUCCESS;
+}
+
 TEST(VirtualFunctions, A) {
   sycl::unittest::PiMock Mock;
 
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
 
   sycl::platform Plt = Mock.getPlatform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  LinkedPrograms.clear();
 
   // We need to make sure that when we submitted the first kernel, both device
   // images were linked together
   Q.single_task<VirtualFunctionsTest::KernelA>([=]() {});
+  // We expect two programs to be created (one per each device image we have)
   ASSERT_EQ(NumOfPiProgramCreateCalls, 2u);
-
+  // Both programs should be linked together
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_A; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_B; }));
 
   // We need to make sure that when we submitted the second kernel, the same
   // linked device image from cache was used as for the previous kernel
