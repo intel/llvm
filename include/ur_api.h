@@ -5023,8 +5023,8 @@ urKernelSetArgPointer(
     ur_kernel_handle_t hKernel,                            ///< [in] handle of the kernel object
     uint32_t argIndex,                                     ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t *pProperties, ///< [in][optional] pointer to USM pointer properties.
-    const void *pArgValue                                  ///< [in][optional] USM pointer to memory location holding the argument
-                                                           ///< value. If null then argument value is considered null.
+    const void *pArgValue                                  ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+                                                           ///< mapping operation. If null then argument value is considered null.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
