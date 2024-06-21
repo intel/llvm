@@ -27,6 +27,8 @@
 #include <vector>
 
 int ur_getpid(void);
+int ur_close_fd(int fd);
+int ur_duplicate_fd(int pid, int fd_in);
 
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)
