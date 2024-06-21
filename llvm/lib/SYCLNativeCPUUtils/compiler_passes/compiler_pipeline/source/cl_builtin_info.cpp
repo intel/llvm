@@ -3585,16 +3585,6 @@ Function *CLBuiltinLoader::materializeBuiltin(StringRef BuiltinName,
       return nullptr;
     }
 
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
-    if (Current->IsNewDbgInfoFormat != BuiltinModule->IsNewDbgInfoFormat) {
-      if (BuiltinModule->IsNewDbgInfoFormat) {
-        Current->convertToNewDbgValues();
-      } else {
-        Current->convertFromNewDbgValues();
-      }
-    }
-#endif
-
     // Find any callees in the function and add them to the list.
     for (BasicBlock &BB : *Current) {
       for (Instruction &I : BB) {
