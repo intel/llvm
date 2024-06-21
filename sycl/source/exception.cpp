@@ -10,8 +10,10 @@
 #include <detail/global_handler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/exception.hpp>
+#include <ur_print.hpp>
 
 #include <cstring>
+#include <sstream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -95,21 +97,10 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-const char *stringifyErrorCode(int32_t error) {
-  switch (error) {
-#define _PI_ERRC(NAME, VAL)                                                    \
-  case NAME:                                                                   \
-    return #NAME;
-#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
-  case NAME:                                                                   \
-    return MSG;
-#include <sycl/detail/pi_error.def>
-#undef _PI_ERRC
-#undef _PI_ERRC_WITH_MSG
-
-  default:
-    return "Unknown error code";
-  }
+std::string stringifyErrorCode(int32_t error) {
+  std::stringstream ss;
+  ss << static_cast<ur_result_t>(error);
+  return ss.str();
 }
 } // namespace detail
 
