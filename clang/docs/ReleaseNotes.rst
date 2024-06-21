@@ -95,6 +95,13 @@ ABI Changes in This Version
 - Fixed Microsoft calling convention when returning classes that have a deleted
   copy assignment operator. Such a class should be returned indirectly.
 
+- Fixed Microsoft name mangling for auto non-type template arguments of pointer
+  type for MSVC 1920+. This change resolves incompatibilities with code compiled
+  by MSVC 1920+ but will introduce incompatibilities with code compiled by
+  earlier versions of Clang unless such code is built with the compiler option
+  `-fms-compatibility-version=19.14` to imitate the MSVC 1914 mangling behavior.
+
+
 AST Dumping Potentially Breaking Changes
 ----------------------------------------
 
@@ -149,6 +156,15 @@ Some of the major new features and improvements to Clang are listed
 here. Generic improvements to Clang as a whole or to its underlying
 infrastructure are described first, followed by language-specific
 sections with improvements to Clang's support for those languages.
+
+- The ``\par`` documentation comment command now supports an optional
+  argument, which denotes the header of the paragraph started by
+  an instance of the ``\par`` command comment. The implementation
+  of the argument handling matches its semantics
+  `in Doxygen <https://www.doxygen.nl/manual/commands.html#cmdpar>`.
+  Namely, any text on the same line as the ``\par`` command will become
+  a header for the paragaph, and if there is no text then the command
+  will start a new paragraph.
 
 C++ Language Changes
 --------------------
@@ -589,6 +605,10 @@ Improvements to Clang's diagnostics
 - Clang no longer emits a "declared here" note for a builtin function that has no declaration in source.
   Fixes #GH93369.
 
+- Clang now diagnoses unsupported class declarations for ``std::initializer_list<E>`` when they are
+  used rather than when they are needed for constant evaluation or when code is generated for them.
+  The check is now stricter to prevent crashes for some unsupported declarations (Fixes #GH95495).
+
 Improvements to Clang's time-trace
 ----------------------------------
 
@@ -1022,10 +1042,10 @@ AIX Support
 WebAssembly Support
 ^^^^^^^^^^^^^^^^^^^
 
-The -mcpu=generic configuration now enables multivalue feature, which is
-standardized and available in all major engines. Enabling multivalue here only
-enables the language feature but does not turn on the multivalue ABI (this
-enables non-ABI uses of multivalue, like exnref).
+The -mcpu=generic configuration now enables multivalue and reference-types.
+These proposals are standardized and available in all major engines. Enabling
+multivalue here only enables the language feature but does not turn on the
+multivalue ABI (this enables non-ABI uses of multivalue, like exnref).
 
 AVR Support
 ^^^^^^^^^^^
