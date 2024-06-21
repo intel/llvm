@@ -10660,8 +10660,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
   auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
-  if (IsUsingLTO && LTOMode == LTOK_Thin)
-    addArgs(PostLinkArgs, TCArgs, {"-skip-properties-gen"});
+  if (!IsUsingLTO || LTOMode != LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition

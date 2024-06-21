@@ -1,7 +1,7 @@
-; This test verifies the -skip-properties-gen option.
+; This test verifies the behavior without the -properties option.
 ; In particular, we should see the properties and symbols file are not added to the output table.
 ;
-; RUN: sycl-post-link -split=source -skip-properties-gen -S < %s -o %t.table
+; RUN: sycl-post-link -split=source -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 
 ; CHECK-TABLE: [Code]

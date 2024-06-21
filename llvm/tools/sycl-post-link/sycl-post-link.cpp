@@ -196,9 +196,9 @@ cl::opt<module_split::IRSplitMode> SplitMode(
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
-cl::opt<bool> SkipPropsGen{"skip-properties-gen",
-                           cl::desc("do not generate module properties files"),
-                           cl::cat(PostLinkCat)};
+cl::opt<bool> DoPropGen{"properties",
+                        cl::desc("generate module properties files"),
+                        cl::cat(PostLinkCat)};
 
 enum SpecConstLowerMode { SC_NATIVE_MODE, SC_EMULATION_MODE };
 
@@ -417,7 +417,7 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                EmitExportedSymbols, EmitImportedSymbols,
                                DeviceGlobals};
-  if (!SkipPropsGen)
+  if (DoPropGen)
     Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
 
   if (DoSymGen) {
@@ -723,7 +723,7 @@ processInputModule(std::unique_ptr<Module> M) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE)};
 
-  if (!SkipPropsGen)
+  if (DoPropGen)
     ColumnTitles.push_back(COL_PROPS);
 
   if (DoSymGen)
@@ -917,8 +917,8 @@ int main(int argc, char **argv) {
       "Normally, the tool generates a number of files and \"file table\"\n"
       "file listing all generated files in a table manner. For example, if\n"
       "the input file 'example.bc' contains two kernels, then the command\n"
-      "  $ sycl-post-link --split=kernel --symbols --spec-const=native \\\n"
-      "    -o example.table example.bc\n"
+      "  $ sycl-post-link --properties --split=kernel --symbols \\\n"
+      "    --spec-const=native    -o example.table example.bc\n"
       "will produce 'example.table' file with the following content:\n"
       "  [Code|Properties|Symbols]\n"
       "  example_0.bc|example_0.prop|example_0.sym\n"
