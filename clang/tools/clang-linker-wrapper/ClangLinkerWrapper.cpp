@@ -992,10 +992,11 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   auto LinkOptionsFromSYCLTargetLinkOptions =
       Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
 
-  StringRef CompileOptions(CompileOptionsFromImage.str() +
-                           CompileOptionsFromSYCLBackendCompileOptions.str());
-  StringRef LinkOptions(LinkOptionsFromImage.str() +
-                        LinkOptionsFromSYCLTargetLinkOptions.str());
+  StringRef CompileOptions(
+      Args.MakeArgString(CompileOptionsFromImage.str() +
+                         CompileOptionsFromSYCLBackendCompileOptions.str()));
+  StringRef LinkOptions(Args.MakeArgString(
+      LinkOptionsFromImage.str() + LinkOptionsFromSYCLTargetLinkOptions.str()));
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
