@@ -177,6 +177,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+  VirtualFunctions.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
   ImageId = ImageCounter++;
 }

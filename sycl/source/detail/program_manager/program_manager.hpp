@@ -307,11 +307,11 @@ private:
   using ProgramPtr =
       std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   const sycl::detail::pi::PiDevice &Device,
-                   uint32_t DeviceLibReqMask);
+  ProgramPtr
+  build(ProgramPtr Program, const ContextImplPtr Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
+        const std::vector<sycl::detail::pi::PiProgram> &ProgramsToLink);
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
@@ -371,6 +371,11 @@ private:
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
   std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Caches list of device images that use or provide virtual functions from
+  /// the same set. Used to simplify access.
+  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
+      m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.
   std::mutex m_BuiltInKernelIDsMutex;

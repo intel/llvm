@@ -219,6 +219,7 @@ public:
     return DeviceRequirements;
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
+  const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -242,6 +243,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
+  RTDeviceBinaryImage::PropertyRange VirtualFunctions;
 
 private:
   static std::atomic<uintptr_t> ImageCounter;
