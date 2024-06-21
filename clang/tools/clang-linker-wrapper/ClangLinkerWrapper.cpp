@@ -690,7 +690,7 @@ struct Table {
   }
 };
 
-// Add any llvm-spirv option that rely on a specific Triple in addition
+// Add any llvm-spirv option that relies on a specific Triple in addition
 // to user supplied options.
 // NOTE: Any changes made here should be reflected in the similarly named
 // function in clang/lib/Driver/ToolChains/Clang.cpp.
@@ -700,7 +700,6 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
                              const llvm::Triple Triple) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   const bool IsWindowsMSVC = Triple.isWindowsMSVCEnvironment() ||
                              Args.hasArg(OPT_sycl_is_windows_msvc_env);

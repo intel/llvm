@@ -10434,7 +10434,6 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   const bool IsWindowsMSVC =
       Triple.isWindowsMSVCEnvironment() ||
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
