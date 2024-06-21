@@ -58,7 +58,6 @@ enum class device_type : pi_uint64 {
   // TODO: figure out if we need all the below in PI
   custom = PI_DEVICE_TYPE_CUSTOM,
   automatic,
-  host,
   all = PI_DEVICE_TYPE_ALL
 };
 

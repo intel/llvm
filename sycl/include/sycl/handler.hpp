@@ -608,9 +608,6 @@ private:
 
   ~handler() = default;
 
-  // TODO: Private and unusued. Remove when ABI break is allowed.
-  bool is_host() { return MIsHost; }
-
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device

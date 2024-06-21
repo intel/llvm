@@ -2954,8 +2954,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      assert(MQueue->getDeviceImplPtr()->getBackend() ==
-             backend::ext_intel_esimd_emulator);
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
       MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(

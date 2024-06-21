@@ -107,15 +107,6 @@ void stream_impl::generateFlushCommand(handler &cgh) {
   });
 }
 
-// ABI break: remove
-void stream_impl::initStreamHost(QueueImplPtr){};
-
-// ABI break: remove
-void stream_impl::flush(const EventImplPtr &) {};
-
-// ABI break: remove
-void stream_impl::flush() {};
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

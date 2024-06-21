@@ -31,7 +31,7 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
   (void)G;
   (void)FenceScope;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Barriers are not supported on host device");
+                        "Barriers are not supported on host");
 #endif
 }
 
