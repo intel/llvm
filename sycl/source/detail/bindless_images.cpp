@@ -118,7 +118,8 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  ur_exp_image_handle_t urImageHandle = imageHandle.raw_handle;
+  auto urImageHandle =
+      reinterpret_cast<ur_exp_image_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
       urBindlessImagesUnsampledImageHandleDestroyExp, C, Device, urImageHandle);
@@ -140,10 +141,11 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  ur_exp_image_handle_t piImageHandle = imageHandle.raw_handle;
+  ur_exp_image_handle_t urImageHandle =
+      reinterpret_cast<ur_exp_image_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesSampledImageHandleDestroyExp, C, Device, piImageHandle);
+      urBindlessImagesSampledImageHandleDestroyExp, C, Device, urImageHandle);
 }
 
 __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
@@ -205,9 +207,9 @@ image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
 
   // Call impl.
   image_mem_handle retHandle;
-  Plugin->call<sycl::errc::memory_allocation>(
-      urBindlessImagesImageAllocateExp, C, Device, &urFormat, &urDesc,
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(&retHandle.raw_handle));
+  Plugin->call<sycl::errc::memory_allocation>(urBindlessImagesImageAllocateExp,
+                                              C, Device, &urFormat, &urDesc,
+                                              &retHandle.raw_handle);
 
   return retHandle;
 }
@@ -355,12 +357,12 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   populate_ur_structs(desc, urDesc, urFormat);
 
   // Call impl.
-  ur_exp_image_handle_t urImageHandle = nullptr;
+  ur_exp_image_handle_t urImageHandle;
   Plugin->call<sycl::errc::runtime>(urBindlessImagesUnsampledImageCreateExp, C,
                                     Device, memHandle.raw_handle, &urFormat,
                                     &urDesc, &urImageHandle);
 
-  return unsampled_image_handle{urImageHandle};
+  return unsampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
 }
 
 __SYCL_EXPORT unsampled_image_handle
@@ -490,13 +492,13 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_ur_structs(desc, urDesc, urFormat, pitch);
 
   // Call impl.
-  ur_exp_image_handle_t urImageHandle = nullptr;
+  ur_exp_image_handle_t urImageHandle;
   Plugin->call<sycl::errc::runtime>(
       urBindlessImagesSampledImageCreateExp, C, Device,
       static_cast<ur_exp_image_mem_handle_t>(devPtr), &urFormat, &urDesc,
       urSampler, &urImageHandle);
 
-  return sampled_image_handle{urImageHandle};
+  return sampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
 }
 
 __SYCL_EXPORT sampled_image_handle
@@ -590,10 +592,9 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
   ur_exp_interop_mem_handle_t urInteropMem{memHandle.raw_handle};
 
   image_mem_handle retHandle;
-  Plugin->call<sycl::errc::invalid>(
-      urBindlessImagesMapExternalArrayExp, C, Device, &urFormat, &urDesc,
-      urInteropMem,
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(&retHandle.raw_handle));
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesMapExternalArrayExp, C,
+                                    Device, &urFormat, &urDesc, urInteropMem,
+                                    &retHandle.raw_handle);
 
   return image_mem_handle{retHandle};
 }
@@ -859,10 +860,9 @@ get_image_num_channels(const image_mem_handle memHandle,
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_image_format_t URFormat = {};
 
-  Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesImageGetInfoExp,
-      static_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      UR_IMAGE_INFO_FORMAT, &URFormat, nullptr);
+  Plugin->call<sycl::errc::runtime>(urBindlessImagesImageGetInfoExp,
+                                    memHandle.raw_handle, UR_IMAGE_INFO_FORMAT,
+                                    &URFormat, nullptr);
 
   image_channel_order Order =
       sycl::detail::convertChannelOrder(URFormat.channelOrder);

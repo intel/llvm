@@ -22,16 +22,16 @@
 namespace sycl {
 inline namespace _V1 {
 enum class addressing_mode : unsigned int {
-  mirrored_repeat = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
-  repeat = UR_SAMPLER_ADDRESSING_MODE_REPEAT,
-  clamp_to_edge = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
-  clamp = UR_SAMPLER_ADDRESSING_MODE_CLAMP,
-  none = UR_SAMPLER_ADDRESSING_MODE_NONE
+  mirrored_repeat = 0x1134, // Value of CL_ADDRESS_MIRRORED_REPEAT
+  repeat = 0x1133,          // Value of CL_ADDRESS_REPEAT
+  clamp_to_edge = 0x1131,   // Value of CL_ADDRESS_CLAMP_TO_EDGE
+  clamp = 0x1132,           // Value of CL_ADDRESS_CLAMP
+  none = 0x1130             // Value of CL_ADDRESS_NONE
 };
 
 enum class filtering_mode : unsigned int {
-  nearest = UR_SAMPLER_FILTER_MODE_NEAREST,
-  linear = UR_SAMPLER_FILTER_MODE_LINEAR
+  nearest = 0x1140, // Value of CL_FILTER_NEAREST
+  linear = 0x1141   // Value of CL_FILTER_LINEAR
 };
 
 enum class coordinate_normalization_mode : unsigned int {

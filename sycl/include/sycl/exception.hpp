@@ -56,7 +56,7 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
-__SYCL_EXPORT const char *stringifyErrorCode(int32_t error);
+__SYCL_EXPORT std::string stringifyErrorCode(int32_t error);
 
 inline std::string codeToString(int32_t code) {
   return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
