@@ -521,6 +521,23 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
 /// The framework does not implement this function, only proxy library.
 XPTI_EXPORT_API void xptiTraceTryToEnable();
 
+/// @brief Enables the trace point scope object to self notify.
+/// @details This function is used to enable the tracepoint_scope_t object to
+/// self notify at all tracepoints
+/// @param yesOrNo The flag used to enable or disable a tracepoint scope for
+/// notification.
+XPTI_EXPORT_API void xptiEnableTracepointScopeNotification(bool yesOrNo);
+
+/// @brief Checks if tracepoint scope notifications are enabled.
+///
+/// This function checks the global flag that controls whether tracepoints
+/// should notify themselves when hit. If the flag is set to true, tracepoints
+/// will self-notify, which can be useful for debugging or generating more
+/// detailed trace information.
+/// @return Returns true if tracepoint scope notifications are enabled, and
+/// false otherwise.
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification();
+
 /// @brief Removes cached event and associated metadata
 /// @param e The event for which associated data will be removed
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *e);
@@ -567,4 +584,6 @@ typedef bool (*xpti_trace_enabled_t)();
 typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
 typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
+typedef void (*xpti_enable_tracepoint_scope_notification_t)(bool);
+typedef bool (*xpti_check_tracepoint_scope_notification_t)();
 }

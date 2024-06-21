@@ -50,6 +50,15 @@ namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
 xpti::utils::PlatformHelper g_helper;
 xpti::utils::SpinLock g_framework_mutex;
+
+/// @brief A global boolean flag to control self-notification of trace points.
+///
+/// If this flag is set to true, the trace point will notify itself when it is
+/// hit. This can be useful for debugging or for generating more detailed trace
+/// information. By default, this flag is set to false, meaning that trace
+/// points do not notify themselves.
+bool g_tracepoint_self_notify = false;
+
 // This class is a helper class to load all the listed subscribers provided by
 // the user in XPTI_SUBSCRIBERS environment variable.
 class Subscribers {
@@ -728,7 +737,7 @@ public:
 #ifdef XPTI_STATISTICS
     printf("Notification statistics:\n");
     for (auto &s : MStats) {
-      printf("%19s: [%llu] \n",
+      printf("%19s: [%lu] \n",
              stringify_trace_type((xpti_trace_point_type_t)s.first).c_str(),
              s.second);
     }
@@ -741,55 +750,48 @@ private:
 #ifdef XPTI_STATISTICS
   std::string stringify_trace_type(xpti_trace_point_type_t TraceType) {
     switch (TraceType) {
-    case graph_create:
+    case xpti::trace_point_type_t::graph_create:
       return "graph_create";
-    case node_create:
+    case xpti::trace_point_type_t::node_create:
       return "node_create";
-    case edge_create:
+    case xpti::trace_point_type_t::edge_create:
       return "edge_create";
-    case region_begin:
+    case xpti::trace_point_type_t::region_begin:
       return "region_begin";
-    case region_end:
+    case xpti::trace_point_type_t::region_end:
       return "region_end";
-    case task_begin:
+    case xpti::trace_point_type_t::task_begin:
       return "task_begin";
-    case task_end:
+    case xpti::trace_point_type_t::task_end:
       return "task_end";
-    case barrier_begin:
+    case xpti::trace_point_type_t::barrier_begin:
       return "barrier_begin";
-    case barrier_end:
+    case xpti::trace_point_type_t::barrier_end:
       return "barrier_end";
-    case lock_begin:
+    case xpti::trace_point_type_t::lock_begin:
       return "lock_begin";
-    case lock_end:
+    case xpti::trace_point_type_t::lock_end:
       return "lock_end";
-    case signal:
+    case xpti::trace_point_type_t::signal:
       return "signal";
-    case transfer_begin:
+    case xpti::trace_point_type_t::transfer_begin:
       return "transfer_begin";
-    case transfer_end:
+    case xpti::trace_point_type_t::transfer_end:
       return "transfer_end";
-    case thread_begin:
+    case xpti::trace_point_type_t::thread_begin:
       return "thread_begin";
-    case thread_end:
+    case xpti::trace_point_type_t::thread_end:
       return "thread_end";
-    case wait_begin:
+    case xpti::trace_point_type_t::wait_begin:
       return "wait_begin";
-    case wait_end:
+    case xpti::trace_point_type_t::wait_end:
       return "wait_end";
       break;
     default:
-      if (TraceType & user_defined_trace_point) {
-        std::string str =
-            "user_defined[" +
-            std::to_string(XPTI_EXTRACT_USER_DEFINED_ID(TraceType)) + "]";
-        return str;
-      } else {
-        std::string str =
-            "unknown[" +
-            std::to_string(XPTI_EXTRACT_USER_DEFINED_ID(TraceType)) + "]";
-        return str;
-      }
+      std::string str =
+          "unknown/user_defined[" +
+          std::to_string(XPTI_EXTRACT_USER_DEFINED_ID(TraceType)) + "]";
+      return str;
     }
   }
 #endif
@@ -1268,9 +1270,19 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
   xpti::Framework::instance().setTraceEnabled(YesOrNo);
 }
 
+XPTI_EXPORT_API void
+xptiEnableTracepointScopeNotification(bool enableOrDisable) {
+  xpti::g_tracepoint_self_notify = enableOrDisable;
+}
+
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
+  return xpti::g_tracepoint_self_notify;
+}
+
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
   return xpti::Framework::instance().releaseEvent(Event);
 }
+
 } // extern "C"
 
 #if (defined(_WIN32) || defined(_WIN64))
@@ -1287,7 +1299,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fwdReason, LPVOID lpvReserved) {
     //  We cannot unload all subscribers here...
     //
 #ifdef XPTI_STATISTICS
-    __g_framework.printStatistics();
+    xpti::Framework::instance().printStatistics();
 #endif
     break;
   }
@@ -1301,7 +1313,7 @@ __attribute__((constructor)) static void framework_init() {}
 
 __attribute__((destructor)) static void framework_fini() {
 #ifdef XPTI_STATISTICS
-  __g_framework.printStatistics();
+  xpti::Framework::instance().printStatistics();
 #endif
 }
 

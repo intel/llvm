@@ -24,7 +24,8 @@ bool CalibrationRun = false;
 bool MeasureEventCost = true;
 bool ShowDebugInformation = false;
 bool ShowVerboseOutput = false;
-bool ShowInColors;
+bool EnableTPScopeOutput = false;
+bool ShowInColors = false;
 
 uint64_t GOutputFormats = 0;
 // Data structure to keep track of the streams to monitor
@@ -240,6 +241,18 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     else
       ShowDebugInformation = false;
 
+    // Set up the tracepoint selfNotify flag first so we can provide additional
+    // scope notifications
+    const char *TPScopeFlag = std::getenv("XPTI_TRACEPOINTS_SELFNOTIFY");
+    // Check the environment variable for verbose output and set the appropriate
+    // flag, if the variable is set
+    if (TPScopeFlag && std::stoi(TPScopeFlag) != 0)
+      EnableTPScopeOutput = true;
+    else
+      EnableTPScopeOutput = false;
+
+    xptiEnableTracepointScopeNotification(EnableTPScopeOutput);
+
     const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
     if (ShowVerboseOutput && ProfOutFile)
       std::cout << "XPTI_SYCL_PERF_OUTPUT=" << ProfOutFile << "\n";
@@ -262,6 +275,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       std::cout << "XPTI_VERBOSE=" << VerboseFlag << "\n";
     if (ShowVerboseOutput && DebugFlag)
       std::cout << "XPTI_DEBUG=" << DebugFlag << "\n";
+    if (ShowVerboseOutput && TPScopeFlag)
+      std::cout << "XPTI_TRACEPOINTS_SELFNOTIFY=" << TPScopeFlag << "\n";
 
     // Check the environment variable for colored output and set the appropriate
     // flag, if the variable is set
@@ -416,6 +431,13 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::edge_create,
                          graphCallback);
+    // Handles SelfNotification events
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_begin,
+                         syclPiCallback);
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_end,
+                         syclPiCallback);
   } else if (std::string(GStreamMemory) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -764,9 +786,18 @@ XPTI_CALLBACK_API void syclMemCallback(uint16_t TraceType,
                                        const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save(GStreamMemory, (Event ? Event : Parent), TraceType, Instance,
-                  (TraceType & 0x0001) ? "memory_allocation_end"
-                                       : "memory_allocation_begin");
+  if (TraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin ||
+      TraceType == (uint16_t)xpti::trace_point_type_t::mem_alloc_begin) {
+    record_and_save(
+        GStreamMemory, (Event ? Event : Parent), TraceType, Instance,
+        (TraceType & 0x0001) ? "memory_allocation" : "memory_allocation");
+  } else if (TraceType ==
+                 (uint16_t)xpti::trace_point_type_t::mem_release_begin ||
+             TraceType == (uint16_t)xpti::trace_point_type_t::mem_release_end) {
+    record_and_save(GStreamMemory, (Event ? Event : Parent), TraceType,
+                    Instance,
+                    (TraceType & 0x0001) ? "memory_release" : "memory_release");
+  }
 }
 
 XPTI_CALLBACK_API void syclImageCallback(uint16_t TraceType,
@@ -851,7 +882,6 @@ XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
 
 #if (defined(_WIN32) || defined(_WIN64))
 
-#include <string>
 #include <windows.h>
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fwdReason, LPVOID lpvReserved) {
