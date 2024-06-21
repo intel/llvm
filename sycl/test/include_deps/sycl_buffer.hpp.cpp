@@ -35,6 +35,7 @@
 // CHECK-NEXT: CL/cl_version.h
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
+// CHECK-NEXT: ur_print.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
