@@ -1,3 +1,5 @@
+// Check that, when linking with a static library, SYCL_EXTERNAL device code
+// is preserved despite optimizations.
 // RUN: %{build} -O3 -DSOURCE1 -c -o %t1.o
 // RUN: %{build} -O3 -DSOURCE2 -c -o %t2.o
 // RUN: %{build} -O3 -DSOURCE3 -c -o %t3.o
@@ -14,8 +16,6 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
-// Check that, when linking with a static library, SYCL_EXTERNAL device code
-// is preserved despite optimizations.
 #ifdef SOURCE1
 int local_f2(int b);
 
