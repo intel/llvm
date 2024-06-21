@@ -330,6 +330,14 @@ public:
       std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void ext_oneapi_fill_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+      size_t Len, int Pattern,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
   static void
   ext_oneapi_fill_cmd_buffer(sycl::detail::ContextImplPtr Context,
                              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
