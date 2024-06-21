@@ -159,8 +159,11 @@ void printCommands(ArrayRef<StringRef> CmdArgs) {
     return;
 
   llvm::errs() << " \"" << CmdArgs.front() << "\" ";
-  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE; ++IC)
-    llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
+  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE;
+       ++IC) {
+    llvm::sys::printArg(llvm::errs(), *IC, false);
+    llvm::errs() << (std::next(IC) != IE ? " " : "\n");
+  }
 }
 
 [[noreturn]] void reportError(Error E) {
@@ -515,7 +518,8 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back("--llvm-spirv-opts");
-  CmdArgs.push_back("--spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global");
+  CmdArgs.push_back("--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
+                    "--spirv-builtin-format=global");
   if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
     return std::move(Err);
   return *TempFileOrErr;
