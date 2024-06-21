@@ -6308,7 +6308,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
     O << "namespace sycl {\n";
     O << "template <>\n";
-    O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter << "()>() {\n";
+    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+      << ShimCounter << "()>() {\n";
     O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
       << K.Name << "\"});\n";
     O << "}\n";

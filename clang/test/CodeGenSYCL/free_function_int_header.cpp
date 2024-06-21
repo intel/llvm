@@ -169,7 +169,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piii
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:   template <>
-// CHECK-NEXT:   kernel_id get_kernel_id <__sycl_shim1()>() {
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim1()>() {
 // CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_2Piii"});
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -177,7 +177,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piiii
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:   template <>
-// CHECK-NEXT:   kernel_id get_kernel_id <__sycl_shim2()>() {
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim2()>() {
 // CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_2Piiii"});
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -185,7 +185,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:   template <>
-// CHECK-NEXT:   kernel_id get_kernel_id <__sycl_shim3()>() {
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim3()>() {
 // CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IiEvPT_S0_S0_"});
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -193,7 +193,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:   template <>
-// CHECK-NEXT:   kernel_id get_kernel_id <__sycl_shim4()>() {
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim4()>() {
 // CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IfEvPT_S0_S0_"});
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -201,7 +201,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:   template <>
-// CHECK-NEXT:   kernel_id get_kernel_id <__sycl_shim5()>() {
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim5()>() {
 // CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IdEvPT_S0_S0_"});
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
