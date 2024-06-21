@@ -96,13 +96,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
-namespace detail {
-std::string stringifyErrorCode(int32_t error) {
-  std::stringstream ss;
-  ss << static_cast<ur_result_t>(error);
-  return ss.str();
-}
-} // namespace detail
-
 } // namespace _V1
 } // namespace sycl

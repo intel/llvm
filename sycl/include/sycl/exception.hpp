@@ -17,9 +17,11 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #endif
+#include <ur_print.hpp>
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
+#include <sstream>      // for stringstream
 #include <string>       // for string, basic_string, opera...
 #include <system_error> // for error_code, error_category
 #include <type_traits>  // for true_type
@@ -56,11 +58,10 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
-__SYCL_EXPORT std::string stringifyErrorCode(int32_t error);
-
 inline std::string codeToString(int32_t code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
+  std::stringstream ss;
+  ss << static_cast<ur_result_t>(code);
+  return std::to_string(code) + " (" + ss.str() + ")";
 }
 
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
