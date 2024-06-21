@@ -16,33 +16,45 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 
 using namespace llvm;
+
+cl::opt<std::string>
+    UniquePrefixOpt("sycl-conditional-call-on-device-unique-prefix",
+                    cl::Optional, cl::Hidden,
+                    cl::desc("Set unique prefix for a translation unit, "
+                             "required for funtions with external linkage"),
+                    cl::init(""));
 
 PreservedAnalyses
 SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
   // find call_if_on_device_conditionally function
   SmallVector<Function *, 4> FCallers;
   for (Function &F : M.functions()) {
-    if (F.getName().contains("call_if_on_device_conditionally_helper") ||
-        !F.getName().contains("call_if_on_device_conditionally"))
+    if (F.isDeclaration())
       continue;
 
-    FCallers.push_back(&F);
+    if (CallingConv::SPIR_KERNEL == F.getCallingConv())
+      continue;
+
+    if (F.getName().contains("call_if_on_device_conditionally") &&
+        !F.getName().contains("call_if_on_device_conditionally_helper"))
+      FCallers.push_back(&F);
   }
 
-  int FCallerIndex = 0;
+  int FCallerIndex = 1;
   for (Function *FCaller : FCallers) {
     // Find call to @CallableXXX in call_if_on_device_conditionally function
-    // (FAction). FAction should be a literal (i.e. not a pointer)
+    // (FAction). FAction should be a literal (i.e. not a pointer). The
+    // structure of the header file ensures that there is exactly one such
+    // instruction.
     Function *FAction = nullptr;
-    for (BasicBlock &BB : *FCaller) {
-      for (Instruction &I : BB) {
-        if (CallInst *callInst = dyn_cast<CallInst>(&I)) {
-          Value *calledValue = callInst->getCalledOperand();
-          FAction = dyn_cast<Function>(calledValue);
-        }
+    for (Instruction &I : instructions(FCaller)) {
+      if (auto *CI = dyn_cast<CallInst>(&I)) {
+        FAction = CI->getCalledFunction();
+        break;
       }
     }
 
@@ -50,14 +62,13 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
       continue;
 
     // Create a new function type with an additional function pointer argument
-    std::vector<Type *> NewParamTypes;
+    SmallVector<Type *, 4> NewParamTypes;
     Type *FActionType = FAction->getType();
     NewParamTypes.push_back(
         PointerType::getUnqual(FActionType)); // Add function pointer to FAction
     FunctionType *OldFCallerType = FCaller->getFunctionType();
-    for (Type *Ty : OldFCallerType->params()) {
+    for (Type *Ty : OldFCallerType->params())
       NewParamTypes.push_back(Ty);
-    }
 
     FunctionType *NewFCallerType =
         FunctionType::get(OldFCallerType->getReturnType(), NewParamTypes,
@@ -65,6 +76,8 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
 
     // Create a new function with the updated type and rename it to
     // call_if_on_device_conditionally_GUID_N
+    if (!UniquePrefixOpt.empty())
+      UniquePrefix = UniquePrefixOpt;
     Twine NewFCallerName = Twine(FCaller->getName()) + "_" + UniquePrefix +
                            "_" + Twine(FCallerIndex);
     // Also change to external linkage
@@ -76,15 +89,14 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     // Replace all calls to the old function with the new one
     for (auto &U : FCaller->uses()) {
       if (auto *Call = dyn_cast<CallInst>(U.getUser())) {
-        std::vector<Value *> Args;
-        Args.push_back(
-            FAction); // Add the function pointer as the first argument
-        for (unsigned i = 0; i < Call->arg_size(); ++i) {
+        SmallVector<Value *, 4> Args;
+        // Add the function pointer as the first argument
+        Args.push_back(FAction);
+        for (unsigned i = 0; i < Call->arg_size(); ++i)
           Args.push_back(Call->getArgOperand(i));
-        }
 
         // Create the new call instruction
-        CallInst *NewCall =
+        auto *NewCall =
             CallInst::Create(NewFCaller, Args, /*	NameStr = */ "", Call);
         NewCall->setCallingConv(Call->getCallingConv());
         NewCall->setDebugLoc(Call->getDebugLoc());
@@ -104,5 +116,5 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     FCallerIndex++;
   }
 
-  return PreservedAnalyses::all();
+  return PreservedAnalyses::none();
 }

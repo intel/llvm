@@ -1,17 +1,7 @@
-; RUN: opt -passes=sycl-conditional-call-on-device < %s -S | FileCheck %s
+; RUN: opt -passes=sycl-conditional-call-on-device -sycl-conditional-call-on-device-unique-prefix="PREFIX" < %s -S | FileCheck %s
 
 %class.anon = type { ptr addrspace(4) }
 %"struct.std::integer_sequence.3" = type { i8 }
-
-define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail38call_if_on_device_conditionally_helper0(ptr noundef byval(%class.anon) align 8 %fn, ptr noundef byval(%"struct.std::integer_sequence.3") align 1 %0) #2 !srcloc !0 {
-entry:
-  %agg.tmp = alloca %class.anon, align 8
-  %fn.ascast = addrspacecast ptr %fn to ptr addrspace(4)
-  call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally0(ptr noundef byval(%class.anon) align 8 %agg.tmp, i32 noundef -2, i32 noundef 251660032) #9
-  ret void
-}
-
-; CHECK: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally0__0(ptr @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvENKUlvE_clEv, ptr %agg.tmp, i32 -2, i32 251660032)
 
 define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail38call_if_on_device_conditionally_helper1(ptr noundef byval(%class.anon) align 8 %fn, ptr noundef byval(%"struct.std::integer_sequence.3") align 1 %0) #2 !srcloc !0 {
 entry:
@@ -21,29 +11,45 @@ entry:
   ret void
 }
 
-; CHECK: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1__1(ptr @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvENKUlvE_clEv, ptr %agg.tmp, i32 -2, i32 251660032)
+; CHECK-NOT: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1(
+; CHECK: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1_PREFIX_1(ptr @CallableFunc, ptr %agg.tmp, i32 -2, i32 251660032)
+; CHECK-NOT: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1(
 
-define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally0(ptr noundef byval(%class.anon) align 8 %fn, i32 noundef %0, i32 noundef %1) #7 !srcloc !1 {
+define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail38call_if_on_device_conditionally_helper2(ptr noundef byval(%class.anon) align 8 %fn, ptr noundef byval(%"struct.std::integer_sequence.3") align 1 %0) #2 !srcloc !0 {
 entry:
+  %agg.tmp = alloca %class.anon, align 8
   %fn.ascast = addrspacecast ptr %fn to ptr addrspace(4)
-  call spir_func void @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %fn.ascast) #9
+  call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2(ptr noundef byval(%class.anon) align 8 %agg.tmp, i32 noundef -2, i32 noundef 251660032) #9
   ret void
 }
+
+; CHECK-NOT: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2(
+; CHECK: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2_PREFIX_2(ptr @CallableFunc, ptr %agg.tmp, i32 -2, i32 251660032)
+; CHECK-NOT: call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2(
 
 define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1(ptr noundef byval(%class.anon) align 8 %fn, i32 noundef %0, i32 noundef %1) #7 !srcloc !1 {
 entry:
   %fn.ascast = addrspacecast ptr %fn to ptr addrspace(4)
-  call spir_func void @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %fn.ascast) #9
+  call spir_func void @CallableFunc(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %fn.ascast) #9
   ret void
 }
 
-define internal spir_func void @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %this) #6 align 2 !srcloc !2 {
+define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2(ptr noundef byval(%class.anon) align 8 %fn, i32 noundef %0, i32 noundef %1) #7 !srcloc !1 {
+entry:
+  %fn.ascast = addrspacecast ptr %fn to ptr addrspace(4)
+  call spir_func void @CallableFunc(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %fn.ascast) #9
+  ret void
+}
+
+define internal spir_func void @CallableFunc(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %this) #6 align 2 !srcloc !2 {
 entry:
   ret void
 }
 
-; CHECK: declare spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally0__0(ptr, ptr, i32, i32)
-; CHECK: declare spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1__1(ptr, ptr, i32, i32)
+; CHECK-NOT: define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1(
+; CHECK-NOT: define internal spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2(
+; CHECK: declare spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally1_PREFIX_1(ptr, ptr, i32, i32)
+; CHECK: declare spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail31call_if_on_device_conditionally2_PREFIX_2(ptr, ptr, i32, i32)
 
 attributes #2 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #6 = { convergent inlinehint mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
