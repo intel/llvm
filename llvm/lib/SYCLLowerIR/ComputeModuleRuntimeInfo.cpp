@@ -8,6 +8,9 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
@@ -353,6 +356,54 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (IsSpecConstantDefault)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
                 1);
+
+  { // Properties related to virtual functions
+    StringSet<> UsedVFSets;
+    bool ProvidesVFSet = false;
+    for (const Function &F : M) {
+      if (F.isDeclaration())
+        continue;
+
+      if (F.hasFnAttribute("indirectly-callable")) {
+        PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
+                    "virtual-functions-set",
+                    F.getFnAttribute("indirectly-callable").getValueAsString());
+        ProvidesVFSet = true;
+        // Device code split should ensure that virtual functions that belong
+        // to different sets are split into separate device images and hence
+        // there is no need to scan other functions.
+        break;
+      }
+
+      if (F.hasFnAttribute("calls-indirectly")) {
+        assert(
+            !ProvidesVFSet &&
+            "device image with kernels with calls-indirectly attr should not "
+            "contain function definitions with indirectly-callable attr");
+        SmallVector<StringRef, 4> Sets;
+        F.getFnAttribute("calls-indirectly")
+            .getValueAsString()
+            .split(Sets, ',', /* MaxSplits */ -1, /* KeepEmpty */ false);
+        for (auto Set : Sets)
+          UsedVFSets.insert(Set);
+      }
+    }
+
+    if (!UsedVFSets.empty()) {
+      assert(!ProvidesVFSet &&
+             "device image cannot have both virtual-functions-set and "
+             "uses-virtual-functions-set property");
+      SmallString<128> AllSets;
+      for (auto &It : UsedVFSets) {
+        if (!AllSets.empty())
+          AllSets += ',';
+        AllSets += It.getKey();
+      }
+
+      PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
+                   "uses-virtual-functions-set", AllSets);
+    }
+  }
 
   return PropSet;
 }
