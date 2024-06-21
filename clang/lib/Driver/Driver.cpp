@@ -9642,7 +9642,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       bool IsHIPNoRDC = JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
                         !C.getArgs().hasFlag(options::OPT_fgpu_rdc,
                                              options::OPT_fno_gpu_rdc, false);
-      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA);
+      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA) ||
+                             isa<BackendCompileJobAction>(JA);
       if (UseOutExtension) {
         Output = BaseName;
         llvm::sys::path::replace_extension(Output, "");
