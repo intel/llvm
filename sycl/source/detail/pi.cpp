@@ -410,6 +410,14 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
 
   urLoaderConfigSetCodeLocationCallback(config, codeLocationCallback, nullptr);
 
+  if (ProgramManager::getInstance().kernelUsesAsan()) {
+    if (urLoaderConfigEnableLayer(config, "UR_LAYER_ASAN")) {
+      urLoaderConfigRelease(config);
+      std::cerr << "Failed to enable ASAN layer\n";
+      return;
+    }
+  }
+
   ur_device_init_flags_t device_flags = 0;
   urLoaderInit(device_flags, config);
 
