@@ -12,8 +12,7 @@ using namespace sycl::ext::intel::esimd;
 // Wrapper for designating a scalar region of code that will be
 // vectorized by the backend compiler.
 #define SIMT_BEGIN(N, lane)                                                    \
-  [&]() SYCL_ESIMD_FUNCTION ESIMD_NOINLINE                                     \
-      [[intel::sycl_esimd_vectorize(N)]] {                                     \
+  [&]() SYCL_ESIMD_FUNCTION ESIMD_NOINLINE [[intel::sycl_esimd_vectorize(N)]] {                                     \
     int lane = __esimd_lane_id();
 #define SIMT_END                                                               \
   }                                                                            \
