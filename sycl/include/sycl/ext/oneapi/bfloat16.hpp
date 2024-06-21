@@ -517,12 +517,10 @@ class ConvertToBfloat16 {
     return bitsToBfloat16(b_sign | (b_exp << 7) | b_mant);
   }
 
-  // Helper function to get BF16 from double with different rounding modes.
+  // Helper function to get BF16 from double with RTE rounding modes.
   // Reference:
   // https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L79
-  static bfloat16
-  getBFloat16FromDoubleWithRoundingMode(const double &d,
-                                        SYCLRoundingMode roundingMode) {
+  static bfloat16 getBFloat16FromDoubleWithRTE(const double &d) {
 
     uint64_t u64_val = sycl::bit_cast<uint64_t>(d);
     int16_t bf16_sign = (u64_val >> 63) & 0x1;
@@ -614,7 +612,15 @@ public:
           roundingMode == SYCLRoundingMode::automatic ||
               roundingMode == SYCLRoundingMode::rte,
           "Only automatic/RTE rounding mode is supported for double type.");
-      return getBFloat16FromDoubleWithRoundingMode(a, roundingMode);
+      return getBFloat16FromDoubleWithRTE(a);
+    }
+    // Half
+    else if constexpr (std::is_same_v<Ty, sycl::half>) {
+      // Convert half to float and then convert to bfloat16.
+      // Conversion of half to float is lossless as the latter
+      // have a wider dynamic range.
+      return getBFloat16FromFloatWithRoundingMode(static_cast<float>(a),
+                                                  roundingMode);
     }
     // Unsigned integral types.
     else if constexpr (std::is_integral_v<Ty> && std::is_unsigned_v<Ty>) {

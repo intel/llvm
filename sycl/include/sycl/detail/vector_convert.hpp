@@ -656,8 +656,8 @@ inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
   }
 
 #else // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
-/* On non-Intel HWs, convert BF16 to float (losslessly) and convert float*/ /* to
-                                                                               the desired type. */
+// On non-Intel HWs, convert BF16 to float (losslessly) and convert float
+// to the desired type.
 #define EXPAND_BF16_ROUNDING_MODE(type, type_str, rmode, rmode_str)            \
   template <typename NativeToT, sycl::rounding_mode RoundingMode>              \
   std::enable_if_t<(std::is_same_v<NativeToT, type> && RoundingMode == rmode), \
@@ -706,8 +706,6 @@ ConvertFromBF16Scalar(uint16_t val) {
   return static_cast<float>(bfval);
 }
 
-// Conversion of double to BF16 is lossless, so we accept all
-// rounding modes.
 template <typename NativeFromT, sycl::rounding_mode RoundingMode>
 std::enable_if_t<std::is_same_v<NativeFromT, double>, uint16_t>
 ConvertToBF16Scalar(NativeFromT val) {
