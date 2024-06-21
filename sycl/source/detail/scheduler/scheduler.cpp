@@ -207,7 +207,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   {
     WriteLockT Lock = acquireWriteLock();
     NewCmd = MGraphBuilder.addCopyBack(Req, AuxiliaryCmds);
-    // Command was not creted because there were no operations with
+    // Command was not created because there were no operations with
     // buffer.
     if (!NewCmd)
       return nullptr;
@@ -232,7 +232,9 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
   } catch (...) {
-    NewCmd->getQueue()->reportAsyncException(std::current_exception());
+    auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
+    assert(WorkerQueue && "WorkerQueue for CopyBack command must be not null");
+    WorkerQueue->reportAsyncException(std::current_exception());
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
