@@ -56,14 +56,14 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   // CHECK-LABEL: define dso_local spir_func void @_Z8xmx_funcv()
 
   { // ======= DPAS BF16 =======================================================
-    simd<bfloat16, M_one *N_pvc> R_bf = 0;
-    simd<float, M_one *N_pvc> R_f = 0;
+    simd<bfloat16, M_one * N_pvc> R_bf = 0;
+    simd<float, M_one * N_pvc> R_f = 0;
 
-    simd<bfloat16, M_one *N_pvc> C_bf = 0;
-    simd<float, M_one *N_pvc> C_f = 0;
+    simd<bfloat16, M_one * N_pvc> C_bf = 0;
+    simd<float, M_one * N_pvc> C_f = 0;
 
-    simd<bfloat16, K_bf16 *N_pvc> B_bf = 0;
-    simd<bfloat16, M_one *K_bf16> A_bf = 0;
+    simd<bfloat16, K_bf16 * N_pvc> B_bf = 0;
+    simd<bfloat16, M_one * K_bf16> A_bf = 0;
 
     R_f = xmx::dpas<8, 1, float>(C_f, B_bf, A_bf);
     zoo(R_f);
@@ -91,14 +91,14 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   { // ======= DPAS FP16 =======================================================
-    simd<half, M_one *N_pvc> R_hf = 0;
-    simd<float, M_one *N_pvc> R_f = 0;
+    simd<half, M_one * N_pvc> R_hf = 0;
+    simd<float, M_one * N_pvc> R_f = 0;
 
-    simd<half, M_one *N_pvc> C_hf = 0;
-    simd<float, M_one *N_pvc> C_f = 0;
+    simd<half, M_one * N_pvc> C_hf = 0;
+    simd<float, M_one * N_pvc> C_f = 0;
 
-    simd<half, K_half *N_pvc> B_hf = 0;
-    simd<half, M_one *K_half> A_hf = 0;
+    simd<half, K_half * N_pvc> B_hf = 0;
+    simd<half, M_one * K_half> A_hf = 0;
 
     // ------------------- FP16: WITH ACC OPERAND -----------------------
     R_f = xmx::dpas<8, 1, float>(C_f, B_hf, A_hf);
@@ -128,10 +128,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   { // ======= DPAS 8-BIT x 2-BIT INT ==========================================
-    simd<int, M_one *N_pvc> R_d = 0;
-    simd<int, M_one *N_pvc> C_d = 0;
-    simd<int, K_int8x2 *N_pvc / 16> B_int2 = 0; // 16 2-bit integers per int32
-    simd<signed char, M_one *K_int8x2> A_int8 = 0;
+    simd<int, M_one * N_pvc> R_d = 0;
+    simd<int, M_one * N_pvc> C_d = 0;
+    simd<int, K_int8x2 * N_pvc / 16> B_int2 = 0; // 16 2-bit integers per int32
+    simd<signed char, M_one * K_int8x2> A_int8 = 0;
 
     // ------------ DPAS s8 x s2: WITH THE ACCUMULATOR OPERAND -----------------
     R_d = xmx::dpas<8, 1, int, int, int, signed char, s2, s8>(C_d, B_int2,
@@ -146,11 +146,11 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   { // ======= DPASW BF16 ======================================================
-    simd<float, M_one *N_dg2> R_f = 0;
-    simd<float, M_one *N_dg2> C_f = 0;
+    simd<float, M_one * N_dg2> R_f = 0;
+    simd<float, M_one * N_dg2> C_f = 0;
 
-    simd<bfloat16, K_bf16 *N_dg2> B_bf = 0;
-    simd<bfloat16, M_one *K_bf16 / 2> A_bf = 0;
+    simd<bfloat16, K_bf16 * N_dg2> B_bf = 0;
+    simd<bfloat16, M_one * K_bf16 / 2> A_bf = 0;
 
     // ------------ DPASW BF16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_bf, A_bf);
@@ -164,8 +164,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   { // ======= DPASW FP16 ======================================================
-    simd<float, M_one *N_dg2> R_f = 0;
-    simd<float, M_one *N_dg2> C_f = 0;
+    simd<float, M_one * N_dg2> R_f = 0;
+    simd<float, M_one * N_dg2> C_f = 0;
 
     simd<half, K_half * N_dg2> B_hf = 0;
     simd<half, M_one * K_half / 2> A_hf = 0;
@@ -182,12 +182,12 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   { // ======= DPAS TFLOAT32 ===================================================
-    simd<float, M_one *N_pvc> R_f = 0;
-    simd<float, M_one *N_pvc> C_f = 0;
+    simd<float, M_one * N_pvc> R_f = 0;
+    simd<float, M_one * N_pvc> C_f = 0;
 
-    simd<sycl::ext::intel::experimental::esimd::tfloat32, K_tf32 *N_pvc> B_tf =
+    simd<sycl::ext::intel::experimental::esimd::tfloat32, K_tf32 * N_pvc> B_tf =
         0;
-    simd<sycl::ext::intel::experimental::esimd::tfloat32, M_one *K_tf32> A_tf =
+    simd<sycl::ext::intel::experimental::esimd::tfloat32, M_one * K_tf32> A_tf =
         0;
 
     // ------------------- TFLOAT32: WITH ACC OPERAND --------------------------
