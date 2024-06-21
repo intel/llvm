@@ -456,7 +456,8 @@ void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
   int shadow_value = *shadow;
 
   DeviceSanitizerErrorType error_type = DeviceSanitizerErrorType::MISALIGNED;
-  DeviceSanitizerMemoryType memory_type = GetMemoryTypeByShadowValue(shadow_value);
+  DeviceSanitizerMemoryType memory_type =
+      GetMemoryTypeByShadowValue(shadow_value);
 
   __asan_internal_report_save(addr, as, file, line, func, is_write, size,
                               memory_type, error_type, is_recover);
