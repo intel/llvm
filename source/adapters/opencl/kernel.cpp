@@ -359,13 +359,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
           cl_ext::SetKernelArgMemPointerName, &FuncPtr));
 
   if (FuncPtr) {
-    /* OpenCL passes pointers by value not by reference. This means we need to
-     * deref the arg to get the pointer value */
-    auto PtrToPtr = reinterpret_cast<const intptr_t *>(pArgValue);
-    auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
     CL_RETURN_ON_FAILURE(FuncPtr(cl_adapter::cast<cl_kernel>(hKernel),
                                  cl_adapter::cast<cl_uint>(argIndex),
-                                 DerefPtr));
+                                 pArgValue));
   }
 
   return UR_RESULT_SUCCESS;

@@ -339,7 +339,7 @@ params:
       desc: "[in][optional] pointer to USM pointer properties."
     - type: "const void*"
       name: pArgValue
-      desc: "[in][optional] USM pointer to memory location holding the argument value. If null then argument value is considered null."
+      desc: "[in][optional] Pointer obtained by USM allocation or virtual memory mapping operation. If null then argument value is considered null."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
