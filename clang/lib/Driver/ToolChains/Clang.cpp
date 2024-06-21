@@ -10655,7 +10655,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                        }))
         return true;
 
-      // -Xsycl-target-frontend=
+      // -Xsycl-target-frontend=<target>
       if (llvm::any_of(TCArgs.getAllArgValues(options::OPT_Xsycl_frontend_EQ),
                        [](const std::string &Arg) {
                          return Arg.find("-fsanitize=address") !=

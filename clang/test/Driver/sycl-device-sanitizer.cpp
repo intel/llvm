@@ -25,6 +25,9 @@
 // RUN: %clangxx -fsycl -Xsycl-target-frontend -fsanitize=address %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
 
+// RUN: %clangxx -fsycl -Xsycl-target-frontend=spir64 -fsanitize=address %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
+
 // RUN: %clangxx -fsycl -fsanitize=address -fsycl-device-code-split=per_source %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN-SPLIT %s
 
