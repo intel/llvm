@@ -6,8 +6,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t.a -o %t.exe
 // RUN: %{run} %t.exe
 
-#include <sycl/detail/core.hpp>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 
 // Check that, when linking with a static library, SYCL_EXTERNAL device code
 // is preserved despite optimizations.
