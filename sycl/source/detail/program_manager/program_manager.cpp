@@ -583,7 +583,6 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
             // TODO: compatibleWithDevice uses some PI API, but we should have
             // another helper that checks used aspects and optional features.
             // Should we use that other helper here as well?
-            // FIXME: need to pass Devs here
             if (compatibleWithDevice(BinImage, Devs[0]))
               DeviceImagesToLink.insert(BinImage);
           } catch (sycl::exception &) {
@@ -602,6 +601,8 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       assert(false && "Unexpected virtual function property");
     }
   }
+
+  DeviceImagesToLink.erase(const_cast<RTDeviceBinaryImage *>(&Img));
 
   return DeviceImagesToLink;
 }
