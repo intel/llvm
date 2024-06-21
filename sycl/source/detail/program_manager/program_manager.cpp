@@ -49,7 +49,7 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
-static constexpr int DbgProgMgr = 0;
+static constexpr int DbgProgMgr = 1;
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
@@ -518,6 +518,119 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   }
 }
 
+static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
+                                 const device &Dev) {
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      detail::getSyclObjImpl(Dev);
+  auto &Plugin = DeviceImpl->getPlugin();
+
+  const sycl::detail::pi::PiDevice &PIDeviceHandle = DeviceImpl->getHandleRef();
+
+  // Call piextDeviceSelectBinary with only one image to check if an image is
+  // compatible with implementation. The function returns invalid index if no
+  // device images are compatible.
+  pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
+  pi_device_binary DevBin =
+      const_cast<pi_device_binary>(&BinImage->getRawData());
+  sycl::detail::pi::PiResult Error =
+      Plugin->call_nocheck<PiApiKind::piextDeviceSelectBinary>(
+          PIDeviceHandle, &DevBin,
+          /*num bin images = */ (pi_uint32)1, &SuitableImageID);
+  if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
+    throw runtime_error("Invalid binary image or device",
+                        PI_ERROR_INVALID_VALUE);
+
+  return (0 == SuitableImageID);
+}
+
+kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  auto KernelID = m_KernelName2KernelIDs.find(KernelName);
+  if (KernelID == m_KernelName2KernelIDs.end())
+    throw runtime_error("No kernel found with the specified name",
+                        PI_ERROR_INVALID_KERNEL_NAME);
+
+  return KernelID->second;
+}
+
+std::set<RTDeviceBinaryImage *>
+ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
+    const RTDeviceBinaryImage &Img, bool DeviceCodeWasInCache,
+    const std::vector<device> &Devs) {
+  // If virtual functions are used in a program, then we need to link several
+  // device images together to make sure that vtable pointers stored in
+  // objects are valid between different kernels (which could be in different
+  // device images).
+  std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
+  for (const pi_device_binary_property &VFProp : Img.getVirtualFunctions()) {
+    DeviceBinaryProperty Value(VFProp);
+    std::string StrValue = Value.asCString();
+    if (std::string(VFProp->Name).find("uses") != std::string::npos) {
+      assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
+             "Unexpected virtual function property");
+      // Device image may use more than one set of virtual functions
+      size_t Start = 0;
+      size_t Stop = StrValue.find_first_of(',');
+      do {
+        auto SetName = StrValue.substr(Start, Stop - Start);
+
+        // There could be more than one device image that uses the same set
+        // of virtual functions, or provides virtual funtions from the same
+        // set.
+        for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
+          try {
+            // TODO: compatibleWithDevice uses some PI API, but we should have
+            // another helper that checks used aspects and optional features.
+            // Should we use that other helper here as well?
+            // FIXME: need to pass Devs here
+            if (compatibleWithDevice(BinImage, Devs[0]))
+              DeviceImagesToLink.insert(BinImage);
+          } catch (sycl::exception &) {
+            // compatibleWithDevice may throw. We ignore that exception,
+            // assuming that that image is incompatible.
+            // FIXME: is the assumption above correct?
+          }
+        }
+
+        Start = Stop;
+        Stop = StrValue.find_first_of(',', Start + 1);
+      } while (Stop != std::string::npos);
+
+    } else {
+      // TODO: remove runtime check and turn it into an assert
+      assert(false && "Unexpected virtual function property");
+    }
+  }
+
+  return DeviceImagesToLink;
+}
+
+static void
+setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
+                           sycl::detail::pi::PiProgram Prog,
+                           const PluginPtr &Plugin) {
+  // Set ITT annotation specialization constant if needed.
+  enableITTAnnotationsIfNeeded(Prog, Plugin);
+
+  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+  const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
+      &SpecConstData = InputImpl->get_spec_const_data_ref();
+  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
+
+  // Set all specialization IDs from descriptors in the input device image.
+  for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
+    std::ignore = SpecConstNames;
+    for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
+      if (SpecIDDesc.IsSet) {
+        Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
+            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
+            SpecConsts.data() + SpecIDDesc.BlobOffset);
+      }
+    }
+  }
+}
+
 // When caching is enabled, the returned PiProgram will already have
 // its ref count incremented.
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
@@ -591,11 +704,31 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    std::vector<sycl::detail::pi::PiProgram> ExtraProgramsToLink;
+    auto DeviceImagesToLink = collectDependentDeviceImagesForVirtualFunctions(
+        Img, DeviceCodeWasInCache, {Device});
+    std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
+    for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
+      device_image_plain DevImagePlain =
+          getDeviceImageFromBinaryImage(BinImg, Context, Device);
+      const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
+          detail::getSyclObjImpl(DevImagePlain);
+
+      SerializedObj ImgSpecConsts = DeviceImageImpl->get_spec_const_blob_ref();
+
+      auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+          *BinImg, Context, Device, CompileOpts + LinkOpts, ImgSpecConsts);
+
+      if (!DeviceCodeWasInCache &&
+          DeviceImageImpl->get_bin_image_ref()->supportsSpecConstants())
+        setSpecializationConstants(DeviceImageImpl, NativePrg, Plugin);
+
+      // TODO: when it is going to be released?
+      ProgramsToLink.push_back(NativePrg);
+    }
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
-              ExtraProgramsToLink);
+              ProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -1585,42 +1718,6 @@ static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   return IsAOT ? sycl::bundle_state::executable : sycl::bundle_state::input;
 }
 
-static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
-                                 const device &Dev) {
-  const std::shared_ptr<detail::device_impl> &DeviceImpl =
-      detail::getSyclObjImpl(Dev);
-  auto &Plugin = DeviceImpl->getPlugin();
-
-  const sycl::detail::pi::PiDevice &PIDeviceHandle = DeviceImpl->getHandleRef();
-
-  // Call piextDeviceSelectBinary with only one image to check if an image is
-  // compatible with implementation. The function returns invalid index if no
-  // device images are compatible.
-  pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
-  pi_device_binary DevBin =
-      const_cast<pi_device_binary>(&BinImage->getRawData());
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piextDeviceSelectBinary>(
-          PIDeviceHandle, &DevBin,
-          /*num bin images = */ (pi_uint32)1, &SuitableImageID);
-  if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
-    throw runtime_error("Invalid binary image or device",
-                        PI_ERROR_INVALID_VALUE);
-
-  return (0 == SuitableImageID);
-}
-
-kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
-  auto KernelID = m_KernelName2KernelIDs.find(KernelName);
-  if (KernelID == m_KernelName2KernelIDs.end())
-    throw runtime_error("No kernel found with the specified name",
-                        PI_ERROR_INVALID_KERNEL_NAME);
-
-  return KernelID->second;
-}
-
 bool ProgramManager::hasCompatibleImage(const device &Dev) {
   std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
 
@@ -2026,31 +2123,6 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
-static void
-setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
-                           sycl::detail::pi::PiProgram Prog,
-                           const PluginPtr &Plugin) {
-  // Set ITT annotation specialization constant if needed.
-  enableITTAnnotationsIfNeeded(Prog, Plugin);
-
-  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
-  const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
-      &SpecConstData = InputImpl->get_spec_const_data_ref();
-  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
-
-  // Set all specialization IDs from descriptors in the input device image.
-  for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
-    std::ignore = SpecConstNames;
-    for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
-      if (SpecIDDesc.IsSet) {
-        Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
-            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
-            SpecConsts.data() + SpecIDDesc.BlobOffset);
-      }
-    }
-  }
-}
-
 device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
@@ -2292,50 +2364,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    // If virtual functions are used in a program, then we need to link several
-    // device images together to make sure that vtable pointers stored in
-    // objects are valid between different kernels (which could be in different
-    // device images).
-    std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
-    for (const pi_device_binary_property &VFProp : Img.getVirtualFunctions()) {
-      DeviceBinaryProperty Value(VFProp);
-      std::string StrValue = Value.asCString();
-      if (std::string(VFProp->Name).find("uses") != std::string::npos) {
-        assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
-               "Unexpected virtual function property");
-        // Device image may use more than one set of virtual functions
-        size_t Start = 0;
-        size_t Stop = StrValue.find_first_of(',');
-        do {
-          auto SetName = StrValue.substr(Start, Stop - Start);
-
-          // There could be more than one device image that uses the same set
-          // of virtual functions, or provides virtual funtions from the same
-          // set.
-          for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
-            try {
-              // TODO: compatibleWithDevice uses some PI API, but we should have
-              // another helper that checks used aspects and optional features.
-              // Should we use that other helper here as well?
-              if (compatibleWithDevice(BinImage, Devs[0]))
-                DeviceImagesToLink.insert(BinImage);
-            } catch (sycl::exception &) {
-              // compatibleWithDevice may throw. We ignore that exception,
-              // assuming that that image is incompatible.
-              // FIXME: is the assumption above correct?
-            }
-          }
-
-          Start = Stop;
-          Stop = StrValue.find_first_of(',', Start + 1);
-        } while (Stop != std::string::npos);
-
-      } else {
-        // TODO: remove runtime check and turn it into an assert
-        assert(false && "Unexpected virtual function property");
-      }
-    }
-
+    auto DeviceImagesToLink = collectDependentDeviceImagesForVirtualFunctions(
+        Img, DeviceCodeWasInCache, Devs);
     std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
     for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
       device_image_plain DevImagePlain =
@@ -2365,7 +2395,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       // TODO: when it is going to be released?
       ProgramsToLink.push_back(NativePrg);
     }
-
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask,

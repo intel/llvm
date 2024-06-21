@@ -318,6 +318,11 @@ private:
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
+  std::set<RTDeviceBinaryImage *>
+  collectDependentDeviceImagesForVirtualFunctions(
+      const RTDeviceBinaryImage &Img, bool DeviceCodeWasInCache,
+      const std::vector<device> &Devs);
+
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;

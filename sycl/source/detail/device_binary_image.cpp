@@ -74,7 +74,9 @@ ByteArray DeviceBinaryProperty::asByteArray() const {
 }
 
 const char *DeviceBinaryProperty::asCString() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
+  assert((Prop->Type == PI_PROPERTY_TYPE_STRING ||
+          Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) &&
+         "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
   return pi::cast<const char *>(Prop->ValAddr);
 }
