@@ -77,14 +77,14 @@ Initialization and Discovery
 Device handle lifetime
 ----------------------
 
-The device objects are reference-counted, and there are ${x}DeviceRetain and ${x}DeviceRelease.
-The ref-count of a device is automatically incremented when device is obtained by ${x}DeviceGet.
-After device is no longer needed to the application it must call to ${x}DeviceRelease.
-When ref-count of the underlying device handle becomes zero then that device object is deleted.
-Note, that besides the application itself, the Unified Runtime may increment and decrement ref-count on its own.
-So, after the call to ${x}DeviceRelease below, the device may stay alive until other
-objects attached to it, like command-queues, are deleted. But application may not use the device
-after it released its own reference.
+Device objects are reference-counted, using ${x}DeviceRetain and ${x}DeviceRelease.
+The ref-count of a device is automatically incremented when a device is obtained by ${x}DeviceGet.
+After a device is no longer needed by the application it must call ${x}DeviceRelease.
+When the ref-count of the underlying device handle becomes zero then that device object is deleted.
+Note that a Unified Runtime adapter may internally increment and decrement a device's ref-count.
+So after the call to ${x}DeviceRelease below, the device may stay active until other
+objects using it, such as a command-queue, are deleted. However, an application
+may not use the device after it releases its last reference.
 
 .. parsed-literal::
 
@@ -120,7 +120,7 @@ In case where the info size is only known at runtime then two calls are needed, 
 Device partitioning into sub-devices
 ------------------------------------
 
-The ${x}DevicePartition could partition a device into sub-device. The exact representation and
+${x}DevicePartition partitions a device into a sub-device. The exact representation and
 characteristics of the sub-devices are device specific, but normally they each represent a
 fixed part of the parent device, which can explicitly be programmed individually.
 
@@ -161,9 +161,10 @@ An implementation will return "0" in the count if no further partitioning is sup
 Contexts
 ========
 
-Contexts are serving the purpose of resources sharing (between devices in the same context),
-and resources isolation (resources do not cross context boundaries). Resources such as memory allocations,
-events, and programs are explicitly created against a context. A trivial work with context looks like this:
+Contexts serve the purpose of resource sharing (between devices in the same context),
+and resource isolation (ensuring that resources do not cross context
+boundaries). Resources such as memory allocations, events, and programs are
+explicitly created against a context.
 
 .. parsed-literal::
 
@@ -235,18 +236,20 @@ explicit and implicit kernel arguments along with data needed for launch.
 Queue and Enqueue
 =================
 
-A queue object represents a logic input stream to a device. Kernels 
-and commands are submitted to queue for execution using Equeue commands:
+Queue objects are used to submit work to a given device. Kernels
+and commands are submitted to queue for execution using Enqueue commands:
 such as ${x}EnqueueKernelLaunch, ${x}EnqueueMemBufferWrite. Enqueued kernels
 and commands can be executed in order or out of order depending on the
 queue's property ${X}_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE when the
-queue is created.
+queue is created. If a queue is out of order, the queue may internally do some
+scheduling of work to achieve concurrency on the device, while honouring the
+event dependencies that are passed to each Enqueue command.
 
 .. parsed-literal::
 
     // Create an out of order queue for hDevice in hContext
     ${x}_queue_handle_t hQueue;
-    ${x}QueueCreate(hContext, hDevice, 
+    ${x}QueueCreate(hContext, hDevice,
                     ${X}_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE, &hQueue);
 
     // Launch a kernel with 3D workspace partitioning
