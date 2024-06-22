@@ -24,6 +24,66 @@
 #include <vector>
 
 namespace test {
+constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
+constexpr uint16_t graph_create =
+    (uint16_t)xpti::trace_point_type_t::graph_create;
+constexpr uint16_t node_create =
+    (uint16_t)xpti::trace_point_type_t::node_create;
+constexpr uint16_t edge_create =
+    (uint16_t)xpti::trace_point_type_t::edge_create;
+
+class ScopedNotify {
+public:
+  ScopedNotify(const char *Stream, uint16_t TraceType,
+               xpti::trace_event_data_t *Parent,
+               xpti::trace_event_data_t *Object, uint64_t Instance,
+               const void *UserData = nullptr)
+      : MObject(Object), MParent(Parent), MStreamId(0), MTraceType(TraceType),
+        MUserData(UserData), MInstance(Instance) {
+    if (xptiTraceEnabled()) {
+      uint16_t Open = MTraceType & 0xfffe;
+      MStreamId = xptiRegisterStream(Stream);
+      xptiNotifySubscribers(MStreamId, Open, Parent, Object, Instance,
+                            MUserData);
+    }
+  }
+  ScopedNotify(uint8_t StreamId, uint16_t TraceType,
+               xpti::trace_event_data_t *Parent,
+               xpti::trace_event_data_t *Object, uint64_t Instance,
+               const void *UserData = nullptr)
+      : MObject(Object), MParent(Parent), MStreamId(StreamId),
+        MTraceType(TraceType), MUserData(UserData), MInstance(Instance) {
+    if (!xptiTraceEnabled())
+      return;
+    uint16_t Open = MTraceType & 0xfffe;
+    xptiNotifySubscribers(MStreamId, Open, Parent, Object, Instance, MUserData);
+  }
+
+  ~ScopedNotify() {
+    if (xptiTraceEnabled())
+      return;
+    switch (MTraceType) {
+    case signal:
+    case graph_create:
+    case node_create:
+    case edge_create:
+      break;
+    default: {
+      uint16_t Close = MTraceType | 1;
+      xptiNotifySubscribers(MStreamId, Close, MParent, MObject, MInstance,
+                            MUserData);
+    } break;
+    }
+  }
+
+private:
+  xpti::trace_event_data_t *MObject, *MParent;
+  uint8_t MStreamId;
+  uint16_t MTraceType;
+  const void *MUserData;
+  uint64_t MInstance;
+};
+
 namespace utils {
 enum class OptionType { Boolean, Integer, Float, String, Range };
 

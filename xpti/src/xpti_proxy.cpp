@@ -46,6 +46,22 @@ enum functions_t {
   XPTI_STASH_TUPLE,
   XPTI_GET_STASHED_TUPLE,
   XPTI_UNSTASH_TUPLE,
+  XPTI_GET_DEFAULT_STREAM_ID,
+  XPTI_SET_DEFAULT_STREAM_ID,
+  XPTI_GET_DEFAULT_EVENT_TYPE,
+  XPTI_SET_DEFAULT_EVENT_TYPE,
+  XPTI_GET_DEFAULT_TRACE_TYPE,
+  XPTI_SET_DEFAULT_TRACE_TYPE,
+  XPTI_GET_TRACEPOINT_SCOPE_DATA,
+  XPTI_SET_TRACEPOINT_SCOPE_DATA,
+  XPTI_UNSET_TRACEPOINT_SCOPE_DATA,
+  XPTI_REGISTER_PAYLOAD_AND_PREPARE_TRACEPOINT_DATA,
+  XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_REGISTER_PAYLOAD128,
+  XPTI_FIND_EVENT128,
+  XPTI_QUERY_PAYLOAD_BY_UID128,
+  XPTI_MAKE_EVENT128,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -85,6 +101,25 @@ class ProxyLoader {
       {XPTI_STASH_TUPLE, "xptiStashTuple"},
       {XPTI_GET_STASHED_TUPLE, "xptiGetStashedTuple"},
       {XPTI_UNSTASH_TUPLE, "xptiUnstashTuple"},
+      {XPTI_GET_DEFAULT_STREAM_ID, "xptiGetDefaultStreamID"},
+      {XPTI_SET_DEFAULT_STREAM_ID, "xptiSetDefaultStreamID"},
+      {XPTI_GET_DEFAULT_EVENT_TYPE, "xptiGetDefaultEventType"},
+      {XPTI_SET_DEFAULT_EVENT_TYPE, "xptiSetDefaultEventType"},
+      {XPTI_GET_DEFAULT_TRACE_TYPE, "xptiGetDefaultTraceType"},
+      {XPTI_SET_DEFAULT_TRACE_TYPE, "xptiSetDefaultTraceType"},
+      {XPTI_GET_TRACEPOINT_SCOPE_DATA, "xptiGetTracepointScopeData"},
+      {XPTI_SET_TRACEPOINT_SCOPE_DATA, "xptiSetTracepointScopeData"},
+      {XPTI_UNSET_TRACEPOINT_SCOPE_DATA, "xptiUnsetTracepointScopeData"},
+      {XPTI_REGISTER_PAYLOAD_AND_PREPARE_TRACEPOINT_DATA,
+       "xptiRegisterPayloadAndPrepareTracepointData"},
+      {XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiEnableTracepointScopeNotification"},
+      {XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiCheckTracepointScopeNotification"},
+      {XPTI_REGISTER_PAYLOAD128, "xptiRegisterPayload128"},
+      {XPTI_FIND_EVENT128, "xptiFindEvent128"},
+      {XPTI_QUERY_PAYLOAD_BY_UID128, "xptiQueryPayloadByUID128"},
+      {XPTI_MAKE_EVENT128, "xptiMakeEvent128"},
       {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
@@ -244,7 +279,7 @@ XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
       return (*reinterpret_cast<xpti_get_universal_id_t>(f))();
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_uid;
 }
 
 XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
@@ -353,6 +388,19 @@ XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
   return xpti::invalid_uid;
 }
 
+XPTI_EXPORT_API xpti::uid128_t
+xptiRegisterPayload128(xpti::payload_t *payload) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_PAYLOAD128);
+    if (f) {
+      return (*(xpti_register_payload128_t)f)(payload);
+    }
+  }
+  xpti::uid128_t invalid_uid128;
+  return invalid_uid128;
+}
+
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -374,6 +422,7 @@ XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *stream_name) {
   }
   return xpti::result_t::XPTI_RESULT_FAIL;
 }
+
 XPTI_EXPORT_API xpti::trace_event_data_t *
 xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
               xpti::trace_activity_type_t activity, uint64_t *instance_no) {
@@ -387,11 +436,35 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
   return nullptr;
 }
 
+XPTI_EXPORT_API xpti::trace_event_data_t *
+xptiMakeEvent128(const char *name, xpti::payload_t *payload, uint16_t event,
+                 xpti::trace_activity_type_t activity, uint64_t *instance_no) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_MAKE_EVENT128);
+    if (f) {
+      return (*(xpti_make_event128_t)f)(name, payload, event, activity,
+                                        instance_no);
+    }
+  }
+  return nullptr;
+}
+
 XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_FIND_EVENT);
     if (f) {
       return (*(xpti_find_event_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti::trace_event_data_t *
+xptiFindEvent128(xpti::uid128_t *uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_FIND_EVENT128);
+    if (f) {
+      return (*(xpti_find_event128_t)f)(uid);
     }
   }
   return nullptr;
@@ -414,6 +487,18 @@ XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
         XPTI_QUERY_PAYLOAD_BY_UID);
     if (f) {
       return (*(xpti_query_payload_by_uid_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti::payload_t *
+xptiQueryPayloadByUID128(xpti::uid128_t *uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_QUERY_PAYLOAD_BY_UID128);
+    if (f) {
+      return (*(xpti_query_payload_by_uid128_t)f)(uid);
     }
   }
   return nullptr;
@@ -526,4 +611,138 @@ XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
       (*(xpti_release_event_t)f)(lookup_object);
     }
   }
+}
+
+XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_STREAM_ID);
+    if (f) {
+      return (*(xpti_get_default_stream_id_t)f)();
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t stream_id) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_STREAM_ID);
+    if (f) {
+      return (*(xpti_set_default_stream_id_t)f)(stream_id);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::trace_event_type_t xptiGetDefaultEventType() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_EVENT_TYPE);
+    if (f) {
+      return (*(xpti_get_default_event_type_t)f)();
+    }
+  }
+  return xpti::trace_event_type_t::algorithm;
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultEventType(xpti::trace_event_type_t event_type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_EVENT_TYPE);
+    if (f) {
+      return (*(xpti_set_default_event_type_t)f)(event_type);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::trace_point_type_t xptiGetDefaultTraceType() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_TRACE_TYPE);
+    if (f) {
+      return (*(xpti_get_default_trace_type_t)f)();
+    }
+  }
+  return xpti::trace_point_type_t::function_begin;
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultTraceType(xpti::trace_point_type_t trace_type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_TRACE_TYPE);
+    if (f) {
+      return (*(xpti_set_default_trace_type_t)f)(trace_type);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::trace_point_data_t xptiGetTracepointScopeData() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      return (*(xpti_get_trace_point_scope_data_t)f)();
+    }
+  }
+  return xpti::trace_point_data_t();
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetTracepointScopeData(xpti::trace_point_data_t *data) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      return (*(xpti_set_trace_point_scope_data_t)f)(data);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_UNSET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      (*(xpti_unset_trace_point_scope_data_t)f)();
+    }
+  }
+}
+
+XPTI_EXPORT_API xpti::trace_point_data_t
+xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t *payload) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_REGISTER_PAYLOAD_AND_PREPARE_TRACEPOINT_DATA);
+    if (f) {
+      return (*(xpti_register_payload_and_prepare_tracepoint_data_t)f)(payload);
+    }
+  }
+  return xpti::trace_point_data_t();
+}
+
+XPTI_EXPORT_API void xptiEnableTracepointScopeNotification(bool enable) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      (*(xpti_enable_tracepoint_scope_notification_t)f)(enable);
+    }
+  }
+}
+
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      return (*(xpti_check_tracepoint_scope_notification_t)f)();
+    }
+  }
+  return false;
 }

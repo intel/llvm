@@ -76,7 +76,8 @@ static void setupPrettyPrinter(bool Verbose) {
           std::string Source = "<unknown>";
           size_t Line = 0;
 
-          auto *Payload = xptiQueryPayloadByUID(xptiGetUniversalId());
+          auto Uid = xptiGetUniversalId();
+          auto *Payload = xptiQueryPayloadByUID(Uid);
 
           if (Payload) {
             if (Payload->source_file != nullptr) {

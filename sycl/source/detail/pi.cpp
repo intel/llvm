@@ -130,7 +130,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
       (uint16_t)xpti::trace_point_type_t::function_end;
   if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     // CorrelationID is the unique ID that ties together a function_begin and
-    // function_end pair of trace calls. The splitting of a scoped_notify into
+    // function_end pair of trace calls. The splitting of a ScopedNotify into
     // two function calls incurs an additional overhead as the StreamID must
     // be looked up twice.
     xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,
@@ -454,6 +454,8 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   // this stream will register itself using this string or stream ID for this
   // string.
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  xptiSetDefaultStreamID(StreamID);
+
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
   GlobalHandler::instance().getXPTIRegistry().initializeStream(
