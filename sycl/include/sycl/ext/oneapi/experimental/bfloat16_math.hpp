@@ -62,6 +62,19 @@ template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
 template <typename T, int N = num_elements_v<T>>
 std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<int16_t, N>>
 isnan(T x) {
+
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Cast required for swizzles.
+  auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;
+  // Convert BFloat16 vector to float vec and call isnan()
+  sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();
+  auto res = isnan(FVec);
+
+  // For vec<float>, the return type of isnan is vec<int32_t> so,
+  // an explicit conversion is required to vec<int16_t>. 
+  return res.template convert<int16_t>();
+#else
+
   sycl::vec<int16_t, N> res;
   for (size_t i = 0; i < N; i++) {
     // The result of isnan is 0 or 1 but SPEC requires
@@ -69,6 +82,7 @@ isnan(T x) {
     res[i] = isnan(x[i]) ? -1 : 0;
   }
   return res;
+#endif
 }
 
 /******************* fabs ********************/
@@ -120,11 +134,20 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 template <typename T, int N = num_elements_v<T>>
 std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>>
 fabs(T x) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Cast required for swizzles.
+  auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;
+  // Convert BFloat16 vector to float vec.
+  sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();
+  auto res = fabs(FVec);
+  return res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fabs(x[i]);
   }
   return res;
+#endif
 }
 
 /******************* fmin ********************/
@@ -193,11 +216,23 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      N1 == N2,
                  sycl::vec<bfloat16, N1>>
 fmin(T1 x, T2 y) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Cast required for swizzles.
+  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
+  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
+
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
+  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
+  auto res = fmin(FVecX, FVecY);
+  return res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fmin(x[i], y[i]);
   }
   return res;
+#endif
 }
 
 /******************* fmax ********************/
@@ -265,11 +300,23 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      N1 == N2,
                  sycl::vec<bfloat16, N1>>
 fmax(T1 x, T2 y) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Cast required for swizzles.
+  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
+  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
+
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
+  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
+  auto res = fmax(FVecX, FVecY);
+  return res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fmax(x[i], y[i]);
   }
   return res;
+#endif
 }
 
 /******************* fma *********************/
@@ -327,11 +374,26 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      is_vec_or_swizzle_bf16_v<T3> && N1 == N2 && N2 == N3,
                  sycl::vec<bfloat16, N1>>
 fma(T1 x, T2 y, T3 z) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Cast required for swizzles.
+  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
+  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
+  auto InpBF16VecZ = (sycl::vec<bfloat16, N1>)z;
+
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
+  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
+  sycl::vec<float, N1> FVecZ = InpBF16VecZ.template convert<float>();
+
+  auto res = fma(FVecX, FVecY, FVecZ);
+  return res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fma(x[i], y[i], z[i]);
   }
   return res;
+#endif
 }
 
 /******************* unary math operations ********************/
@@ -352,6 +414,18 @@ fma(T1 x, T2 y, T3 z) {
     return res;                                                                \
   }
 
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
+  /* Overload for BF16 vec and swizzles. */                                    \
+  template <typename T, int N = num_elements_v<T>>                             \
+  std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>> op(    \
+      T x) {                                                                   \
+    auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;                               \
+    sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();           \
+    auto res = op(FVec);                                                       \
+    return res.template convert<bfloat16>();                                   \
+  }
+#else
 #define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
   /* Overload for BF16 vec and swizzles. */                                    \
   template <typename T, int N = num_elements_v<T>>                             \
@@ -363,6 +437,7 @@ fma(T1 x, T2 y, T3 z) {
     }                                                                          \
     return res;                                                                \
   }
+#endif
 
 BFLOAT16_MATH_FP32_WRAPPERS(ceil)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(ceil)
