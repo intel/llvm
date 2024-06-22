@@ -10565,7 +10565,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
-          TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
+          Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
           options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
     }
   }
