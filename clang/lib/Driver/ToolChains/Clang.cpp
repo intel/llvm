@@ -10553,8 +10553,12 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
+#if 0 // Temporary change to test the SPIR-V backend
   bool UseSPIRVBackend =
       TCArgs.hasArg(options::OPT_fsycl_use_spirv_backend_for_spirv_gen);
+#else
+  bool UseSPIRVBackend = true;
+#endif
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
