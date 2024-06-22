@@ -71,7 +71,7 @@ isnan(T x) {
   auto res = isnan(FVec);
 
   // For vec<float>, the return type of isnan is vec<int32_t> so,
-  // an explicit conversion is required to vec<int16_t>. 
+  // an explicit conversion is required to vec<int16_t>.
   return res.template convert<int16_t>();
 #else
 
