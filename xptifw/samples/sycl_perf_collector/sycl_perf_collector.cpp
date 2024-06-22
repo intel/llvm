@@ -7,16 +7,18 @@
 //
 #include "xpti/xpti_trace_framework.h"
 
+#include "emhash/hash_table8.hpp"
 #include "xpti_helpers.hpp"
 #include "xpti_timers.hpp"
 #include "xpti_writers.hpp"
 
 #include <memory>
-#include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <unordered_map>
 
-std::mutex GRecMutex, GStreamMutex;
+std::shared_mutex GRecMutex;
+std::mutex GStreamMutex;
 xpti::data_model *GDataModel = nullptr;
 xpti::utils::statistics_t GEventStats;
 uint64_t GProcessID = 0;
@@ -34,8 +36,9 @@ xpti::utils::string::list_t GAllStreams;
 // Data structure to ha
 xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 
-using incomplete_records_t = std::unordered_map<uint64_t, xpti::record_t>;
-incomplete_records_t *GRecordsInProgress = nullptr;
+using instance_records_t = emhash8::HashMap<uint64_t, xpti::record_t>;
+using event_instances_t = emhash8::HashMap<uint64_t, instance_records_t>;
+event_instances_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
 constexpr const char *GStreamBasic = "sycl";
@@ -67,17 +70,17 @@ public:
 
 // Implementation of the data model that will be used by all of the writers
 namespace xpti {
-std::mutex GDataMutex;
+std::shared_mutex GDataMutex;
 data_model::data_model()
     : m_min(std::numeric_limits<uint64_t>::max()), m_max(0) {}
 data_model::~data_model() {}
 void data_model::add(record_t &r) {
-  std::lock_guard<std::mutex> _{GDataMutex};
+  std::unique_lock _{GDataMutex};
   m_records.push_back(r);
 }
 
 void data_model::finalize() {
-  std::lock_guard<std::mutex> _{GDataMutex};
+  std::unique_lock _{GDataMutex};
   for (auto &r : m_records) {
     m_ordered_records.insert(std::make_pair(r.TSBegin, r));
     if (m_min > r.TSBegin)
@@ -101,7 +104,7 @@ void data_model::print(char *Name) {
       std::cout << "++# of records: " << m_records.size() << " : " << Name
                 << "\n";
     }
-    std::lock_guard<std::mutex> _{GDataMutex};
+    std::shared_lock _{GDataMutex};
     for (auto &r : m_records) {
       std::cout << "--->" << r.TSBegin << " : " << r.Name << "\n";
     }
@@ -198,7 +201,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // registering with and create some writer objects for formatted output
   static bool InitStreams = true;
   if (InitStreams) {
-    GRecordsInProgress = new incomplete_records_t;
+    GRecordsInProgress = new event_instances_t;
     std::set<std::string> OutputFormats{"json", "csv", "table", "stack", "all"};
     xpti::utils::string::simple_string_decoder_t D(",");
     GStreams = new xpti::utils::string::list_t;
@@ -720,14 +723,31 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
     if (TraceType & 0x0001) {
       // We are the closing scope step
       {
-        std::lock_guard<std::mutex> _{GRecMutex};
-        auto ele = GRecordsInProgress->find(Instance);
-        if (ele != GRecordsInProgress->end()) {
-          // Copy so the incomplete record can be deleted
-          r = ele->second;
-          GRecordsInProgress->erase(ele);
-        } else {
-          throw std::runtime_error("Instance id/correlation ID collision!");
+        auto ID = Event ? Event->unique_id : 0;
+        {
+          std::unique_lock _{GRecMutex};
+          auto &EventInstance = (*GRecordsInProgress)[ID];
+          auto ele = EventInstance.find(Instance);
+          if (ele != EventInstance.end()) {
+            // Copy so the incomplete record can be deleted
+            r = ele->second;
+            EventInstance.erase(ele);
+          } else {
+            std::cout << "Stream: " << StreamName << ", UserData: " << Name
+                      << ", Instance:" << Instance
+                      << ", TraceType: " << TraceType << std::endl;
+            if (Event) {
+              if (Event->reserved.payload) {
+                std::cout << "Payload: {name: " << Event->reserved.payload->name
+                          << ",file: " << Event->reserved.payload->source_file
+                          << ", line: " << Event->reserved.payload->line_no
+                          << ", col: " << Event->reserved.payload->column_no
+                          << "}" << std::endl;
+              }
+            }
+            throw std::runtime_error(
+                "Close: Instance id/correlation ID collision!");
+          }
         }
         // We are operating on a copy, so no data races
         record_state(r, false);
@@ -745,12 +765,27 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
         r.Category = StreamName;
       r.Flags |= (uint64_t)(xpti::RecordFlags::NamePresent);
       {
-        std::lock_guard<std::mutex> _{GRecMutex};
+        auto ID = Event ? Event->unique_id : 0;
+        std::unique_lock _{GRecMutex};
+        auto &EventInstance = (*GRecordsInProgress)[ID];
         r.CorrID = Instance;
-        if (GRecordsInProgress->count(Instance)) {
-          throw std::runtime_error("Instance id/correlation ID collision!");
+        if (EventInstance.count(Instance)) {
+          std::cout << "Stream: " << StreamName << ", UserData: " << Name
+                    << ", Instance:" << Instance << ", TraceType: " << TraceType
+                    << std::endl;
+          if (Event) {
+            if (Event->reserved.payload) {
+              std::cout << "Payload: {name: " << Event->reserved.payload->name
+                        << ",file: " << Event->reserved.payload->source_file
+                        << ", line: " << Event->reserved.payload->line_no
+                        << ", col: " << Event->reserved.payload->column_no
+                        << "}" << std::endl;
+            }
+          }
+          throw std::runtime_error(
+              "Create: Instance id/correlation ID collision!");
         }
-        (*GRecordsInProgress)[Instance] = r;
+        EventInstance[Instance] = r;
       }
     }
   }

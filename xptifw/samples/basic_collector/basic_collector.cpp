@@ -126,8 +126,9 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   // Lock while we print information
   std::lock_guard<std::mutex> Lock(GIOMutex);
   // Print the record information
-  printf("%-25lu: name=%-35s cpu=%3d event_id=%10lu\n", Time, Name.c_str(), CPU,
-         ID);
+  printf("%-25lu: name=%-35s cpu=%3d event_id=%10lu, InstanceID=%6lu, "
+         "TraceType=%d\n",
+         Time, Name.c_str(), CPU, ID, Instance, TraceType);
   // Go through all available meta-data for an event and print it out
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (const auto &Item : *Metadata) {

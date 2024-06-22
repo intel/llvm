@@ -574,14 +574,15 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDTest) {
   xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
-  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.line_no);
-  Id0.p2 = XPTI_PACK32_RET64(0, Payload.name_sid());
+
+  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.name_sid());
+  Id0.p2 = XPTI_PACK32_RET64(Payload.column_no, Payload.line_no);
   Id0.p3 = (uint64_t)Payload.code_ptr_va;
   xpti::payload_t P("foo", "foo.cpp", 1, 0, (void *)&Id1);
   auto Result1 =
       xptiMakeEvent("foo", &P, 0, (xpti::trace_activity_type_t)1, &instance);
-  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.line_no);
-  Id1.p2 = XPTI_PACK32_RET64(0, P.name_sid());
+  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.name_sid());
+  Id1.p2 = XPTI_PACK32_RET64(P.column_no, P.line_no);
   Id1.p3 = (uint64_t)P.code_ptr_va;
   EXPECT_NE(Result, Result1);
   EXPECT_NE(Id0.hash(), Id1.hash());
@@ -592,18 +593,18 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
   set<uint64_t> HashSet;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MColNo, MAddr;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MColNo = uniform_int_distribution<uint32_t>(1, 2000);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   for (int i = 0; i < 1000000; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
-    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
-    id.p3 = (uint64_t)MAddr(Gen);
-
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
+    id.p2 = XPTI_PACK32_RET64(MColNo(Gen), MLineNo(Gen));
+    id.p3 = MAddr(Gen);
     uint64_t hash = id.hash();
     EXPECT_EQ(HashSet.count(hash), 0u);
     HashSet.insert(hash);
@@ -611,14 +612,15 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
 
   xpti::uid_t id1, id2;
   uint32_t sid = MStringID(Gen), ln = MLineNo(Gen), kid = MStringID(Gen),
-           addr = MAddr(Gen);
-  id1.p1 = XPTI_PACK32_RET64(sid, ln);
-  id1.p2 = XPTI_PACK32_RET64(0, kid);
-  id1.p3 = (uint64_t)addr;
+           col = MColNo(Gen);
+  uint64_t code_ptr_va = MAddr(Gen);
+  id1.p1 = XPTI_PACK32_RET64(sid, kid);
+  id1.p2 = XPTI_PACK32_RET64(ln, col);
+  id1.p3 = code_ptr_va;
 
-  id2.p1 = XPTI_PACK32_RET64(sid, ln);
-  id2.p2 = XPTI_PACK32_RET64(0, kid);
-  id2.p3 = (uint64_t)addr;
+  id2.p1 = XPTI_PACK32_RET64(sid, kid);
+  id2.p2 = XPTI_PACK32_RET64(ln, col);
+  id2.p3 = code_ptr_va;
 
   EXPECT_EQ(id1.hash(), id2.hash());
 }
@@ -628,18 +630,19 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   map<xpti::uid_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr, MColNo;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MColNo = uniform_int_distribution<uint32_t>(1, 2000);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
-    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
-    id.p3 = (uint64_t)MAddr(Gen);
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
+    id.p2 = XPTI_PACK32_RET64(MColNo(Gen), MLineNo(Gen));
+    id.p3 = MAddr(Gen);
 
     uint64_t hash = id.hash();
     EXPECT_EQ(MapTest.count(id), 0u);
@@ -663,17 +666,18 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
   unordered_map<xpti::uid_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
-  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr, MColNo;
 
   MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MColNo = uniform_int_distribution<uint32_t>(1, 2000);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
   constexpr unsigned int Count = 100000;
   for (unsigned int i = 0; i < Count; ++i) {
     xpti::uid_t id;
-    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
-    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MStringID(Gen));
+    id.p2 = XPTI_PACK32_RET64(MColNo(Gen), MLineNo(Gen));
     id.p3 = (uint64_t)MAddr(Gen);
 
     uint64_t hash = id.hash();

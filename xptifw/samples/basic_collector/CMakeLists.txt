@@ -1,7 +1,8 @@
 add_library(xpti_basic_collector SHARED
   basic_collector.cpp
   )
-target_link_libraries(xpti_basic_collector PRIVATE
+  target_compile_definitions(xpti_basic_collector PUBLIC XPTI_CALLBACK_API_EXPORTS=1)
+  target_link_libraries(xpti_basic_collector PRIVATE
   xptifw
   ${CMAKE_DL_LIBS}
 )

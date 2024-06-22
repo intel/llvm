@@ -6,6 +6,7 @@ target_compile_definitions(xptifw PRIVATE -DXPTI_API_EXPORTS)
 
 target_include_directories(xptifw PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
+    $<BUILD_INTERFACE:${XPTIFW_DIR}/include/external>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
 )
 

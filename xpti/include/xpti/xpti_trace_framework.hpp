@@ -479,6 +479,29 @@ inline std::string readMetadata(const metadata_t::value_type &MD) {
          std::to_string(RawData.size);
 }
 
+/// @brief Creates a unique 128-bit identifier (UID) for tracking entities.
+///
+/// This function combines file and function identifiers with line and column
+/// information to generate a unique identifier. The UID is composed of two
+/// 64-bit parts: the first part (p1) combines the file and function IDs, and
+/// the second part (p2) combines the column and line numbers. An initial
+/// instance count of 1 is set, indicating the creation of a new UID.
+///
+/// @param FileID The unique identifier for the file.
+/// @param FuncID The unique identifier for the function.
+/// @param Line The line number where the entity is located.
+/// @param Col The column number where the entity is located.
+/// @return A `xpti::uid128_t` structure representing the unique identifier.
+///
+inline xpti::uid128_t make_uid128(uint64_t FileID, uint64_t FuncID, int Line,
+                                  int Col) {
+  xpti::uid128_t UID;
+  UID.p1 = (FileID << 32) | FuncID;
+  UID.p2 = ((uint64_t)Col << 32) | Line;
+  UID.instance = 1;
+  return UID;
+}
+
 namespace framework {
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =

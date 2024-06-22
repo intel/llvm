@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 #include "xpti/xpti_trace_framework.hpp"
+#include "emhash/hash_table8.hpp"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
@@ -16,6 +17,7 @@
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -42,13 +44,42 @@ static_assert(
     "PlatformHelper is not trivial");
 
 // TLS variables to support stashing tupples and universal IDs
+/// @file xpti_trace_framework.cpp
+/// @brief This file contains the implementation of the XPTI trace framework.
+
+/// @brief Alias for a tuple that is used to stash a key-value pair.
 using stash_tuple_t = std::tuple<const char *, uint64_t>;
+
+/// @brief A thread-local variable of type stash_tuple_t, default initialized.
+/// This variable is used to stash a key-value pair/thread for use within a
+/// scope.
 static thread_local stash_tuple_t g_tls_stash_tuple = stash_tuple_t(nullptr, 0);
+
+/// @brief A thread-local 64-bit unsigned integer, default initialized.
+/// This variable is used to store a unique identifier within a program scope
+/// for each thread.
 static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
+/// @brief A TLS of type xpti::trace_point_data_t, default initialized.
+/// This variable is used to store trace point data generated from code location
+/// information in a function scope for all top level entry points recorded for
+/// each thread.
+static thread_local xpti::tracepoint_data_t g_tls_tracepoint_scope_data;
+
 namespace xpti {
+/// @var env_subscribers
+/// @brief A constant character pointer initialized with the string
+/// "XPTI_SUBSCRIBERS". This variable represents the environment variable name
+/// for subscribers in the XPTI trace framework.
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
+/// @var g_helper
+/// @brief An instance of the PlatformHelper class from the xpti::utils
+/// namespace. This instance is used to perform platform-specific operations.
 xpti::utils::PlatformHelper g_helper;
+
+/// @var g_framework_mutex
+/// @brief An instance of the SpinLock class from the xpti::utils namespace.
+/// This instance is used to ensure thread-safety in the XPTI trace framework.
 xpti::utils::SpinLock g_framework_mutex;
 
 /// @brief A global boolean flag to control self-notification of trace points.
@@ -259,8 +290,8 @@ private:
 /// This is a single point for managing tracepoints.
 class Tracepoints {
 public:
-  using uid_payload_lut = std::unordered_map<uint64_t, xpti::payload_t>;
-  using uid_event_lut = std::unordered_map<uint64_t, xpti::trace_event_data_t>;
+  using uid_payload_lut = emhash8::HashMap<uint64_t, xpti::payload_t>;
+  using uid_event_lut = emhash8::HashMap<uint64_t, xpti::trace_event_data_t>;
 
   Tracepoints(xpti::StringTable &st)
       : MUId(1), MStringTableRef(st), MInsertions(0), MRetrievals(0) {
@@ -313,7 +344,7 @@ public:
       return nullptr;
     // Scoped lock until the information is retrieved from the map
     {
-      std::lock_guard<std::mutex> Lock(MEventMutex);
+      std::shared_lock Lock(MEventMutex);
       if (Event->reserved.payload)
         return Event->reserved.payload;
       else {
@@ -329,7 +360,7 @@ public:
       return nullptr;
     // Scoped lock until the information is retrieved from the map
     {
-      std::lock_guard<std::mutex> Lock(MEventMutex);
+      std::shared_lock Lock(MPayloadMutex);
       // Cache it in case it is not already cached
       return &MPayloads[uid];
     }
@@ -339,7 +370,7 @@ public:
     if (UId == xpti::invalid_uid)
       return nullptr;
 
-    std::lock_guard<std::mutex> Lock(MEventMutex);
+    std::shared_lock Lock(MEventMutex);
     auto EvLoc = MEvents.find(UId);
     if (EvLoc != MEvents.end())
       return &(EvLoc->second);
@@ -350,7 +381,7 @@ public:
   void releaseEvent(xpti::trace_event_data_t *Event) {
     if (!Event)
       return;
-    std::lock_guard<std::mutex> Lock(MEventMutex);
+    std::unique_lock Lock(MEventMutex);
     std::ignore = MEvents.erase(Event->unique_id);
     std::ignore = MPayloads.erase(Event->unique_id);
   }
@@ -403,7 +434,7 @@ public:
     if (HashValue == xpti::invalid_uid)
       return xpti::invalid_uid;
 
-    std::lock_guard<std::mutex> Lock(MEventMutex);
+    std::unique_lock Lock(MPayloadMutex);
     // We also want to query the payload by universal ID that has been
     // generated
     auto &CurrentPayload = MPayloads[HashValue];
@@ -422,7 +453,7 @@ public:
   ///  3. Add the payload and generate a unique ID
   ///  4. Cache the computed hash in the payload
   uint64_t makeHash(xpti::payload_t *Payload) {
-    uint32_t name_id = 0, stack_id = 0, source_id = 0, line_no = 0;
+    uint32_t name_id = 0, stack_id = 0, source_id = 0, line_no = 0, col_no = 0;
     // Initialize to invalid hash value
     uint64_t HashValue = xpti::invalid_uid;
     // If no flags are set, then the payload is not valid
@@ -445,6 +476,7 @@ public:
       source_id =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
       line_no = Payload->line_no;
+      col_no = Payload->column_no;
     }
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
@@ -455,8 +487,8 @@ public:
     // Pack the 1st 64-bit value with string ID from source file name and line
     // number; pack the 2nd 64-bit value with stack backtrace string ID and the
     // kernel name string ID
-    Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
-    Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
+    Payload->uid.p1 = XPTI_PACK32_RET64(source_id, name_id);
+    Payload->uid.p2 = XPTI_PACK32_RET64(line_no, col_no);
     // The code pointer for the kernel is already in 64-bit format
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
@@ -497,7 +529,18 @@ private:
     if (HashValue == xpti::invalid_uid)
       return nullptr;
 
-    std::lock_guard<std::mutex> Lock(MEventMutex);
+    xpti::payload_t *CurrentPayload = nullptr;
+    {
+      std::unique_lock Lock(MPayloadMutex);
+      // We also want to query the payload by universal ID that has been
+      // generated
+      auto &CP = MPayloads[HashValue];
+      CP = TempPayload; // when it uses tbb, should be thread-safe
+      CP.flags |= (uint64_t)payload_flag_t::PayloadRegistered;
+      CurrentPayload = &CP;
+    }
+
+    std::unique_lock Lock(MEventMutex);
     auto EvLoc = MEvents.find(HashValue);
     if (EvLoc != MEvents.end()) {
 #ifdef XPTI_STATISTICS
@@ -513,11 +556,6 @@ private:
 #ifdef XPTI_STATISTICS
       MInsertions++;
 #endif
-      // We also want to query the payload by universal ID that has been
-      // generated
-      auto &CurrentPayload = MPayloads[HashValue];
-      CurrentPayload = TempPayload; // when it uses tbb, should be thread-safe
-      CurrentPayload.flags |= (uint64_t)payload_flag_t::PayloadRegistered;
 
       xpti::trace_event_data_t *Event = &MEvents[HashValue];
       // We are seeing this unique ID for the first time, so we will
@@ -525,7 +563,7 @@ private:
       // the newly generated unique id (uid)
       Event->unique_id = HashValue;
       Event->unused = 0;
-      Event->reserved.payload = &CurrentPayload;
+      Event->reserved.payload = CurrentPayload;
       Event->data_id = Event->source_id = Event->target_id = 0;
       Event->instance_id = 1;
       Event->global_user_data = nullptr;
@@ -543,7 +581,8 @@ private:
   uid_payload_lut MPayloads;
   uid_event_lut MEvents;
   std::mutex MMetadataMutex;
-  std::mutex MEventMutex;
+  mutable std::shared_mutex MEventMutex;
+  mutable std::shared_mutex MPayloadMutex;
 };
 
 /// \brief Helper class to manage subscriber callbacks for a given tracepoint
@@ -579,7 +618,7 @@ public:
 #endif
     // If reader-writer locks were emplyed, this is where the writer lock can be
     // used
-    std::lock_guard<std::mutex> Lock(MCBsLock);
+    std::unique_lock Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       // What we get is a concurrent_hash_map
@@ -624,7 +663,7 @@ public:
     // Since we do not remove the callback function when they are unregistered
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
-    std::lock_guard<std::mutex> Lock(MCBsLock);
+    std::unique_lock Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
@@ -656,7 +695,7 @@ public:
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reaer-writer locks.
-    std::lock_guard<std::mutex> Lock(MCBsLock);
+    std::unique_lock Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
 
@@ -677,7 +716,7 @@ public:
 
     // If the notification framework moves to reader-writer locks, use reader
     // lock here
-    std::lock_guard<std::mutex> Lock(MCBsLock);
+    std::shared_lock Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       // What we get is a concurrent_hash_map
@@ -705,7 +744,7 @@ public:
         // the notification functions when the lock is held and then releases
         // the lock before calling the notification functions. When using
         // reader-writer locks, use reader lock here.
-        std::lock_guard<std::mutex> Lock(MCBsLock);
+        std::shared_lock Lock(MCBsLock);
         cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
         Acc = Stream.find(TraceType);
         Success = (Acc != Stream.end());
@@ -796,7 +835,7 @@ private:
   }
 #endif
   stream_cb_t MCallbacksByStream;
-  std::mutex MCBsLock;
+  mutable std::shared_mutex MCBsLock;
   std::mutex MStatsLock;
   statistics_t MStats;
 };
