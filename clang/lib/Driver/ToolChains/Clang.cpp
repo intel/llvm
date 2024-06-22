@@ -10425,8 +10425,10 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
     TranslatorArgs.push_back("--spirv-preserve-auxdata");
 }
 
-// Utility function to gather all llvm-spirv options.
-// Dependent on target triple.
+// Add any llvm-spirv option that relies on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
 static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          const llvm::opt::ArgList &TCArgs,
                                          llvm::Triple Triple,
