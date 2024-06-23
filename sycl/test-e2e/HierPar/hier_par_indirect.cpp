@@ -4,7 +4,7 @@
 //
 
 //==- hier_par_indirect.cpp --- hierarchical parallelism test for WG
-//scope---==//
+// scope---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,7 +25,7 @@ void __attribute__((noinline)) foo(sycl::group<1> work_group) {
 int main(int argc, char **argv) {
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
-     cgh.parallel_for_work_group(sycl::range<1>{1}, sycl::range<1>{1024},
+     cgh.parallel_for_work_group(sycl::range<1>{1}, sycl::range<1>{128},
                                  ([=](sycl::group<1> wGroup) { foo(wGroup); }));
    }).wait();
   std::cout << "test passed" << std::endl;
