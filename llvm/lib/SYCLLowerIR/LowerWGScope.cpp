@@ -425,6 +425,17 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
   }
 }
 
+// Skip allocas, addrspacecasts associated with allocas and debug insts.
+Instruction *getFrontInstAfterSkippingAllocas(BasicBlock *BB) {
+  Instruction *I = &BB->front();
+  for (;
+       I->getOpcode() == Instruction::Alloca ||
+       I->getOpcode() == Instruction::AddrSpaceCast || I->isDebugOrPseudoInst();
+       I = I->getNextNode()) {
+  }
+  return I;
+}
+
 // Performs the following transformation for each basic block in the input map:
 //
 // BB:
@@ -462,7 +473,11 @@ static void materializeLocalsInWIScopeBlocksImpl(
   for (auto &P : BB2MatLocals) {
     // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
-    BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
+    // Skip allocas, addrspacecasts associated with allocas and debug insts.
+    // Alloca instructions and it's associated instructions must be in the
+    // beginning of the function.
+    Instruction *LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+    BasicBlock *BB = LeaderBB->splitBasicBlock(LeaderBBFront, "LeaderMat");
     // Add a barrier to the original block:
     Instruction *At =
         spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
@@ -476,7 +491,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
       // fill the leader BB:
       // fetch data from leader's private copy (which is always up to date) into
       // the corresponding shadow variable
-      Builder.SetInsertPoint(&LeaderBB->front());
+      LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+      Builder.SetInsertPoint(LeaderBBFront);
       copyBetweenPrivateAndShadow(L, Shadow, Builder, true /*private->shadow*/);
       // store data to the local variable - effectively "refresh" the value of
       // the local in each work item in the work group
@@ -485,8 +501,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
                                   false /*shadow->private*/);
     }
     // now generate the TestBB and the leader WI guard
-    BasicBlock *TestBB =
-        LeaderBB->splitBasicBlock(&LeaderBB->front(), "TestMat");
+    LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+    BasicBlock *TestBB = LeaderBB->splitBasicBlock(LeaderBBFront, "TestMat");
     std::swap(TestBB, LeaderBB);
     guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc(), TT);
   }
@@ -748,9 +764,22 @@ static void shareByValParams(Function &F, const Triple &TT) {
   spirv::genWGBarrier(MergeBB->front(), TT);
 }
 
+// Utility function that checks if a function has parallel_for_work_item calls.
+static bool hasPFWICalls(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB)
+      if (isPFWICall(&I))
+        return true;
+  return false;
+}
+
 PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
+    return PreservedAnalyses::all();
+  // Early return if the function does not directly contain any
+  // parallel_for_work_item calls.
+  if (!hasPFWICalls(F))
     return PreservedAnalyses::all();
   LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
