@@ -751,22 +751,9 @@ static void shareByValParams(Function &F, const Triple &TT) {
   spirv::genWGBarrier(MergeBB->front(), TT);
 }
 
-// Utility function that checks if a function has parallel_for_work_item calls.
-static bool hasPFWICalls(Function &F) {
-  for (auto &BB : F)
-    for (auto &I : BB)
-      if (isPFWICall(&I))
-        return true;
-  return false;
-}
-
 PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
-    return PreservedAnalyses::all();
-  // Early return if the function does not directly contain any
-  // parallel_for_work_item calls.
-  if (!hasPFWICalls(F))
     return PreservedAnalyses::all();
   LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
