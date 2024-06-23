@@ -64,10 +64,8 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<int16_t, N>>
 isnan(T x) {
 
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Cast required for swizzles.
-  auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;
   // Convert BFloat16 vector to float vec and call isnan()
-  sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();
+  sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();
   auto res = isnan(FVec);
 
   // For vec<float>, the return type of isnan is vec<int32_t> so,
@@ -135,10 +133,8 @@ template <typename T, int N = num_elements_v<T>>
 std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>>
 fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Cast required for swizzles.
-  auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;
   // Convert BFloat16 vector to float vec.
-  sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();
+  sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fabs(FVec);
   return res.template convert<bfloat16>();
 #else
@@ -217,13 +213,9 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                  sycl::vec<bfloat16, N1>>
 fmin(T1 x, T2 y) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Cast required for swizzles.
-  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
-  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
-
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
-  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
+  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fmin(FVecX, FVecY);
   return res.template convert<bfloat16>();
 #else
@@ -301,13 +293,9 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                  sycl::vec<bfloat16, N1>>
 fmax(T1 x, T2 y) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Cast required for swizzles.
-  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
-  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
-
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
-  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
+  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fmax(FVecX, FVecY);
   return res.template convert<bfloat16>();
 #else
@@ -375,15 +363,10 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                  sycl::vec<bfloat16, N1>>
 fma(T1 x, T2 y, T3 z) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Cast required for swizzles.
-  auto InpBF16VecX = (sycl::vec<bfloat16, N1>)x;
-  auto InpBF16VecY = (sycl::vec<bfloat16, N1>)y;
-  auto InpBF16VecZ = (sycl::vec<bfloat16, N1>)z;
-
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = InpBF16VecX.template convert<float>();
-  sycl::vec<float, N1> FVecY = InpBF16VecY.template convert<float>();
-  sycl::vec<float, N1> FVecZ = InpBF16VecZ.template convert<float>();
+  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecZ = z.template convert<float, sycl::rounding_mode::automatic>();
 
   auto res = fma(FVecX, FVecY, FVecZ);
   return res.template convert<bfloat16>();
@@ -419,9 +402,8 @@ fma(T1 x, T2 y, T3 z) {
   /* Overload for BF16 vec and swizzles. */                                    \
   template <typename T, int N = num_elements_v<T>>                             \
   std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>> op(    \
-      T x) {                                                                   \
-    auto InpBF16Vec = (sycl::vec<bfloat16, N>)x;                               \
-    sycl::vec<float, N> FVec = InpBF16Vec.template convert<float>();           \
+      T x) {                                                                  \
+    sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();           \
     auto res = op(FVec);                                                       \
     return res.template convert<bfloat16>();                                   \
   }

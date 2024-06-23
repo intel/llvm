@@ -1363,7 +1363,11 @@ public:
   template <typename convertT, rounding_mode roundingMode>
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
-    vec_t Tmp = *this;
+    vec_t Tmp;
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    for (size_t I = 0; I < Idxs.size(); ++I) {
+      Tmp[I] = (*m_Vector)[Idxs[I]];
+    }
     return Tmp.template convert<convertT, roundingMode>();
   }
 

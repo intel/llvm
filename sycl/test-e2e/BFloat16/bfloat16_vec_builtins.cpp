@@ -31,12 +31,12 @@ bool check(bool a, bool b) { return (a != b); }
     for (int i = 0; i < SZ; i++) {                                             \
       arg[i] = INPVAL;                                                         \
     }                                                                          \
-    /* Perform the operation. */                                               \              
+    /* Perform the operation. */                                               \
     vec<RETTY, SZ>                                                             \
         res = sycl::ext::oneapi::experimental::NAME(arg);                      \
     vec<RETTY, 2> res2 =                                                       \
         sycl::ext::oneapi::experimental::NAME(arg.template swizzle<0, 0>());   \
-    /* Check the result. */                                                    \                   
+    /* Check the result. */                                                    \
     if (res2[0] != res[0] || res2[1] != res[0]) {                              \
       ERR[0] += 1;                                                             \
     }                                                                          \
@@ -56,7 +56,7 @@ bool check(bool a, bool b) { return (a != b); }
       arg[i] = INPVAL;                                                         \
       arg2[i] = inpVal2;                                                       \
     }                                                                          \
-    /* Perform the operation. */                                               \              
+    /* Perform the operation. */                                               \
     vec<RETTY, SZ>                                                             \
         res = sycl::ext::oneapi::experimental::NAME(arg, arg2);                \
     /* Swizzle and vec different combination. */                               \
