@@ -320,8 +320,7 @@ private:
 
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, bool DeviceCodeWasInCache,
-      const std::vector<device> &Devs);
+      const RTDeviceBinaryImage &Img, const std::vector<device> &Devs);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.

@@ -556,8 +556,7 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
-    const RTDeviceBinaryImage &Img, bool DeviceCodeWasInCache,
-    const std::vector<device> &Devs) {
+    const RTDeviceBinaryImage &Img, const std::vector<device> &Devs) {
   // If virtual functions are used in a program, then we need to link several
   // device images together to make sure that vtable pointers stored in
   // objects are valid between different kernels (which could be in different
@@ -578,6 +577,8 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         // There could be more than one device image that uses the same set
         // of virtual functions, or provides virtual funtions from the same
         // set.
+        // TODO: Dependent device image could have its own dependencies. This
+        // should be a recursive search.
         for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
           try {
             // TODO: compatibleWithDevice uses some PI API, but we should have
@@ -675,8 +676,11 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img, NDRDesc))
     throw *exception;
 
+  std::set<RTDeviceBinaryImage *> DeviceImagesToLink =
+      collectDependentDeviceImagesForVirtualFunctions(
+          Img, {Device});
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
-                 &LinkOpts, SpecConsts] {
+                 &LinkOpts, SpecConsts, &DeviceImagesToLink] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
     // Should always come last!
@@ -705,8 +709,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    auto DeviceImagesToLink = collectDependentDeviceImagesForVirtualFunctions(
-        Img, DeviceCodeWasInCache, {Device});
     std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
     for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
       device_image_plain DevImagePlain =
@@ -750,7 +752,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
+      std::make_pair(std::make_pair(SpecConsts, ImgId), PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -761,6 +763,19 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   auto BuildResult =
       Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
+  // If we linked any extra device images for virtual functions, then we need to
+  // cache them as well.
+  // TODO: besides caching we need to somehow updated kernel to device image map
+  // that is used for kernel lookup. Next time a kernel is invoked from this, or
+  // dependent device image, it should come from that linked program instead.
+  for (const RTDeviceBinaryImage *BImg : DeviceImagesToLink) {
+    auto CacheKey = std::make_pair(std::make_pair(SpecConsts, BImg->getImageID()), PiDevice);
+    auto Pair = Cache.getOrInsertProgram(CacheKey);
+    if (Pair.second) { // did insert
+      Pair.first = BuildResult;
+    }
+  }
+
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2366,7 +2381,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     auto DeviceImagesToLink = collectDependentDeviceImagesForVirtualFunctions(
-        Img, DeviceCodeWasInCache, Devs);
+        Img, Devs);
     std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
     for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
       device_image_plain DevImagePlain =

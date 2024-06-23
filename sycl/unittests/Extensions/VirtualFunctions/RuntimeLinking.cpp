@@ -136,7 +136,15 @@ TEST(VirtualFunctions, A) {
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_B; }));
 
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+
   // We need to make sure that when we submitted the second kernel, the same
   // linked device image from cache was used as for the previous kernel
   Q.single_task<VirtualFunctionsTest::KernelB>([=]() {});
+
+  // No new programs shoud be created, we must re-use an existing one (linked)
+  // from in-memory cache
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 0u);
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
 }
