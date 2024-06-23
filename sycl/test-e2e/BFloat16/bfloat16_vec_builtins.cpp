@@ -32,8 +32,7 @@ bool check(bool a, bool b) { return (a != b); }
       arg[i] = INPVAL;                                                         \
     }                                                                          \
     /* Perform the operation. */                                               \
-    vec<RETTY, SZ>                                                             \
-        res = sycl::ext::oneapi::experimental::NAME(arg);                      \
+    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg);           \
     vec<RETTY, 2> res2 =                                                       \
         sycl::ext::oneapi::experimental::NAME(arg.template swizzle<0, 0>());   \
     /* Check the result. */                                                    \
@@ -57,8 +56,7 @@ bool check(bool a, bool b) { return (a != b); }
       arg2[i] = inpVal2;                                                       \
     }                                                                          \
     /* Perform the operation. */                                               \
-    vec<RETTY, SZ>                                                             \
-        res = sycl::ext::oneapi::experimental::NAME(arg, arg2);                \
+    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg, arg2);     \
     /* Swizzle and vec different combination. */                               \
     vec<RETTY, 2> res2 = sycl::ext::oneapi::experimental::NAME(                \
         arg.template swizzle<0, 0>(), arg2.template swizzle<0, 0>());          \

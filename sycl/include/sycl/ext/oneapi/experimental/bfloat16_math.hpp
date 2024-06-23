@@ -65,7 +65,8 @@ isnan(T x) {
 
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   // Convert BFloat16 vector to float vec and call isnan()
-  sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N> FVec =
+      x.template convert<float, sycl::rounding_mode::automatic>();
   auto res = isnan(FVec);
 
   // For vec<float>, the return type of isnan is vec<int32_t> so,
@@ -134,7 +135,8 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>>
 fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   // Convert BFloat16 vector to float vec.
-  sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N> FVec =
+      x.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fabs(FVec);
   return res.template convert<bfloat16>();
 #else
@@ -214,8 +216,10 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
 fmin(T1 x, T2 y) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
-  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fmin(FVecX, FVecY);
   return res.template convert<bfloat16>();
 #else
@@ -294,8 +298,10 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
 fmax(T1 x, T2 y) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
-  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
   auto res = fmax(FVecX, FVecY);
   return res.template convert<bfloat16>();
 #else
@@ -364,9 +370,12 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
 fma(T1 x, T2 y, T3 z) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   // Convert BFloat16 vectors to float vecs.
-  sycl::vec<float, N1> FVecX = x.template convert<float, sycl::rounding_mode::automatic>();
-  sycl::vec<float, N1> FVecY = y.template convert<float, sycl::rounding_mode::automatic>();
-  sycl::vec<float, N1> FVecZ = z.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecZ =
+      z.template convert<float, sycl::rounding_mode::automatic>();
 
   auto res = fma(FVecX, FVecY, FVecZ);
   return res.template convert<bfloat16>();
@@ -402,8 +411,9 @@ fma(T1 x, T2 y, T3 z) {
   /* Overload for BF16 vec and swizzles. */                                    \
   template <typename T, int N = num_elements_v<T>>                             \
   std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>> op(    \
-      T x) {                                                                  \
-    sycl::vec<float, N> FVec = x.template convert<float, sycl::rounding_mode::automatic>();           \
+      T x) {                                                                   \
+    sycl::vec<float, N> FVec =                                                 \
+        x.template convert<float, sycl::rounding_mode::automatic>();           \
     auto res = op(FVec);                                                       \
     return res.template convert<bfloat16>();                                   \
   }
