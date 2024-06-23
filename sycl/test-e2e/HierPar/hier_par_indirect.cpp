@@ -16,7 +16,7 @@
 // item code is not directly inside work group scope.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 void __attribute__((noinline)) foo(sycl::group<1> work_group) {
   work_group.parallel_for_work_item([&](sycl::h_item<1> index) {});
