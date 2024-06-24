@@ -57,13 +57,11 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-fno-bundle-offload-arch"
     "-nocudalib"
     "--cuda-gpu-arch=sm_50")
-  set(devicelib_arch "NVPTX")
-  elseif("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-    #string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
+endif()
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
     list(APPEND compile_opts
       "-fno-sycl-libspirv"
       "-fno-bundle-offload-arch")
-  set(devicelib_arch "AMDGPU")
 endif()
 
     # Compile it to a high bc version. The arch info gets removed later.
@@ -176,14 +174,14 @@ function(link_bc)
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
-  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${bc_binary_dir}/${ARG_TARGET}.bc)
 endfunction()
 
 function(append_to_property arg)
-  cmake_parse_arguments(BC  "" "" "" ${ARGN})
-  get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
+  cmake_parse_arguments(BC  "" "TGT" "" ${ARGN})
+  get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS_${BC_TGT})
   list(APPEND BC_DEVICE_LIBS ${arg})
-  set_property(GLOBAL PROPERTY BC_DEVICE_LIBS ${BC_DEVICE_LIBS})
+  set_property(GLOBAL PROPERTY BC_DEVICE_LIBS_${BC_TGT} ${BC_DEVICE_LIBS})
 endfunction()
 
 function(add_devicelib_bc bc_filename)
@@ -218,27 +216,31 @@ function(add_devicelib_bc bc_filename)
           DESTINATION ${install_dest_bc}
           COMPONENT libsycldevice)
 
-   if(${BC_CUDA} OR ${BC_AMD})
-    append_to_property(${devicelib-bc-file})
+   if(${BC_CUDA})
+     append_to_property(${devicelib-bc-file} TGT CUDA)
+   elseif(${BC_AMD})
+     append_to_property(${devicelib-bc-file} TGT AMD)
   endif()
 endfunction()
 
 function(add_devicelib filename)
-  cmake_parse_arguments(DL "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  cmake_parse_arguments(DL "" "" "SRC;DEP;EXTRA_ARGS;TARGET" ${ARGN})
 
   add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_bc(${filename} dummy SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  if (${devicelib_arch} STREQUAL "NVPTX")
+  if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  endif()
+  if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
     add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   endif()
 endfunction()
 
-if (${devicelib_arch} STREQUAL "NVPTX")
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-elseif (${devicelib_arch} STREQUAL "AMDGPU")
+endif()
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
 endif()
 
@@ -261,7 +263,6 @@ add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
 
-get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
 add_devicelib(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
 add_devicelib(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
 add_devicelib(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
@@ -391,8 +392,6 @@ set(obj_HOST_COMPILE_OPTIONS ${imf_host_cxx_flags})
 set (HOST_APPEND "_host_")
 set (DEVICE_APPEND "_")
 
-set(SPV_BIN_DIR ${spv_binary_dir})
-
 function(add_lib_imf name)
   cmake_parse_arguments(DL "CUDA;AMD;SPV" "" "TG;DIR;FTYPE;DTYPE" ${ARGN})
 
@@ -400,12 +399,12 @@ function(add_lib_imf name)
   if(DL_CUDA)
     LIST(APPEND compile_opts -fsycl-targets=nvptx64-nvidia-cuda)
     set(dev_suffix "_cuda")
-    append_to_property(${bc_binary_dir}/${name}.${${DL_FTYPE}_suffix})
+    append_to_property(${bc_binary_dir}/${name}.${${DL_FTYPE}_suffix} TGT CUDA)
   elseif(DL_AMD)
     LIST(APPEND compile_opts -Xsycl-target-backend=amdgcn-amd-amdhsa
       --offload-arch=gfx940)
     set(dev_suffix "_amd")
-    append_to_property(${bc_binary_dir}/${name}.${${DL_FTYPE}_suffix})
+    append_to_property(${bc_binary_dir}/${name}.${${DL_FTYPE}_suffix} TGT AMD)
   endif()
 
   add_custom_command(OUTPUT ${DL_DIR}/${name}.${${DL_FTYPE}_suffix}
@@ -435,86 +434,90 @@ set(spv_suffix "spv")
 set(obj_suffix ${lib-suffix})
 set(new_offload_obj_suffix ${new-offload-lib-suffix})
 
-add_lib_imf(libsycl-fallback-imf TG DEVICE SPV DIR ${spv_binary_dir} FTYPE spv DTYPE fp32)
+add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp32)
 add_lib_imf(fallback-imf-fp32-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE fp32)
 add_lib_imf(fallback-imf-fp32-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE SPV DIR ${spv_binary_dir} FTYPE spv DTYPE fp64)
+add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE fp64)
 add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
 add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE fp64)
 add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp64)
 add_lib_imf(fallback-imf-fp64-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE fp64)
 add_lib_imf(fallback-imf-fp64-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp64)
-add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE SPV DIR ${spv_binary_dir} FTYPE spv DTYPE bf16)
+add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE bf16)
 add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
 add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE bf16)
 add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE bf16)
 add_lib_imf(fallback-imf-bf16-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE bf16)
 add_lib_imf(fallback-imf-bf16-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE bf16)
 
-if (${devicelib_arch} STREQUAL "NVPTX")
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   add_lib_imf(libsycl-fallback-imf--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
   add_lib_imf(libsycl-fallback-imf-fp64--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
   add_lib_imf(libsycl-fallback-imf-bf16--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
 endif()
-if (${devicelib_arch} STREQUAL "AMDGPU")
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   add_lib_imf(libsycl-fallback-imf--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
   add_lib_imf(libsycl-fallback-imf-fp64--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
   add_lib_imf(libsycl-fallback-imf-bf16--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
 endif()
 
-get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
-
-link_bc(TARGET device_lib_device INPUTS ${BC_DEVICE_LIBS})
-
 # -----------------------------------------------------------------------------------------------------
 
-set( builtins_link_lib $<TARGET_PROPERTY:device_lib_device,TARGET_FILE> )
-
-set( builtins_opt_lib_tgt builtins.opt)
-
 # Add opt target
-add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
-   COMMAND ${llvm-opt} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-       ${bc_binary_dir}/${builtins_link_lib}
-     DEPENDS ${llvm-opt} ${builtins_link_lib} ${device_lib_device}
-   )
-add_custom_target( ${builtins_opt_lib_tgt}
-     ALL DEPENDS ${builtins_opt_lib_tgt}.bc
-   )
-set_target_properties( ${builtins_opt_lib_tgt}
-     PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
-   )
+function(add_opt_tgt)
+  cmake_parse_arguments(OPT  "" "ARCH" "" ${ARGN})
+  add_custom_command( OUTPUT ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
+    COMMAND ${llvm-opt} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
+    ${builtins_link_lib_${OPT_ARCH}}
+    DEPENDS ${llvm-opt} ${builtins_link_lib_${OPT_ARCH}}
+       )
 
-set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
+     add_custom_target( ${builtins_opt_lib_tgt_${OPT_ARCH}}
+       ALL DEPENDS ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
+       )
+     set_target_properties( ${builtins_opt_lib_tgt_${OPT_ARCH}}
+       PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
+       )
+set( builtins_opt_lib_${OPT_ARCH} $<TARGET_PROPERTY:${builtins_opt_lib_tgt_${OPT_ARCH}},TARGET_FILE> )
 
 # Add prepare target
-if (${devicelib_arch} STREQUAL "NVPTX")
-  set(obj_suffix "devicelib--nvptx.bc")
-elseif (${devicelib_arch} STREQUAL "AMDGPU")
-  set(obj_suffix "devicelib--amd.bc")
+set(obj_suffix devicelib--${OPT_ARCH}.bc)
+    add_custom_command( OUTPUT ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_LIBRARY_OUTPUT_INTDIR}
+      COMMAND prepare_builtins -o ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+      ${builtins_opt_lib_${OPT_ARCH}}
+      DEPENDS ${builtins_opt_lib_${OPT_ARCH}} prepare_builtins )
+    add_custom_target( prepare-${obj_suffix} ALL
+      DEPENDS ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+    )
+    set_target_properties( prepare-${obj_suffix}
+      PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+    )
+    add_dependencies(libsycldevice-bc prepare-${obj_suffix})
+    add_dependencies(libsycldevice-bc device_lib_device_${OPT_ARCH})
+endfunction()
+
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+get_property(BC_DEVICE_LIBS_CUDA GLOBAL PROPERTY BC_DEVICE_LIBS_CUDA)
+link_bc(TARGET device_lib_device_cuda INPUTS ${BC_DEVICE_LIBS_CUDA})
+set( builtins_link_lib_cuda $<TARGET_PROPERTY:device_lib_device_cuda,TARGET_FILE> )
+set( builtins_opt_lib_tgt_cuda builtins_cuda.opt)
+add_opt_tgt(ARCH cuda)
 endif()
 
-add_custom_command( OUTPUT ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_LIBRARY_OUTPUT_INTDIR}
-  COMMAND prepare_builtins -o ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    ${builtins_opt_lib}
-  DEPENDS ${builtins_opt_lib} prepare_builtins )
-add_custom_target( prepare-${obj_suffix} ALL
-  DEPENDS ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-)
-set_target_properties( prepare-${obj_suffix}
-  PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-)
-
-add_dependencies(libsycldevice-bc prepare-${obj_suffix})
-set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+get_property(BC_DEVICE_LIBS_AMD GLOBAL PROPERTY BC_DEVICE_LIBS_AMD)
+link_bc(TARGET device_lib_device_amd INPUTS ${BC_DEVICE_LIBS_AMD})
+set( builtins_link_lib_amd $<TARGET_PROPERTY:device_lib_device_amd,TARGET_FILE> )
+set( builtins_opt_lib_tgt_amd builtins_amd.opt)
+add_opt_tgt(ARCH amd)
+endif()
 
 # ----------------------------------------------------------------------------------------------
-
-add_dependencies(libsycldevice-bc device_lib_device)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
@@ -608,13 +611,14 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
         DESTINATION ${install_dest_spv}
         COMPONENT libsycldevice)
 
-if (${devicelib_arch} STREQUAL "NVPTX")
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   install(FILES ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
               ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
               ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
         DESTINATION ${install_dest_bc}
         COMPONENT libsycldevice)
-elseif (${devicelib_arch} STREQUAL "AMDGPU")
+endif()
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   install(FILES ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
               ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc
               ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
