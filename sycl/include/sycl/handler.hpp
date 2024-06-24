@@ -2116,12 +2116,12 @@ public:
   AdaptiveCpp_enqueue_custom_operation(FuncT &&Func) {
     AdaptiveCpp_enqueue_custom_operation_impl(Func);
   }
+#endif // SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   AdaptiveCpp_enqueue_custom_operation_impl(FuncT &&Func);
-#endif // SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION
 
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
