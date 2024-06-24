@@ -598,7 +598,7 @@ private:
   // "The elements of an instance of the SYCL vec class template are stored
   // in memory sequentially and contiguously and are aligned to the size of
   // the element type in bytes multiplied by the number of elements."
-  static constexpr int alignment = std::min((size_t)64, sizeof(DataType));
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
   alignas(alignment) DataType m_Data;
 
   // friends
