@@ -5434,6 +5434,7 @@ piextImportExternalMemory(pi_context Context, pi_device Device,
   }
 
   ur_exp_file_descriptor_t OpaqueFD{};
+  ur_exp_win32_handle_t Win32Handle{};
   switch (MemDescriptor->handleType) {
   case pi_external_mem_handle_type::opaque_fd: {
     OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
@@ -5443,7 +5444,6 @@ piextImportExternalMemory(pi_context Context, pi_device Device,
   }
   case pi_external_mem_handle_type::win32_nt_handle:
   case pi_external_mem_handle_type::win32_nt_dx12_resource: {
-    ur_exp_win32_handle_t Win32Handle{};
     Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
     Win32Handle.handle = MemDescriptor->handle.win32_handle;
     InteropMemDesc.pNext = &Win32Handle;
@@ -5560,9 +5560,10 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   }
 
+  ur_exp_file_descriptor_t OpaqueFD{};
+  ur_exp_win32_handle_t Win32Handle{};
   switch (SemDescriptor->handleType) {
   case pi_external_semaphore_handle_type::opaque_fd: {
-    ur_exp_file_descriptor_t OpaqueFD{};
     OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
     OpaqueFD.fd = SemDescriptor->handle.file_descriptor;
     InteropSemDesc.pNext = &OpaqueFD;
@@ -5570,7 +5571,6 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
   }
   case pi_external_semaphore_handle_type::win32_nt_dx12_fence:
   case pi_external_semaphore_handle_type::win32_nt_handle: {
-    ur_exp_win32_handle_t Win32Handle{};
     Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
     Win32Handle.handle = SemDescriptor->handle.win32_handle;
     InteropSemDesc.pNext = &Win32Handle;
