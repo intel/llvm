@@ -2454,10 +2454,14 @@ sycl::detail::pi::PiKernel ProgramManager::getOrCreateMaterializedKernel(
   auto &Plugin = DeviceImpl->getPlugin();
   ProgramPtr ProgramManaged(
       Program, Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
-  // TODO: JKB: Flags and zeros.
+
+  std::string CompileOpts;
+  std::string LinkOpts;
+  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   auto BuildProgram =
-      build(std::move(ProgramManaged), detail::getSyclObjImpl(Context), "", "",
-            DeviceImpl->getHandleRef(), 0);
+      build(std::move(ProgramManaged), detail::getSyclObjImpl(Context),
+            CompileOpts, LinkOpts, DeviceImpl->getHandleRef(),
+            /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0);
   sycl::detail::pi::PiKernel PiKernel{nullptr};
   Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
       BuildProgram.get(), KernelName.c_str(), &PiKernel);

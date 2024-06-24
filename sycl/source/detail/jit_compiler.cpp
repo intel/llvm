@@ -722,7 +722,6 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
-  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
   bool DebugEnabled =
@@ -732,8 +731,13 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
   AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
-  auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+  std::string TargetCPU =
+      detail::SYCLConfig<detail::SYCL_JIT_TARGET_CPU>::get();
+  std::string TargetFeatures =
+      detail::SYCLConfig<detail::SYCL_JIT_TARGET_FEATURES>::get();
+
+  auto MaterializerResult = MaterializeSpecConstHandle(
+      KernelName.c_str(), BinInfo, SpecConstBlob, TargetCPU, TargetFeatures);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());

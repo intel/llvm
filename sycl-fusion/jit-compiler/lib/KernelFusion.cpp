@@ -70,10 +70,10 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" FusionResult
-materializeSpecConstants(const char *KernelName,
-                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-                         std::vector<unsigned char> &SpecConstBlob) {
+extern "C" FusionResult materializeSpecConstants(
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    std::vector<unsigned char> &SpecConstBlob, const std::string &TargetCPU,
+    const std::string &TargetFeatures) {
   auto &JITCtx = JITContext::getInstance();
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
@@ -105,7 +105,8 @@ materializeSpecConstants(const char *KernelName,
 
   SYCLKernelInfo &MaterializerKernelInfo = *ModuleInfo.getKernelFor(KernelName);
   if (auto Error = translation::KernelTranslator::translateKernel(
-          MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
+          MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat, TargetCPU,
+          TargetFeatures)) {
     return errorToFusionResult(std::move(Error),
                                "Translation to output format failed");
   }

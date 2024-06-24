@@ -639,6 +639,63 @@ private:
     return ValStr;
   }
 };
+
+template <> class SYCLConfig<SYCL_JIT_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail
