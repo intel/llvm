@@ -325,9 +325,8 @@ TEST_F(BarrierHandlingWithHostTask,
 
   MainLock.unlock();
   QueueDevImpl->wait();
-  // Make sure that all host task related stuff is done (thread is joined). Next
-  // thread pool usage will just create a new instance.
-  detail::GlobalHandler::instance().deleteThreadPool();
+  // Make sure that all host task related stuff is done.
+  detail::GlobalHandler::instance().drainThreadPool();
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
@@ -348,9 +347,7 @@ TEST_F(BarrierHandlingWithHostTask,
     // Block queue fields update.
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
     MainLock.unlock();
-    // Make sure that all host task related stuff is done (thread is joined).
-    // Next thread pool usage will just create a new instance.
-    detail::GlobalHandler::instance().deleteThreadPool();
+    detail::GlobalHandler::instance().drainThreadPool();
   }
   // Queue mutex was locked and host task was not able to do cleanup.
   {
@@ -361,8 +358,41 @@ TEST_F(BarrierHandlingWithHostTask,
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
               SubmittedCmdEvents[2]);
   }
-  // Wait or new submission will do cleanup.
+  // Wait or new submission will do cleanup. Checks wait.
   QueueDevImpl->wait();
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+  }
+}
+
+TEST_F(BarrierHandlingWithHostTask,
+       QueueInnerCleanupOnHostTaskCompletionBlocked2) {
+  // Checks that host task postpones cleaning of queue fields if queue mutex is
+  // locked. Applicable for graph execution (waits for host task in submit call,
+  // if thread is busy with other host task trying to cleanup resources - we
+  // could get dead lock) and also better utilizes host task thread.
+  std::vector<EventImplPtr> SubmittedCmdEvents;
+  BuildAndCheckInnerQueueState(SubmittedCmdEvents);
+
+  {
+    // Block queue fields update.
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    MainLock.unlock();
+    detail::GlobalHandler::instance().drainThreadPool();
+  }
+  // Queue mutex was locked and host task was not able to do cleanup.
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier,
+              SubmittedCmdEvents[1]);
+    ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+              SubmittedCmdEvents[2]);
+  }
+  // Wait or new submission will do cleanup. Checks new submission.
+  std::ignore = AddTask(TestCGType::KERNEL_TASK);
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);

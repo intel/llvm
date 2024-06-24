@@ -151,8 +151,7 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
 
 void GlobalHandler::deleteThreadPool() {
   const LockGuard Lock{MHostTaskThreadPool.Lock};
-  if (MHostTaskThreadPool.Inst)
-    MHostTaskThreadPool.Inst->finishAndWait();
+  //ThreadPool dtor calls waitAndFinish() - waits for threads joining
   MHostTaskThreadPool.Inst = nullptr;
 }
 
