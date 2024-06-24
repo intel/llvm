@@ -23,6 +23,7 @@
 #include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/SmallSet.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/StringSet.h>
 #include <llvm/ADT/TinyPtrVector.h>
 #include <llvm/IR/Constants.h>
