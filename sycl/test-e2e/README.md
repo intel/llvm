@@ -233,6 +233,7 @@ unavailable.
  * **llvm-link** - llvm-link tool availability;
  * **fusion**: - Runtime supports kernel fusion;
  * **aspect-\<name\>**: - SYCL aspects supported by a device;
+ * **architecture-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. architecture-intel_gpu_pvc);
 
 ## llvm-lit parameters
 
@@ -291,10 +292,13 @@ llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
 While SYCL specification dictates that the only user-visible interface is
 `<sycl/sycl.hpp>` header file we found out that as the implementation and
 multiple extensions grew, the compile time was getting worse and worse,
-negatively affecting our CI turnaround time. We are just starting some efforts
-to create a much smaller set of basic feature needed for every SYCL end-to-end
-test/program so that this issue could be somewhat mitigated. This activity is in
-its early stage and NO production code should rely on it. It WILL be changed as
-we go with our experiments. For any code outside of this project only the
-`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
-that can provide an alternative.
+negatively affecting our CI turnaround time. As such, we decided to use
+finer-grained includes for the end-to-end tests used in this project (under
+`sycl/test-e2e/` folder).
+
+At this moment all the tests have been updated to include a limited set of
+headers only. However, the work of eliminating unnecessary dependencies between
+implementation header files is still in progress and the final set of these
+"fine-grained" includes that might be officially documented and suggested for
+customers to use isn't determined yet. **Until then, code outside of this project
+must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**

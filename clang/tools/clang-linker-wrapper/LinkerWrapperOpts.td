@@ -74,6 +74,10 @@ def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
   HelpText<"Sets the number of parallel jobs to use for device linking">;
 
+def override_image : Joined<["--"], "override-image=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
+  HelpText<"Uses the provided file as if it were the output of the device link step">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
@@ -131,6 +135,9 @@ def relocatable : Flag<["--", "-"], "relocatable">,
     HelpText<"Link device code to create a relocatable offloading application">;
 def r : Flag<["-"], "r">, Alias<relocatable>;
 
+def shared : Flag<["--", "-"], "shared">,
+    HelpText<"Link device code to create a shared library">;
+
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;
 def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;
@@ -163,3 +170,18 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+// Extra SYCL options to help generate sycl-post-link options that also depend
+// on the target triple.
+def sycl_remove_unused_external_funcs : Flag<["--", "-"], "sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_remove_unused_external_funcs : Flag<["--", "-"], "no-sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_device_code_split_esimd : Flag<["--", "-"], "sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_device_code_split_esimd : Flag<["--", "-"], "no-sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;

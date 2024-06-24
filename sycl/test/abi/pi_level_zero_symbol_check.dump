@@ -32,6 +32,7 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
+piEnqueueTimestampRecordingExp
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo
@@ -118,6 +119,8 @@ piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
 piextGetGlobalVariablePointer
+piextImportExternalMemory
+piextImportExternalSemaphore
 piextImportExternalSemaphoreOpaqueFD
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle

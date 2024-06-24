@@ -441,7 +441,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 
   SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
   for (const auto &[File, Arch] : InputFiles)
-    Targets.push_back(Saver.save("hipv4-amdgcn-amd-amdhsa--" + Arch));
+    Targets.push_back(Saver.save("hip-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
 
 #ifdef _WIN32
@@ -522,6 +522,71 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
+// Add any sycl-post-link options that rely on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/lib/Driver/ToolChains/Clang.cpp.
+static void
+getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
+                               SmallVector<StringRef, 8> &PostLinkArgs,
+                               const llvm::Triple Triple) {
+  const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+  bool SYCLNativeCPU = (HostTriple == Triple);
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() ||
+                              !Triple.isSPIRAOT() && !SYCLNativeCPU);
+  if (SpecConstsSupported)
+    PostLinkArgs.push_back("-spec-const=native");
+  else
+    PostLinkArgs.push_back("-spec-const=emulation");
+
+  // See if device code splitting is already requested. If not requested, then
+  // set -split=auto for non-FPGA targets.
+  bool NoSplit = true;
+  for (auto Arg : PostLinkArgs)
+    if (Arg.contains("-split=")) {
+      NoSplit = false;
+      break;
+    }
+  if (NoSplit && (Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
+    PostLinkArgs.push_back("-split=auto");
+
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                     OPT_sycl_remove_unused_external_funcs, false) &&
+       !SYCLNativeCPU) &&
+      !Triple.isNVPTX() && !Triple.isAMDGPU())
+    PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
+
+  if (!Triple.isAMDGCN())
+    PostLinkArgs.push_back("-emit-param-info");
+  // Enable program metadata
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || SYCLNativeCPU)
+    PostLinkArgs.push_back("-emit-program-metadata");
+
+  bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
+  bool SplitEsimd =
+      Args.hasFlag(OPT_sycl_device_code_split_esimd,
+                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
+
+  // Symbol file and specialization constant info generation is mandatory -
+  // add options unconditionally
+  PostLinkArgs.push_back("-symbols");
+  PostLinkArgs.push_back("-emit-exported-symbols");
+  PostLinkArgs.push_back("-emit-imported-symbols");
+  if (SplitEsimd)
+    PostLinkArgs.push_back("-split-esimd");
+  PostLinkArgs.push_back("-lower-esimd");
+
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
+}
+
 // Run sycl-post-link tool
 static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
                                            const ArgList &Args) {
@@ -536,12 +601,13 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*SYCLPostLinkPath);
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
   StringRef SYCLPostLinkOptions;
   if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
     SYCLPostLinkOptions = A->getValue();
-
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*SYCLPostLinkPath);
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
@@ -767,8 +833,13 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
+  // SYCL runtime currently works for spir64 target triple and not for
+  // spir64-unknown-unknown.
+  // TODO: Fix SYCL runtime to accept both triple
+  llvm::Triple T(Target);
+  StringRef A(T.getArchName());
   for (offloading::SYCLImage &Image : Images)
-    Image.Target = Target;
+    Image.Target = A;
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);
@@ -814,6 +885,9 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLCPath);
+  // Checking for '-shared' linker option
+  if (Args.hasArg(OPT_shared))
+    CmdArgs.push_back("-relocation-model=pic");
   CmdArgs.push_back("-filetype=obj");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutputFileOrErr);
@@ -1670,6 +1744,39 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   return DAL;
 }
 
+Error handleOverrideImages(
+    const InputArgList &Args,
+    DenseMap<OffloadKind, SmallVector<OffloadingImage>> &Images) {
+  for (StringRef Arg : Args.getAllArgValues(OPT_override_image)) {
+    OffloadKind Kind = getOffloadKind(Arg.split("=").first);
+    StringRef Filename = Arg.split("=").second;
+
+    ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
+        MemoryBuffer::getFileOrSTDIN(Filename);
+    if (std::error_code EC = BufferOrErr.getError())
+      return createFileError(Filename, EC);
+
+    Expected<std::unique_ptr<ObjectFile>> ElfOrErr =
+        ObjectFile::createELFObjectFile(**BufferOrErr,
+                                        /*InitContent=*/false);
+    if (!ElfOrErr)
+      return ElfOrErr.takeError();
+    ObjectFile &Elf = **ElfOrErr;
+
+    OffloadingImage TheImage{};
+    TheImage.TheImageKind = IMG_Object;
+    TheImage.TheOffloadKind = Kind;
+    TheImage.StringData["triple"] =
+        Args.MakeArgString(Elf.makeTriple().getTriple());
+    if (std::optional<StringRef> CPU = Elf.tryGetCPUName())
+      TheImage.StringData["arch"] = Args.MakeArgString(*CPU);
+    TheImage.Image = std::move(*BufferOrErr);
+
+    Images[Kind].emplace_back(std::move(TheImage));
+  }
+  return Error::success();
+}
+
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime.
 Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
@@ -1682,6 +1789,12 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   // Create a binary image of each offloading image and embed it into a new
   // object file.
   SmallVector<StringRef> WrappedOutput;
+
+  // Initialize the images with any overriding inputs.
+  if (Args.hasArg(OPT_override_image))
+    if (Error Err = handleOverrideImages(Args, Images))
+      return std::move(Err);
+
   auto Err = parallelForEachError(LinkerInputFiles, [&](auto &Input) -> Error {
     llvm::TimeTraceScope TimeScope("Link device input");
 
@@ -1990,6 +2103,10 @@ Expected<bool> getSymbols(StringRef Image, OffloadKind Kind, bool IsArchive,
 Expected<SmallVector<SmallVector<OffloadFile>>>
 getDeviceInput(const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("ExtractDeviceCode");
+
+  // Skip all the input if the user is overriding the output.
+  if (Args.hasArg(OPT_override_image))
+    return SmallVector<SmallVector<OffloadFile>>();
 
   StringRef Root = Args.getLastArgValue(OPT_sysroot_EQ);
   SmallVector<StringRef> LibraryPaths;

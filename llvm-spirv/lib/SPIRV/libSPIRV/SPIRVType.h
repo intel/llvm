@@ -93,6 +93,7 @@ public:
   bool isTypeOpaque() const;
   bool isTypePointer() const;
   bool isTypeSampler() const;
+  bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
   bool isTypeJointMatrixINTEL() const;

@@ -8,7 +8,10 @@
 // Tangle groups exhibit unpredictable behavior on Windows.
 // The test is disabled while we investigate the root cause.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

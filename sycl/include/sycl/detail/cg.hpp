@@ -78,6 +78,7 @@ public:
     CopyImage = 23,
     SemaphoreWait = 24,
     SemaphoreSignal = 25,
+    ProfilingTag = 26,
   };
 
   struct StorageInitHelper {
@@ -333,25 +334,6 @@ public:
   pi_mem_advice getAdvice() { return MAdvice; }
 };
 
-class CGHostTask : public CG {
-public:
-  std::unique_ptr<HostTask> MHostTask;
-  // queue for host-interop task
-  std::shared_ptr<detail::queue_impl> MQueue;
-  // context for host-interop task
-  std::shared_ptr<detail::context_impl> MContext;
-  std::vector<ArgDesc> MArgs;
-
-  CGHostTask(std::unique_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGTYPE Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
-};
-
 class CGBarrier : public CG {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
@@ -361,6 +343,12 @@ public:
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+};
+
+class CGProfilingTag : public CG {
+public:
+  CGProfilingTag(CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CG::ProfilingTag, std::move(CGData), std::move(loc)) {}
 };
 
 /// "Copy 2D USM" command group class.
@@ -546,33 +534,41 @@ public:
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MWaitValue;
 
 public:
   CGSemaphoreWait(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
+  }
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MSignalValue;
 
 public:
   CGSemaphoreSignal(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle),
+        MSignalValue(SignalValue) {}
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };
 
 /// "Execute command-buffer" command group class.

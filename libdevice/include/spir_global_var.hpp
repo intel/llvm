@@ -42,3 +42,11 @@ private:
 #define __SYCL_LOCAL__ __attribute__((opencl_local))
 #define __SYCL_PRIVATE__ __attribute__((opencl_private))
 #define __SYCL_CONSTANT__ __attribute__((opencl_constant))
+
+#ifndef SPIR_GLOBAL_VAR
+#ifdef __SYCL_DEVICE_ONLY__
+#define SPIR_GLOBAL_VAR __attribute__((sycl_global_var))
+#else
+#define SPIR_GLOBAL_VAR
+#endif
+#endif
