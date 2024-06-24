@@ -149,6 +149,13 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   MScheduler.Inst.reset(Scheduler);
 }
 
+void GlobalHandler::deleteThreadPool() {
+  const LockGuard Lock{MHostTaskThreadPool.Lock};
+  if (MHostTaskThreadPool.Inst)
+    MHostTaskThreadPool.Inst->finishAndWait();
+  MHostTaskThreadPool.Inst = nullptr;
+}
+
 static void enableOnCrashStackPrinting() {
 #ifdef ENABLE_STACK_TRACE
   static std::once_flag PrintStackFlag;
@@ -311,8 +318,7 @@ void shutdown_early() {
   // upon its release
   Handler->prepareSchedulerToRelease(true);
 
-  if (Handler->MHostTaskThreadPool.Inst)
-    Handler->MHostTaskThreadPool.Inst->finishAndWait();
+  Handler->deleteThreadPool();
 
   // This releases OUR reference to the default context, but
   // other may yet have refs
