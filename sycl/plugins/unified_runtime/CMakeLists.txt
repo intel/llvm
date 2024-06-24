@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
+  # Merge: a011f092 d8500a36
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Fri Jun 21 10:22:52 2024 +0100
+  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
+  #     Correct level of indirection used in KernelSetArgPointer calls.
+  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
