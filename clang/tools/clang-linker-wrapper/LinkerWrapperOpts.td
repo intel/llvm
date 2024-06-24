@@ -170,3 +170,18 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+// Extra SYCL options to help generate sycl-post-link options that also depend
+// on the target triple.
+def sycl_remove_unused_external_funcs : Flag<["--", "-"], "sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_remove_unused_external_funcs : Flag<["--", "-"], "no-sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_device_code_split_esimd : Flag<["--", "-"], "sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_device_code_split_esimd : Flag<["--", "-"], "no-sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;

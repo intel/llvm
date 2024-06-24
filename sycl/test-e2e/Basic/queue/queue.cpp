@@ -36,8 +36,12 @@ int main() {
     queue q;
     print_queue_info(q);
 
-  } catch (device_error e) {
-    std::cout << "Failed to create device for context" << std::endl;
+  } catch (sycl::exception e) {
+    if (e.code() == sycl::errc::platform) {
+      std::cout << "Failed to create device for context" << std::endl;
+    } else {
+      std::cout << "Failed to create queue" << std::endl;
+    }
   }
 
   auto devices = device::get_devices();
@@ -98,8 +102,8 @@ int main() {
   }
 
   {
-    default_selector Selector;
-    device Device = Selector.select_device();
+    const auto &Selector = default_selector_v;
+    device Device(Selector);
     context Context(Device);
     queue Queue(Context, Selector);
     assert(Context == Queue.get_context());
