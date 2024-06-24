@@ -6,23 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/exception.hpp> // make_error_code
 #include "kernel_compiler_sycl.hpp"
+#include <sycl/exception.hpp> // make_error_code
 
 #if __GNUC__ && __GNUC__ < 8
-  // std::filesystem is not availalbe for GCC < 8 
-  // and much of the  cross-platform file handling code depends upon it.
-  // Given that this extension is experimental and that the file
-  // handling aspects are most likely temporary, it makes sense to
-  // simply not support GCC<8.
-  bool SYCL_Compilation_Available() { return false; }
-  spirv_vec_t
+// std::filesystem is not availalbe for GCC < 8
+// and much of the  cross-platform file handling code depends upon it.
+// Given that this extension is experimental and that the file
+// handling aspects are most likely temporary, it makes sense to
+// simply not support GCC<8.
+bool SYCL_Compilation_Available() { return false; }
+spirv_vec_t
 SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
               const std::vector<std::string> &UserArgs, std::string *LogPtr,
-              const std::vector<std::string> &RegisteredKernelNames){
-    throw sycl::exception(sycl::errc::build, "kernel_compiler does not supprot GCC<8");
- }
-
+              const std::vector<std::string> &RegisteredKernelNames) {
+  throw sycl::exception(sycl::errc::build,
+                        "kernel_compiler does not supprot GCC<8");
+}
 #else
 
 #include <ctime>
