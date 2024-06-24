@@ -108,7 +108,7 @@ void stream_impl::generateFlushCommand(handler &cgh) {
 }
 
 // ABI break: remove
-void stream_impl::initStreamHost(QueueImplPtr){}
+void stream_impl::initStreamHost(QueueImplPtr) {}
 
 // ABI break: remove
 void stream_impl::flush(const EventImplPtr &) {}
