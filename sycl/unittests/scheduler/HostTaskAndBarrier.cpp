@@ -28,6 +28,9 @@ public:
   TestQueueImpl(ContextImplPtr SyclContext, DeviceImplPtr Dev)
       : sycl::detail::queue_impl(Dev, SyclContext,
                                  SyclContext->get_async_handler(), {}) {}
+  using sycl::detail::queue_impl::MDefaultGraphDeps;
+  using sycl::detail::queue_impl::MExtGraphDeps;
+  using sycl::detail::queue_impl::MMutex;
 };
 
 enum TestCGType { KERNEL_TASK, HOST_TASK, BARRIER };
@@ -269,6 +272,51 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
 
   MainLock.unlock();
   QueueDevImpl->wait();
+}
+
+TEST_F(BarrierHandlingWithHostTask, QueueInnerCleanupOnHostTaskCompletion) {
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0);
+  }
+
+  sycl::event BlockedHostTask = AddTask(TestCGType::HOST_TASK);
+  EventImplPtr BlockedHostTaskImpl =
+      sycl::detail::getSyclObjImpl(BlockedHostTask);
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+              BlockedHostTaskImpl);
+  }
+
+  sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
+  EventImplPtr BarrierEventImpl = sycl::detail::getSyclObjImpl(BarrierEvent);
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0);
+  }
+
+  sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
+  EventImplPtr KernelEventImpl = sycl::detail::getSyclObjImpl(KernelEvent);
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
+    ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+              KernelEventImpl);
+  }
+
+  MainLock.unlock();
+  QueueDevImpl->wait();
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0);
+  }
 }
 
 } // namespace
