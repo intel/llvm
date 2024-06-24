@@ -28,7 +28,7 @@ struct InvalidUpdateTest
         std::memset(shared_ptr, 0, allocation_size);
 
         // Index 0 is output
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &shared_ptr));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
         // Index 1 is input scalar
         ASSERT_SUCCESS(
             urKernelSetArgValue(kernel, 1, sizeof(val), nullptr, &val));

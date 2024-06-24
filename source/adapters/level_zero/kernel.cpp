@@ -1004,8 +1004,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
 ) {
   std::ignore = Properties;
 
+  // KernelSetArgValue is expecting a pointer to the argument
   UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), nullptr,
-                              ArgValue));
+                              &ArgValue));
   return UR_RESULT_SUCCESS;
 }
 

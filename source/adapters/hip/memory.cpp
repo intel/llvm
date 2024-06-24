@@ -68,14 +68,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    // make sure memObj is released in case UR_CHECK_ERROR throws
+    // Call destructor
     std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
-
-    if (hMem->isSubBuffer()) {
-      return UR_RESULT_SUCCESS;
-    }
-
-    UR_CHECK_ERROR(hMem->clear());
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -135,9 +129,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
     auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
         new ur_mem_handle_t_{hContext, flags, AllocMode, HostPtr, size});
-    if (URMemObj == nullptr) {
-      throw UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     // First allocation will be made at urMemBufferCreate if context only
     // has one device
@@ -159,6 +150,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     RetMemObj = URMemObj.release();
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -220,9 +213,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   } catch (ur_result_t Err) {
     *phMem = nullptr;
     return Err;
-  } catch (...) {
+  } catch (std::bad_alloc &) {
     *phMem = nullptr;
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    *phMem = nullptr;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   ReleaseGuard.dismiss();
@@ -380,25 +376,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
             UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
-  UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
+  try {
+    UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
 
-  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
-      new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, flags, *pImageFormat, *pImageDesc, pHost});
 
-  if (URMemObj == nullptr) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  if (PerformInitialCopy) {
-    for (const auto &Dev : hContext->getDevices()) {
-      ScopedContext Active(Dev);
-      hipStream_t Stream{0}; // Use default stream
-      UR_CHECK_ERROR(
-          enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
-      UR_CHECK_ERROR(hipStreamSynchronize(Stream));
+    if (PerformInitialCopy) {
+      for (const auto &Dev : hContext->getDevices()) {
+        ScopedContext Active(Dev);
+        hipStream_t Stream{0}; // Use default stream
+        UR_CHECK_ERROR(
+            enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
+        UR_CHECK_ERROR(hipStreamSynchronize(Stream));
+      }
     }
+    *phMem = URMemObj.release();
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-  *phMem = URMemObj.release();
   return UR_RESULT_SUCCESS;
 }
 

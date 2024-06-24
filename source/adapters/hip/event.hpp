@@ -42,6 +42,8 @@ public:
 
   bool isCompleted() const;
 
+  bool isInterop() const noexcept { return IsInterop; };
+
   uint32_t getExecutionStatus() const {
     if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
@@ -134,7 +136,8 @@ private:
                    // yet.
   bool IsStarted;  // Signifies wether the operation associated with the
                    // UR event has started or not
-                   //
+
+  const bool IsInterop{false}; // Made with urEventCreateWithNativeHandle
 
   uint32_t StreamToken;
   uint32_t EventId; // Queue identifier of the event.
@@ -190,7 +193,8 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
   hipStream_t LastSeenStream = 0;
   for (size_t i = 0; i < Events.size(); i++) {
     auto Event = Events[i];
-    if (!Event || (i != 0 && Event->getStream() == LastSeenStream)) {
+    if (!Event || (i != 0 && !Event->isInterop() &&
+                   Event->getStream() == LastSeenStream)) {
       continue;
     }
 
