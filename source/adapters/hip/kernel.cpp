@@ -46,8 +46,10 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                                 hProgram, hProgram->getContext()});
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   *phKernel = RetKernel.release();
@@ -273,7 +275,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
+  // setKernelArg is expecting a pointer to our argument
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
   return UR_RESULT_SUCCESS;
 }
 

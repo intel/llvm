@@ -2446,8 +2446,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     const ur_kernel_arg_pointer_properties_t
         *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
-        pArgValue ///< [in][optional] USM pointer to memory location holding the argument
-                  ///< value. If null then argument value is considered null.
+        pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+    ///< mapping operation. If null then argument value is considered null.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
