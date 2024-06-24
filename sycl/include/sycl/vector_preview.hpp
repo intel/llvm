@@ -436,7 +436,10 @@ public:
 
     using T = ConvertBoolAndByteT<DataT>;
     using R = ConvertBoolAndByteT<convertT>;
-    static_assert(std::is_integral_v<R> || detail::is_floating_point<R>::value,
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
+    static_assert(std::is_integral_v<R> ||
+                      detail::is_floating_point<R>::value ||
+                      std::is_same_v<R, bfloat16>,
                   "Unsupported convertT");
 
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
@@ -497,11 +500,16 @@ public:
           auto val =
               detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                   getValue(I));
-          Result[I] = static_cast<convertT>(val);
+#ifdef __SYCL_DEVICE_ONLY__
+          // On device, we interpret BF16 as uint16.
+          if constexpr (std::is_same_v<convertT, bfloat16>)
+            Result[I] = sycl::bit_cast<convertT>(val);
+          else
+#endif
+            Result[I] = static_cast<convertT>(val);
         }
       }
     }
-
     return Result;
   }
 
