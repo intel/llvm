@@ -182,11 +182,11 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   // perform minimal sanity checks on the device image and the descriptor
   if (RawImg.BinaryEnd < RawImg.BinaryStart) {
     throw runtime_error("Malformed device program image descriptor",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
   }
   if (RawImg.BinaryEnd == RawImg.BinaryStart) {
     throw runtime_error("Invalid device program image: size is zero",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
   }
   size_t ImgSize = Img.getSize();
 
@@ -841,7 +841,7 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
     Lib = Native ? LibPair->second.first : LibPair->second.second;
   if (Lib == nullptr)
     throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+                                UR_RESULT_ERROR_INVALID_OPERATION);
   return Lib;
 }
 
@@ -867,7 +867,7 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   auto Ext = DeviceLibExtensionStrs.find(Extension);
   if (Ext == DeviceLibExtensionStrs.end())
     throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+                                UR_RESULT_ERROR_INVALID_OPERATION);
   return Ext->second;
 }
 
@@ -906,7 +906,7 @@ static ur_program_handle_t loadDeviceLibFallback(const ContextImplPtr Context,
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(std::string("Failed to load ") + LibFileName,
-                                PI_ERROR_INVALID_VALUE);
+                                UR_RESULT_ERROR_INVALID_VALUE);
   }
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -938,7 +938,7 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     if (!File.is_open())
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
-                          PI_ERROR_INVALID_VALUE);
+                          UR_RESULT_ERROR_INVALID_VALUE);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
     std::unique_ptr<char[]> Data(new char[Size]);
@@ -948,7 +948,7 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     if (!File.good())
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
-                          PI_ERROR_INVALID_VALUE);
+                          UR_RESULT_ERROR_INVALID_VALUE);
     // No need for a mutex here since all access to these private fields is
     // blocked until the construction of the ProgramManager singleton is
     // finished.
@@ -1081,7 +1081,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   }
 
   throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_ERROR_INVALID_KERNEL_NAME);
+                      UR_RESULT_ERROR_INVALID_KERNEL_NAME);
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -1499,7 +1499,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   std::ofstream F(Fname, std::ios::binary);
 
   if (!F.is_open()) {
-    throw runtime_error("Can not write " + Fname, PI_ERROR_UNKNOWN);
+    throw runtime_error("Can not write " + Fname, UR_RESULT_ERROR_UNKNOWN);
   }
   Img.dump(F);
   F.close();
@@ -1625,7 +1625,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       /*num bin images = */ (pi_uint32)1, &SuitableImageID);
   if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
 
   return (0 == SuitableImageID);
 }
@@ -1636,7 +1636,7 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
   if (KernelID == m_KernelName2KernelIDs.end())
     throw runtime_error("No kernel found with the specified name",
-                        PI_ERROR_INVALID_KERNEL_NAME);
+                        UR_RESULT_ERROR_INVALID_KERNEL_NAME);
 
   return KernelID->second;
 }
@@ -2093,7 +2093,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
     sycl::runtime_error(
         "Creating a program from AOT binary for multiple device is not "
         "supported",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
 
   // Device is not used when creating program from SPIRV, so passing only one
   // device is OK.
@@ -2289,7 +2289,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       sycl::runtime_error(
           "Creating a program from AOT binary for multiple device is not "
           "supported",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.

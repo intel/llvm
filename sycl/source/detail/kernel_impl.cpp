@@ -42,8 +42,8 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
     : MURKernel(Kernel), MContext(ContextImpl),
       MProgram(ProgramImpl->getHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)), MKernelArgMaskPtr{
-                                                          ArgMask} {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
   ur_context_handle_t Context = nullptr;
   // Using the plugin from the passed ContextImpl
@@ -52,7 +52,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
   if (ContextImpl->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
-        PI_ERROR_INVALID_CONTEXT);
+        UR_RESULT_ERROR_INVALID_CONTEXT);
 
   MIsInterop = ProgramImpl->isInterop();
 }

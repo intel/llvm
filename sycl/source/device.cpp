@@ -24,7 +24,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
     throw sycl::invalid_parameter_error("No device of forced type.",
-                                        PI_ERROR_INVALID_OPERATION);
+                                        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 }
 } // namespace detail
@@ -143,7 +143,7 @@ device::get_info_impl<info::device::parent_device>() const {
   if (impl->isRootDevice())
     throw invalid_object_error(
         "No parent for device because it is not a subdevice",
-        PI_ERROR_INVALID_DEVICE);
+        UR_RESULT_ERROR_INVALID_DEVICE);
   else
     return impl->template get_info<info::device::parent_device>();
 }
@@ -162,7 +162,7 @@ device::get_info_impl<info::device::aspects>() const {
         try {
           return !impl->has(Aspect);
         } catch (const runtime_error &ex) {
-          if (ex.get_cl_code() == PI_ERROR_INVALID_DEVICE)
+          if (ex.get_cl_code() == UR_RESULT_ERROR_INVALID_DEVICE)
             return true;
           throw;
         }

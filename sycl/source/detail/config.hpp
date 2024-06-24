@@ -275,7 +275,7 @@ public:
         throw invalid_parameter_error(
             "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
             "variable: value should not be null.",
-            PI_ERROR_INVALID_VALUE);
+            UR_RESULT_ERROR_INVALID_VALUE);
 
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
@@ -336,14 +336,14 @@ public:
           throw invalid_parameter_error(
               "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
               "variable: value should be a number",
-              PI_ERROR_INVALID_VALUE);
+              UR_RESULT_ERROR_INVALID_VALUE);
         }
 
       if (Result < 1)
         throw invalid_parameter_error(
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
             "variable: value should be larger than zero",
-            PI_ERROR_INVALID_VALUE);
+            UR_RESULT_ERROR_INVALID_VALUE);
 
       return Result;
     }();
@@ -383,7 +383,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw runtime_error(Msg, UR_RESULT_ERROR_INVALID_OPERATION);
     }
     return ValStr[0] == '1';
   }
@@ -605,7 +605,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw runtime_error(Msg, UR_RESULT_ERROR_INVALID_OPERATION);
     }
     return ValStr[0] == '1';
   }

@@ -144,7 +144,7 @@ template <>
 inline sycl::range<3> get_kernel_device_specific_info_host<
     info::kernel_device_specific::global_work_size>(const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_ERROR_INVALID_KERNEL);
+                             UR_RESULT_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -185,14 +185,14 @@ template <>
 inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_num_sub_groups>(const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_ERROR_INVALID_KERNEL);
+                             UR_RESULT_ERROR_INVALID_KERNEL);
 }
 
 template <>
 inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_sub_group_size>(const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_ERROR_INVALID_KERNEL);
+                             UR_RESULT_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -200,7 +200,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_num_sub_groups>(
     const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_ERROR_INVALID_KERNEL);
+                             UR_RESULT_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -208,7 +208,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_sub_group_size>(
     const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_ERROR_INVALID_KERNEL);
+                             UR_RESULT_ERROR_INVALID_KERNEL);
 }
 } // namespace detail
 } // namespace _V1

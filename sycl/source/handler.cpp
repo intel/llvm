@@ -336,7 +336,7 @@ event handler::finalize() {
       if (DiscardEvent) {
         if (UR_RESULT_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
+                              UR_RESULT_ERROR_INVALID_OPERATION);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -346,7 +346,7 @@ event handler::finalize() {
 
         if (UR_RESULT_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
+                              UR_RESULT_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
@@ -542,7 +542,7 @@ event handler::finalize() {
   if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -803,7 +803,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::host_task:
     case access::target::host_buffer: {
       throw sycl::invalid_parameter_error("Unsupported accessor target case.",
-                                          PI_ERROR_INVALID_OPERATION);
+                                          UR_RESULT_ERROR_INVALID_OPERATION);
       break;
     }
     }
@@ -821,7 +821,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
+    throw runtime_error("Invalid kernel param kind",
+                        UR_RESULT_ERROR_INVALID_VALUE);
     break;
   }
 }

@@ -100,7 +100,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     } else {
       throw invalid_parameter_error(
           "No devices in the provided device list and native context.",
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
     }
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -119,7 +119,7 @@ cl_context context_impl::get() const {
   if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_CONTEXT);
+        UR_RESULT_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urContextRetain, MUrContext);
@@ -429,7 +429,6 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       {
         if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
-
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.

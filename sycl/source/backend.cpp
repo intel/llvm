@@ -40,9 +40,10 @@ static const PluginPtr &getPlugin(backend Backend) {
   case backend::ext_oneapi_hip:
     return pi::getPlugin<backend::ext_oneapi_hip>();
   default:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "getPlugin: Unsupported backend " +
-                              detail::codeToString(PI_ERROR_INVALID_OPERATION));
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::runtime),
+        "getPlugin: Unsupported backend " +
+            detail::codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
   }
 }
 
@@ -64,7 +65,7 @@ backend convertBackend(pi_platform_backend PiBackend) {
     return backend::ext_oneapi_native_cpu;
   }
   throw sycl::runtime_error{"convertBackend: Unsupported backend",
-                            PI_ERROR_INVALID_OPERATION};
+                            UR_RESULT_ERROR_INVALID_OPERATION};
 }
 
 backend convertUrBackend(ur_platform_backend_t UrBackend) {
@@ -255,9 +256,10 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
     case (UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
     case (UR_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Program and kernel_bundle state mismatch " +
-                                  detail::codeToString(PI_ERROR_INVALID_VALUE));
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Program and kernel_bundle state mismatch " +
+                detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
         auto Res =
             Plugin->call_nocheck(urProgramLinkExp, ContextImpl->getHandleRef(),
@@ -271,9 +273,10 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
       break;
     case (UR_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Program and kernel_bundle state mismatch " +
-                                  detail::codeToString(PI_ERROR_INVALID_VALUE));
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Program and kernel_bundle state mismatch " +
+                detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       break;
     default:
       break;
@@ -333,7 +336,7 @@ kernel make_kernel(const context &TargetContext,
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::runtime),
           "make_kernel: kernel_bundle must have single program image " +
-              detail::codeToString(PI_ERROR_INVALID_PROGRAM));
+              detail::codeToString(UR_RESULT_ERROR_INVALID_PROGRAM));
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();

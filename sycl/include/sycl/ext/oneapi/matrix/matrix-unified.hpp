@@ -69,7 +69,7 @@ struct joint_matrix {
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
     throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
@@ -107,7 +107,7 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   std::ignore = jm;
   std::ignore = lambda;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   return;
 }
@@ -143,7 +143,7 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jmsrc,
   std::ignore = jmdest;
   std::ignore = lambda;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   return;
 }
@@ -171,7 +171,7 @@ joint_matrix_fill(Group,
   std::ignore = res;
   std::ignore = v;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -214,7 +214,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = stride;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -259,7 +259,7 @@ joint_matrix_load(Group sg,
   std::ignore = src;
   std::ignore = stride;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -277,10 +277,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__NVPTX__)
   std::ignore = sg;
   throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   T *Ptr = src.get();
@@ -297,7 +297,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = stride;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -316,10 +316,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__NVPTX__)
   std::ignore = sg;
   throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   T *Ptr = src.get();
@@ -336,7 +336,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = src;
   std::ignore = stride;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -379,7 +379,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = stride;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -396,10 +396,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #if defined(__NVPTX__)
   std::ignore = sg;
   throw runtime_error("Use joint_matrix_store on multi_ptr on Nvidia device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   throw runtime_error("Use joint_matrix_store on multi_ptr on AMD device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   T *Ptr = dst.get();
@@ -416,7 +416,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = stride;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -434,8 +434,7 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
     sycl::detail::convertTypeToMatrixTypeString<Tc>(),
     sycl::detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_mad(
+inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
@@ -483,7 +482,7 @@ joint_matrix_mad(
   std::ignore = C;
   std::ignore = D;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -511,7 +510,7 @@ void joint_matrix_copy(
   std::ignore = dst;
   std::ignore = src;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -547,12 +546,12 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
   std::ignore = properties;
   throw runtime_error(
       "joint_matrix_prefetch is not supported on Nvidia device.",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
   std::ignore = properties;
   throw runtime_error("joint_matrix_prefetch is not supported on AMD device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   auto prop = properties.template get_property<prefetch_hint_key>();
@@ -567,7 +566,7 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
   std::ignore = Layout;
   std::ignore = properties;
   throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 

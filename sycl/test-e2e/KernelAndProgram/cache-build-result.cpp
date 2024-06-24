@@ -40,7 +40,7 @@ void test() {
       } else {
         // Exception constantly adds info on its error code in the message
         assert(Msg.find_first_of(e.what()) == 0 &&
-               "PI_ERROR_BUILD_PROGRAM_FAILURE");
+               "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE");
         assert(Result == e.code().value() && "Exception code differs");
       }
     } catch (...) {
