@@ -13,7 +13,7 @@
 #define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
   class KernelFunctor##SIZE {                                                  \
   public:                                                                      \
-    [[intel::reqd_sub_group_size(SIZE)]] void                                  \
+    [[sycl::reqd_sub_group_size(SIZE)]] void                                  \
     operator()(sycl::nd_item<1> Item) const {                                  \
       const auto GID = Item.get_global_id();                                   \
     }                                                                          \
@@ -48,19 +48,6 @@ template <typename Fn> inline void submit(sycl::queue &Q) {
 int main() {
   queue Queue;
   device Device = Queue.get_device();
-
-  // According to specification, this kernel query requires `cl_khr_subgroups`
-  // or `cl_intel_subgroups`, and also `cl_intel_required_subgroup_size`
-  auto Vec = Device.get_info<info::device::extensions>();
-  if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") ==
-              std::end(Vec) &&
-          std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") ==
-              std::end(Vec) ||
-      std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") ==
-          std::end(Vec)) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   try {
     const auto SGSizes = Device.get_info<info::device::sub_group_sizes>();
