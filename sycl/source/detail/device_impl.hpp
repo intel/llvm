@@ -65,7 +65,7 @@ public:
   ur_device_handle_t &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
+                                 UR_RESULT_ERROR_INVALID_DEVICE);
 
     return MUrDevice;
   }
@@ -78,7 +78,7 @@ public:
   const ur_device_handle_t &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
+                                 UR_RESULT_ERROR_INVALID_DEVICE);
 
     return MUrDevice;
   }

@@ -33,8 +33,7 @@ namespace this_kernel {
 [[__sycl_detail__::__uses_aspects__(
     sycl::aspect::ext_oneapi_opportunistic_group)]]
 #endif
-inline opportunistic_group
-get_opportunistic_group();
+inline opportunistic_group get_opportunistic_group();
 } // namespace this_kernel
 
 class opportunistic_group {
@@ -51,7 +50,7 @@ public:
     return static_cast<id_type>(0);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -60,7 +59,7 @@ public:
     return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -69,7 +68,7 @@ public:
     return 1;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -78,7 +77,7 @@ public:
     return Mask.count();
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -87,7 +86,7 @@ public:
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -96,7 +95,7 @@ public:
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -105,7 +104,7 @@ public:
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -114,7 +113,7 @@ public:
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -124,7 +123,7 @@ public:
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -158,7 +157,7 @@ inline opportunistic_group get_opportunistic_group() {
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 

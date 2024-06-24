@@ -179,7 +179,8 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call_nocheck(urMemGetNativeHandle, Mem, /*Dev*/ nullptr, &PtrHandle);
+    Plugin->call_nocheck(urMemGetNativeHandle, Mem, /*Dev*/ nullptr,
+                         &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
@@ -733,7 +734,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_ERROR_INVALID_OPERATION);
+                        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -869,7 +870,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          ur_event_handle_t &OutEvent) {
   if (Queue->is_host()) {
     throw runtime_error("Not supported configuration of map requested",
-                        PI_ERROR_INVALID_OPERATION);
+                        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 
   ur_map_flags_t Flags = 0;
@@ -1113,12 +1114,12 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                  DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
     CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
                                    /*TakeOwnership=*/true);
-}
-if (OutEventImpl != nullptr)
-OutEventImpl->setHostEnqueueTime();
-// Then insert a wait to coalesce the copy events.
-Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
-                         CopyEvents.size(), CopyEvents.data(), OutEvent);
+  }
+  if (OutEventImpl != nullptr)
+    OutEventImpl->setHostEnqueueTime();
+  // Then insert a wait to coalesce the copy events.
+  Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+                           CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1127,8 +1128,8 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                                 size_t DstPitch, size_t Width, size_t Height,
                                 std::vector<ur_event_handle_t> DepEvents,
                                 ur_event_handle_t *OutEvent) {
-MemoryManager::copy_2d_usm(SrcMem, SrcPitch, Queue, DstMem, DstPitch, Width,
-                           Height, DepEvents, OutEvent, nullptr);
+  MemoryManager::copy_2d_usm(SrcMem, SrcPitch, Queue, DstMem, DstPitch, Width,
+                             Height, DepEvents, OutEvent, nullptr);
 }
 
 void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
@@ -1137,19 +1138,19 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                                 std::vector<ur_event_handle_t> DepEvents,
                                 ur_event_handle_t *OutEvent,
                                 const detail::EventImplPtr &OutEventImpl) {
-assert(!Queue->getContextImplPtr()->is_host() &&
-       "Host queue not supported in fill_2d_usm.");
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_2d_usm.");
 
-if (Width == 0 || Height == 0) {
-// no-op, but ensure DepEvents will still be waited on
-if (!DepEvents.empty()) {
+  if (Width == 0 || Height == 0) {
+    // no-op, but ensure DepEvents will still be waited on
+    if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
-}
+    }
     return;
-}
+  }
 
   if (!DstMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -1653,7 +1654,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
 
   if (!DstMem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
   // Pattern is interpreted as an unsigned char so pattern size is always 1.

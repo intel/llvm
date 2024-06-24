@@ -89,7 +89,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     ur_context_handle_t C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
-    ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;;
+    ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
+    ;
 
     switch (Kind) {
     case alloc::host: {
@@ -599,10 +600,10 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
       urUSMGetMemAllocInfo, URCtx, Ptr, UR_USM_ALLOC_INFO_TYPE,
       sizeof(ur_usm_type_t), &AllocTy, nullptr);
 
-  // PI_ERROR_INVALID_VALUE means USM doesn't know about this ptr
+  // UR_RESULT_ERROR_INVALID_VALUE means USM doesn't know about this ptr
   if (Err == UR_RESULT_ERROR_INVALID_VALUE)
     return alloc::unknown;
-  // otherwise PI_SUCCESS is expected
+  // otherwise UR_RESULT_SUCCESS is expected
   if (Err != UR_RESULT_SUCCESS) {
     Plugin->reportUrError(Err, "get_pointer_type()");
   }
@@ -634,7 +635,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)
     throw runtime_error("Ptr not a valid USM allocation!",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
 
@@ -647,7 +648,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     auto Devs = CtxImpl->getDevices();
     if (Devs.size() == 0)
       throw runtime_error("No devices in passed context!",
-                          PI_ERROR_INVALID_VALUE);
+                          UR_RESULT_ERROR_INVALID_VALUE);
 
     // Just return the first device in the context
     return Devs[0];
@@ -669,7 +670,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   if (DevImpl)
     return detail::createSyclObjFromImpl<device>(DevImpl);
   throw runtime_error("Cannot find device associated with USM allocation!",
-                      PI_ERROR_INVALID_OPERATION);
+                      UR_RESULT_ERROR_INVALID_OPERATION);
 }
 
 // Device copy enhancement APIs, prepare_for and release_from USM.
