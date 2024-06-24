@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
 // RUN: %{run} %t.out
 
 // Test validity of events after cancel_fusion.

@@ -745,7 +745,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MExtGraphDeps.LastEventPtr = nullptr;
+    MExtGraphDeps.reset();
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -975,6 +975,12 @@ protected:
     // ordering
     std::vector<EventImplPtr> UnenqueuedCmdEvents;
     EventImplPtr LastBarrier;
+
+    void reset() {
+      LastEventPtr = nullptr;
+      UnenqueuedCmdEvents.clear();
+      LastBarrier = nullptr;
+    }
   } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;

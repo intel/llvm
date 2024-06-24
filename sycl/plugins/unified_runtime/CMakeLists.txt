@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0
-  # Merge: 33eb5ea8 487f4f8a
+  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
+  # Merge: a011f092 d8500a36
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 17 14:31:13 2024 +0100
-  #     Merge pull request #1639 from przemektmalon/przemek/windows-interop
-  #     [Bindless][Exp] Windows & DX12 interop. Semaphore ops can take values.
-  set(UNIFIED_RUNTIME_TAG 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0)
+  # Date:   Fri Jun 21 10:22:52 2024 +0100
+  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
+  #     Correct level of indirection used in KernelSetArgPointer calls.
+  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2a31795d9d5a0994af33833016b2849cb4e357a6
-    # Merge: 06cb1b90 ec73afa7
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 18 14:37:38 2024 +0100
-    #     Merge pull request #1623 from igchor/legacy_path_queue
-    #     [L0] Create initial structure for supporting queue dispatcher
-    2a31795d9d5a0994af33833016b2849cb4e357a6
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
