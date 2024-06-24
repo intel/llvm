@@ -32,7 +32,7 @@ to pipes.
 
 == Notice
 
-Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2024 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -61,7 +61,8 @@ Aditi Kumaraswamy, Intel +
 Robert Ho, Intel +
 Sherry Yuan, Intel +
 Peter Colberg, Intel +
-Zibai Wang, Intel
+Zibai Wang, Intel +
+Justin Rosner, Intel
 
 == Dependencies
 
@@ -154,6 +155,28 @@ struct protocol_key {
       protocol_key, std::integral_constant<protocol_name, Protocol>>;
 };
 
+enum class latency_control_type {
+  none, //default
+  exact,
+  max,
+  min
+};
+
+struct latency_anchor_id_key {
+  template <int Anchor>
+  using value_t =
+      oneapi::experimental::property_value<latency_anchor_id_key,
+                                           std::integral_constant<int, Anchor>>;
+};
+
+struct latency_constraint_key {
+  template <int Target, latency_control_type Type, int Cycle>
+  using value_t = oneapi::experimental::property_value<
+      latency_constraint_key, std::integral_constant<int, Target>,
+      std::integral_constant<latency_control_type, Type>,
+      std::integral_constant<int, Cycle>>;
+};
+
 template <uint32_t Latency>
 inline constexpr ready_latency_key::value_t<Latency> ready_latency;
 
@@ -172,6 +195,16 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
 
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
+
+template <int Anchor>
+inline constexpr latency_anchor_id_key::value_t<Anchor> latency_anchor_id;
+
+template <int Target, latency_control_type Type, int Cycle>
+inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
+    latency_constraint;
+
+template <class Name, class DataT, int32_t MinCapacity = 0,
+          class PropertiesT = decltype(oneapi::experimental::properties{})>
 
 namespace avalon-st {
   using sycl::ext::intel::experimental::bits_per_symbol;
@@ -273,7 +306,6 @@ or *avalon_mm*.
 |`protocol`
 | Specifies the protocol for the pipe interface. Currently, the protocols supported
 are: *avalon_streaming*, *avalon_mm*, and *axi_streaming*.
-
 *avalon_streaming*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
@@ -287,8 +319,120 @@ Provide an Avalon memory mapped interface as described in https://www.intel.com/
 Provide an AXI4-Stream interface as described in https://documentation-service.arm.com/static/642583d7314e245d086bc8c9[AMBA 4 AXI4-Stream Protocol Specification].
 
 The default protocol is *avalon_streaming*
+
+|`latency_anchor_id<N>`
+| Valid values: Non-negative integer values of N
+
+This property associated an ID with the current read/write function call, which can then be referenced by other `latency_constraint` properties elsewhere in the program to define relative latency constraints. The ID must be unique within the application, and a diagnostic is required if that condition is not met.
+
+This property is only valid when passed as a function argument of a device side read/write method as a properties object.
+
+|`latency_constraint<A, B, C>`
+| Valid values: `A` and `C` are non-negative integer values, while `B` is a enum value from latency_control_type.
+
+This property is a tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
+
+** `A` is the ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
+** `B` is an enum value: The type of control from the set {`latency_control_type::exact`, `latency_control_type::max`, `latency_control_type::min`}.
+** `C` is the relative clock cycle difference between the target anchor and the current function call that the constraint should infer subject to the type of the control (exact, min, max).
+
+This property is only valud when passed as a function argument of a device side read/write method as a properties object.
+
 |====
 --
+
+== Latency Control Example
+
+[source,c++]
+----
+#include <sycl/ext/intel/fpga_extensions.hpp>
+...
+using Pipe1 = ext::intel::experimental::pipe<class PipeClass1, int, 8>;
+using Pipe2 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
+using Pipe3 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
+
+myQueue.submit([&](handler &cgh) {
+  cgh.single_task<class foo>([=] {
+    // The following Pipe1::read is anchor 0
+    int value = Pipe1::read(
+        ext::oneapi::experimental::properties(latency_anchor_id<0>));
+
+    // The following Pipe2::write is anchor 1
+    // The following Pipe2::write occurs exactly 2 cycles after anchor 0
+    Pipe2::write(value,
+                 ext::oneapi::experimental::properties(
+                     latency_anchor_id<1>,
+                     latency_constraint<0, latency_control_type::exact, 2>));
+
+    // The following Pipe3::write occurs at least 2 cycles after anchor 1
+    Pipe3::write(value,
+                 ext::oneapi::experimental::properties(
+                     latency_constraint<1, latency_control_type::min, 2>));
+  });
+});
+----
+
+=== Device side pipe read/write
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+enum class latency_control_type {
+  none, // default
+  exact,
+  max,
+  min
+};
+
+struct latency_anchor_id_key {
+  template <int Anchor>
+  using value_t =
+      oneapi::experimental::property_value<latency_anchor_id_key,
+                                           std::integral_constant<int, Anchor>>;
+};
+
+struct latency_constraint_key {
+  template <int Target, latency_control_type Type, int Cycle>
+  using value_t = oneapi::experimental::property_value<
+      latency_constraint_key, std::integral_constant<int, Target>,
+      std::integral_constant<latency_control_type, Type>,
+      std::integral_constant<int, Cycle>>;
+};
+
+template <int Anchor>
+inline constexpr latency_anchor_id_key::value_t<Anchor> latency_anchor_id;
+
+template <int Target, latency_control_type Type, int Cycle>
+inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
+    latency_constraint;
+
+template <class Name, class DataT, int32_t MinCapacity = 0,
+          class PropertiesT = decltype(oneapi::experimental::properties{})>
+class pipe {
+  // Blocking
+  static DataT read();
+
+  template <typename PropertiesT>
+  static DataT read( PropertiesT Properties );
+
+  static void write( const DataT &Data);
+
+  template <typename PropertiesT>
+  static void write( const DataT &Data, PropertiesT Properties );
+
+  // Non-blocking
+  static DataT read( bool &Success );
+
+  template <typename PropertiesT>
+  static DataT read( bool &Success, PropertiesT Properties );
+
+  static void write( const DataT &Data, bool &Success );
+
+  template <typename PropertiesT>
+  static void write( const DataT &Data, bool &Success, PropertiesT Properties );
+}
+} // namespace sycl::ext::intel::experimental
+----
 
 == Revision History
 
@@ -300,6 +444,7 @@ The default protocol is *avalon_streaming*
 |1|2022-03-18|Peter Colberg|*Initial public working draft*
 |2|2023-04-06|Robert Ho|Removal of unused properties, update protocols
 |3|2023-08-30|Robert Ho|Add axi_streaming protocol
+|4|2024-06-24|Justin Rosner|Add latency controls and update avalon_mm description
 |========================================
 
 //************************************************************************

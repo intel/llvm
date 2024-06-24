@@ -31,7 +31,7 @@ This document describes an extension that adds pipes to SYCL.  Pipes are first i
 
 == Notice
 
-Copyright (c) 2019-2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2019-2024 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -60,7 +60,8 @@ Aditi Kumaraswamy, Intel +
 Robert Ho, Intel +
 Sherry Yuan, Intel +
 Peter Colberg, Intel +
-Zibai Wang, Intel
+Zibai Wang, Intel +
+Justin Rosner, Intel
 
 == Dependencies
 
@@ -653,115 +654,6 @@ Automated mechanisms are possible to provide uniquification across calls, and co
 *RESOLUTION*: Resolved.  Abstraction/libraries on top enable functionality like this.  We will make public a library that enables arrays of pipes.
 --
 
-== Experimental APIs
-
-*NOTE*: The APIs described in this section are experimental. Future versions of this extension may change these APIs in ways that are incompatible with the versions described here.
-
-The Intel FPGA experimental `pipe` class is implemented in `sycl/ext/intel/experimental/pipes.hpp` which is included in `sycl/ext/intel/fpga_extensions.hpp`.
-
-In the experimental API version, the device side read/write methods take in a properties object as function argument, which can contain the latency control properties `latency_anchor_id` and/or `latency_constraint`.
-
-* `sycl::ext::intel::experimental::latency_anchor_id<N>`, where `N` is an integer: An ID to associate with the current read/write function call, which can then be referenced by other `latency_constraint` properties elsewhere in the program to define relative latency constaints. ID must be unique within the application, and a diagnostic is required if that condition is not met.
-* `sycl::ext::intel::experimental::latency_constraint<A, B, C>`: A tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
-** `A` is an integer: The ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
-** `B` is an enum value: The type of control from the set {`latency_control_type::exact`, `latency_control_type::max`, `latency_control_type::min`}.
-** `C` is an integer: The relative clock cycle difference between the target anchor and the current function call, that the constraint should infer subject to the type of the control (exact, max, min).
-
-=== Device side pipe read/write
-
-[source,c++]
-----
-// Added in version 2 of this extension.
-namespace sycl::ext::intel::experimental {
-enum class latency_control_type {
-  none, // default
-  exact,
-  max,
-  min
-};
-
-struct latency_anchor_id_key {
-  template <int Anchor>
-  using value_t =
-      oneapi::experimental::property_value<latency_anchor_id_key,
-                                           std::integral_constant<int, Anchor>>;
-};
-
-struct latency_constraint_key {
-  template <int Target, latency_control_type Type, int Cycle>
-  using value_t = oneapi::experimental::property_value<
-      latency_constraint_key, std::integral_constant<int, Target>,
-      std::integral_constant<latency_control_type, Type>,
-      std::integral_constant<int, Cycle>>;
-};
-
-template <int Anchor>
-inline constexpr latency_anchor_id_key::value_t<Anchor> latency_anchor_id;
-
-template <int Target, latency_control_type Type, int Cycle>
-inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
-    latency_constraint;
-
-template <class Name, class DataT, int32_t MinCapacity = 0,
-          class PropertiesT = decltype(oneapi::experimental::properties{})>
-class pipe {
-  // Blocking
-  static DataT read();
-
-  template <typename PropertiesT>
-  static DataT read( PropertiesT Properties );
-
-  static void write( const DataT &Data);
-
-  template <typename PropertiesT>
-  static void write( const DataT &Data, PropertiesT Properties );
-
-  // Non-blocking
-  static DataT read( bool &Success );
-
-  template <typename PropertiesT>
-  static DataT read( bool &Success, PropertiesT Properties );
-
-  static void write( const DataT &Data, bool &Success );
-
-  template <typename PropertiesT>
-  static void write( const DataT &Data, bool &Success, PropertiesT Properties );
-}
-} // namespace sycl::ext::intel::experimental
-----
-
-=== Latency Control example
-
-[source,c++]
-----
-// Added in version 2 of this extension.
-#include <sycl/ext/intel/fpga_extensions.hpp>
-...
-using Pipe1 = ext::intel::experimental::pipe<class PipeClass1, int, 8>;
-using Pipe2 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
-using Pipe3 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
-
-myQueue.submit([&](handler &cgh) {
-  cgh.single_task<class foo>([=] {
-    // The following Pipe1::read is anchor 0
-    int value = Pipe1::read(
-        ext::oneapi::experimental::properties(latency_anchor_id<0>));
-
-    // The following Pipe2::write is anchor 1
-    // The following Pipe2::write occurs exactly 2 cycles after anchor 0
-    Pipe2::write(value,
-                 ext::oneapi::experimental::properties(
-                     latency_anchor_id<1>,
-                     latency_constraint<0, latency_control_type::exact, 2>));
-
-    // The following Pipe3::write occurs at least 2 cycles after anchor 1
-    Pipe3::write(value,
-                 ext::oneapi::experimental::properties(
-                     latency_constraint<1, latency_control_type::min, 2>));
-  });
-});
-----
-
 == Host Side pipe read/write
 
 If the read/write member functions of a pipe are called from the host side, a `sycl::queue` is added to the parameters. The `memory_order` parameter is also added to the parameters for future work.
@@ -854,6 +746,7 @@ extension's APIs the implementation supports.
 |3|2020-04-27|Michael Kinsner|Clarify that pipe operations behave as-if they are relaxed atomic operations.  Make SYCL2020 the baseline
 |4|2021-12-02|Shuo Niu|Add experimental latency control API
 |5|2023-03-27|Zibai Wang|Experimental API change only. Add memory order parameter and compile-time properties.  Add host pipe read/write functions.
+|6|2024-06-24|Justin Rosner|Move latency controls to the host pipe interface controls extension
 |========================================
 
 //************************************************************************
