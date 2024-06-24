@@ -64,14 +64,14 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<int16_t, N>>
 isnan(T x) {
 
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // Convert BFloat16 vector to float vec and call isnan()
+  // Convert BFloat16 vector to float vec and call isnan().
   sycl::vec<float, N> FVec =
       x.template convert<float, sycl::rounding_mode::automatic>();
-  auto res = isnan(FVec);
+  auto Res = isnan(FVec);
 
   // For vec<float>, the return type of isnan is vec<int32_t> so,
   // an explicit conversion is required to vec<int16_t>.
-  return res.template convert<int16_t>();
+  return Res.template convert<int16_t>();
 #else
 
   sycl::vec<int16_t, N> res;
@@ -137,8 +137,8 @@ fabs(T x) {
   // Convert BFloat16 vector to float vec.
   sycl::vec<float, N> FVec =
       x.template convert<float, sycl::rounding_mode::automatic>();
-  auto res = fabs(FVec);
-  return res.template convert<bfloat16>();
+  auto Res = fabs(FVec);
+  return Res.template convert<bfloat16>();
 #else
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
@@ -220,8 +220,8 @@ fmin(T1 x, T2 y) {
       x.template convert<float, sycl::rounding_mode::automatic>();
   sycl::vec<float, N1> FVecY =
       y.template convert<float, sycl::rounding_mode::automatic>();
-  auto res = fmin(FVecX, FVecY);
-  return res.template convert<bfloat16>();
+  auto Res = fmin(FVecX, FVecY);
+  return Res.template convert<bfloat16>();
 #else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
@@ -302,8 +302,8 @@ fmax(T1 x, T2 y) {
       x.template convert<float, sycl::rounding_mode::automatic>();
   sycl::vec<float, N1> FVecY =
       y.template convert<float, sycl::rounding_mode::automatic>();
-  auto res = fmax(FVecX, FVecY);
-  return res.template convert<bfloat16>();
+  auto Res = fmax(FVecX, FVecY);
+  return Res.template convert<bfloat16>();
 #else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
@@ -377,8 +377,8 @@ fma(T1 x, T2 y, T3 z) {
   sycl::vec<float, N1> FVecZ =
       z.template convert<float, sycl::rounding_mode::automatic>();
 
-  auto res = fma(FVecX, FVecY, FVecZ);
-  return res.template convert<bfloat16>();
+  auto Res = fma(FVecX, FVecY, FVecZ);
+  return Res.template convert<bfloat16>();
 #else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
@@ -414,8 +414,8 @@ fma(T1 x, T2 y, T3 z) {
       T x) {                                                                   \
     sycl::vec<float, N> FVec =                                                 \
         x.template convert<float, sycl::rounding_mode::automatic>();           \
-    auto res = op(FVec);                                                       \
-    return res.template convert<bfloat16>();                                   \
+    auto Res = op(FVec);                                                       \
+    return Res.template convert<bfloat16>();                                   \
   }
 #else
 #define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
