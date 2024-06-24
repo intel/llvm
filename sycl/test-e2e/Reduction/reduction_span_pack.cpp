@@ -4,8 +4,6 @@
 // `Group algorithms are not supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a pack
 // containing at least one sycl::span
 

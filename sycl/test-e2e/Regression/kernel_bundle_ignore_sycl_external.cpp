@@ -4,9 +4,6 @@
 // XFAIL: cuda
 // UNSUPPORTED: hip
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 #include <sycl/detail/core.hpp>
 
 class KernelName;

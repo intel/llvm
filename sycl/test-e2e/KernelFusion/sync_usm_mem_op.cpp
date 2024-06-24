@@ -1,7 +1,5 @@
 // RUN: %{build} %{embed-ir} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 // Test fusion cancellation on an explicit memory operation on an USM pointer
 // happening before complete_fusion.
