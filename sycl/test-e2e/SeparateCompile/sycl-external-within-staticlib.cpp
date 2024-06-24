@@ -9,7 +9,10 @@
 // RUN: %{run} %t1.exe
 
 // Check the repacked case as it can behave differently.
-// RUN: echo -e "create %t_repacked.a \n addlib %t.a \n save" | llvm-ar -M
+// RUN: echo create %t_repacked.a > %t.txt
+// RUN: echo addlib %t.a >> %t.txt
+// RUN: echo save >> %t.txt
+// RUN: cat %t.txt | llvm-ar -M
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t_repacked.a -o %t2.exe
 // RUN: %{run} %t2.exe
 
