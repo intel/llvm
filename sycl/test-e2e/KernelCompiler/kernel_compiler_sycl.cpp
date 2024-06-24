@@ -118,7 +118,7 @@ void test_build_and_run() {
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
-  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("_Z19__sycl_kernel_ff_cp");
+  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("__sycl_kernel_ff_cp");
 
   // COMING SOON
   // sycl::kernel_bundle<sycl::bundle_state::executable> kb
