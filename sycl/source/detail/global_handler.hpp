@@ -81,7 +81,6 @@ public:
   void releaseDefaultContexts();
   void drainThreadPool();
   void prepareSchedulerToRelease(bool Blocking);
-  void deleteThreadPool();
 
   void InitXPTI();
   void TraceEventXPTI(const char *Message);
