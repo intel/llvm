@@ -5846,12 +5846,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       bool IsUsingOffloadNewDriver =
           Args.hasFlag(options::OPT_offload_new_driver,
                        options::OPT_no_offload_new_driver, false);
-      bool IsSYCLLTOSupported = JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                                Triple.isSPIROrSPIRV() &&
-                                IsUsingOffloadNewDriver;
-      if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-          !IsUsingOffloadNewDriver && !Triple.isAMDGPU() &&
-          !IsSYCLLTOSupported) {
+      Arg *SYCLSplitMode =
+          Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      bool IsDeviceCodeSplitDisabled =
+          SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
+      bool IsSYCLLTOSupported =
+          JA.isDeviceOffloading(Action::OFK_SYCL) && IsUsingOffloadNewDriver;
+      if ((IsDeviceOffloadAction &&
+           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
+           !IsUsingOffloadNewDriver) ||
+          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)
@@ -5864,6 +5868,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                options::OPT_foffload_lto_EQ)
                    ->getAsString(Args)
             << "-fno-gpu-rdc";
+      } else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
+                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin) {
+        D.Diag(diag::err_drv_sycl_thinlto_split_off)
+            << SYCLSplitMode->getAsString(Args)
+            << Args.getLastArg(options::OPT_foffload_lto,
+                               options::OPT_foffload_lto_EQ)
+                   ->getAsString(Args);
       } else {
         assert(LTOMode == LTOK_Full || LTOMode == LTOK_Thin);
         CmdArgs.push_back(Args.MakeArgString(
@@ -10648,31 +10659,34 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 }
 
-// Add any sycl-post-link options that rely on a specific Triple.
-static void
-getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
-                               const llvm::opt::ArgList &TCArgs,
-                               llvm::Triple Triple, ArgStringList &PostLinkArgs,
-                               bool SpecConsts, types::ID OutputType) {
-  bool NewOffloadDriver = TC.getDriver().getUseNewOffloadingDriver();
-  // Note: Do not use Triple when NewOffloadDriver is 'true'.
-  if (!NewOffloadDriver && (OutputType == types::TY_LLVM_BC)) {
+// Add any sycl-post-link options that rely on a specific Triple in addition
+// to user supplied options. This function is invoked only for the old
+// offloading model. For the new offloading model, a slightly modified version
+// of this function is called inside clang-linker-wrapper.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
+                                           const llvm::opt::ArgList &TCArgs,
+                                           ArgStringList &PostLinkArgs,
+                                           llvm::Triple Triple,
+                                           bool SpecConstsSupported,
+                                           types::ID OutputType) {
+  if (OutputType == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
   }
-  // specialization constants processing is mandatory
-  if (SpecConsts)
+  if (SpecConstsSupported)
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
   else
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
 
   // See if device code splitting is requested.  The logic here works along side
-  // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
-  // on the user setting of-fsycl-device-code-split.
+  // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
+  // added based on the user setting of -fsycl-device-code-split.
   if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) &&
-      (NewOffloadDriver || !(Triple.getArchName() == "spir64_fpga")))
+      (Triple.getArchName() != "spir64_fpga"))
     addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   // On Intel targets we don't need non-kernel functions as entry points,
@@ -10683,18 +10697,17 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
                        options::OPT_fsycl_remove_unused_external_funcs,
                        false) &&
        !isSYCLNativeCPU(TC)) &&
-      (NewOffloadDriver || (!Triple.isNVPTX() && !Triple.isAMDGPU())))
+      !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
-  if (!NewOffloadDriver && !Triple.isAMDGCN())
+  if (!Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
-  if ((!NewOffloadDriver && (Triple.isNVPTX() || Triple.isAMDGCN())) ||
-      isSYCLNativeCPU(TC))
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = !NewOffloadDriver && Triple.isSPIROrSPIRV();
+    bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10702,6 +10715,7 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
     // add options unconditionally
     addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
+    addArgs(PostLinkArgs, TCArgs, {"-emit-imported-symbols"});
     if (SplitEsimd)
       addArgs(PostLinkArgs, TCArgs, {"-split-esimd"});
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd"});
@@ -10713,7 +10727,7 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
   if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
                      options::OPT_fno_sycl_add_default_spec_consts_image,
                      false) &&
-      (IsAOT || NewOffloadDriver))
+      IsAOT)
     addArgs(PostLinkArgs, TCArgs,
             {"-generate-device-image-default-spec-consts"});
 }
@@ -10737,7 +10751,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   llvm::Triple T = getToolChain().getTriple();
   getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs);
-  getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
+  getTripleBasedSYCLPostLinkOpts(getToolChain(), TCArgs, CmdArgs, T,
                                  SYCLPostLink->getRTSetsSpecConstants(),
                                  SYCLPostLink->getTrueType());
 
@@ -10748,8 +10762,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
 
-  addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
-
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
@@ -10757,6 +10769,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
                         options::OPT_Xdevice_post_link_EQ,
                         JA.getOffloadingArch());
+
+  addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
   // Add input file
   assert(Inputs.size() == 1 && Inputs.front().isFilename() &&
@@ -11110,24 +11124,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // --sycl-post-link-options="options" provides a string of options to be
     // passed along to the sycl-post-link tool during device link.
     SmallString<128> PostLinkOptString;
+    ArgStringList PostLinkArgs;
+    getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
+    for (const auto &A : PostLinkArgs)
+      appendOption(PostLinkOptString, A);
     if (Args.hasArg(options::OPT_Xdevice_post_link)) {
       for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
         appendOption(PostLinkOptString, A);
     }
-    ArgStringList PostLinkArgs;
-    bool IsSYCLNativeCPU = driver::isSYCLNativeCPU(Args);
-    types::ID OutputType = TargetTriple.isSPIROrSPIRV() || IsSYCLNativeCPU
-                               ? types::TY_Tempfiletable
-                               : types::TY_LLVM_BC;
-    bool SpecConsts = TargetTriple.isSPIROrSPIRV();
-    getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
-    // Some options like -spec-consts=* depend on target triple as well as some
-    // user options. So, these options are partly computed here and then
-    // updated inside the clang-linker-wrapper.
-    getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
-                                   PostLinkArgs, SpecConsts, OutputType);
-    for (const auto &A : PostLinkArgs)
-      appendOption(PostLinkOptString, A);
     if (!PostLinkOptString.empty())
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
