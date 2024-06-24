@@ -5433,9 +5433,9 @@ piextImportExternalMemory(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   }
 
+  ur_exp_file_descriptor_t OpaqueFD{};
   switch (MemDescriptor->handleType) {
   case pi_external_mem_handle_type::opaque_fd: {
-    ur_exp_file_descriptor_t OpaqueFD{};
     OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
     OpaqueFD.fd = MemDescriptor->handle.file_descriptor;
     InteropMemDesc.pNext = &OpaqueFD;
