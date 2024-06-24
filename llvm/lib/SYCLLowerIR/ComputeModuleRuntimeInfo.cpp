@@ -1,4 +1,4 @@
-//===----- ComputeModuleProperties.cpp - compute properties for module-----===//
+//===--- ComputeModuleRuntimeInfo.cpp - compute runtime info for module ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // See comments in the header.
 //===----------------------------------------------------------------------===//
-#include "llvm/SYCLLowerIR/ComputeModuleProperties.h"
+#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
