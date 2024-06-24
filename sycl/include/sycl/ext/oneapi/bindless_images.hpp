@@ -181,7 +181,7 @@ void free_mipmap_mem(image_mem_handle handle, const sycl::queue &syclQueue);
  *  @return  Memory handle to the individual mipmap image
  */
 __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
-    const image_mem_handle mipMem, const unsigned int level,
+    const image_mem_handle mipMem, unsigned int level,
     const sycl::device &syclDevice, const sycl::context &syclContext);
 
 /**
@@ -192,9 +192,9 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
  *  @param   syclQueue The queue in which we created our memory handle
  *  @return  Memory handle to the individual mipmap image
  */
-__SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
-    const image_mem_handle mipMem, const unsigned int level,
-    const sycl::queue &syclQueue);
+__SYCL_EXPORT image_mem_handle
+get_mip_level_mem_handle(const image_mem_handle mipMem, unsigned int level,
+                         const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external memory taking an external memory handle (the type
@@ -1341,7 +1341,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  */
 template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
-                    const int2 &coords, const unsigned int face) {
+                    const int2 &coords, unsigned int face) {
   return fetch_image_array<DataT, HintT>(imageHandle, coords, face);
 }
 
@@ -1564,7 +1564,7 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
  */
 template <typename DataT>
 void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
-                   const int face, const DataT &color) {
+                   int face, const DataT &color) {
   return write_image_array(imageHandle, coords, face, color);
 }
 
