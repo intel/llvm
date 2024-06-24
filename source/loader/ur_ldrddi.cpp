@@ -1259,7 +1259,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -1276,7 +1277,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     hMem = reinterpret_cast<ur_mem_object_t *>(hMem)->handle;
 
     // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
 
     // forward to device-platform
     result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);

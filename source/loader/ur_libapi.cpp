@@ -1717,6 +1717,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid device handle to return the
+///       native mem handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1725,7 +1727,7 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///         + `NULL == hDevice`
+///         + If `hDevice == NULL` and the implementation requires a valid device.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -1733,7 +1735,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
     ) try {
