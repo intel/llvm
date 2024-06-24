@@ -444,7 +444,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  if (vkutil::setupDevice("NVIDIA") != VK_SUCCESS) {
+  const char *devices[] = {"Intel", "NVIDIA"};
+  if (std::none_of(std::begin(devices), std::end(devices),
+                   [](const char *device) {
+                     return vkutil::setupDevice(device) == VK_SUCCESS;
+                   })) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }
