@@ -7,7 +7,7 @@
 ;
 ; -lower-esimd is needed so sycl-post-link does not complain about no actions
 ; specified
-; RUN: sycl-post-link -properties -lower-esimd -ir-output-only -S %s -o %t.ll
+; RUN: sycl-post-link -lower-esimd -ir-output-only -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll --check-prefix CHECK-IR
 
 ; We expect to see only one module generated:

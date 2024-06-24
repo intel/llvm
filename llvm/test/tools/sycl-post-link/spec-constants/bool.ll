@@ -1,6 +1,6 @@
-; RUN: sycl-post-link -properties -spec-const=native -S < %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=native -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast" --check-prefixes=CHECK,CHECK-RT
-; RUN: sycl-post-link -properties -spec-const=emulation -S < %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=emulation -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
 ; RUN: %if asserts %{sycl-post-link -properties -debug-only=SpecConst -spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE %}
 ; RUN: %if asserts %{sycl-post-link -properties -debug-only=SpecConst -spec-const=emulation -S < %s 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION %}

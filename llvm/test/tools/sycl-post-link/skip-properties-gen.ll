@@ -1,5 +1,5 @@
-; This test verifies the behavior without the -properties option.
-; In particular, we should see the properties and symbols file are not added to the output table.
+; This test verifies the behavior of the sycl-post-link tool without the -properties and -symbols options.
+; In particular, we verify that the properties and symbols files are not added to the output table.
 ;
 ; RUN: sycl-post-link -split=source -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE

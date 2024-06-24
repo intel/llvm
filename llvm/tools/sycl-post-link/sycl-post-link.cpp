@@ -944,7 +944,7 @@ int main(int argc, char **argv) {
   bool DoGenerateDeviceImageWithDefaulValues =
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoPropGen && !DoParamInfo &&
       !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms &&
       !DoDeviceGlobals && !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
@@ -962,6 +962,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoSymGen) {
     errs() << "error: -" << DoSymGen.ArgStr << " can't be used with -"
+           << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoPropGen) {
+    errs() << "error: -" << DoPropGen.ArgStr << " can't be used with -"
            << IROutputOnly.ArgStr << "\n";
     return 1;
   }

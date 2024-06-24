@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -properties -spec-const=native --ir-output-only < %s -S -o - \
+; RUN: sycl-post-link -spec-const=native --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
 ; RUN: %if asserts %{ sycl-post-link -properties -spec-const=native -debug-only=SpecConst < %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;

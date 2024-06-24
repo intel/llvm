@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -properties --ir-output-only --device-globals %s -S -o - | FileCheck %s --implicit-check-not "!spirv.Decorations"
+; RUN: sycl-post-link --ir-output-only --device-globals %s -S -o - | FileCheck %s --implicit-check-not "!spirv.Decorations"
 
 ; This test is intended to check that sycl-post-link doesn't add metadata nodes
 ; for a non device global variable.
