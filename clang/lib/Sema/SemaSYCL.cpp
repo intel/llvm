@@ -1109,40 +1109,6 @@ static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
   return false;
 }
 
-static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
-                                           const FunctionDecl *FD,
-                                           SourceLocation Loc,
-                                           const IdentifierInfo *NewIdent) {
-  FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-  QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-  FunctionDecl *NewFD = FunctionDecl::Create(
-      Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
-      FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-  llvm::SmallVector<ParmVarDecl *, 8> Params;
-  for (ParmVarDecl *Param : FD->parameters()) {
-    QualType Ty = Param->getType();
-    ParamDesc newParamDesc =
-        std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
-                        Ctx.getTrivialTypeSourceInfo(Ty));
-    auto *NewParam = ParmVarDecl::Create(
-        Ctx, NewFD, SourceLocation(), SourceLocation(),
-        std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-    NewParam->setScopeInfo(0, Params.size());
-    NewParam->setIsUsed();
-    Params.push_back(NewParam);
-  }
-  SmallVector<QualType, 8> ArgTys;
-  std::transform(std::begin(Params), std::end(Params),
-                 std::back_inserter(ArgTys),
-                 [](const ParmVarDecl *PVD) { return PVD->getType(); });
-
-  FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-  NewFD->setType(FuncType);
-  NewFD->setParams(Params);
-  return NewFD;
-}
-
 // Creates a name for the free function kernel function.
 // Consider a free function named "MyFunction". The normal device function will
 // be given its mangled name, say "_Z10MyFunctionIiEvPT_S0_". The corresponding
@@ -2542,7 +2508,6 @@ public:
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
-  bool IsFreeFunction = false;
   FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
@@ -2762,9 +2727,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(SemaSYCL &S, SourceLocation Loc, bool IsInline,
-                        bool IsSIMDKernel, bool IsFreeFunction,
-                        FunctionDecl *SYCLKernel, SYCLIntegrationHeader &H)
-      : SyclKernelFieldHandler(S), Header(H), IsFreeFunction(IsFreeFunction),
+                        bool IsSIMDKernel, FunctionDecl *SYCLKernel,
+                        SYCLIntegrationHeader &H)
+      : SyclKernelFieldHandler(S), Header(H),
         KernelDecl(
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
@@ -5043,10 +5008,9 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
                                      IsSIMDKernel);
 
-  SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
-                                    KernelCallerFunc->isInlined(), IsSIMDKernel,
-                                    false /*IsFreeFunction*/, KernelCallerFunc,
-                                    getSyclIntegrationHeader());
+  SyclKernelDeclCreator kernel_decl(
+      *this, KernelObj->getLocation(), KernelCallerFunc->isInlined(),
+      IsSIMDKernel, KernelCallerFunc, getSyclIntegrationHeader());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc, IsSIMDKernel,
                                     CallOperator);
@@ -5090,9 +5054,9 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
   SyclKernelArgsSizeChecker argsSizeChecker(SemaSYCLRef, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(
-      SemaSYCLRef, FD->getLocation(), FD->isInlined(), false /*IsSIMDKernel */,
-      true /*IsFreeFunction*/, FD, SemaSYCLRef.getSyclIntegrationHeader());
+  SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
+                                    FD->isInlined(), false /*IsSIMDKernel */,
+                                    FD, SemaSYCLRef.getSyclIntegrationHeader());
 
   FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
 
@@ -6257,17 +6221,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     ++FreeFunctionCount;
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
-    if (K.ParamTypes.size() > 0) {
-      for (const auto &P : K.ParamTypes) {
-        FwdDeclEmitter.Visit(P);
-      }
-    }
+    // Currently all parameters are scalars or pointers. When more
+    // complex types are supported, use the FwdDeclEmitter to generate forward
+    // type declarations.
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
-    FunctionDecl *FreeFunctionCDecl = createNewFunctionDecl(
-        S.getASTContext(), K.SyclKernel, K.SyclKernel->getLocation(),
-        K.SyclKernel->getIdentifier());
-    FwdDeclEmitter.EmitFunctionDecl(FreeFunctionCDecl);
+    O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "(";
+    bool FirstParam = true;
+    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        O << ", ";
+      Param->print(O, Policy);
+    }
+    O << ");\n";
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
     O << "  return (";
     O << S.getASTContext()
