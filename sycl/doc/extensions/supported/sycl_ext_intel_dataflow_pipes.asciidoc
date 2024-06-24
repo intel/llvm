@@ -659,7 +659,7 @@ Automated mechanisms are possible to provide uniquification across calls, and co
 
 The Intel FPGA experimental `pipe` class is implemented in `sycl/ext/intel/experimental/pipes.hpp` which is included in `sycl/ext/intel/fpga_extensions.hpp`.
 
-In the experimental API version, the device side read/write methods take in a property list as function argument, which can contain the latency control properties `latency_anchor_id` and/or `latency_constraint`.
+In the experimental API version, the device side read/write methods take in a properties object as function argument, which can contain the latency control properties `latency_anchor_id` and/or `latency_constraint`.
 
 * `sycl::ext::intel::experimental::latency_anchor_id<N>`, where `N` is an integer: An ID to associate with the current read/write function call, which can then be referenced by other `latency_constraint` properties elsewhere in the program to define relative latency constaints. ID must be unique within the application, and a diagnostic is required if that condition is not met.
 * `sycl::ext::intel::experimental::latency_constraint<A, B, C>`: A tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
