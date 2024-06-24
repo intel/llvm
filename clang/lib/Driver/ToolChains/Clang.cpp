@@ -5846,12 +5846,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       bool IsUsingOffloadNewDriver =
           Args.hasFlag(options::OPT_offload_new_driver,
                        options::OPT_no_offload_new_driver, false);
-      bool IsSYCLLTOSupported = JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                                Triple.isSPIROrSPIRV() &&
-                                IsUsingOffloadNewDriver;
-      if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-          !IsUsingOffloadNewDriver && !Triple.isAMDGPU() &&
-          !IsSYCLLTOSupported) {
+      Arg *SYCLSplitMode =
+          Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      bool IsDeviceCodeSplitDisabled =
+          SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
+      bool IsSYCLLTOSupported =
+          JA.isDeviceOffloading(Action::OFK_SYCL) && IsUsingOffloadNewDriver;
+      if ((IsDeviceOffloadAction &&
+           !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
+           !IsUsingOffloadNewDriver) ||
+          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)
@@ -5864,6 +5868,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                options::OPT_foffload_lto_EQ)
                    ->getAsString(Args)
             << "-fno-gpu-rdc";
+      } else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
+                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin) {
+        D.Diag(diag::err_drv_sycl_thinlto_split_off)
+            << SYCLSplitMode->getAsString(Args)
+            << Args.getLastArg(options::OPT_foffload_lto,
+                               options::OPT_foffload_lto_EQ)
+                   ->getAsString(Args);
       } else {
         assert(LTOMode == LTOK_Full || LTOMode == LTOK_Thin);
         CmdArgs.push_back(Args.MakeArgString(
