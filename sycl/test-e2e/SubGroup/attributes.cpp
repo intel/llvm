@@ -1,3 +1,7 @@
+// UNSUPPORTED: accelerator
+// TODO: FPGAs currently report supported subgroups as {4,8,16,32,64}, causing 
+// this test to fail
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
