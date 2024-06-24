@@ -35,7 +35,6 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: detail/type_traits.hpp
@@ -69,12 +68,14 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
+// CHECK-NEXT: ext/oneapi/experimental/architectures.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
+// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/vector_traits.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def

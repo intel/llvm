@@ -1,6 +1,4 @@
 // REQUIRES: gpu, level_zero
-// https://github.com/intel/llvm/issues/12798
-// UNSUPPORTED: windows
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" sycl-ls 2>&1 | FileCheck --check-prefixes=CHECK-PI %s
 // RUN: env SYCL_PREFER_UR=0 ONEAPI_DEVICE_SELECTOR="level_zero:*" sycl-ls 2>&1 | FileCheck --check-prefixes=CHECK-PI %s
 // RUN: env SYCL_PI_TRACE=-1 SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" sycl-ls 2>&1 | FileCheck --check-prefixes=CHECK-UR %s

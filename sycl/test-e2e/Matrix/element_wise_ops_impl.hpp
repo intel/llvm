@@ -132,6 +132,7 @@ int main() {
       // These combination are not currently supported for subgroup size = 32 in
       // IGC
       passed &= test<bfloat16, float, 16, 16, 16, 2, class pvc_bf16_16x16x16>();
+      passed &= test<bfloat16, float, 1, 64, 16, 2, class pvc_bf16_1x64x16>();
       passed &= test<bfloat16, float, 32, 64, 16, 2, class pvc_bf16_32x64x16>();
 #endif
       break;

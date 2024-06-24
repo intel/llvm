@@ -29,8 +29,8 @@ void check_copy_device_to_host(sycl::queue &Queue) {
   {
     sycl::range<2> acc_range(2, 2);
     sycl::id<2> acc_offset(offset, offset);
-    auto acc = simple_buffer.get_access<sycl::access::mode::read_write>(
-        acc_range, acc_offset);
+    sycl::host_accessor acc{simple_buffer, acc_range, acc_offset,
+                            sycl::read_write};
     for (int i = 0; i < 2; ++i) {
       for (int j = 0; j < 2; ++j)
         acc[i][j] += 2;
