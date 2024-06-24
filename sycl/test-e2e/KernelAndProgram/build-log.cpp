@@ -22,7 +22,7 @@ void test() {
   sycl::queue Queue;
 
   // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating "PI_ERROR_BUILD_PROGRAM_FAILURE".
+  // with a message indicating "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE".
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -43,7 +43,8 @@ void test() {
   } catch (const sycl::compile_program_error &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
-    assert(Msg.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos);
+    assert(Msg.find("UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE") !=
+           std::string::npos);
   } catch (...) {
     assert(false && "There must be sycl::compile_program_error");
   }

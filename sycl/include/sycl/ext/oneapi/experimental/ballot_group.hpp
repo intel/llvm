@@ -32,8 +32,8 @@ template <typename Group>
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        ballot_group<Group>>
-get_ballot_group(Group group, bool predicate);
+                        ballot_group<Group>> get_ballot_group(Group group,
+                                                              bool predicate);
 
 template <typename ParentGroup> class ballot_group {
 public:
@@ -48,7 +48,7 @@ public:
     return (Predicate) ? 1 : 0;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -57,7 +57,7 @@ public:
     return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -66,7 +66,7 @@ public:
     return 2;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -75,7 +75,7 @@ public:
     return Mask.count();
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -84,7 +84,7 @@ public:
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -93,7 +93,7 @@ public:
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -102,7 +102,7 @@ public:
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -111,7 +111,7 @@ public:
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -121,7 +121,7 @@ public:
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -164,7 +164,7 @@ get_ballot_group(Group group, bool predicate) {
 #else
   (void)predicate;
   throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 

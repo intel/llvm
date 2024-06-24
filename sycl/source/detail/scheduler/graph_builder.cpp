@@ -349,7 +349,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory",
+                        UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);
 
   std::set<Command *> Deps =
       findDepsForReq(Record, Req, Queue->getContextImplPtr());
@@ -381,7 +382,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   }
   if (!AllocaCmdSrc)
     throw runtime_error("Cannot find buffer allocation",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
@@ -500,7 +501,8 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
       SrcAllocaCmd->getQueue(), std::move(HostQueue));
 
   if (!MemCpyCmdUniquePtr)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory",
+                        UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);
 
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
@@ -877,7 +879,8 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
   if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory",
+                        UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
@@ -953,7 +956,8 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       std::move(CommandGroup), Queue, CommandBuffer, std::move(Dependencies));
 
   if (!NewCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory",
+                        UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);
 
   // Only device kernel command groups can participate in fusion. Otherwise,
   // command groups take the regular route. If they create any requirement or
@@ -1351,7 +1355,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   } catch (const std::bad_alloc &) {
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory",
+                        UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);
   }
 
   if (Dep.MDepRequirement) {

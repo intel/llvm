@@ -91,7 +91,7 @@ sort_over_group([[maybe_unused]] Group group, [[maybe_unused]] T value,
   return sorter(group, value);
 #else
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
@@ -122,7 +122,7 @@ joint_sort([[maybe_unused]] Group group, [[maybe_unused]] Iter first,
   sorter(group, first, last);
 #else
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
@@ -154,7 +154,7 @@ sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] KeyTy key,
   return sorter(g, key, value);
 #else
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }

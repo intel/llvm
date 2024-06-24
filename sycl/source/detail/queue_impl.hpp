@@ -159,12 +159,12 @@ public:
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
             "devices from the context are not supported on OpenCL yet).",
-            PI_ERROR_INVALID_DEVICE);
+            UR_RESULT_ERROR_INVALID_DEVICE);
       throw sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
           "since the device is neither a member of the context nor a "
           "descendant of its member.",
-          PI_ERROR_INVALID_DEVICE);
+          UR_RESULT_ERROR_INVALID_DEVICE);
     }
     if (!MHostQueue) {
       const QueueOrder QOrder =
@@ -227,11 +227,11 @@ private:
 
     MUrQueues.push_back(UrQueue);
 
-    ur_device_handle_t DeviceUr {};
+    ur_device_handle_t DeviceUr{};
     const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urQueueGetInfo,
-        MUrQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
+    Plugin->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_DEVICE,
+                 sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
       throw sycl::exception(
@@ -348,7 +348,7 @@ public:
     if (MHostQueue) {
       throw invalid_object_error(
           "This instance of queue doesn't support OpenCL interoperability",
-          PI_ERROR_INVALID_QUEUE);
+          UR_RESULT_ERROR_INVALID_QUEUE);
     }
     getPlugin()->call(urQueueRetain, MUrQueues[0]);
     ur_native_handle_t nativeHandle = nullptr;
@@ -496,8 +496,8 @@ public:
   /// \param PropList SYCL properties.
   /// \param Order specifies whether queue is in-order or out-of-order.
   /// \param Properties PI properties array created from SYCL properties.
-  static ur_queue_flags_t
-  createUrQueueFlags(const property_list &PropList, QueueOrder Order) {
+  static ur_queue_flags_t createUrQueueFlags(const property_list &PropList,
+                                             QueueOrder Order) {
     ur_queue_flags_t CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -572,20 +572,24 @@ public:
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
         */
-    ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+    ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                        nullptr, 0};
     Properties.flags = createUrQueueFlags(MPropList, Order);
-    ur_queue_index_properties_t IndexProperties = {UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES, nullptr, 0};
+    ur_queue_index_properties_t IndexProperties = {
+        UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES, nullptr, 0};
     if (has_property<ext::intel::property::queue::compute_index>()) {
-      IndexProperties.computeIndex = get_property<ext::intel::property::queue::compute_index>().get_index();
+      IndexProperties.computeIndex =
+          get_property<ext::intel::property::queue::compute_index>()
+              .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error =
-        Plugin->call_nocheck(urQueueCreate, Context, Device,
-                                                          &Properties, &Queue);
+    ur_result_t Error = Plugin->call_nocheck(urQueueCreate, Context, Device,
+                                             &Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // PI_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    // UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order
+    // queue.
     if (!MEmulateOOO && Error == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
       MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
@@ -995,4 +999,4 @@ protected:
 
 } // namespace detail
 } // namespace _V1
-} // namespace Ursycl
+} // namespace sycl

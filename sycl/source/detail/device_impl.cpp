@@ -101,7 +101,7 @@ cl_device_id device_impl::get() const {
   if (MIsHostDevice) {
     throw invalid_object_error(
         "This instance of device doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_DEVICE);
+        UR_RESULT_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urDeviceRetain, MUrDevice);
@@ -226,7 +226,7 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
     throw sycl::feature_not_supported(
         "Device does not support "
         "sycl::info::partition_property::partition_equally.",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -257,7 +257,7 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     throw sycl::feature_not_supported(
         "Device does not support "
         "sycl::info::partition_property::partition_by_counts.",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 
   std::vector<ur_device_partition_property_t> Props{};
@@ -305,13 +305,13 @@ std::vector<device> device_impl::create_sub_devices(
     throw sycl::feature_not_supported(
         "Device does not support "
         "sycl::info::partition_property::partition_by_affinity_domain.",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
   }
   if (!is_affinity_supported(AffinityDomain)) {
     throw sycl::feature_not_supported(
         "Device does not support " + affinityDomainToString(AffinityDomain) +
             ".",
-        PI_ERROR_INVALID_VALUE);
+        UR_RESULT_ERROR_INVALID_VALUE);
   }
 
   ur_device_partition_property_t Prop;
@@ -340,7 +340,7 @@ std::vector<device> device_impl::create_sub_devices() const {
     throw sycl::feature_not_supported(
         "Device does not support "
         "sycl::info::partition_property::ext_intel_partition_by_cslice.",
-        PI_ERROR_INVALID_OPERATION);
+        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 
   ur_device_partition_property_t Prop;

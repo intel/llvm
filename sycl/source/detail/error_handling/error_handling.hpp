@@ -20,7 +20,7 @@ namespace enqueue_kernel_launch {
 /// user-friendly exception describing the problem.
 ///
 /// This function is expected to be called only for non-success error codes,
-/// i.e. the first argument must not be equal to PI_SUCCESS.
+/// i.e. the first argument must not be equal to UR_RESULT_SUCCESS.
 ///
 /// This function actually never returns and always throws an exception with
 /// error description.

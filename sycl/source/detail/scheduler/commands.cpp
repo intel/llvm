@@ -321,7 +321,7 @@ class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
-  pi_result waitForEvents() const {
+  ur_result_t waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -346,11 +346,11 @@ class DispatchHostTask {
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
+        return (ur_result_t)E.get_cl_code();
       } catch (...) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
+        return UR_RESULT_ERROR_UNKNOWN;
       }
     }
 
@@ -360,7 +360,7 @@ class DispatchHostTask {
       Event->waitInternal();
     }
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
 public:
@@ -385,8 +385,8 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
+    ur_result_t WaitResult = waitForEvents();
+    if (WaitResult != UR_RESULT_SUCCESS) {
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));
@@ -889,7 +889,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
-    // PI_SUCCESS
+    // UR_RESULT_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get() &&
@@ -2344,7 +2344,7 @@ void SetArgBasedOnType(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "SYCL2020 specialization constants are not yet supported on host "
           "device " +
-              codeToString(PI_ERROR_INVALID_OPERATION));
+              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
     }
     assert(DeviceImageImpl != nullptr);
     ur_mem_handle_t SpecConstsBuffer =
@@ -2361,7 +2361,7 @@ void SetArgBasedOnType(
   case kernel_param_kind_t::kind_invalid:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Invalid kernel param kind " +
-                              codeToString(PI_ERROR_INVALID_VALUE));
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
     break;
   }
 }
@@ -2870,7 +2870,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
   default:
     throw runtime_error("CG type not implemented for command buffers.",
-                        PI_ERROR_INVALID_OPERATION);
+                        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 }
 
@@ -2899,7 +2899,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::UpdateHost: {
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Update host should be handled by the Scheduler. " +
-                              codeToString(PI_ERROR_INVALID_VALUE));
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -3099,7 +3099,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       default:
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                               "Unsupported arg type " +
-                                  codeToString(PI_ERROR_INVALID_VALUE));
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       }
     }
 
@@ -3130,7 +3130,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
             "Can't get memory object due to no allocation available " +
-                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
+                codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -3280,7 +3280,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::None:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "CG type not implemented. " +
-                              codeToString(PI_ERROR_INVALID_OPERATION));
+                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
   }
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }

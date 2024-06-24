@@ -63,10 +63,10 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
 
     std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << Score
               << ((Score < 0) ? " (REJECTED)" : "") << std::endl
-              << "SYCL_PI_TRACE[all]: "
-              << "  platform: " << PlatformName << std::endl
-              << "SYCL_PI_TRACE[all]: "
-              << "  device: " << DeviceName << std::endl;
+              << "SYCL_PI_TRACE[all]: " << "  platform: " << PlatformName
+              << std::endl
+              << "SYCL_PI_TRACE[all]: " << "  device: " << DeviceName
+              << std::endl;
   }
 }
 
@@ -128,7 +128,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     Message += Acc;
   }
   Message += Suffix;
-  throw sycl::runtime_error(Message, PI_ERROR_DEVICE_NOT_FOUND);
+  throw sycl::runtime_error(Message, UR_RESULT_ERROR_DEVICE_NOT_FOUND);
 }
 
 // select_device(selector)

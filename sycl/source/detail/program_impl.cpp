@@ -167,7 +167,7 @@ program_impl::program_impl(ContextImplPtr Context,
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
-        PI_ERROR_INVALID_PROGRAM);
+        UR_RESULT_ERROR_INVALID_PROGRAM);
   }
   size_t Size = 0;
   Plugin->call(urProgramGetBuildInfo, MProgram, Device,
@@ -306,7 +306,7 @@ kernel program_impl::get_kernel(std::string KernelName,
   if (is_host()) {
     if (IsCreatedFromSource)
       throw invalid_object_error("This instance of program is a host instance",
-                                 PI_ERROR_INVALID_PROGRAM);
+                                 UR_RESULT_ERROR_INVALID_PROGRAM);
 
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
@@ -428,14 +428,14 @@ program_impl::sort_devices_by_cl_device_id(std::vector<device> Devices) {
 void program_impl::throw_if_state_is(program_state State) const {
   if (MState == State) {
     throw invalid_object_error("Invalid program state",
-                               PI_ERROR_INVALID_PROGRAM);
+                               UR_RESULT_ERROR_INVALID_PROGRAM);
   }
 }
 
 void program_impl::throw_if_state_is_not(program_state State) const {
   if (MState != State) {
     throw invalid_object_error("Invalid program state",
-                               PI_ERROR_INVALID_PROGRAM);
+                               UR_RESULT_ERROR_INVALID_PROGRAM);
   }
 }
 

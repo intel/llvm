@@ -149,7 +149,7 @@ public:
 
   /// Checks return value from PI calls.
   ///
-  /// \throw Exception if pi_result is not a PI_SUCCESS.
+  /// \throw Exception if ur_result_t is not a UR_RESULT_SUCCESS.
   template <typename Exception = sycl::runtime_error>
   void checkUrResult(ur_result_t result) const {
     const char *message = nullptr;
@@ -171,7 +171,7 @@ public:
     __SYCL_CHECK_OCL_CODE_THROW(result, Exception, message);
   }
 
-  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
+  /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT__SUCCESS
   template <sycl::errc errc> void checkUrResult(ur_result_t result) const {
     if (result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
       int32_t error;

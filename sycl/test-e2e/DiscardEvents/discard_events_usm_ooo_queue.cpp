@@ -7,7 +7,7 @@
 // {{0|0000000000000000}} is required for various output on Linux and Windows.
 // NOTE: piextUSMEnqueuePrefetch and piextUSMEnqueueMemAdvise in the CUDA and
 //       HIP backends may return a warning result on Windows with error-code
-//       -996 (PI_ERROR_PLUGIN_SPECIFIC_ERROR) if USM managed memory is not
+//       66 (UR_RESULT_ERROR_ADAPTER_SPECIFIC) if USM managed memory is not
 //       supported or if unsupported advice flags are used for the latter API.
 //       Since it is a warning it is safe to ignore for this test.
 //

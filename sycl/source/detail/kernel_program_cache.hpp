@@ -286,8 +286,8 @@ public:
       } catch (const exception &Ex) {
         BuildResult->Error.Msg = Ex.what();
         BuildResult->Error.Code = Ex.get_cl_code();
-        if (BuildResult->Error.Code == PI_ERROR_OUT_OF_RESOURCES ||
-            BuildResult->Error.Code == PI_ERROR_OUT_OF_HOST_MEMORY) {
+        if (BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
           continue;

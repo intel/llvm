@@ -222,7 +222,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
     throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
   }
   return submitMemOpHelper(
       Self, DepEvents, [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
@@ -629,11 +629,11 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call(urQueueRetain, MUrQueues[0]);
   ur_native_handle_t Handle{};
-  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC, nullptr, nullptr};
+  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
+                                      nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
-  Plugin->call(urQueueGetNativeHandle, MUrQueues[0], 
-                                                     &UrNativeDesc, &Handle);
+  Plugin->call(urQueueGetNativeHandle, MUrQueues[0], &UrNativeDesc, &Handle);
   return Handle;
 }
 

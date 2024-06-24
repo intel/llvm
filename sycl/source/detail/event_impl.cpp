@@ -148,7 +148,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
-                              codeToString(PI_ERROR_INVALID_CONTEXT));
+                              codeToString(UR_RESULT_ERROR_INVALID_CONTEXT));
   }
 
   ur_context_handle_t TempContext;
@@ -158,7 +158,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
-                              codeToString(PI_ERROR_INVALID_CONTEXT));
+                              codeToString(UR_RESULT_ERROR_INVALID_CONTEXT));
   }
 }
 
@@ -349,7 +349,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 

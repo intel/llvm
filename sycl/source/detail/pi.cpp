@@ -142,56 +142,6 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
-                                        unsigned char *ArgsData,
-                                        pi_plugin Plugin) {
-  uint64_t CorrelationID = 0;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      (uint16_t)xpti::trace_point_type_t::function_with_args_begin;
-  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
-    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
-                                       &Plugin};
-    {
-      detail::tls_code_loc_t Tls;
-      auto CodeLoc = Tls.query();
-      xpti::payload_t PL = xpti::payload_t(
-          CodeLoc.functionName(), CodeLoc.fileName(), CodeLoc.lineNumber(),
-          CodeLoc.columnNumber(), nullptr);
-      uint64_t InstanceNumber{};
-      assert(GPIArgCallActiveEvent == nullptr);
-      GPIArgCallActiveEvent =
-          xptiMakeEvent("Plugin interface call", &PL, xpti::trace_graph_event,
-                        xpti_at::active, &InstanceNumber);
-    }
-
-    CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
-                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
-                          &Payload);
-  }
-#endif
-  return CorrelationID;
-}
-
-void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
-                                  const char *FuncName, unsigned char *ArgsData,
-                                  pi_result Result, pi_plugin Plugin) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      (uint16_t)xpti::trace_point_type_t::function_with_args_end;
-  if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
-    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
-                                       &Plugin};
-
-    xptiNotifySubscribers(PiDebugCallStreamID, NotificationTraceType,
-                          GPIArgCallEvent, GPIArgCallActiveEvent, CorrelationID,
-                          &Payload);
-    GPIArgCallActiveEvent = nullptr;
-  }
-#endif
-}
-
 void contextSetExtendedDeleter(const sycl::context &context,
                                ur_context_extended_deleter_t func,
                                void *user_data) {
@@ -332,32 +282,6 @@ void *loadPlugin(const std::string &PluginPath) {
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
 int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
-
-// Binds all the PI Interface APIs to Plugin Library Function Addresses.
-// TODO: Remove the 'OclPtr' extension to PI_API.
-// TODO: Change the functionality such that a single getOsLibraryFuncAddress
-// call is done to get all Interface API mapping. The plugin interface also
-// needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
-// Currently, we bind to a singe plugin.
-bool bindPlugin(void *Library,
-                const std::shared_ptr<pi_plugin> &PluginInformation) {
-
-  decltype(::piPluginInit) *PluginInitializeFunction =
-      (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
-                                                          "piPluginInit"));
-  if (PluginInitializeFunction == nullptr)
-    return false;
-
-  int Err = PluginInitializeFunction(PluginInformation.get());
-
-  // TODO: Compare Supported versions and check for backward compatibility.
-  // Make sure err is PI_SUCCESS.
-  assert((Err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
-  (void)Err;
-
-  // TODO: Return a more meaningful value/enum.
-  return true;
-}
 
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
@@ -504,7 +428,7 @@ template <backend BE> const PluginPtr &getPlugin() {
     }
 
   throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_ERROR_INVALID_OPERATION);
+                      UR_RESULT_ERROR_INVALID_OPERATION);
 }
 
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
@@ -665,7 +589,7 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 
+} // namespace pi
 } // namespace detail
 } // namespace _V1
-} // namespace sycl
 } // namespace sycl

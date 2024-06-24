@@ -109,7 +109,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_PLATFORM);
+          UR_RESULT_ERROR_INVALID_PLATFORM);
     }
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);

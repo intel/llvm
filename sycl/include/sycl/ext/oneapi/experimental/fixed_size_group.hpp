@@ -49,7 +49,7 @@ public:
     return __spirv_SubgroupLocalInvocationId() / PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -58,7 +58,7 @@ public:
     return __spirv_SubgroupLocalInvocationId() % PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -67,7 +67,7 @@ public:
     return __spirv_SubgroupSize() / PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -76,7 +76,7 @@ public:
     return PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -85,7 +85,7 @@ public:
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -94,7 +94,7 @@ public:
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -103,7 +103,7 @@ public:
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -112,7 +112,7 @@ public:
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -121,7 +121,7 @@ public:
     return get_local_linear_id() == 0;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -167,7 +167,7 @@ get_fixed_size_group(Group group) {
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 

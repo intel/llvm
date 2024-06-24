@@ -99,14 +99,6 @@ template <> inline void print<>(const pi_image_desc *desc) {
             << desc->image_type << std::endl;
 }
 
-template <> inline void print<>(pi_result val) {
-  std::cout << "pi_result : ";
-  if (val == PI_SUCCESS)
-    std::cout << "PI_SUCCESS" << std::endl;
-  else
-    std::cout << val << std::endl;
-}
-
 // cout does not resolve a nullptr.
 template <> inline void print<>(std::nullptr_t) {
   std::cout << "<nullptr>" << std::endl;

@@ -50,7 +50,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fabs(T x) {
 #else
   (void)x;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -61,7 +61,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmin(T x, T y) {
   (void)x;
   (void)y;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -72,7 +72,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmax(T x, T y) {
   (void)x;
   (void)y;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 template <typename T>
@@ -84,7 +84,7 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
   (void)y;
   (void)z;
   throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 

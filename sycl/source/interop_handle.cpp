@@ -30,7 +30,7 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   if (Iter == std::end(MMemObjs)) {
     throw invalid_object_error("Invalid memory object used inside interop",
-                               PI_ERROR_INVALID_MEM_OBJECT);
+                               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   }
 
   auto Plugin = MQueue->getPlugin();

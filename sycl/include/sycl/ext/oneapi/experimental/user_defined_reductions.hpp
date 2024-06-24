@@ -38,7 +38,7 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   std::ignore = num_elements;
   std::ignore = binary_op;
   throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 } // namespace detail
@@ -56,7 +56,7 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
       binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -75,7 +75,7 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 #else
   std::ignore = group_helper;
   throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -112,7 +112,7 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   std::ignore = last;
   std::ignore = binary_op;
   throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -132,7 +132,7 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
   std::ignore = group_helper;
   std::ignore = last;
   throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 #endif
 }
 } // namespace ext::oneapi::experimental

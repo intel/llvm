@@ -262,7 +262,7 @@ kernel_impl::get_info(const device &Device,
                       const sycl::range<3> &WGSize) const {
   if (is_host()) {
     throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_ERROR_INVALID_DEVICE);
+                        UR_RESULT_ERROR_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
