@@ -767,10 +767,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         if (LaunchInfo.LocalWorkSize.empty()) {
             LaunchInfo.LocalWorkSize.reserve(3);
-            // FIXME: This is W/A until urKernelSuggestGroupSize is added
-            LaunchInfo.LocalWorkSize[0] = 1;
-            LaunchInfo.LocalWorkSize[1] = 1;
-            LaunchInfo.LocalWorkSize[2] = 1;
+            context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+                Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+                LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
         }
 
         const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
