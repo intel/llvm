@@ -2288,7 +2288,10 @@ inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                        size_t ArgSize, const void *ArgValue) {
   std::ignore = ArgSize;
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
@@ -2552,7 +2555,10 @@ inline pi_result piProgramRelease(pi_program Program) {
 inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           size_t, const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
