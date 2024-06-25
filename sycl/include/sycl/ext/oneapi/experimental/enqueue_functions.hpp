@@ -255,8 +255,7 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
-                   KernelObj);
+  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
