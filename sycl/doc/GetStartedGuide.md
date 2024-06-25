@@ -439,17 +439,17 @@ run the following commands
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
-    tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
+    tar -zxvf oclcpuexp_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime (requires root access)
+2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
     # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so >
+    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
       /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
 
@@ -469,32 +469,32 @@ folder:
     ```bash
     # OpenCL FPGA emulation RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so.2
     ```
 
-5) Configure library paths (requires root access)
+5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 >
+    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >>
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+    sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
     ```
 
 **Windows (64-bit)**:

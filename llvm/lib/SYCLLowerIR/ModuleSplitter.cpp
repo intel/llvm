@@ -12,16 +12,20 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -155,7 +159,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M) {
+  DependencyGraph(const Module &M, bool SupportDynamicLinking) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -172,8 +176,13 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph
+    // We add every function into the graph except if
+    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
+
+      if (SupportDynamicLinking && canBeImportedFunction(F))
+        continue;
+
       // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
@@ -413,9 +422,10 @@ public:
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                 bool SupportDynamicLinking)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {}
+        CG(Input.getModule(), SupportDynamicLinking) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -733,6 +743,14 @@ void EntryPointGroup::rebuild(const Module &M) {
       Functions.insert(const_cast<Function *>(&F));
 }
 
+std::string ModuleDesc::makeSymbolTable() const {
+  std::string ST;
+  for (const Function *F : EntryPoints.Functions)
+    ST += (Twine(F->getName()) + "\n").str();
+
+  return ST;
+}
+
 namespace {
 // This is a helper class, which allows to group/categorize function based on
 // provided rules. It is intended to be used in device code split
@@ -979,7 +997,8 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints) {
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool SupportDynamicLinking) {
   FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
@@ -1052,7 +1071,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
+                                            SupportDynamicLinking);
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
@@ -1077,7 +1097,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // avoid undefined behavior at later stages. That is done at higher level,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints) {
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool SupportDynamicLinking) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1120,7 +1141,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule());
+  DependencyGraph CG(MD.getModule(), SupportDynamicLinking);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
@@ -1141,6 +1162,80 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   return Result;
+}
+
+static Error saveModuleIRInFile(Module &M, StringRef FilePath,
+                                bool OutputAssembly) {
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  if (OutputAssembly)
+    MPM.addPass(PrintModulePass(OS));
+  else
+    MPM.addPass(BitcodeWriterPass(OS));
+
+  MPM.run(M, MAM);
+  return Error::success();
+}
+
+static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                            bool OutputAssembly) {
+  SplitModule SM;
+  Prefix += OutputAssembly ? ".ll" : ".bc";
+  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
+  if (E)
+    return E;
+
+  SM.ModuleFilePath = Prefix;
+  SM.Symbols = MD.makeSymbolTable();
+  return SM;
+}
+
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  // FIXME: false arguments are temporary for now.
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
+                                        /*SupportDynamicLinking=*/false);
+  size_t ID = 0;
+  std::vector<SplitModule> OutputImages;
+  while (Splitter->hasMoreSplits()) {
+    ModuleDesc MD2 = Splitter->nextSplit();
+    MD2.fixupLinkageOfDirectInvokeSimdTargets();
+
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    auto SplittedImageOrErr =
+        saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
+    if (!SplittedImageOrErr)
+      return SplittedImageOrErr.takeError();
+
+    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    ++ID;
+  }
+
+  return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split
