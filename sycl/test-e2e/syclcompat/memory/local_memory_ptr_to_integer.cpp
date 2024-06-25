@@ -31,8 +31,8 @@ template <class T> void test(queue stream) {
           if constexpr (std::is_same_v<size_t, T>) {
             addr = syclcompat::experimental::cvta_generic_to_shared(
                 reinterpret_cast<char *>(data) + (id % 8) * 16);
-          } else {
-            addr = syclcompat::experimental::cvta_generic_to_shared(
+          } else { // T == uint32_t
+            addr = syclcompat::experimental::nvvm_get_smem_pointer(
                 reinterpret_cast<char *>(data) + (id % 8) * 16);
           }
 
