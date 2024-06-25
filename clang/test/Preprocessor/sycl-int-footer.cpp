@@ -29,7 +29,7 @@
 // CHECKFOOTER2-NEXT: # 1 "[[INTHEADER3:.+\.h]]" 1
 // CHECKFOOTER2-NEXT: # 1 "[[INTHEADER4:.+\.h]]" 1
 // CHECKFOOTER2: void foo3();
-// CHECKFOOTER2-NEXT: # 2 "[[INTHEADER3:.+\.h]]" 2
+// CHECKFOOTER2-NEXT: # 2 "[[INTHEADER3]]" 2
 // CHECKFOOTER2: int bar(int size);
 // CHECKFOOTER2: # 2 "[[INTHEADER2:.+\.h]]" 2
 // CHECKFOOTER2: void foo() {
