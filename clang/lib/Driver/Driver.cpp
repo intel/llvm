@@ -8220,10 +8220,8 @@ Action *Driver::ConstructPhaseAction(
         ExtractBCFiles->addExtractColumnTform(FileTableTformJobAction::COL_ZERO,
                                               false /*drop titles*/);
         return ExtractBCFiles;
-
-      } else {
-        return C.MakeAction<BackendJobAction>(Input, Output);
       }
+      return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
         ((TargetDeviceOffloadKind == Action::OFK_SYCL &&
