@@ -10407,14 +10407,34 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
 }
 
 // Utility function to gather all llvm-spirv options.
-static void getOtherSPIRVTransOpts(Compilation &C,
-                                   const llvm::opt::ArgList &TCArgs,
-                                   llvm::Triple Triple,
-                                   ArgStringList &TranslatorArgs) {
+// Not dependent on target triple.
+static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
+                                            const llvm::opt::ArgList &TCArgs,
+                                            ArgStringList &TranslatorArgs) {
+  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  bool CreatingSyclSPIRVFatObj =
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+          .equals_insensitive("spirv") &&
+      !C.getDriver().offloadDeviceOnly();
+  bool ShouldPreserveMetadataInFinalImage =
+      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+  bool ShouldPreserveMetadata =
+      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+  if (ShouldPreserveMetadata)
+    TranslatorArgs.push_back("--spirv-preserve-auxdata");
+}
+
+// Add any llvm-spirv option that relies on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+static void getTripleBasedSPIRVTransOpts(Compilation &C,
+                                         const llvm::opt::ArgList &TCArgs,
+                                         llvm::Triple Triple,
+                                         ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  TranslatorArgs.push_back("-spirv-max-version=1.4");
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   const bool IsWindowsMSVC =
       Triple.isWindowsMSVCEnvironment() ||
@@ -10434,17 +10454,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";
   TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
-  bool CreatingSyclSPIRVFatObj =
-      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
-      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-          .equals_insensitive("spirv") &&
-      !C.getDriver().offloadDeviceOnly();
-  bool ShouldPreserveMetadataInFinalImage =
-      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
-  bool ShouldPreserveMetadata =
-      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
-  if (ShouldPreserveMetadata)
-    TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
   // Disable all the extensions by default
   std::string ExtArg("-spirv-ext=-all");
@@ -10520,8 +10529,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
     llvm::Triple Triple = TC.getTriple();
-    getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
+    getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
@@ -11144,11 +11154,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         appendOption(OptString, A);
     }
     ArgStringList TranslatorArgs;
-    getOtherSPIRVTransOpts(C, Args, TargetTriple, TranslatorArgs);
+    getNonTripleBasedSPIRVTransOpts(C, Args, TranslatorArgs);
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
-
+    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
+      CmdArgs.push_back("-sycl-is-windows-msvc-env");
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and
     // -Xsycl-target-backend.
