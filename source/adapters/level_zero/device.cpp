@@ -247,6 +247,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     SupportedExtensions += ("ur_exp_command_buffer ");
     // Return supported for the UR multi-device compile experimental feature
     SupportedExtensions += ("ur_exp_multi_device_compile ");
+    SupportedExtensions += ("ur_exp_usm_p2p ");
 
     return ReturnValue(SupportedExtensions.c_str());
   }
