@@ -654,7 +654,7 @@ bool queue_impl::ext_oneapi_empty() const {
     // Otherwise, check if the last event is finished.
     // Note that we fall back to the backend query if the event was discarded,
     // which may happend despite the queue not being a discard event queue.
-    if (MDefaultGraphDeps.LastEventPtr->isDiscarded())
+    if (!MDefaultGraphDeps.LastEventPtr->isDiscarded())
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
