@@ -7,18 +7,18 @@
 //
 #pragma once
 
+#include "xpti/xpti_data_types.h"
+#include "xpti/xpti_trace_framework.h"
 #include <atomic>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
-
-#include "xpti/xpti_data_types.h"
-#include "xpti/xpti_trace_framework.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
@@ -498,8 +498,23 @@ inline xpti::uid128_t make_uid128(uint64_t FileID, uint64_t FuncID, int Line,
   xpti::uid128_t UID;
   UID.p1 = (FileID << 32) | FuncID;
   UID.p2 = ((uint64_t)Col << 32) | Line;
-  UID.instance = 1;
+  UID.instance = 0;
   return UID;
+}
+
+inline bool is_valid_uid(const xpti::uid128_t &UID) {
+  return (UID.p1 != 0 || UID.p2 != 0) && UID.instance > 0;
+}
+
+inline bool is_valid_payload(const xpti::payload_t *Payload) {
+  if (!Payload)
+    return false;
+  else
+    return (Payload->flags != 0) &&
+           ((Payload->flags &
+                 static_cast<uint64_t>(payload_flag_t::SourceFileAvailable) ||
+             (Payload->flags &
+              static_cast<uint64_t>(payload_flag_t::NameAvailable))));
 }
 
 namespace framework {
@@ -580,6 +595,237 @@ public:
 
 private:
   bool m_stashed;
+};
+
+/// @class uid_object_t
+/// @brief Represents an object with a unique identifier.
+///
+/// This class encapsulates a unique identifier (UID) and provides various
+/// constructors, assignment operators, comparison operators, and utility
+/// methods to work with the UID. The UID is represented by an `xpti::uid128_t`
+/// structure, which includes fields for different parts of the UID such as file
+/// ID, function ID, line number, and column number, along with an instance
+/// identifier.
+///
+/// The class offers functionality to:
+/// - Initialize a `uid_object_t` object with a specific UID or default values.
+/// - Copy and assign `uid_object_t` objects.
+/// - Compare `uid_object_t` objects based on their UIDs.
+/// - Check the validity of the UID.
+/// - Extract specific parts of the UID, such as file ID, function ID, line
+/// number, and column number.
+/// - Retrieve the complete UID or instance identifier.
+///
+/// @note The comparison operators (`==`, `!=`, `<`) consider different parts of
+/// the UID for comparison, but the instance identifier is not considered in
+/// equality or inequality comparisons.
+///
+class uid_object_t {
+public:
+  /// @brief Constructs a uid_object_t object with a given UID.
+  ///
+  /// This constructor initializes the object with an existing UID provided as a
+  /// parameter. It's useful when you have a UID ready and want to create a
+  /// uid_object_t object that represents this UID and utilize all the helper
+  /// features.
+  ///
+  /// @param UId A reference to an existing xpti::uid128_t object that will be
+  /// used to initialize this object.
+  ///
+  uid_object_t(xpti::uid128_t &UId) : MUId(UId) {}
+
+  /// @brief Default constructor that initializes a uid_object_t object with
+  /// default values.
+  ///
+  /// This constructor sets the internal UID (MUId) to a default state where all
+  /// parts of the UID (p1, p2, and instance) are set to 0. It's useful for
+  /// creating a uid_object_t object when no UID is available at the time of
+  /// creation, representing an uninitialized or null state. This null state UId
+  /// is always considered invalid.
+  ///
+  uid_object_t() {
+    MUId.p1 = 0;
+    MUId.p2 = 0;
+    MUId.instance = 0;
+  };
+
+  /// @brief Copy constructor for creating a uid_object_t object as a copy of
+  /// another.
+  ///
+  /// This constructor creates a new uid_object_t object as an exact copy of an
+  /// existing one. It copies the UID (MUId) from the provided object (Rhs) to
+  /// the new object. This is useful for duplicating uid_object_t objects,
+  /// ensuring the new object has the same UID as the one it's copied from.
+  ///
+  /// @param Rhs A reference to the uid_object_t object to be copied.
+  ///
+  uid_object_t(const uid_object_t &Rhs) { MUId = Rhs.MUId; }
+
+  /// @brief Assigns the value of one uid_object_t to another.
+  ///
+  /// This copy assignment operator allows for the assignment of one
+  /// uid_object_t object to another, making the left-hand side object a copy of
+  /// the right-hand side object. It achieves this by copying the UID (MUId)
+  /// from the right-hand side object (Rhs) to the left-hand side object. This
+  /// operator is essential for object management in C++, enabling the copying
+  /// of objects, either explicitly or when objects are passed by value or
+  /// returned from functions.
+  ///
+  /// @param Rhs A reference to the uid_object_t object to be copied. This is
+  /// the source object.
+  /// @return Returns a reference to the current object after copying, allowing
+  /// for chain assignments.
+  ///
+  uid_object_t &operator=(const uid_object_t &Rhs) {
+    MUId = Rhs.MUId;
+    return *this;
+  }
+
+  /// @brief Assigns a new UID to the uid_object_t object.
+  ///
+  /// This assignment operator allows for the direct assignment of a
+  /// `xpti::uid128_t` UID to a `uid_object_t` object. It replaces the current
+  /// UID
+  /// (`MUId`) of the `uid_object_t` object with the UID provided in `Rhs`. This
+  /// operation is useful when you need to update the UID of an existing
+  /// `uid_object_t` object without creating a new instance.
+  ///
+  /// @param Rhs A constant reference to a `xpti::uid128_t` object representing
+  /// the new UID to be assigned.
+  /// @return Returns a reference to the current `uid_object_t` object to allow
+  /// for chain assignments.
+  ///
+  uid_object_t &operator=(const xpti::uid128_t &Rhs) {
+    MUId = Rhs;
+    return *this;
+  }
+
+  /// @brief Overload of operator== to compare two xpti::uid128_t objects.
+  ///
+  /// This operator overload allows for the comparison of two xpti::uid128_t
+  /// objects. Two uid_t objects are considered equal if their p1 and p2 fields
+  /// are equal. The p1 field contains the combined file ID and function ID, and
+  /// the p2 field contains the combined line number and column number. The
+  /// instance field is not taken into account for equality.
+  ///
+  /// @param rhs The right-hand side xpti::uid128_t object in the comparison.
+  /// @return Returns true if the p1 and p2 fields of the two xpti::uid128_t
+  /// objects are equal, and false otherwise.
+  bool operator==(const uid_object_t &Rhs) const {
+    return (MUId.p1 == Rhs.MUId.p1 && MUId.p2 == Rhs.MUId.p2);
+  }
+
+  /// @brief Overload of operator!= to compare two xpti::uid128_t objects.
+  ///
+  /// This operator overload allows for the comparison of two xpti::uid128_t
+  /// objects. Two uid_t objects are considered not equal if their p1 and p2
+  /// fields are not equal. The instance field is not taken into account for
+  /// inequality.
+  ///
+  /// @param rhs The right-hand side xpti::uid128_t object in the comparison.
+  /// @return Returns true if any of the p1 and p2 fields of the two
+  /// xpti::uid128_t objects are not equal, and false if noth parts are equal.
+  bool operator!=(const uid_object_t &Rhs) const {
+    return (MUId.p1 != Rhs.MUId.p1 && MUId.p2 != Rhs.MUId.p2);
+  }
+  /// @brief Compares two `uid_t` objects.
+  ///
+  /// This operator overload allows for the comparison of two `uid_t` objects.
+  /// A `uid_t` object is considered less than another if its `p1` field is
+  /// less than the other's, or if their `p1` fields are equal and its `p2`
+  /// field is less than the other's.
+  ///
+  /// @param rhs The right-hand side `uid_t` object in the comparison.
+  /// @return Returns true if the left-hand side `uid_t` object is less than
+  /// the right-hand side one, and false otherwise.
+  bool operator<(const uid_object_t &Rhs) const {
+    if (MUId.p1 < Rhs.MUId.p1)
+      return true;
+    if (MUId.p1 == Rhs.MUId.p1 && MUId.p2 < Rhs.MUId.p2)
+      return true;
+    return false;
+  }
+
+  /// @brief Checks if the uid_t member variable is valid.
+  ///
+  /// This method checks if the uid_t object is valid by checking if any of the
+  /// hash parts (`p1`, `p2`) or the `instance` member is not zero. The
+  /// `instance` member is a unique identifier for the instance of the uid_t
+  /// object. If any of these members is not zero, it means that the uid_t
+  /// object is considered valid.
+  ///
+  /// @return Returns true if the uid_t object is valid (i.e., if any of the
+  /// hash parts and the `instance` member is not zero), and false otherwise.
+  ///
+  bool isValid() const {
+    return ((MUId.p1 != 0 || MUId.p2 != 0) && (MUId.instance != 0));
+  }
+
+  /// @brief Returns the file ID from the uid_t object.
+  ///
+  /// This method extracts the file ID from the first 64-bit field (p1) of the
+  /// uid_t object by shifting it 32 bits to the right.
+  ///
+  /// @return A 64-bit value that represents the file ID.
+  uint32_t fileId() const { return (uint32_t)(MUId.p1 >> 32); }
+  /// @brief Returns the function ID from the uid_t object.
+  ///
+  /// This method extracts the function ID from the first 64-bit field (p1) of
+  /// the uid_t object by applying a bitwise AND operation with a mask that has
+  /// the lower 32 bits set to 1.
+  ///
+  /// @return A 64-bit value that represents the function ID.
+  uint32_t functionId() const {
+    return (uint32_t)(MUId.p1 & 0x00000000ffffffff);
+  }
+  /// @brief Returns the line number from the uid_t object.
+  ///
+  /// This method extracts the line number from the second 64-bit field (p2) of
+  /// the uid_t object by applying a bitwise AND operation with a mask that has
+  /// the lower 32 bits set to 1.
+  ///
+  /// @return A 32-bit value that represents the line number.
+  uint32_t lineNo() { return (uint32_t)(MUId.p2 & 0x00000000ffffffff); }
+
+  /// @brief Returns the column number from the uid_t object.
+  ///
+  /// This method extracts the column number from the second 64-bit field (p2)
+  /// of the uid_t object by shifting it 32 bits to the right.
+  ///
+  /// @return A 32-bit value that represents the column number.
+  uint32_t columnNo() { return (uint32_t)(MUId.p2 >> 32); }
+
+  /// @brief Retrieves the unique identifier (UID) of the object.
+  ///
+  /// This method returns the complete UID of the object as an `xpti::uid128_t`
+  /// structure. The UID is a composite identifier that uniquely identifies the
+  /// object within the system. It may include various components such as a file
+  /// ID, function ID, line number, and column number, depending on how the UID
+  /// is structured in the `xpti::uid128_t` definition.
+  ///
+  /// @return The UID of the object as an `xpti::uid128_t` structure.
+  ///
+  xpti::uid128_t getUId() const { return MUId; }
+
+  /// @brief Retrieves the instance identifier of the object.
+  ///
+  /// This method returns the instance identifier part of the UID, which is a
+  /// unique number assigned to instances of objects. The instance identifier
+  /// can be used to distinguish between different instances of objects that
+  /// otherwise have the same UID components (file ID, function ID, line number,
+  /// and column number). This is particularly useful in scenarios where objects
+  /// are dynamically created and destroyed, and there's a need to track
+  /// specific instances of these objects. The instance of an xpti::uitd_t
+  /// structure is usually associated with a specific visit to a tracepoint with
+  /// a payload.
+  ///
+  /// @return The instance identifier as a `uint64_t`.
+  ///
+  uint64_t getInstanceId() const { return MUId.instance; }
+
+private:
+  /// The unique identifier (UID) maintained by the helper object class.
+  xpti::uid128_t MUId;
 };
 
 // --------------- Commented section of the code -------------
@@ -686,6 +932,7 @@ public:
         m_trace_event = xptiMakeEvent(
             m_default_name, const_cast<xpti::payload_t *>(m_payload),
             m_default_event_type, m_default_activity_type, &m_instID);
+      } else {
       }
     }
   }

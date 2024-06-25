@@ -362,6 +362,105 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object);
 /// @return The payload data structure pointer for the event.
 XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid);
 
+/// @brief Generates a unique 128-bit key (UID) from the given payload.
+///
+/// This function is responsible for creating a unique identifier (UID) based on
+/// the metadata contained within the provided payload. The payload typically
+/// includes essential information such as the source file name, function name,
+/// and line number, which are used to generate a unique 128-bit key. This UID
+/// can then be utilized to uniquely identify trace events or other entities
+/// within the tracing framework, facilitating efficient data management and
+/// retrieval.
+///
+/// @param payload A pointer to a `xpti::payload_t` structure that contains the
+/// metadata from which the UID is to be generated. The structure must be
+/// properly initialized with valid data for accurate UID generation.
+/// @param uid A pointer to a `xpti::uid128_t` structure where the generated UID
+/// will be stored. This UID represents the unique key generated from the
+/// payload.
+/// @return A `xpti::result_t` enumeration value indicating the success or
+/// failure of the UID generation process. Possible return values include
+/// `XPTI_RESULT_SUCCESS` if the UID was successfully generated, or an
+/// appropriate error code indicating the reason for failure.
+///
+XPTI_EXPORT_API xpti::result_t xptiMakeKeyFromPayload(xpti::payload_t *payload,
+                                                      xpti::uid128_t *uid);
+
+/// @brief Looks up the payload associated with a given 128-bit unique
+/// identifier (UID).
+///
+/// This function searches for and retrieves the payload information associated
+/// with a specific 128-bit UID. The payload contains metadata such as the
+/// source file name, function name, and line number from which the UID was
+/// generated. This function is typically used to retrieve contextual
+/// information for tracing or profiling purposes, allowing for a more detailed
+/// analysis of performance data.
+///
+/// @param uid A reference to the unique identifier (uid128_t) for which the
+///            payload is being requested. The UID is expected to have been
+///            previously generated and registered within the system.
+/// @return   A pointer to the `xpti::payload_t` structure containing the
+///           payload information. If the UID does not have an associated
+///           payload, a nullptr is returned.
+///
+XPTI_EXPORT_API const xpti::payload_t *xptiLookupPayload(xpti::uid128_t *uid);
+
+/// @brief Retrieves the trace event data associated with a given unique
+/// identifier (UID).
+///
+/// This function is designed to search for and return the trace event data
+/// corresponding to a specific UID. Trace event data includes information
+/// necessary for tracing and profiling, such as event names, types, and other
+/// metadata. This function is crucial for correlating trace events with their
+/// unique identifiers, enabling detailed analysis and debugging of performance
+/// issues.
+///
+/// @param uid A reference to the unique identifier (`uid128_t`) for which the
+///            trace event data is being requested. The UID should have been
+///            previously generated and associated with a specific trace event.
+/// @return    A pointer to the `xpti::trace_event_data_t` structure containing
+///            the trace event data. If the UID does not have an associated
+///            trace event, a nullptr is returned. This allows for easy checking
+///            of whether a given UID corresponds to a valid trace event.
+///
+XPTI_EXPORT_API const xpti::trace_event_data_t *
+xptiLookupEvent(xpti::uid128_t *uid);
+
+/// @brief Creates a trace event and associates it with the given payload.
+///
+/// This function is used to create a trace event in the system, which can then
+/// be used for performance analysis or debugging. Each event is associated with
+/// a payload that contains metadata such as the source file name, function
+/// name, and line number. The function also assigns an instance number to the
+/// event, which can be used to differentiate between multiple instances of the
+/// same event.
+///
+/// @param payload     A pointer to a `xpti::payload_t` structure that contains
+///                    the metadata for the event. The payload includes
+///                    information such as the source file, function name, and
+///                    line number.
+/// @param instance_no A pointer to a uint64_t variable where the instance
+///                    number of the event will be stored. This number is unique
+///                    for each event and can be used to identify specific
+///                    instances of the event.
+/// @param event       The type of the event, represented by a value from the
+///                    `xpti::trace_event_type_t` enumeration. The default value
+///                    is `xpti::trace_event_type_t::algorithm`, indicating that
+///                    the event is related to an algorithmic operation.
+/// @param activity    The activity type of the event, represented by a value
+///                    from the `xpti::trace_activity_type_t` enumeration. The
+///                    default value is `xpti::trace_activity_type_t::active`,
+///                    indicating that the event is currently active.
+///
+/// @return A pointer to the created `xpti::trace_event_data_t` structure, which
+/// contains information about the trace event. If the event cannot be created,
+/// a nullptr is returned.
+///
+XPTI_EXPORT_API xpti::trace_event_data_t *xptiCreateEvent(
+    xpti::payload_t *payload, uint64_t *instance_no,
+    uint16_t event = (uint16_t)xpti::trace_event_type_t::algorithm,
+    xpti::trace_activity_type_t activity = xpti::trace_activity_type_t::active);
+
 /// @brief Registers a callback for a trace point type
 /// @details Subscribers receive notifications to the trace point types they
 /// register a callback with. This function allows subscribers to register the
@@ -586,4 +685,12 @@ typedef void (*xpti_force_set_trace_enabled_t)(bool);
 typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
 typedef void (*xpti_enable_tracepoint_scope_notification_t)(bool);
 typedef bool (*xpti_check_tracepoint_scope_notification_t)();
+typedef xpti::result_t (*xpti_make_key_from_payload_t)(xpti::payload_t *,
+                                                       xpti::uid128_t *);
+typedef const xpti::payload_t *(*xpti_lookup_payload_t)(xpti::uid128_t *);
+typedef const xpti::trace_event_data_t *(*xpti_lookup_event_t)(
+    xpti::uid128_t *);
+typedef xpti::trace_event_data_t *(*xpti_create_event_t)(
+    xpti::payload_t *, uint64_t *, uint16_t eventType,
+    xpti::trace_activity_type_t);
 }

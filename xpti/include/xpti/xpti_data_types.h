@@ -64,6 +64,15 @@ struct universal_id_t {
   /// is const.
   ///
   uint64_t instance = 0;
+
+  /// @brief Unique 64-bit identifier thaht maps to the 128-bit key in p1,p2.
+  ///
+  /// This variable represents a 64-bit hash value used as a unique identifier
+  /// within the tracing framework. The hash is a 64-bit mapping of the 128-bit
+  /// represented by the attributes p1 and p2 and will be used by legacy API.
+  /// This field is optional and only populated when using legacy API.
+  ///
+  uid64_t uid64 = 0;
 };
 
 /// @typedef uid128_t
@@ -313,6 +322,7 @@ using safe_uint16_t = std::atomic<uint16_t>;
 using safe_int64_t = std::atomic<int64_t>;
 using safe_int32_t = std::atomic<int32_t>;
 using safe_int16_t = std::atomic<int16_t>;
+// We will always return the metadata as a std::unordered_map
 using metadata_t = std::unordered_map<string_id_t, object_id_t>;
 
 #define XPTI_EVENT(val) xpti::event_type_t(val)
@@ -457,7 +467,7 @@ struct payload_t {
     }
   }
 
-  int32_t name_sid() const { return (int32_t)(uid.p1 & 0x00000000ffffffff); }
+  int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }
   int32_t stacktrace_sid() const { return (int32_t)(uid.p2 >> 32); }
   int32_t source_file_sid() const { return (int32_t)(uid.p1 >> 32); }
 };

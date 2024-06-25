@@ -48,8 +48,13 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
   auto NewResult =
       xptiMakeEvent("foo", &p, 0, (xpti::trace_activity_type_t)1, &Instance);
   ASSERT_NE(NewResult, nullptr);
-  EXPECT_EQ(Result, NewResult);
-  EXPECT_EQ(Result->unique_id, NewResult->unique_id);
+  // Since we create a new trace event for each instance, the instance IDs will
+  // be different for each event
+  EXPECT_NE(Result, NewResult);
+  EXPECT_NE(Result->universal_id.instance, NewResult->universal_id.instance);
+  EXPECT_GT(NewResult->universal_id.instance, Result->universal_id.instance);
+  EXPECT_NE(Result->unique_id, NewResult->unique_id);
+  EXPECT_GT(NewResult->unique_id, Result->unique_id);
   EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);
   EXPECT_STREQ(Result->reserved.payload->name, "foo");
   EXPECT_STREQ(Result->reserved.payload->source_file, "foo.cpp");
@@ -84,6 +89,8 @@ TEST_F(xptiCorrectnessTest, xptiTracePointTest) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
 
   (void)xptiRegisterPayload(&p);
+  EXPECT_NE(p.internal, 0);
+  EXPECT_NE(p.flags, 0);
 
   uint64_t id = xpti::invalid_uid;
   nestedTest(&p, uids);

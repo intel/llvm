@@ -28,7 +28,7 @@ public:
   using st_forward_t = emhash8::HashMap<std::string, int32_t>;
   using st_reverse_t = emhash8::HashMap<int32_t, const char *>;
 
-  StringTable(int size = 4096) : MStringToID(size), MIDToString(size) {
+  StringTable(int size = 65536) : MStringToID(size), MIDToString(size) {
     MIds = 1;
 #ifdef XPTI_STATISTICS
     MInsertions = 0;

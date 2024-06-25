@@ -168,8 +168,8 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
+                                         Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
   if (Queue->is_host()) {
@@ -212,7 +212,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                  : GSYCLGraphEvent;
   } else
     WaitEvent = GSYCLGraphEvent;
-
+  std::cerr << "InstrumentationProlog: " << Name << "\n";
   // Record the current instance ID for use by Epilog
   IId = InstanceID++;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,

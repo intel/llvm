@@ -48,6 +48,10 @@ enum functions_t {
   XPTI_UNSTASH_TUPLE,
   XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
   XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_MAKE_KEY_FROM_PAYLOAD,
+  XPTI_LOOKUP_PAYLOAD,
+  XPTI_LOOKUP_EVENT,
+  XPTI_CREATE_EVENT,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -534,6 +538,11 @@ XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
   }
 }
 
+// New version of XPTI has these new APIs as XPTI is moving to 128-bit keys to
+// avoid hash collisions and improve performance. The older APIs -
+// xptiQueryPayloadByUID(), xptiFindEvent(), xptiMakeEvent(),
+// xptiRegisterPayload() will all be deprecated in the future.
+
 XPTI_EXPORT_API void xptiEnableTracepointScopeNotification(bool enable) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
@@ -553,4 +562,50 @@ XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
     }
   }
   return false;
+}
+
+XPTI_EXPORT_API xpti::result_t xptiMakeKeyFromPayload(xpti::payload_t *payload,
+                                                      xpti::uid128_t *uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_MAKE_KEY_FROM_PAYLOAD);
+    if (f) {
+      return (*(xpti_make_key_from_payload_t)f)(payload, uid);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API const xpti::payload_t *xptiLookupPayload(xpti::uid128_t *uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_PAYLOAD);
+    if (f) {
+      return (*(xpti_lookup_payload_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti::trace_event_data_t *
+xptiLookupEvent(xpti::uid128_t *uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_EVENT);
+    if (f) {
+      return (*(xpti_lookup_event_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API xpti::trace_event_data_t *
+xptiCreateEvent(xpti::payload_t *payload, uint64_t *instance,
+                uint16_t eventType, xpti::trace_activity_type_t activityType) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_CREATE_EVENT);
+    if (f) {
+      return (*(xpti_create_event_t)f)(payload, instance, eventType,
+                                       activityType);
+    }
+  }
+  return nullptr;
 }

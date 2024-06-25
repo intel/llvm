@@ -75,13 +75,24 @@ TEST_F(xptiApiTest, xptiRegisterPayloadGoodInput) {
   auto ID = xptiRegisterPayload(&p);
   EXPECT_NE(ID, xpti::invalid_uid);
   EXPECT_EQ(p.internal, ID);
-  EXPECT_EQ(p.uid.hash(), ID);
+  // EXPECT_EQ(p.uid.hash(), ID);
+
+  xpti::uid128_t ID128;
+  auto result = xptiMakeKeyFromPayload(&p, &ID128);
+  EXPECT_EQ(result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  xpti::framework::uid_object_t helper(ID128);
+  EXPECT_EQ(helper.fileId(), p.source_file_sid());
+  EXPECT_EQ(helper.functionId(), p.name_sid());
+  EXPECT_EQ(helper.lineNo(), p.line_no);
+  EXPECT_GT(ID128.instance, 1);
 }
 
 TEST_F(xptiApiTest, xptiRegisterPayloadBadInput) {
   xpti::payload_t p;
 
-  auto ID = xptiRegisterPayload(&p);
+  auto ID = xptiRegisterPayload(nullptr);
+  EXPECT_EQ(ID, xpti::invalid_uid);
+  ID = xptiRegisterPayload(&p);
   EXPECT_EQ(ID, xpti::invalid_uid);
 }
 
@@ -93,6 +104,103 @@ TEST_F(xptiApiTest, xptiGetUniqueId) {
     EXPECT_EQ(Loc, IDs.end());
     IDs.insert(ID);
   }
+}
+
+TEST_F(xptiApiTest, xptiMakeKeyFromPayloadGoodInput) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::uid128_t UID;
+
+  EXPECT_EQ(UID.p1, 0u);
+  EXPECT_EQ(UID.p2, 0u);
+  EXPECT_EQ(UID.instance, 0u);
+  EXPECT_EQ(UID.uid64, 0u);
+
+  auto result = xptiMakeKeyFromPayload(&p, &UID);
+  EXPECT_EQ(result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  xpti::framework::uid_object_t helper(UID);
+  EXPECT_EQ(helper.fileId(), p.source_file_sid());
+  EXPECT_EQ(helper.functionId(), p.name_sid());
+  EXPECT_EQ(helper.lineNo(), p.line_no);
+  EXPECT_EQ(helper.columnNo(), p.column_no);
+  EXPECT_EQ(helper.isValid(), true);
+  EXPECT_GE(UID.instance, 1);
+  EXPECT_EQ(UID.uid64, 0);
+
+  auto UID64 = xptiRegisterPayload(&p);
+  EXPECT_NE(UID64, xpti::invalid_uid);
+  auto pp = xptiQueryPayloadByUID(UID64);
+  EXPECT_EQ(pp->internal, UID64);
+  EXPECT_EQ(helper.fileId(), pp->source_file_sid());
+  EXPECT_EQ(helper.functionId(), pp->name_sid());
+  EXPECT_EQ(helper.lineNo(), pp->line_no);
+  EXPECT_EQ(helper.columnNo(), pp->column_no);
+}
+
+TEST_F(xptiApiTest, xptiMakeKeyFromPayloadBadInput) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull)),
+      badPayload;
+  xpti::uid128_t UID;
+
+  auto Result = xptiMakeKeyFromPayload(&p, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiMakeKeyFromPayload(nullptr, &UID);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiMakeKeyFromPayload(nullptr, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiMakeKeyFromPayload(&badPayload, &UID);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  // Currently not sure how to test for XPTI_RESULT_FAIL as it may never happen
+}
+
+TEST_F(xptiApiTest, xptiQueryLookupPayloadGoodInput) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::uid128_t UID;
+
+  EXPECT_EQ(UID.p1, 0u);
+  EXPECT_EQ(UID.p2, 0u);
+  EXPECT_EQ(UID.instance, 0u);
+  EXPECT_EQ(UID.uid64, 0u);
+
+  auto result = xptiMakeKeyFromPayload(&p, &UID);
+  EXPECT_EQ(result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  xpti::framework::uid_object_t helper(UID);
+  EXPECT_EQ(helper.fileId(), p.source_file_sid());
+  EXPECT_EQ(helper.functionId(), p.name_sid());
+  EXPECT_EQ(helper.lineNo(), p.line_no);
+  EXPECT_EQ(helper.columnNo(), p.column_no);
+  EXPECT_EQ(helper.isValid(), true);
+
+  auto Payload = xptiLookupPayload(&UID);
+  EXPECT_NE(Payload, nullptr);
+  EXPECT_EQ(Payload->internal, xpti::invalid_uid);
+  EXPECT_EQ(Payload->source_file_sid(), p.source_file_sid());
+  EXPECT_EQ(Payload->name_sid(), p.name_sid());
+  EXPECT_EQ(Payload->line_no, p.line_no);
+  EXPECT_EQ(Payload->column_no, p.column_no);
+
+  auto ID = xptiRegisterPayload(&p);
+  EXPECT_NE(ID, xpti::invalid_uid);
+  EXPECT_EQ(p.internal, ID);
+  // p.uid.hash() is legacy way of generating 64-bit hash values; current
+  // implementation is using 128-bit keys, so the uid.hash() is never used
+  // EXPECT_EQ(p.uid.hash(), ID);
+
+  auto pp = xptiQueryPayloadByUID(ID);
+  EXPECT_EQ(p.uid.p1, pp->uid.p1);
+  EXPECT_EQ(p.uid.p2, pp->uid.p2);
+  EXPECT_NE(Payload, pp);
+  // Also, with the current 128-bit version, we are not using the hash value,
+  // hence the payload->internal field will always be set to xpti::invalid_uid
+  // for lookup by UID
+  // EXPECT_EQ(p.internal, pp->internal);
+}
+
+TEST_F(xptiApiTest, xptiQueryLookupPayloadBadInput) {
+  xpti::uid128_t UID;
+
+  auto Payload = xptiLookupPayload(&UID);
+  EXPECT_EQ(Payload, nullptr);
 }
 
 TEST_F(xptiApiTest, xptiRegisterStreamBadInput) {
@@ -146,7 +254,9 @@ TEST_F(xptiApiTest, xptiMakeEventGoodInput) {
   Payload = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
   auto NewResult = xptiMakeEvent("foo", &Payload, 0,
                                  (xpti::trace_activity_type_t)1, &instance);
-  EXPECT_EQ(Result, NewResult);
+  // New implementation with 128-bit keys will return a new trace event for each
+  // instance
+  EXPECT_NE(Result, NewResult);
   EXPECT_EQ(instance, 2u);
 }
 
@@ -197,11 +307,17 @@ TEST_F(xptiApiTest, xptiQueryPayloadByUIDGoodInput) {
   auto ID = xptiRegisterPayload(&p);
   EXPECT_NE(ID, xpti::invalid_uid);
   EXPECT_EQ(p.internal, ID);
-  EXPECT_EQ(p.uid.hash(), ID);
+  // p.uid.hash() is legacy way of generating 64-bit hash values; current
+  // implementation is using 128-bit keys, so the uid.hash() is never used
+  // EXPECT_EQ(p.uid.hash(), ID);
 
   auto pp = xptiQueryPayloadByUID(ID);
-  EXPECT_EQ(p.internal, pp->internal);
-  EXPECT_EQ(p.uid.hash(), pp->uid.hash());
+  EXPECT_EQ(p.uid.p1, pp->uid.p1);
+  EXPECT_EQ(p.uid.p2, pp->uid.p2);
+  // Also, with the current 128-bit version, we are not using the hash value,
+  // hence the payload->internal field will always be set to xpti::invalid_uid
+  // for lookup by UID
+  // EXPECT_EQ(p.internal, pp->internal);
 }
 
 TEST_F(xptiApiTest, xptiTraceEnabled) {
