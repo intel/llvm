@@ -54,8 +54,12 @@ bool event_impl::is_host() {
 }
 
 event_impl::~event_impl() {
-  if (MEvent)
-    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+  try {
+    if (MEvent)
+      getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+  } catch (std::exception &e) {
+    assert(false && "exception in ~event_impl " && e.what());
+  }
 }
 
 void event_impl::waitInternal(bool *Success) {

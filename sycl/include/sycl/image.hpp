@@ -954,7 +954,12 @@ public:
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
   ~unsampled_image() {
-    common_base::unsampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::unsampledImageDestructorNotification(
+          (void *)this->impl.get());
+    } catch (std::exception &e) {
+      assert(false && "exception in ~unsampled_image " && e.what());
+    }
   }
 
   bool operator==(const unsampled_image &rhs) const {
@@ -1095,7 +1100,11 @@ public:
   sampled_image &operator=(sampled_image &&rhs) = default;
 
   ~sampled_image() {
-    common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    } catch (std::exception &e) {
+      assert(false && "exception in ~sampled_image " && e.what());
+    }
   }
 
   bool operator==(const sampled_image &rhs) const {

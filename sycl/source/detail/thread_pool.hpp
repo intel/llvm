@@ -74,7 +74,7 @@ public:
     start();
   }
 
-  ~ThreadPool() { finishAndWait(); }
+  ~ThreadPool() noexcept(false) { finishAndWait(); }
 
   void finishAndWait() {
     MStop.store(true);

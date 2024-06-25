@@ -472,7 +472,13 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() { buffer_plain::handleRelease(); }
+  ~buffer() {
+    try {
+      buffer_plain::handleRelease();
+    } catch (std::exception &e) {
+      assert(false && "exception in ~buffer " && e.what());
+    }
+  }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 

@@ -53,7 +53,7 @@ public:
     if (MModifyCounter)
       MCounter++;
   }
-  ~ObjectUsageCounter() {
+  ~ObjectUsageCounter() noexcept(false) {
     if (!MModifyCounter)
       return;
 
@@ -233,7 +233,7 @@ void GlobalHandler::releaseDefaultContexts() {
 }
 
 struct EarlyShutdownHandler {
-  ~EarlyShutdownHandler() {
+  ~EarlyShutdownHandler() noexcept(false) {
 #ifdef _WIN32
     // on Windows we keep to the existing shutdown procedure
     GlobalHandler::instance().releaseDefaultContexts();

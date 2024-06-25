@@ -320,9 +320,10 @@ public:
   }
 
   ~queue_impl() {
-    // The trace event created in the constructor should be active through the
-    // lifetime of the queue object as member variables when ABI breakage is
-    // allowed. This example shows MTraceEvent as a member variable.
+    try {
+      // The trace event created in the constructor should be active through the
+      // lifetime of the queue object as member variables when ABI breakage is
+      // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
@@ -339,6 +340,9 @@ public:
     if (!MHostQueue) {
       cleanup_fusion_cmd();
       getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
+    }
+    } catch (std::exception &e) {
+      assert(false && "exception in ~queue_impl " && e.what());
     }
   }
 

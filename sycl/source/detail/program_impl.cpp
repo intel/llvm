@@ -207,10 +207,14 @@ program_impl::program_impl(ContextImplPtr Context,
 }
 
 program_impl::~program_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host() && MProgram != nullptr) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    if (!is_host() && MProgram != nullptr) {
+      const PluginPtr &Plugin = getPlugin();
+      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+    }
+  } catch (std::exception &e) {
+    assert(false && "exception in ~program_impl " && e.what());
   }
 }
 

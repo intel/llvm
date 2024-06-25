@@ -339,9 +339,13 @@ class device_ext : public sycl::device {
 public:
   device_ext() : sycl::device(), _ctx(*this) {}
   ~device_ext() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    sycl::event::wait(_events);
-    _queues.clear();
+    try {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      sycl::event::wait(_events);
+      _queues.clear();
+    } catch (std::exception &e) {
+      assert(false && "exception in ~device_ext " && e.what());
+    }
   }
   device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
              bool in_order = true)

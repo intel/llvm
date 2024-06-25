@@ -31,9 +31,14 @@ struct OwnedPiEvent {
       MPlugin->call<PiApiKind::piEventRetain>(*MEvent);
   }
   ~OwnedPiEvent() {
-    // Release the event if the ownership was not transferred.
-    if (MEvent.has_value())
-      MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
+    try {
+      // Release the event if the ownership was not transferred.
+      if (MEvent.has_value())
+        MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
+
+    } catch (std::exception &e) {
+      assert(false && "exception in ~OwnedPiEvent " && e.what());
+    }
   }
 
   OwnedPiEvent(OwnedPiEvent &&Other)
