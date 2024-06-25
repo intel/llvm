@@ -101,13 +101,6 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     // forward to device-platform
     result = pfnAdapterRelease(hAdapter);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_adapter_factory.release(hAdapter);
-
     return result;
 }
 
@@ -636,13 +629,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     // forward to device-platform
     result = pfnRelease(hDevice);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_device_factory.release(hDevice);
-
     return result;
 }
 
@@ -919,13 +905,6 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
     // forward to device-platform
     result = pfnRelease(hContext);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_context_factory.release(hContext);
 
     return result;
 }
@@ -1231,13 +1210,6 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
 
     // forward to device-platform
     result = pfnRelease(hMem);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_mem_factory.release(hMem);
 
     return result;
 }
@@ -1596,13 +1568,6 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
 
     // forward to device-platform
     result = pfnRelease(hSampler);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_sampler_factory.release(hSampler);
 
     return result;
 }
@@ -2038,13 +2003,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     // forward to device-platform
     result = pfnPoolRelease(pPool);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_usm_pool_factory.release(pPool);
-
     return result;
 }
 
@@ -2435,13 +2393,6 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     // forward to device-platform
     result = pfnRelease(hPhysicalMem);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_physical_mem_factory.release(hPhysicalMem);
-
     return result;
 }
 
@@ -2685,13 +2636,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
 
     // forward to device-platform
     result = pfnRelease(hProgram);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_program_factory.release(hProgram);
 
     return result;
 }
@@ -3283,13 +3227,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     // forward to device-platform
     result = pfnRelease(hKernel);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_kernel_factory.release(hKernel);
-
     return result;
 }
 
@@ -3736,13 +3673,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     // forward to device-platform
     result = pfnRelease(hQueue);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_queue_factory.release(hQueue);
-
     return result;
 }
 
@@ -4049,13 +3979,6 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
 
     // forward to device-platform
     result = pfnRelease(hEvent);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_event_factory.release(hEvent);
 
     return result;
 }
@@ -5919,13 +5842,6 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     // forward to device-platform
     result = pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_image_factory.release(hImage);
-
     return result;
 }
 
@@ -5959,13 +5875,6 @@ urBindlessImagesSampledImageHandleDestroyExp(
 
     // forward to device-platform
     result = pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_image_factory.release(hImage);
 
     return result;
 }
@@ -6045,13 +5954,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 
     // forward to device-platform
     result = pfnImageFreeExp(hContext, hDevice, hImageMem);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_image_mem_factory.release(hImageMem);
 
     return result;
 }
@@ -6349,13 +6251,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     // forward to device-platform
     result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_image_mem_factory.release(hMem);
-
     return result;
 }
 
@@ -6490,13 +6385,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     // forward to device-platform
     result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_interop_mem_factory.release(hInteropMem);
-
     return result;
 }
 
@@ -6582,13 +6470,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     // forward to device-platform
     result =
         pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_interop_semaphore_factory.release(hInteropSemaphore);
 
     return result;
 }
@@ -6832,13 +6713,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
 
     // forward to device-platform
     result = pfnReleaseExp(hCommandBuffer);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_command_buffer_factory.release(hCommandBuffer);
 
     return result;
 }
@@ -7585,13 +7459,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 
     // forward to device-platform
     result = pfnReleaseCommandExp(hCommand);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // release loader handle
-    ur_exp_command_buffer_command_factory.release(hCommand);
 
     return result;
 }
