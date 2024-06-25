@@ -204,7 +204,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
            // image. Only add import property if this is not the image where the
            // function is defined.
           F.isDeclaration() && module_split::canBeImportedFunction(F)) {
-	
+
         // StripDeadPrototypes is called during module splitting
         // cleanup.  At this point all function decls should have uses.
         assert(!F.use_empty() && "Function F has no uses");
