@@ -16,3 +16,4 @@
 // CHECK_SUPPORTED-NEXT: llvm-foreach{{.*}} "--" {{.*}}clang{{.*}} "-fsycl-is-device"{{.*}} "-flto=thin" "-flto-unit"
 // CHECK_SUPPORTED-NEXT: file-table-tform{{.*}}
 // CHECK_SUPPORTED-NEXT: clang-offload-packager{{.*}} "-o" "{{.*}}" "--image=file=@{{.*}}"
+// CHECK_SUPPORTED: clang-linker-wrapper{{.*}} "-sycl-thin-lto"
