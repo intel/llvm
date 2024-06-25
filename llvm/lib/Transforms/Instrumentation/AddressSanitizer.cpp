@@ -830,7 +830,7 @@ struct AddressSanitizer {
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
   void instrumentSyclStaticLocalMemory(CallInst *CI);
-  void instrumentSyclDynamicLocalMemory(Function &F);
+  bool instrumentSyclDynamicLocalMemory(Function &F);
 
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
@@ -1624,7 +1624,7 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
 }
 
 // Instument dynamic local memory
-void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
+bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
 
   // Save "__asan_launch" into local memory "__AsanLaunchInfo"
@@ -1636,13 +1636,12 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
     Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
-    // Local address space
-    if (PtrTy && PtrTy->getPointerAddressSpace() == 3)
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
       LocalArgs.push_back(&Arg);
   }
 
   if (LocalArgs.empty())
-    return;
+    return false;
 
   AllocaInst *ArgsArray = IRB.CreateAlloca(
       IntptrTy, ConstantInt::get(Int32Ty, LocalArgs.size()), "local_args");
@@ -1654,6 +1653,7 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {IRB.CreatePointerCast(ArgsArray, IntptrTy),
                   ConstantInt::get(Int32Ty, LocalArgs.size())});
+  return true;
 }
 
 // Instrument memset/memmove/memcpy
@@ -3391,10 +3391,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   // can be passed to that intrinsic.
   markEscapedLocalAllocas(F);
 
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-    instrumentSyclDynamicLocalMemory(F);
-  }
-
   // We want to instrument every address only once per basic block (unless there
   // are calls between uses).
   SmallPtrSet<Value *, 16> TempsToInstrument;
@@ -3513,6 +3509,11 @@ bool AddressSanitizer::instrumentFunction(Function &F,
 
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
+
+  // We need to instrument dynamic local arguments after stack poisoner
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    FunctionModified |= instrumentSyclDynamicLocalMemory(F);
+  }
 
   LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "
                     << F << "\n");
