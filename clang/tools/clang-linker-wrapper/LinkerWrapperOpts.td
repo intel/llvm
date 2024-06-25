@@ -185,3 +185,6 @@ def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spe
   Flags<[WrapperOnlyOption, HelpHidden]>;
 def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
+
+def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
+Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
