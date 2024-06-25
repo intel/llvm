@@ -187,8 +187,8 @@ def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-defau
   Flags<[WrapperOnlyOption, HelpHidden]>;
 
 // Special options to pass backend options required for AOT compilation
-def gen_tool_arg_EQ :
-  Joined<["--", "-"], "gen-tool-arg=">,
+def gpu_tool_arg_EQ :
+  Joined<["--", "-"], "gpu-tool-arg=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
 def cpu_tool_arg_EQ :

@@ -742,36 +742,35 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-/// Run AOT compilation for Intel CPU
-static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputTable,
-                                                 const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
-  SmallVector<StringRef, 8> CmdArgs;
-  Table LiveSYCLTable;
-  Expected<std::string> OpenCLAOTPath =
-      findProgram("opencl-aot", {getMainExecutable("opencl-aot")});
-  if (!OpenCLAOTPath)
-    return OpenCLAOTPath.takeError();
-
-  if (Error Err = LiveSYCLTable.populateSYCLTable(InputTable))
-    return std::move(Err);
-  auto InputFiles = LiveSYCLTable.getListOfIRFiles();
-  // For dry runs, add a 'dummy' file to emit the command
-  if (DryRun)
-    InputFiles.push_back("dummy");
-
-  CmdArgs.push_back(*OpenCLAOTPath);
-  CmdArgs.push_back("--device=cpu");
+static void addBackendOptions(const ArgList &Args,
+                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
   StringRef OptC =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
   OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   StringRef OptL =
       Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
   OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptTool = Args.getLastArgValue(OPT_cpu_tool_arg_EQ);
+  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
+                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
   OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  return;
+}
 
+/// Run AOT compilation for Intel CPU
+static Error runAOTCompileIntelCPU(SmallVector<std::string, 16> InputFiles,
+                                   SmallVector<std::string, 16> OutputFiles,
+                                   const ArgList &Args) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
+  SmallVector<StringRef, 8> CmdArgs;
+  Expected<std::string> OpenCLAOTPath =
+      findProgram("opencl-aot", {getMainExecutable("opencl-aot")});
+  if (!OpenCLAOTPath)
+    return OpenCLAOTPath.takeError();
+
+  CmdArgs.push_back(*OpenCLAOTPath);
+  CmdArgs.push_back("--device=cpu");
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ true);
   for (unsigned I = 0; I < InputFiles.size(); ++I) {
     const auto &File = InputFiles[I];
     // Create a new file to write the translated file to.
@@ -786,35 +785,24 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputTable,
       return std::move(Err);
     // Pop back last three items
     CmdArgs.pop_back_n(3);
-    // Replace spv file in SYCL table with AOT output file (avoid for dry runs)
+    // Accumulate AOT output files (avoid for dry runs)
     if (!DryRun)
-      LiveSYCLTable.Entries[I].IRFile = *TempFileOrErr;
+      OutputFiles[I] = *TempFileOrErr;
   }
-  auto Output = LiveSYCLTable.writeSYCLTableToFile();
-  if (!Output)
-    return Output.takeError();
-  return *Output;
+  return Error::success();
 }
 
 /// Run AOT compilation for Intel GPU
-static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputTable,
-                                                 const ArgList &Args) {
+static Error runAOTCompileIntelGPU(SmallVector<std::string, 16> &InputFiles,
+                                   SmallVector<std::string, 16> &OutputFiles,
+                                   const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  assert(Triple.isSPIROrSPIRV() && "Unsupported target");
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
-  Table LiveSYCLTable;
   Expected<std::string> OclocPath =
       findProgram("ocloc", {getMainExecutable("ocloc")});
   if (!OclocPath)
     return OclocPath.takeError();
-
-  if (Error Err = LiveSYCLTable.populateSYCLTable(InputTable))
-    return std::move(Err);
-  auto InputFiles = LiveSYCLTable.getListOfIRFiles();
-  // For dry runs, add a 'dummy' file to emit the command
-  if (DryRun)
-    InputFiles.push_back("dummy");
 
   CmdArgs.push_back(*OclocPath);
   // The next line prevents ocloc from modifying the image name
@@ -824,15 +812,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputTable,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  StringRef OptC =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptL =
-      Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
-  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptTool = Args.getLastArgValue(OPT_gen_tool_arg_EQ);
-  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ false);
   for (unsigned I = 0; I < InputFiles.size(); ++I) {
     const auto &File = InputFiles[I];
     // Create a new file to write the translated file to.
@@ -848,25 +828,39 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputTable,
       return std::move(Err);
     // Pop back last four items
     CmdArgs.pop_back_n(4);
-    // Replace spv file in SYCL table with AOT output file (avoid for dry runs)
+    // Accumulate AOT output files (avoid for dry runs)
     if (!DryRun)
-      LiveSYCLTable.Entries[I].IRFile = *TempFileOrErr;
+      OutputFiles[I] = *TempFileOrErr;
   }
-  auto Output = LiveSYCLTable.writeSYCLTableToFile();
-  if (!Output)
-    return Output.takeError();
-  return *Output;
+  return Error::success();
 }
 
 /// Run AOT compilation
 static Expected<StringRef> runAOTCompile(StringRef InputTable,
                                          const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  Table LiveSYCLTable;
+  if (Error Err = LiveSYCLTable.populateSYCLTable(InputTable))
+    return std::move(Err);
+  auto InputFiles = LiveSYCLTable.getListOfIRFiles();
+  // For dry runs, add a 'dummy' file to emit the command
+  if (DryRun)
+    InputFiles.push_back("dummy");
   if (Triple.isSPIRAOT()) {
+    SmallVector<std::string, 16> OutputFiles(InputFiles.size());
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-      return runAOTCompileIntelGPU(InputTable, Args);
+      if (Error E = runAOTCompileIntelGPU(InputFiles, OutputFiles, Args))
+        return E;
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      return runAOTCompileIntelCPU(InputTable, Args);
+      if (Error E = runAOTCompileIntelCPU(InputFiles, OutputFiles, Args))
+        return E;
+    if (!DryRun)
+      for (int I = 0; I < OutputFiles.size(); ++I)
+        LiveSYCLTable.Entries[I].IRFile = OutputFiles[I];
+    auto Output = LiveSYCLTable.writeSYCLTableToFile();
+    if (!Output)
+      return Output.takeError();
+    return *Output;
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");

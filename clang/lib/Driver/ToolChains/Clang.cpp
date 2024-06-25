@@ -11066,8 +11066,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = I.second;
       // TODO: Third party AOT support needs to be added in new offloading
       // model.
-      if (TC->getTriple().isSPIROrSPIRV() && !TC->getTriple().isNVPTX() &&
-          !TC->getTriple().isAMDGCN()) {
+      if (TC->getTriple().isSPIROrSPIRV()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
@@ -11173,7 +11172,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           WrapperOption = "--sycl-backend-compile-options=";
         }
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gen-tool-arg=";
+          WrapperOption = "--gpu-tool-arg=";
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
           WrapperOption = "--cpu-tool-arg=";
       } else
