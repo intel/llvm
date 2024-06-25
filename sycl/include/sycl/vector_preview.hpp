@@ -598,7 +598,7 @@ private:
   // "The elements of an instance of the SYCL vec class template are stored
   // in memory sequentially and contiguously and are aligned to the size of
   // the element type in bytes multiplied by the number of elements."
-  static constexpr int alignment = std::min((size_t)64, sizeof(DataType));
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
   alignas(alignment) DataType m_Data;
 
   // friends
@@ -1363,7 +1363,11 @@ public:
   template <typename convertT, rounding_mode roundingMode>
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
-    vec_t Tmp = *this;
+    vec_t Tmp;
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    for (size_t I = 0; I < Idxs.size(); ++I) {
+      Tmp[I] = (*m_Vector)[Idxs[I]];
+    }
     return Tmp.template convert<convertT, roundingMode>();
   }
 
