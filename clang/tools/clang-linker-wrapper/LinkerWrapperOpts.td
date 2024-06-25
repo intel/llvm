@@ -207,4 +207,3 @@ def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-
 
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
-
