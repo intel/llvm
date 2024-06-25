@@ -15,6 +15,7 @@
 //===---------------------------------------------------------------------===//
 
 #include "clang/Basic/Version.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -968,8 +969,9 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMLinkPath);
   CmdArgs.push_back("-only-needed");
-  for (auto &File : InputFiles)
+  for (auto &File : InputFiles) {
     CmdArgs.push_back(File);
+  }
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
   CmdArgs.push_back("--suppress-warnings");
@@ -1021,8 +1023,35 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           << "Compatible SYCL device library binary not found\n";
   }
 
-  for (auto &File : ExtractedDeviceLibFiles)
+  // Native CPU needs libspirv as device library
+  if (auto* A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
+    SmallVector<std::string, 8> LibraryPaths;
+    for(const auto &Path : A->getValues()) {
+      SmallString<128> LPath(Path);
+      llvm::sys::path::append(LPath, Twine("clc"));
+      if (llvm::sys::fs::exists(LPath)) {
+        LibraryPaths.emplace_back(LPath);
+      }
+    }
+
+    for(auto& LPath : LibraryPaths) {
+      const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+      std::string LibSpirvTargetName =
+          (HostTriple.isOSWindows())
+              ? "remangled-l32-signed_char.libspirv-"
+              : "remangled-l64-signed_char.libspirv-";
+      LibSpirvTargetName.append(Triple.str() + ".bc");
+      SmallString<128> LibSpirvPath(LPath);
+      llvm::sys::path::append(LibSpirvPath, LibSpirvTargetName);
+      if (llvm::sys::fs::exists(LibSpirvPath))
+        ExtractedDeviceLibFiles.emplace_back(LibSpirvPath);
+    }
+  }
+  
+
+  for (auto &File : ExtractedDeviceLibFiles) {
     InputFilesVec.emplace_back(File);
+  }
   // second llvm-link step
   auto DeviceLinkedFile = sycl::linkDeviceLibFiles(InputFilesVec, Args);
   if (!DeviceLinkedFile)
@@ -1871,21 +1900,28 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       if (!SYCLOutputOrErr)
         return SYCLOutputOrErr.takeError();
 
+
+      // Generates the clang call that compiles the device module for Native 
+      // CPU. The output of the call is added to the linker inputs.
+      // TODO: ideally we would like to run this clang invocation over each of
+      // modules that result from device code splitting, is it possible to do
+      // so with the new offload approach?
+      const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      bool SYCLNativeCPU = (HostTriple == Triple);
+      if(SYCLNativeCPU) {
+        auto NCpuObj = generic::clang({*TmpOutputOrErr}, Args, true);
+        if (!NCpuObj)
+          return NCpuObj.takeError();
+        std::scoped_lock Guard(ImageMtx);
+        WrappedOutput.push_back(*NCpuObj);
+      }
       // SYCL offload kind images are all ready to be sent to host linker.
       // TODO: Currently, device code wrapping for SYCL offload happens in a
       // separate path inside 'linkDevice' call seen above.
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
       std::scoped_lock Guard(ImageMtx);
-      const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      bool SYCLNativeCPU = (HostTriple == Triple);
-      if(SYCLNativeCPU) {
-        auto NCpuObj = generic::clang(InputFiles, Args, true);
-        if (!NCpuObj)
-          return NCpuObj.takeError();
-        WrappedOutput.push_back(*NCpuObj);
-      }
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 
