@@ -9006,6 +9006,8 @@ def : Separate<["-"], "Xmicrosoft-windows-sdk-root">,
     Alias<_SLASH_winsdkdir>;
 def : Separate<["-"], "Xmicrosoft-windows-sdk-version">,
     Alias<_SLASH_winsdkversion>;
+def : Separate<["-"], "Xmicrosoft-windows-sys-root">,
+    Alias<_SLASH_winsysroot>;
 
 // Ignored:
 
