@@ -57,11 +57,13 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-fno-bundle-offload-arch"
     "-nocudalib"
     "--cuda-gpu-arch=sm_50")
+  list(APPEND devicelib_arch CUDA)
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
     list(APPEND compile_opts
       "-fno-sycl-libspirv"
       "-fno-bundle-offload-arch")
+    list(APPEND devicelib_arch AMD)
 endif()
 
     # Compile it to a high bc version. The arch info gets removed later.
@@ -167,13 +169,13 @@ function(link_bc)
   endif()
 
   add_custom_command(
-    #ToDo maybe add bc_bianry_dir to path
-    OUTPUT ${ARG_TARGET}.bc
+    #ToDo maybe add bc_binary_dir to path
+    OUTPUT ${bc_binary_dir}/${ARG_TARGET}.bc
     COMMAND ${llvm-link} -o ${bc_binary_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${bc_binary_dir}/${ARG_TARGET}.bc )
   set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${bc_binary_dir}/${ARG_TARGET}.bc)
 endfunction()
 
@@ -190,11 +192,11 @@ function(add_devicelib_bc bc_filename)
 
   if(${BC_CUDA})
     list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
-    set (bc_filename ${bc_filename}--cuda)
+    set (bc_filename ${bc_filename}--CUDA)
   elseif(${BC_AMD})
     list(APPEND compile_opts "-Xsycl-target-backend=amdgcn-amd-amdhsa"
       "--offload-arch=gfx940")
-    set (bc_filename ${bc_filename}--amd)
+    set (bc_filename ${bc_filename}--AMD)
   endif()
 
   set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
@@ -229,20 +231,10 @@ function(add_devicelib filename)
   add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_bc(${filename} dummy SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-    add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  endif()
-  if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-    add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  endif()
+  foreach(arch IN LISTS devicelib_arch)
+    add_devicelib_bc(${filename} ${arch} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  endforeach()
 endfunction()
-
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-endif()
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-endif()
 
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
 set(complex_obj_deps device_complex.h device.h sycl-compiler)
@@ -434,37 +426,33 @@ set(spv_suffix "spv")
 set(obj_suffix ${lib-suffix})
 set(new_offload_obj_suffix ${new-offload-lib-suffix})
 
-add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp32)
-add_lib_imf(fallback-imf-fp32-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE fp32)
-add_lib_imf(fallback-imf-fp32-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE fp64)
-add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
-add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE fp64)
-add_lib_imf(libsycl-fallback-imf-fp64 TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp64)
-add_lib_imf(fallback-imf-fp64-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE fp64)
-add_lib_imf(fallback-imf-fp64-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE fp64)
-add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${spv_binary_dir} FTYPE spv DTYPE bf16)
-add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
-add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${obj_binary_dir} FTYPE obj DTYPE bf16)
-add_lib_imf(libsycl-fallback-imf-bf16 TG DEVICE DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE bf16)
-add_lib_imf(fallback-imf-bf16-host TG HOST DIR ${obj_binary_dir} FTYPE obj DTYPE bf16)
-add_lib_imf(fallback-imf-bf16-host TG HOST DIR ${obj_binary_dir} FTYPE new_offload_obj DTYPE bf16)
+set(new_offload_obj_binary_dir ${obj_binary_dir})
 
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  add_lib_imf(libsycl-fallback-imf--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
-  add_lib_imf(libsycl-fallback-imf-fp64--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
-  add_lib_imf(libsycl-fallback-imf-bf16--cuda TG DEVICE CUDA DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
-endif()
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  add_lib_imf(libsycl-fallback-imf--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE fp32)
-  add_lib_imf(libsycl-fallback-imf-fp64--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE fp64)
-  add_lib_imf(libsycl-fallback-imf-bf16--amd TG DEVICE AMD DIR ${bc_binary_dir} FTYPE bc DTYPE bf16)
-endif()
+foreach(dtype IN ITEMS bf16 fp32 fp64)
+  foreach(ftype IN ITEMS spv bc obj new_offload_obj)
+    set(libsycl_name libsycl-fallback-imf)
+    if (NOT (dtype STREQUAL "fp32"))
+      set(libsycl_name libsycl-fallback-imf-${dtype})
+    endif()
+    add_lib_imf(${libsycl_name} TG DEVICE DIR ${${ftype}_binary_dir} FTYPE
+      ${ftype} DTYPE ${dtype})
+  endforeach()
+endforeach()
 
-# -----------------------------------------------------------------------------------------------------
+foreach(dtype IN ITEMS bf16 fp32 fp64)
+  foreach(ftype IN ITEMS obj new_offload_obj)
+    add_lib_imf(fallback-imf-${dtype}-host TG HOST DIR ${${ftype}_binary_dir}
+      FTYPE ${ftype} DTYPE ${dtype})
+  endforeach()
+endforeach()
+
+foreach(arch IN LISTS devicelib_arch)
+  foreach(dtype IN ITEMS bf16 fp32 fp64)
+  add_lib_imf(libsycl-fallback-imf-${dtype}--${arch} TG DEVICE ${arch} DIR
+    ${bc_binary_dir} FTYPE bc DTYPE ${dtype})
+  endforeach()
+endforeach()
+
 
 # Add opt target
 function(add_opt_tgt)
@@ -500,80 +488,35 @@ set(obj_suffix devicelib--${OPT_ARCH}.bc)
     add_dependencies(libsycldevice-bc device_lib_device_${OPT_ARCH})
 endfunction()
 
+foreach(arch IN LISTS devicelib_arch)
+  get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
+  link_bc(TARGET device_lib_device_${arch} INPUTS ${BC_DEVICE_LIBS_${arch}})
+  set( builtins_link_lib_${arch} $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE> )
+  set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
+  add_opt_tgt(ARCH ${arch})
+endforeach()
 
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-get_property(BC_DEVICE_LIBS_CUDA GLOBAL PROPERTY BC_DEVICE_LIBS_CUDA)
-link_bc(TARGET device_lib_device_cuda INPUTS ${BC_DEVICE_LIBS_CUDA})
-set( builtins_link_lib_cuda $<TARGET_PROPERTY:device_lib_device_cuda,TARGET_FILE> )
-set( builtins_opt_lib_tgt_cuda builtins_cuda.opt)
-add_opt_tgt(ARCH cuda)
-endif()
+set(obj_suffix ${lib_suffix})
+set(new_offload_obj_suffix ${new-offload-lib-suffix})
 
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-get_property(BC_DEVICE_LIBS_AMD GLOBAL PROPERTY BC_DEVICE_LIBS_AMD)
-link_bc(TARGET device_lib_device_amd INPUTS ${BC_DEVICE_LIBS_AMD})
-set( builtins_link_lib_amd $<TARGET_PROPERTY:device_lib_device_amd,TARGET_FILE> )
-set( builtins_opt_lib_tgt_amd builtins_amd.opt)
-add_opt_tgt(ARCH amd)
-endif()
+foreach(dtype IN ITEMS bf16 fp32 fp64)
+  foreach(ftype IN ITEMS obj new_offload_obj)
+    set(wrapper_name imf_wrapper.cpp)
+    if (NOT (dtype STREQUAL "fp32"))
+      set(wrapper_name imf_wrapper_${dtype}.cpp)
+    endif()
+    add_custom_command(OUTPUT ${obj_binary_dir}/imf-${dtype}-host.${${ftype}_suffix}
+                       COMMAND ${clang} ${${ftype}_HOST_COMPILE_OPTIONS}
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+                                 -o ${obj_binary_dir}/imf-${dtype}-host.${${ftype}_suffix}
+                        MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+                        DEPENDS ${imf_obj_deps}
+                        VERBATIM)
 
-# ----------------------------------------------------------------------------------------------
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
-                           -o ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver -foffload-lto=thin
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
-                           -o ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
-                           -o ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver -foffload-lto=thin
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
-                           -o ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-bf16-host.${lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
-                           -o ${obj_binary_dir}/imf-bf16-host.${lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_command(OUTPUT ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix}
-                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver -foffload-lto=thin
-                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
-                           -o ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix}
-                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
-                   DEPENDS ${imf_obj_deps}
-                   VERBATIM)
-
-add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${lib-suffix})
-add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
-add_custom_target(imf_bf16_host_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${lib-suffix})
-
-add_custom_target(imf_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix})
-add_custom_target(imf_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix})
-add_custom_target(imf_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix})
+    add_custom_target(imf_${dtype}_host_${ftype} DEPENDS
+      ${obj_binary_dir}/imf-${dtype}-host.${${ftype}_suffix})
+  endforeach()
+endforeach()
 
 add_custom_target(imf_host_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static})
 add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
@@ -605,43 +548,14 @@ add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static_new_offload}
                   VERBATIM)
 add_dependencies(libsycldevice-obj imf_host_obj)
 add_dependencies(libsycldevice-obj imf_host_new_offload_obj)
-install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
-              ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
-              ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
-        DESTINATION ${install_dest_spv}
-        COMPONENT libsycldevice)
 
-if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  install(FILES ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
-        DESTINATION ${install_dest_bc}
-        COMPONENT libsycldevice)
-endif()
-if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  install(FILES ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
-        DESTINATION ${install_dest_bc}
-        COMPONENT libsycldevice)
-endif()
+set(install_dest_obj ${install_dest_lib})
+set(install_dest_new_offload_obj ${install_dest_lib})
 
-install(FILES ${bc_binary_dir}/libsycl-fallback-imf.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
-        DESTINATION ${install_dest_bc}
-        COMPONENT libsycldevice)
-
-install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
-              ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
-              ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
-              ${obj_binary_dir}/${devicelib_host_static}
-        DESTINATION ${install_dest_lib}
-        COMPONENT libsycldevice)
-
-install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix}
-              ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix}
-              ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix}
-              ${obj_binary_dir}/${devicelib_host_static_new_offload}
-        DESTINATION ${install_dest_lib}
-        COMPONENT libsycldevice)
+foreach(ftype IN ITEMS spv bc obj new_offload_obj)
+  install(FILES ${${ftype}_binary_dir}/libsycl-fallback-imf.{${ftype}_suffix}
+                $${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}_suffix}
+                ${${ftype}_binary_dir}/libsycl-fallback-imf-bf16.${${ftype}_suffix}
+          DESTINATION ${install_dest_${ftype}}
+          COMPONENT libsycldevice)
+endforeach()
