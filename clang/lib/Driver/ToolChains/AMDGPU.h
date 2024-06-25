@@ -141,6 +141,9 @@ public:
                           const std::string &GPUArch,
                           const Action::OffloadKind DeviceOffloadingKind,
                           bool isOpenMP = false) const;
+  SanitizerMask getSupportedSanitizers() const override {
+    return SanitizerKind::Address;
+  }
 };
 
 } // end namespace toolchains
