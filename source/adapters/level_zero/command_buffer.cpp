@@ -620,9 +620,6 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 
   ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
   if (IsUpdatable) {
-    auto Platform = Context->getPlatform();
-    UR_ASSERT(Platform->ZeMutableCmdListExt.Supported,
-              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
     ZeMutableCommandListDesc.flags = 0;
     ZeCommandListDesc.pNext = &ZeMutableCommandListDesc;
   }
@@ -659,6 +656,11 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   bool EnableProfiling =
       CommandBufferDesc && CommandBufferDesc->enableProfiling;
   bool IsUpdatable = CommandBufferDesc && CommandBufferDesc->isUpdatable;
+
+  if (IsUpdatable) {
+    UR_ASSERT(Context->getPlatform()->ZeMutableCmdListExt.Supported,
+              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  }
 
   ur_event_handle_t SignalEvent;
   ur_event_handle_t WaitEvent;
