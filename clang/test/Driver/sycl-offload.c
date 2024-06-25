@@ -372,11 +372,11 @@
 /// Check -fsycl-link tool calls
 // RUN:   %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -o %t.out \
 // RUN:            -fsycl-targets=spir64_gen -fsycl-link \
-// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:            -fno-sycl-device-lib=all -fno-spirv %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-LIN %s
 // RUN:   %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl -o %t.out \
 // RUN:            -fsycl-targets=spir64_gen -fsycl-link \
-// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:            -fno-sycl-device-lib=all -fno-spirv %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-WIN %s
 // CHK-FSYCL-LINK-UB: clang-offload-bundler{{.*}} "-type=o" "-targets=host{{.*}},sycl-spir64_gen-unknown-unknown" "-input=[[INPUT:.+\.o]]" "-output={{.*}}" "-output=[[DEVICE_O:.+]]" "-unbundle"
 // CHK-FSYCL-LINK-UB: spirv-to-ir-wrapper{{.*}} "[[DEVICE_O]]" "-o" "[[DEVICE_BC:.+\.bc]]"
@@ -393,11 +393,11 @@
 /// Check -fsycl-link AOT unbundle
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu \
 // RUN:     -fsycl -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
-// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all -fno-spirv %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-UB %s
 // RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc \
 // RUN:     -fsycl -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
-// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:     -fsycl-targets=spir64_gen -fno-sycl-device-lib=all -fno-spirv %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-AOT-UB %s
 // CHK-LINK-AOT-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-AOT-UB: 1: clang-offload-unbundler, {0}, object

@@ -4121,6 +4121,9 @@ def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
   HelpText<"Option used in conjunction with -O0 to "
   "optimize SYCL framework utility functions and leave user's kernel code unoptimized. (experimental)">;
+def fno_spirv : Flag<["-"], "fno-spirv">, Visibility<[ClangOption, CLOption, DXCOption]>,
+  HelpText<"Disable inclusion of default spir64 target when performing SYCL "
+           "offloading.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option, FC1Option, FlangOption]>,
