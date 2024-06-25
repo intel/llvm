@@ -1218,7 +1218,8 @@ int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
   LLVMContext Context;
-  cl::HideUnrelatedOptions({&PostLinkCat, &module_split::getModuleSplitCategory()});
+  cl::HideUnrelatedOptions(
+      {&PostLinkCat, &module_split::getModuleSplitCategory()});
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"
