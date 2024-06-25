@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -154,7 +155,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M) {
+  DependencyGraph(const Module &M, bool SupportDynamicLinking) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -171,8 +172,13 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph
+    // We add every function into the graph except if
+    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
+
+      if (SupportDynamicLinking && canBeImportedFunction(F))
+        continue;
+
       // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
@@ -412,9 +418,10 @@ public:
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                 bool SupportDynamicLinking)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {}
+        CG(Input.getModule(), SupportDynamicLinking) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -990,7 +997,8 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints) {
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool SupportDynamicLinking) {
   FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
@@ -1063,7 +1071,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
+                                            SupportDynamicLinking);
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
@@ -1088,7 +1097,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // avoid undefined behavior at later stages. That is done at higher level,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints) {
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool SupportDynamicLinking) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1131,7 +1141,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule());
+  DependencyGraph CG(MD.getModule(), SupportDynamicLinking);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
@@ -1190,8 +1200,10 @@ Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
-  auto Splitter =
-      getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false);
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
+                                        /*SupportDynamicLinking=*/false);
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
@@ -1209,6 +1221,21 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   }
 
   return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split

@@ -1341,7 +1341,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   try {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
+        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
+        /* Args = */ {},
         detail::CG::StorageInitHelper(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
             /* SharedPtrStorage = */ {}, /* Requirements = */ {},

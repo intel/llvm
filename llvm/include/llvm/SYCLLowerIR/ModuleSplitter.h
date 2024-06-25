@@ -261,11 +261,13 @@ public:
 };
 
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints);
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool SupportDynamicLinking);
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints);
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool SupportDynamicLinking);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
@@ -301,6 +303,7 @@ Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 bool isESIMDFunction(const Function &F);
+bool canBeImportedFunction(const Function &F);
 
 } // namespace module_split
 
