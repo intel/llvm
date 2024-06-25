@@ -7,11 +7,12 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
 #include <sycl/properties/queue_properties.hpp>
 
 #include <random>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
