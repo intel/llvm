@@ -231,9 +231,7 @@ By calling `async` on a `task_sequence` object more than once, the user implies
 that those invocations of `f` can be run in parallel. The implementation is,
 however, not obligated to run the invocations in parallel except in so far as is
 necessary to meet the forward progress guarantees outlined in the section on
-Progress Guarantees. It is undefined behaviour to template a task sequence
-object on a function and rely on communication between different invocations,
-i.e. through the use of atomics in the function.
+Progress Guarantees.
 
 The `async` function call is non-blocking in that it may return before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
