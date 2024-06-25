@@ -61,11 +61,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
    * buffer.
    * @param[in] PreferCopyEngine If true, will try to choose a copy engine
    * command-list. Will choose a compute command-list otherwise.
-   * @param[out] ZeCommandList The chosen command list.
-   * @return UR_RESULT_SUCCESS or an error code on failure
+   * @return The chosen command list.
    */
-  ur_result_t chooseCommandList(bool PreferCopyEngine,
-                                ze_command_list_handle_t *ZeCommandList);
+  ze_command_list_handle_t chooseCommandList(bool PreferCopyEngine);
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
