@@ -488,7 +488,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
   uint64_t DeviceOffset{};
-  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr, (ZeImage, &DeviceOffset));
+  ze_image_handle_t ZeImageTranslated;
+  ZE2UR_CALL(zelLoaderTranslateHandle,
+             (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
+  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
+             (ZeImageTranslated, &DeviceOffset));
   *phImage = reinterpret_cast<ur_exp_image_handle_t>(DeviceOffset);
 
   return UR_RESULT_SUCCESS;
@@ -652,8 +656,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
 
   size_t Width = widthInBytes / elementSizeBytes;
   size_t RowPitch;
+  ze_device_handle_t ZeDeviceTranslated;
+  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
+                                        (void **)&ZeDeviceTranslated));
   ZE2UR_CALL(zeMemGetPitchFor2dImageFunctionPtr,
-             (hContext->ZeContext, hDevice->ZeDevice, Width, height,
+             (hContext->ZeContext, ZeDeviceTranslated, Width, height,
               elementSizeBytes, &RowPitch));
   *pResultPitch = RowPitch;
 
