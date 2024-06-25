@@ -36,16 +36,6 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((device_has<>)) void Func1() {}
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (device_has<aspect::fp16, aspect::atomic64>)) void Func2() {}
 
-int main() {
-  queue Q;
-  Q.single_task([]() {
-    Func0();
-    Func1();
-    Func2();
-  });
-  return 0;
-}
-
 // CHECK-IR-DAG: !{{[0-9]+}} = !{!"ext_oneapi_cuda_async_barrier", i32 [[ext_oneapi_cuda_async_barrier_ASPECT_MD:[0-9]+]]}
 // CHECK-IR-DAG: !{{[0-9]+}} = !{!"ext_oneapi_bfloat16_math_functions", i32 [[ext_oneapi_bfloat16_math_functions_ASPECT_MD:[0-9]+]]}
 // CHECK-IR-DAG: !{{[0-9]+}} = !{!"custom", i32 [[custom_ASPECT_MD:[0-9]+]]}

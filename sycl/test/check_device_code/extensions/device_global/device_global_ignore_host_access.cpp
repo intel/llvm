@@ -13,12 +13,9 @@ static device_global<int,
 static device_global<int, decltype(properties(host_access_read))>
     DeviceGlobalFullScoped;
 
-int main() {
-  sycl::queue Q;
-  Q.single_task([]() {
-    DeviceGlobalFullScoped = 42;
-    DeviceGlobalDeviceImageScoped = 42;
-  });
+SYCL_EXTERNAL void ignore_host_access() {
+  DeviceGlobalFullScoped = 42;
+  DeviceGlobalDeviceImageScoped = 42;
 }
 
 // CHECK-DAG: @_ZL29DeviceGlobalDeviceImageScoped = {{.*}} #[[DISAttrs:[0-9]+]]

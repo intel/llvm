@@ -239,6 +239,11 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
              "device code split"),
     cl::cat(PostLinkCat), cl::init(false)};
 
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
 cl::opt<bool> DeviceGlobals{
     "device-globals",
     cl::desc("Lower and generate information about device global variables"),
@@ -417,25 +422,6 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
   return OutFilename;
 }
 
-bool isImportedFunction(const Function &F) {
-  if (!F.isDeclaration() || F.isIntrinsic() ||
-      !llvm::sycl::utils::isSYCLExternalFunction(&F))
-    return false;
-
-  // StripDeadPrototypes is called during module splitting
-  // cleanup.  At this point all function decls should have uses.
-  assert(!F.use_empty() && "Function F has no uses");
-
-  bool ReturnValue = true;
-  if (char *NameStr = itaniumDemangle(F.getName())) {
-    StringRef DemangledName(NameStr);
-    if (DemangledName.starts_with("__"))
-      ReturnValue = false;
-    free(NameStr);
-  }
-  return ReturnValue;
-}
-
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff) {
@@ -508,9 +494,18 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set
     for (const auto &F : M) {
-      if (isImportedFunction(F))
+      if ( // A function that can be imported may still be defined in one split
+           // image. Only add import property if this is not the image where the
+           // function is defined.
+          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
+
+        // StripDeadPrototypes is called during module splitting
+        // cleanup.  At this point all function decls should have uses.
+        assert(!F.use_empty() && "Function F has no uses");
+
         PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
                     /*PropVal=*/true);
+      }
     }
   }
 
@@ -977,7 +972,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // when linked back because functions shared between graphs are cloned and
   // renamed.
   SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -1143,7 +1138,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
