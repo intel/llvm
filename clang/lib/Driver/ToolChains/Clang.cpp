@@ -11161,7 +11161,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
       CmdArgs.push_back("-sycl-is-windows-msvc-env");
-     
+
     bool IsUsingLTO = D.isUsingLTO(/*IsDeviceOffloadAction=*/true);
     auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
     if (IsUsingLTO && LTOMode == LTOK_Thin)
