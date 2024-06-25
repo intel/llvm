@@ -1022,6 +1022,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
 
   // Save pointer to the queue before deleting/resetting event.
   auto Queue = Legacy(Event->UrQueue);
+  auto URQueue = Event->UrQueue;
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
@@ -1053,8 +1054,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // created so that we can avoid ur_queue_handle_t is released before the
   // associated ur_event_handle_t is released. Here we have to decrement it so
   // ur_queue_handle_t can be released successfully.
-  if (Event->UrQueue) {
-    UR_CALL(urQueueReleaseInternal(Event->UrQueue));
+  if (URQueue) {
+    UR_CALL(urQueueReleaseInternal(URQueue));
   }
 
   return UR_RESULT_SUCCESS;
