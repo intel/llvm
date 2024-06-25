@@ -44,7 +44,9 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/PluginLoader.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -314,6 +316,23 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
   return FDOut;
 }
 
+std::string getMainExecutable(const char *Name) {
+  void *Ptr = (void *)(intptr_t)&getMainExecutable;
+  auto COWPath = sys::fs::getMainExecutable(Name, Ptr);
+  return sys::path::parent_path(COWPath).str();
+}
+
+Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
+  ErrorOr<std::string> Path = sys::findProgramByName(Name, Paths);
+  if (!Path)
+    Path = sys::findProgramByName(Name);
+  if (!Path)
+    return "";
+  // return createStringError(Path.getError(),
+  // "Unable to find '" + Name + "' in path");
+  return *Path;
+}
+
 // main - Entry point for the llc compiler.
 //
 int main(int argc, char **argv) {
@@ -410,6 +429,21 @@ int main(int argc, char **argv) {
 
   if (RemarksFile)
     RemarksFile->keep();
+  if (StringRef(OutputFilename).ends_with(".spv")) {
+    Expected<std::string> SPIRVValPath =
+        findProgram("spirv-val", {getMainExecutable("spirv-val")});
+    if (!SPIRVValPath || *SPIRVValPath == "") {
+      WithColor::warning(errs(), argv[0]) << "spirv-val not found.\n";
+      return 0;
+    }
+    SmallVector<StringRef, 8> CmdArgs;
+    CmdArgs.push_back(*SPIRVValPath);
+    CmdArgs.push_back(OutputFilename);
+    WithColor::warning(errs(), argv[0]) << "SPIR-V validation started.\n";
+    if (sys::ExecuteAndWait(*SPIRVValPath, CmdArgs))
+      WithColor::warning(errs(), argv[0]) << "SPIR-V validation failed.\n";
+    return 0;
+  }
   return 0;
 }
 

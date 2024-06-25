@@ -185,6 +185,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
+        "-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV",
     ]
 
     if libclc_enabled:
