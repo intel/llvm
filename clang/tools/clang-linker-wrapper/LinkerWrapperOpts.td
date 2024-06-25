@@ -170,6 +170,8 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+def sycl_is_windows_msvc_env : Flag<["--", "-"], "sycl-is-windows-msvc-env">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
 
 // Extra SYCL options to help generate sycl-post-link options that also depend
 // on the target triple.
