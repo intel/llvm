@@ -18,6 +18,8 @@
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+/// -DFOO1 and -DFOO2 are backend options parsed from device image.
+/// These options were specified when the input fat binary (test-sycl-aot-gen.o) was compiled.
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}ocloc{{.*}} -output_no_suffix -spirv_input -device pvc -device_options pvc -ze-intel-enable-auto-large-GRF-mode -DFOO1 -DFOO2 -output {{.*}} -file {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llc.exe" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
@@ -30,6 +32,8 @@
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+/// -DFOO1 and -DFOO2 are backend options parsed from device image.
+/// These options were specified when the input fat binary (test-sycl-aot-cpu.o) was compiled.
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}opencl-aot.exe"{{.*}} --device=cpu -DFOO1 -DFOO2 -o {{.*}}
 // CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llc.exe" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
