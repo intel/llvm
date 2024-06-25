@@ -10417,12 +10417,15 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
 }
 
 // Utility function to gather all options for LLVM to SPIR-V translation using
-// SPIR-V backend.
+// the SPIR-V backend. This set of options is expected to get updated as we add
+// more features/extensions to the SPIR-V backend.
 static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                                 ArgStringList &TranslatorArgs) {
   TranslatorArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
   TranslatorArgs.push_back(
       TCArgs.MakeArgString("-mtriple=spirv64-unknown-unknown"));
+  // TODO: Optimization level is currently forced to -O0 due to some testing
+  // issues. Update optimization level after testing issues are resolved.
   TranslatorArgs.push_back(TCArgs.MakeArgString("-O0"));
   TranslatorArgs.push_back(
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
@@ -10430,7 +10433,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
       TCArgs.MakeArgString("--translator-compatibility-mode"));
 
   // Disable all the extensions by default
-  std::string ExtArg("-spirv-ext=");
+  std::string ExtArg("--spirv-ext=");
   std::string DefaultExtArg =
       "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"

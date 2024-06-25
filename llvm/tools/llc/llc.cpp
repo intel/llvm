@@ -328,8 +328,6 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
     Path = sys::findProgramByName(Name);
   if (!Path)
     return "";
-  // return createStringError(Path.getError(),
-  // "Unable to find '" + Name + "' in path");
   return *Path;
 }
 
@@ -430,6 +428,12 @@ int main(int argc, char **argv) {
   if (RemarksFile)
     RemarksFile->keep();
   if (StringRef(OutputFilename).ends_with(".spv")) {
+    // An external tool (spirv-val) is used to validate the generated SPIR-V
+    // code. Github page: https://github.com/KhronosGroup/SPIRV-Tools
+    // Currently, this tool exists out-of-tree and it is the user's
+    // responsibility to make it available during the compilation process.
+    // TODO: Replace the tool invocation with an API library call when the tool
+    // is made available in-tree.
     Expected<std::string> SPIRVValPath =
         findProgram("spirv-val", {getMainExecutable("spirv-val")});
     if (!SPIRVValPath || *SPIRVValPath == "") {

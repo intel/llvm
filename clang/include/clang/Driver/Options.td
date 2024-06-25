@@ -4052,9 +4052,9 @@ def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable check for libspirv">;
 def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
-  Visibility<[ClangOption, CLOption]>, HelpText<"Use SPIR-V backend for SPIR-V code generation. "
+  Visibility<[ClangOption, CLOption]>, HelpText<"Use the SPIR-V backend for SPIR-V code generation. "
   "Has effect only for SPIR-based targets. It is off by default and "
-  "SPIR-V LLVM Translator is used for SPIR-V code generation. (experimental)">;
+  "the SPIR-V LLVM Translator is used for SPIR-V code generation. (experimental)">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
   Flags<[NoArgumentUnused]>, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Specify C++ compiler binary to perform host "
