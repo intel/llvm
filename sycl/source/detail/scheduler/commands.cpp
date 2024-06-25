@@ -79,7 +79,10 @@ static size_t deviceToID(const device &Device) {
   return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 
-static std::string deviceToString(device Device) {
+static std::string queueDeviceToString(const QueueImplPtr &Queue) {
+  if (!Queue)
+    return "host";
+  auto Device = Queue->get_device();
   if (Device.is_cpu())
     return "CPU";
   else if (Device.is_gpu())
@@ -91,15 +94,19 @@ static std::string deviceToString(device Device) {
 }
 
 static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
-  xpti::addMetadata(TraceEvent, "sycl_device",
-                    Queue ? deviceToID(Queue->get_device()) : 0);
-  xpti::addMetadata(TraceEvent, "sycl_device_type",
-                    Queue ? deviceToString(Queue->get_device()) : "host");
+  xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue));
   if (Queue)
+  {
+    xpti::addMetadata(TraceEvent, "sycl_device", deviceToID(Queue->get_device()));
     xpti::addMetadata(TraceEvent, "sycl_device_name",
                       getSyclObjImpl(Queue->get_device())->getDeviceName());
+  }
 }
 
+static unsigned long long getQueueID(const QueueImplPtr& Queue)
+{
+  return Queue ? Queue->getQueueID() : 0;
+}
 #endif
 
 static ContextImplPtr getContext(const QueueImplPtr &Queue) {
@@ -1009,8 +1016,7 @@ void AllocaCommandBase::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
   }
 #endif
 }
@@ -1081,8 +1087,7 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "ALLOCA ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "ALLOCA ON " << queueDeviceToString(MQueue) << "\\n";
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
@@ -1130,8 +1135,7 @@ void AllocaSubBufCommand::emitInstrumentationData() {
                       this->MRequirement.MAccessRange[0]);
     xpti::addMetadata(TE, "access_range_end",
                       this->MRequirement.MAccessRange[1]);
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1168,8 +1172,7 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "ALLOCA SUB BUF ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "ALLOCA SUB BUF ON " << queueDeviceToString(MQueue)<< "\\n";
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
   Stream << " Offset : " << this->MRequirement.MOffsetInBytes << "\\n";
   Stream << " Access range : " << this->MRequirement.MAccessRange[0] << "\\n";
@@ -1207,8 +1210,7 @@ void ReleaseCommand::emitInstrumentationData() {
                       commandToName(MAllocaCmd->getType()));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1282,8 +1284,7 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FF827A\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "RELEASE ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "RELEASE ON " << queueDeviceToString(MQueue) << "\\n";
   Stream << " Alloca : " << MAllocaCmd << "\\n";
   Stream << " MemObj : " << MAllocaCmd->getSYCLMemObj() << "\\n";
   Stream << "\"];" << std::endl;
@@ -1327,8 +1328,7 @@ void MapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1353,8 +1353,7 @@ void MapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#77AFFF\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "MAP ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "MAP ON " << queueDeviceToString(MQueue) : "host") << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1389,8 +1388,7 @@ void UnMapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1435,8 +1433,7 @@ void UnMapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#EBC40F\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "UNMAP ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "UNMAP ON " << queueDeviceToString(MQueue) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1488,8 +1485,7 @@ void MemCpyCommand::emitInstrumentationData() {
                       MQueue ? deviceToID(MQueue->get_device()) : 0);
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1546,8 +1542,7 @@ void MemCpyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#C7EB15\" label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "MEMCPY ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "MEMCPY ON " << queueDeviceToString(MQueue) << "\\n";
   Stream << "From: " << MSrcAllocaCmd << " is host: " << !MSrcQueue << "\\n";
   Stream << "To: " << MDstAllocaCmd << " is host: " << !MQueue << "\\n";
 
@@ -1603,8 +1598,7 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "UPDATE REQ ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "UPDATE REQ ON " << queueDeviceToString(MQueue) << "\\n";
   bool IsReqOnBuffer =
       MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer;
   Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
@@ -1661,8 +1655,7 @@ void MemCpyCommandHost::emitInstrumentationData() {
                       MQueue ? deviceToID(MQueue->get_device()) : 0);
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1750,8 +1743,7 @@ void EmptyCommand::emitInstrumentationData() {
                       reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -1780,8 +1772,7 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "MEMCPY HOST ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "MEMCPY HOST ON " << queueDeviceToString(MQueue) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1819,8 +1810,7 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
                       reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     makeTraceEventEpilog();
   }
 #endif
@@ -2087,9 +2077,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 Queue ? Queue->getQueueID() : 0);
-
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
                                           KernelBundleImplPtr, SyclKernelName,
                                           SyclKernel, Queue, CGArgs);
@@ -2133,8 +2121,7 @@ void ExecCGCommand::emitInstrumentationData() {
                                 CmdTraceEvent);
 
   if (CmdTraceEvent) {
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CG::Kernel) {
       auto KernelCG =
@@ -2157,8 +2144,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EXEC CG ON "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n";
+  Stream << "EXEC CG ON " << queueDeviceToString(MQueue) << "\\n";
 
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
@@ -3353,8 +3339,7 @@ void KernelFusionCommand::emitInstrumentationData() {
   if (MFirstInstance) {
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 MQueue ? MQueue->getQueueID() : 0);
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
     xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent,
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,
@@ -3368,8 +3353,7 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "KERNEL FUSION on "
-         << (MQueue ? deviceToString(MQueue->get_device()) : "host") << "\\n"
+  Stream << "KERNEL FUSION on " << queueDeviceToString(MQueue) << "\\n"
          << "FUSION LIST: {";
   bool Initial = true;
   for (auto *Cmd : MFusionList) {

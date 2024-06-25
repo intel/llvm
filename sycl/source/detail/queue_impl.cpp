@@ -655,7 +655,7 @@ bool queue_impl::ext_oneapi_empty() const {
                info::event_command_status::complete;
   }
 
-  // Check the status of the backend queue if this is not a host queue.
+  // Check the status of the backend queue.
   pi_bool IsReady = false;
   getPlugin()->call<PiApiKind::piQueueGetInfo>(
       MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,

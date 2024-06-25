@@ -96,7 +96,7 @@ queue::ext_oneapi_get_graph() const {
 }
 
 bool queue::is_host() const {
-  assert(true && "queue::is_host should not be called in implementation.");
+  assert(false && "queue::is_host should not be called in implementation.");
   return false;
 }
 

@@ -41,7 +41,7 @@ bool platform::has_extension(const std::string &ExtensionName) const {
 }
 
 bool platform::is_host() const {
-  assert(true && "platform::is_host should not be called in implementation.");
+  assert(false && "platform::is_host should not be called in implementation.");
   return false;
 }
 

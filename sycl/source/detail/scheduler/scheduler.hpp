@@ -213,16 +213,16 @@ struct MemObjRecord {
   // Contains latest write commands working with memory object.
   LeavesCollection MWriteLeaves;
 
-  // The flag indicates that the content of the memory object was/will be
-  // modified. Used while deciding if copy back needed.
-  bool MMemModified = false;
-
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
-  // The mode this object can be accessed with from the host (host_accessor).
+  // The mode this object can be accessed from the host (host_accessor).
   // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
+
+  // The flag indicates that the content of the memory object was/will be
+  // modified. Used while deciding if copy back needed.
+  bool MMemModified = false;
 };
 
 /// DPC++ graph scheduler class.

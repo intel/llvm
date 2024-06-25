@@ -38,7 +38,7 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
 bool event::is_host() const {
-  assert(true && "event::is_host should not be called in implementation.");
+  assert(false && "event::is_host should not be called in implementation.");
   return false;
 }
 

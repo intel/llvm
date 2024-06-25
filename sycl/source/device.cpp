@@ -71,7 +71,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 cl_device_id device::get() const { return impl->get(); }
 
 bool device::is_host() const {
-  assert(true && "device::is_host should not be called in implementation.");
+  assert(false && "device::is_host should not be called in implementation.");
   return false;
 }
 

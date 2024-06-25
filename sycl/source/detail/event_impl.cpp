@@ -367,7 +367,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
-  if (MEvent) {
+  if (!MIsHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>(this->getHandleRef(),
                                                         this->getPlugin());
   }
