@@ -17,9 +17,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
   std::ignore = commandDevice;
   std::ignore = peerDevice;
 
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // L0 has peer devices enabled by default
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
@@ -28,9 +27,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
   std::ignore = commandDevice;
   std::ignore = peerDevice;
 
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // L0 has peer devices enabled by default
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
