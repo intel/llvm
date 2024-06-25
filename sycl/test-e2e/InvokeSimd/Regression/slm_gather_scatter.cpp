@@ -13,7 +13,7 @@
  * Test check basic support of local memory access in invoke_simd.
  */
 
-#include "../invoke_simd_utils.hpp"
+#include "../../ESIMD/esimd_test_utils.hpp"
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>

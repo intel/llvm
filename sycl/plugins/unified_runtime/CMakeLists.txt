@@ -100,17 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
-  # Merge: 2a31795d 6fb77c98
+  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
+  # Merge: a011f092 d8500a36
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jun 18 17:51:45 2024 +0100
-  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
-  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
-  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
+  # Date:   Fri Jun 21 10:22:52 2024 +0100
+  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
+  #     Correct level of indirection used in KernelSetArgPointer calls.
+  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    # Merge: 08acafb6 b3f36b96
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Tue Jun 25 11:19:54 2024 +0100
+    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
+    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
+    f040b1fea9313561c01ccdb81ea3ca52c1c62061
   )
 
   fetch_adapter_source(opencl
@@ -130,12 +136,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 19 14:33:26 2024 +0100
-    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
-    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
-    0e5bbcb2f8709643abf08cb83469787e866e3598
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

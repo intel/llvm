@@ -1,7 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   BitWriter
   Core
-  Demangle
   IPO
   IRPrinter
   IRReader
