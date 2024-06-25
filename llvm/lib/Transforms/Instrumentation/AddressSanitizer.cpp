@@ -1425,6 +1425,7 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       // ESIMD kernel doesn't support noinline functions, so we can't
       // support sanitizer for it
       if (F.hasMetadata("sycl_explicit_simd")) {
+        F.removeFnAttr(Attribute::SanitizeAddress);
         // FIXME: we can't check if the kernel is ESIMD at UR, so we
         // have to disable asan completely
         return PreservedAnalyses::all();
