@@ -14,14 +14,14 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
-#include <strstream>
+#include <sstream>
 #include <type_traits>
 
 using namespace sycl;
 
 // Handle unknown info, e.g., from non-standard extensions.
 template <typename T> std::string unknown_info_to_string(T info) {
-  std::strstream stream;
+  std::stringstream stream;
   stream << std::hex << static_cast<std::uint64_t>(info) << " (unknown value)"
          << "\n";
   return stream.str();
@@ -207,8 +207,7 @@ void print_info(const platform &plt, const std::string &name) {
 int main() {
   std::string separator(std::string(80, '-') + "\n");
   std::cout << separator << "Device information\n" << separator;
-  default_selector selector;
-  device dev(selector.select_device());
+  device dev(default_selector_v);
 
   print_info<info::device::device_type, info::device_type>(dev, "Device type");
   print_info<info::device::vendor_id, std::uint32_t>(dev, "Vendor ID");
@@ -258,7 +257,7 @@ int main() {
   print_info<info::device::address_bits, std::uint32_t>(dev, "Address bits");
   print_info<info::device::max_mem_alloc_size, std::uint64_t>(
       dev, "Max mem alloc size");
-  print_info<info::device::image_support, bool>(dev, "Image support");
+  //print_info<info::device::image_support, bool>(dev, "Image support");
   print_info<info::device::max_read_image_args, std::uint32_t>(
       dev, "Max read image args");
   print_info<info::device::max_write_image_args, std::uint32_t>(
@@ -272,8 +271,8 @@ int main() {
   print_info<info::device::image3d_max_depth, size_t>(dev, "Image3D max depth");
   print_info<info::device::image_max_buffer_size, size_t>(
       dev, "Image max buffer size");
-  print_info<info::device::image_max_array_size, size_t>(
-      dev, "Image max array size");
+  //print_info<info::device::image_max_array_size, size_t>(
+  //    dev, "Image max array size");
   print_info<info::device::max_samplers, std::uint32_t>(dev, "Max samplers");
   print_info<info::device::max_parameter_size, size_t>(dev,
                                                        "Max parameter size");
@@ -293,48 +292,48 @@ int main() {
       dev, "Global mem cache size");
   print_info<info::device::global_mem_size, std::uint64_t>(dev,
                                                            "Global mem size");
-  print_info<info::device::max_constant_buffer_size, std::uint64_t>(
-      dev, "Max constant buffer size");
-  print_info<info::device::max_constant_args, std::uint32_t>(
-      dev, "Max constant args");
+  //print_info<info::device::max_constant_buffer_size, std::uint64_t>(
+  //    dev, "Max constant buffer size");
+  //print_info<info::device::max_constant_args, std::uint32_t>(
+  //    dev, "Max constant args");
   print_info<info::device::local_mem_type, info::local_mem_type>(
       dev, "Local mem type");
   print_info<info::device::local_mem_size, std::uint64_t>(dev,
                                                           "Local mem size");
   print_info<info::device::error_correction_support, bool>(
       dev, "Error correction support");
-  print_info<info::device::host_unified_memory, bool>(dev,
-                                                      "Host unified memory");
+  //print_info<info::device::host_unified_memory, bool>(dev,
+  //                                                    "Host unified memory");
   print_info<info::device::profiling_timer_resolution, size_t>(
       dev, "Profiling timer resolution");
-  print_info<info::device::is_endian_little, bool>(dev, "Is endian little");
+  //print_info<info::device::is_endian_little, bool>(dev, "Is endian little");
   print_info<info::device::is_available, bool>(dev, "Is available");
-  print_info<info::device::is_compiler_available, bool>(
-      dev, "Is compiler available");
-  print_info<info::device::is_linker_available, bool>(dev,
-                                                      "Is linker available");
+  //print_info<info::device::is_compiler_available, bool>(
+  //    dev, "Is compiler available");
+  //print_info<info::device::is_linker_available, bool>(dev,
+  //                                                    "Is linker available");
   print_info<info::device::execution_capabilities,
              std::vector<info::execution_capability>>(dev,
                                                       "Execution capabilities");
-  print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
-  print_info<info::device::built_in_kernels, std::vector<std::string>>(
-      dev, "Built in kernels");
+  //print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
+  //print_info<info::device::built_in_kernels, std::vector<std::string>>(
+  //    dev, "Built in kernels");
   print_info<info::device::platform, platform>(dev, "Platform");
   print_info<info::device::name, std::string>(dev, "Name");
   print_info<info::device::vendor, std::string>(dev, "Vendor");
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
-  print_info<info::device::profile, std::string>(dev, "Profile");
+  //print_info<info::device::profile, std::string>(dev, "Profile");
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
-  print_info<info::device::opencl_c_version, std::string>(dev,
-                                                          "OpenCL C version");
-  print_info<info::device::extensions, std::vector<std::string>>(dev,
-                                                                 "Extensions");
-  print_info<info::device::printf_buffer_size, size_t>(dev,
-                                                       "Printf buffer size");
-  print_info<info::device::preferred_interop_user_sync, bool>(
-      dev, "Preferred interop user sync");
+  //print_info<info::device::opencl_c_version, std::string>(dev,
+  //                                                        "OpenCL C version");
+  //print_info<info::device::extensions, std::vector<std::string>>(dev,
+  //                                                               "Extensions");
+  //print_info<info::device::printf_buffer_size, size_t>(dev,
+  //                                                     "Printf buffer size");
+  //print_info<info::device::preferred_interop_user_sync, bool>(
+  //    dev, "Preferred interop user sync");
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
   } catch (sycl::exception e) {
@@ -364,11 +363,11 @@ int main() {
   print_info<info::platform::version, std::string>(plt, "Version");
   print_info<info::platform::name, std::string>(plt, "Name");
   print_info<info::platform::vendor, std::string>(plt, "Vendor");
-  print_info<info::platform::extensions, std::vector<std::string>>(
-      plt, "Extensions");
+  //print_info<info::platform::extensions, std::vector<std::string>>(
+  //    plt, "Extensions");
 
   std::cout << separator << "Queue information\n" << separator;
-  queue q(selector);
+  queue q(default_selector_v);
   auto qdev = q.get_info<sycl::info::queue::device>();
   std::cout << "Device from queue information\n";
   print_info<info::device::name, std::string>(qdev, "Name");
