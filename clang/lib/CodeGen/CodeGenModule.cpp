@@ -1308,8 +1308,10 @@ void CodeGenModule::Release() {
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
-  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
-    getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
+  if (LangOpts.SYCLIsDevice) {
+    getModule().addModuleFlag(llvm::Module::Error, "sycl-device", 1);
+    if (LangOpts.SYCLIsNativeCPU)
+      getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)

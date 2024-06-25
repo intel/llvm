@@ -829,8 +829,8 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // SPIR/SPIRV arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
   if (T.getSubArch() == llvm::Triple::NoSubArch &&
-      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
-       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+      ((T.getArch() == llvm::Triple::spir && A != "spir") ||
+       (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
   return true;
 }
@@ -1149,7 +1149,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     const char *ArgValue = A->getValue();
     for (const StringRef AllowedValue : AllowedValues)
-      if (AllowedValue.equals(ArgValue))
+      if (AllowedValue == ArgValue)
         return;
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
@@ -1182,6 +1182,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
+      llvm::StringSet<> SYCLTriples;
       if (SYCLTargetsValues->getNumValues()) {
 
         // Multiple targets are currently not supported when using
@@ -1220,13 +1221,38 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             const ToolChain *HostTC =
                 C.getSingleOffloadToolChain<Action::OFK_Host>();
             llvm::Triple HostTriple = HostTC->getTriple();
-            UniqueSYCLTriplesVec.push_back(HostTriple);
+            SYCLTriples.insert(HostTriple.normalize());
             continue;
           }
 
-          if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
+          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
+          if (!isValidSYCLTriple(DeviceTriple)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
+          }
+
+          // For any -fsycl-targets=spir64_gen additions, we will scan the
+          // additional -X* options for potential -device settings.  These
+          // need to be added as a known Arch to the packager.
+          if (DeviceTriple.isSPIRAOT() && Arch.empty() &&
+              DeviceTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+            const ToolChain *HostTC =
+                C.getSingleOffloadToolChain<Action::OFK_Host>();
+            auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
+                *this, DeviceTriple, *HostTC, C.getInputArgs());
+            assert(DeviceTC && "Device toolchain not defined.");
+            ArgStringList TargetArgs;
+            DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
+                                                 C.getInputArgs(), TargetArgs);
+            // Look for -device <string> and use that as the known arch to
+            // be associated with the current spir64_gen entry.  Grab the
+            // right most entry.
+            for (int i = TargetArgs.size() - 2; i >= 0; --i) {
+              if (StringRef(TargetArgs[i]) == "-device") {
+                Arch = TargetArgs[i + 1];
+                break;
+              }
+            }
           }
 
           // Make sure we don't have a duplicate triple.
@@ -1241,10 +1267,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
-          UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          SYCLTriples.insert(DeviceTriple.normalize());
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
+        }
+        if (!SYCLTriples.empty()) {
+          for (const auto &SYCLTriple : SYCLTriples) {
+            llvm::Triple Triple(SYCLTriple.getKey());
+            UniqueSYCLTriplesVec.push_back(Triple);
+          }
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1277,6 +1308,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
+  // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
+  // target. For other scenarios, we emit a warning message.
+  if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu)) {
+    bool HasIntelGPUAOTTarget = false;
+    for (auto &TT : UniqueSYCLTriplesVec) {
+      if (TT.isSPIRAOT() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        HasIntelGPUAOTTarget = true;
+        break;
+      }
+    }
+    if (!HasIntelGPUAOTTarget)
+      Diag(diag::warn_unsupported_fsycl_fp64_conv_emu_use);
+  }
+
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -1877,7 +1922,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       // an external option setting is required to target hardware.
       setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
-        if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+        if (ArgString == "-hardware" || ArgString == "-simulation") {
           setOffloadCompileMode(FPGAHWMode);
           break;
         }
@@ -5008,17 +5053,16 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      auto TC = ToolChains.begin();
-      for (Action *&A : SYCLDeviceActions) {
-        if ((*TC)->getTriple().isNVPTX() && CurPhase >= phases::Backend) {
+      for (auto TargetActionInfo :
+           llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+        auto &TargetInfo = std::get<1>(TargetActionInfo);
+        if (TargetInfo.TC->getTriple().isNVPTX() && CurPhase >= phases::Backend)
           // For CUDA, stop to emit LLVM IR so it can be linked later on.
-          ++TC;
           continue;
-        }
 
+        Action *&A = std::get<0>(TargetActionInfo);
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
-        ++TC;
       }
 
       return ABRT_Success;
@@ -6227,12 +6271,12 @@ class OffloadingActionBuilder final {
             using namespace tools::SYCL;
             StringRef Device{Value.first};
             if (Device.consume_front(gen::AmdGPU))
-              return TargetArch.equals(Device) && TargetTriple.isAMDGCN();
+              return TargetArch == Device && TargetTriple.isAMDGCN();
             if (Device.consume_front(gen::NvidiaGPU))
-              return TargetArch.equals(Device) && TargetTriple.isNVPTX();
+              return TargetArch == Device && TargetTriple.isNVPTX();
             if (Device.consume_front(gen::IntelGPU))
-              return TargetArch.equals(Device) && TargetTriple.isSPIRAOT();
-            return TargetArch.equals(Device) && isValidSYCLTriple(TargetTriple);
+              return TargetArch == Device && TargetTriple.isSPIRAOT();
+            return TargetArch == Device && isValidSYCLTriple(TargetTriple);
           });
         } else {
           TargetIt = TargetTable.find(TargetTriple.str());
@@ -9590,7 +9634,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       bool IsHIPNoRDC = JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
                         !C.getArgs().hasFlag(options::OPT_fgpu_rdc,
                                              options::OPT_fno_gpu_rdc, false);
-      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA);
+      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA) ||
+                             isa<BackendCompileJobAction>(JA);
       if (UseOutExtension) {
         Output = BaseName;
         llvm::sys::path::replace_extension(Output, "");
@@ -9687,7 +9732,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     const auto &ResultFiles = C.getResultFiles();
     const auto CollidingFilenameIt =
         llvm::find_if(ResultFiles, [NamedOutput](const auto &It) {
-          return StringRef(NamedOutput).equals(It.second);
+          return StringRef(NamedOutput) == It.second;
         });
     if (CollidingFilenameIt != ResultFiles.end()) {
       // Upon any collision, a unique hash will be appended to the filename,

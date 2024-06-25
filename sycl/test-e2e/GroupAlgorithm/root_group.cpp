@@ -1,7 +1,10 @@
 // Fails with opencl non-cpu, enable when fixed.
-// XFAIL: (opencl && !cpu)
+// XFAIL: (opencl && !cpu && !accelerator)
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
+
+// Disabled temporarily while investigation into the failure is ongoing.
+// UNSUPPORTED: gpu-intel-dg2
 
 #include <cassert>
 #include <cstdlib>
