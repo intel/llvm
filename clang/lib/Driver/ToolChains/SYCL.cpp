@@ -315,11 +315,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   if (TargetTriple.isNVPTX()) {
-    LibraryList.push_back(Args.MakeArgString("devicelib--nvptx.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib--CUDA.bc"));
     return LibraryList;
   }
   if (TargetTriple.isAMDGCN()) {
-    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib--AMD.bc"));
     return LibraryList;
   }
 

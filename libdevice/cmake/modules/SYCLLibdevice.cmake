@@ -496,7 +496,7 @@ foreach(arch IN LISTS devicelib_arch)
   add_opt_tgt(ARCH ${arch})
 endforeach()
 
-set(obj_suffix ${lib_suffix})
+set(obj_suffix ${lib-suffix})
 set(new_offload_obj_suffix ${new-offload-lib-suffix})
 
 foreach(dtype IN ITEMS bf16 fp32 fp64)
