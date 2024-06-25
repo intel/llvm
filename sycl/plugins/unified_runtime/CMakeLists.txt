@@ -119,8 +119,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/cppchedy/unified-runtime.git"
-    8e5a33b6bda832b67301277a90f641d4421ece8b
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 08acafb6b36c9ff12753922365df150f677655e7
+    # Merge: 1e9b1b49 8e5a33b6
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Mon Jun 24 10:56:12 2024 +0100
+    #     Merge pull request #1714 from cppchedy/chedy/fix-copy-in-bytes-bug
+    #     [CUDA][Bindless][Exp] Fix subregion copies
+    08acafb6b36c9ff12753922365df150f677655e7
   )
 
   fetch_adapter_source(hip
