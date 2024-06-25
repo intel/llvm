@@ -197,6 +197,46 @@ The second interface allows users to allocate device local memory at runtime.
 SYCLcompat provides this functionality through its kernel launch interface,
 `launch<function>`, defined in the following section.
 
+Finally, the following cuda backend specific functions are introduced in order
+to translate from the local memory pointers introduced above to `uint32_t` or
+`size_t` variables that contain a byte address to the local
+(local refers to`.shared` in nvptx) memory state space.
+
+``` c++
+namespace syclcompat::experimental {
+inline __SYCL_ALWAYS_INLINE uint32_t nvvm_get_smem_pointer(void *ptr);
+
+inline __SYCL_ALWAYS_INLINE size_t cvta_generic_to_shared(void *ptr);
+} // syclcompat::experimental
+```
+
+These variables can be used in inline ptx instructions that take address
+operands; see:
+https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#addresses-as-operands
+Such inline ptx instructions are commonly used in optimized libaries.
+A simplified example usage of the above functions is as follows:
+
+``` c++
+  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
+  // ...
+  // ...
+  T addr;
+  if constexpr (std::is_same_v<size_t, T>) {
+    addr = syclcompat::experimental::cvta_generic_to_shared(
+        reinterpret_cast<char *>(data) + (id % 8) * 16);
+  } else { // T == uint32_t
+    addr = syclcompat::experimental::nvvm_get_smem_pointer(
+        reinterpret_cast<char *>(data) + (id % 8) * 16);
+  }
+
+uint32_t fragment;
+#if defined(__NVPTX__)
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
+                : "=r"(fragment)
+                : "r"(addr));
+#endif
+```
+
 ### launch<function>
 
 SYCLcompat provides a kernel `launch` interface which accepts a function that
