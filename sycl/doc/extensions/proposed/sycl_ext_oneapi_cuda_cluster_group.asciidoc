@@ -84,7 +84,7 @@ terminology). The work-groups which make up a cluster have the ability to access
 each other's local memory, and can be synchronized. This has various
 applications, convolutions, GEMMs and FFTs to name a few.
 
-This proposal introduces a SYCL equivalent of the same, to be called as
+This proposal introduces a SYCL API to expose this capability, to be called as
 `cluster_group`, and adds the methods to launch a kernel with a cluster range
 and accessing the various id's associated with the cluster
 launch in device code.
