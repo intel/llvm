@@ -2,26 +2,26 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
-; RUN: llc -mtriple=%triple -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
-; RUN: llc -mtriple=%triple -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
-; RUN: llc -mtriple=%triple -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
-; RUN: llc -mtriple=%triple -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
-; RUN: llc -mtriple=%triple -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v - | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=2 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
-; RUN: llc -mtriple=%triple -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -dwarf-version=3 -filetype=obj < %t.ll | llvm-dwarfdump -v - \
 ; RUN:   | FileCheck %s --check-prefix=DWARF2
 
 ; This was derived manually from:
