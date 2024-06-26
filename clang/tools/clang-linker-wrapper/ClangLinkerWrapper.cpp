@@ -1191,13 +1191,16 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
   bool SYCLNativeCPU = (HostTriple == Triple);
   if(SYCLNativeCPU) {
-    auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, Args);
-    if (!SYCLPostLinkFile)
-      return SYCLPostLinkFile.takeError();
-    auto OutputFile = sycl::runWrapperAndCompile(*SYCLPostLinkFile, Args);
-    if (!OutputFile)
-      return OutputFile.takeError();
-    return *OutputFile;
+    if(IsSYCLKind) {
+      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, Args);
+      if (!SYCLPostLinkFile)
+        return SYCLPostLinkFile.takeError();
+      auto OutputFile = sycl::runWrapperAndCompile(*SYCLPostLinkFile, Args);
+      if (!OutputFile)
+        return OutputFile.takeError();
+      return *OutputFile;
+    }
+    return StringRef("");
   }
   switch (Triple.getArch()) {
   case Triple::nvptx:
