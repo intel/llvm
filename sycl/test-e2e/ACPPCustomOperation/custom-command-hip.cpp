@@ -3,7 +3,6 @@
 // RUN: %{build} -o %t.out -I/opt/rocm/include -L/opt/rocm/lib -lamdhip64
 // RUN: %{run} %t.out
 // REQUIRES: hip
-#include <sycl/ext/adaptivecpp/custom_operation.hpp>
 
 #include <iostream>
 #include <sycl/backend.hpp>
@@ -58,7 +57,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       if (Q.get_backend() != IH.get_backend())
         throw;
     };
-    CGH.AdaptiveCpp_custom_operation(Func);
+    CGH.AdaptiveCpp_enqueue_custom_operation(Func);
   });
 }
 
@@ -92,7 +91,7 @@ void test_ht_buffer(queue &Q) {
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
-    CGH.AdaptiveCpp_custom_operation(Func);
+    CGH.AdaptiveCpp_enqueue_custom_operation(Func);
   });
 }
 
