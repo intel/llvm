@@ -11,12 +11,13 @@
 
 #include "../common.hpp"
 #include "../queue.hpp"
+#include "context.hpp"
 
 #include "ur/ur.hpp"
 
 namespace v2 {
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
-  ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
+  ur_queue_immediate_in_order_t(v2::ur_context_handle_t, ur_device_handle_t,
                                 ur_queue_flags_t);
 
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,

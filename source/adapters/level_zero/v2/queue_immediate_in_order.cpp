@@ -12,7 +12,7 @@
 
 namespace v2 {
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
-    ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t) {}
+    v2::ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t) {}
 
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
