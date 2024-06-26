@@ -10,12 +10,20 @@
 #include <sycl/exception.hpp> // make_error_code
 
 #if __GNUC__ && __GNUC__ < 8
+
 // std::filesystem is not availalbe for GCC < 8
 // and much of the  cross-platform file handling code depends upon it.
 // Given that this extension is experimental and that the file
 // handling aspects are most likely temporary, it makes sense to
 // simply not support GCC<8.
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
 bool SYCL_Compilation_Available() { return false; }
+
 spirv_vec_t
 SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
               const std::vector<std::string> &UserArgs, std::string *LogPtr,
@@ -23,6 +31,11 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler does not supprot GCC<8");
 }
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
+
 #else
 
 #include <ctime>
@@ -31,8 +44,6 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
 #include <random>
 #include <regex>
 #include <sstream>
-
-
 
 namespace sycl {
 inline namespace _V1 {
