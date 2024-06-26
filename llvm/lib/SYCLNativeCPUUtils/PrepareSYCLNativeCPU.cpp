@@ -494,6 +494,5 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Builder.CreateRetVoid();
   }
 #endif
-
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

@@ -12,6 +12,7 @@
 // FIXME: ACC devices use emulation path, which is not yet supported
 // UNSUPPORTED: accelerator
 // UNSUPPORTED: hip
+// UNSUPPORTED: native_cpu
 
 #include <cstdlib>
 #include <iostream>
