@@ -100,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0
-  # Merge: 33eb5ea8 487f4f8a
+  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
+  # Merge: a011f092 d8500a36
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 17 14:31:13 2024 +0100
-  #     Merge pull request #1639 from przemektmalon/przemek/windows-interop
-  #     [Bindless][Exp] Windows & DX12 interop. Semaphore ops can take values.
-  set(UNIFIED_RUNTIME_TAG 269ba5430f2e6337c5ac25f9ef57b7e426e41fd0)
+  # Date:   Fri Jun 21 10:22:52 2024 +0100
+  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
+  #     Correct level of indirection used in KernelSetArgPointer calls.
+  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2a31795d9d5a0994af33833016b2849cb4e357a6
-    # Merge: 06cb1b90 ec73afa7
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 18 14:37:38 2024 +0100
-    #     Merge pull request #1623 from igchor/legacy_path_queue
-    #     [L0] Create initial structure for supporting queue dispatcher
-    2a31795d9d5a0994af33833016b2849cb4e357a6
+    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    # Merge: 08acafb6 b3f36b96
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Tue Jun 25 11:19:54 2024 +0100
+    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
+    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
+    f040b1fea9313561c01ccdb81ea3ca52c1c62061
   )
 
   fetch_adapter_source(opencl
@@ -126,7 +126,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 08acafb6b36c9ff12753922365df150f677655e7
+    # Merge: 1e9b1b49 8e5a33b6
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Mon Jun 24 10:56:12 2024 +0100
+    #     Merge pull request #1714 from cppchedy/chedy/fix-copy-in-bytes-bug
+    #     [CUDA][Bindless][Exp] Fix subregion copies
+    08acafb6b36c9ff12753922365df150f677655e7
   )
 
   fetch_adapter_source(hip

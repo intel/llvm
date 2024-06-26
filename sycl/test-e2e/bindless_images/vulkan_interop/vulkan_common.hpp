@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <vector>
 
 void printString(std::string str) {
@@ -151,7 +152,13 @@ VkResult setupInstance() {
   ci.pApplicationInfo = &ai;
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
-  std::vector<const char *> layers = {"VK_LAYER_KHRONOS_validation"};
+  std::vector<const char *> layers;
+  if (std::any_of(availableLayers.begin(), availableLayers.end(),
+                  [](auto &layer) {
+                    return layer.layerName == "VK_LAYER_KHRONOS_validation";
+                  })) {
+    layers.push_back("VK_LAYER_KHRONOS_validation");
+  }
   ci.enabledLayerCount = layers.size();
   ci.ppEnabledLayerNames = layers.data();
 

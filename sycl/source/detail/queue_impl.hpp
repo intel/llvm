@@ -711,7 +711,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MExtGraphDeps.LastEventPtr = nullptr;
+    MExtGraphDeps.reset();
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -749,13 +749,15 @@ public:
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
-  void doUnenqueuedCommandCleanup(
-      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-          &Graph);
 
   static ContextImplPtr getContext(const QueueImplPtr &Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
   }
+
+  // Must be called under MMutex protection
+  void doUnenqueuedCommandCleanup(
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph);
 
 protected:
   event discard_or_return(const event &Event);
@@ -799,6 +801,12 @@ protected:
       // dependency so in the case where some commands were not enqueued
       // (blocked), we track them to prevent barrier from being enqueued
       // earlier.
+      {
+        std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+        for (auto &UpdatedGraph : MMissedCleanupRequests)
+          doUnenqueuedCommandCleanup(UpdatedGraph);
+        MMissedCleanupRequests.clear();
+      }
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
       if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -816,10 +824,6 @@ protected:
         } else
           Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
-      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-      for (auto &UpdatedGraph : MMissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MMissedCleanupRequests.clear();
     }
   }
 
@@ -926,6 +930,12 @@ protected:
     // ordering
     std::vector<EventImplPtr> UnenqueuedCmdEvents;
     EventImplPtr LastBarrier;
+
+    void reset() {
+      LastEventPtr = nullptr;
+      UnenqueuedCmdEvents.clear();
+      LastBarrier = nullptr;
+    }
   } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
