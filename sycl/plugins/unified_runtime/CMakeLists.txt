@@ -111,7 +111,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
-
   )
 
   fetch_adapter_source(opencl
@@ -122,7 +121,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
-
   )
 
   fetch_adapter_source(hip
@@ -141,9 +139,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG)
     set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
   endif()
-
-  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG "yc/devicesan/fix-free-problems-0517")
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
