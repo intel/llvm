@@ -4158,18 +4158,14 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty()) {
-<<<<<<< HEAD
-        if (ToolChains.front()->getTriple().isSPIROrSPIRV())
-          GpuArchList.push_back(CudaArch::Generic);
-        else
-=======
         if (ToolChains.front()->getTriple().isSPIRV()) {
           if (ToolChains.front()->getTriple().getVendor() == llvm::Triple::AMD)
             GpuArchList.push_back(CudaArch::AMDGCNSPIRV);
           else
             GpuArchList.push_back(CudaArch::Generic);
-        } else {
->>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
+        } else if (ToolChains.front()->getTriple().isSPIR()) {
+          GpuArchList.push_back(CudaArch::Generic);
+	} else {
           GpuArchList.push_back(DefaultCudaArch);
         }
       }
@@ -10182,21 +10178,13 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
       break;
     case Action::OFK_HIP: {
-<<<<<<< HEAD
-      if (Target.getArch() == llvm::Triple::amdgcn &&
-          Target.getVendor() == llvm::Triple::AMD &&
-          Target.getOS() == llvm::Triple::AMDHSA)
-        TC = std::make_unique<toolchains::HIPAMDToolChain>(
-            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-=======
       if (((Target.getArch() == llvm::Triple::amdgcn ||
             Target.getArch() == llvm::Triple::spirv64) &&
            Target.getVendor() == llvm::Triple::AMD &&
            Target.getOS() == llvm::Triple::AMDHSA) ||
           !Args.hasArgNoClaim(options::OPT_offload_EQ))
-        TC = std::make_unique<toolchains::HIPAMDToolChain>(*this, Target,
-                                                           HostTC, Args);
->>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
       else if (Target.getArch() == llvm::Triple::spirv64 &&
                Target.getVendor() == llvm::Triple::UnknownVendor &&
                Target.getOS() == llvm::Triple::UnknownOS)
