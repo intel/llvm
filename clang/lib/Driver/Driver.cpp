@@ -154,6 +154,14 @@ getNVIDIAOffloadTargetTriple(const Driver &D, const ArgList &Args,
 static std::optional<llvm::Triple>
 getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
+    auto OffloadArchs = Args.getAllArgValues(options::OPT_offload_arch_EQ);
+    if (llvm::find(OffloadArchs, "amdgcnspirv") != OffloadArchs.cend()) {
+      if (OffloadArchs.size() == 1)
+        return llvm::Triple("spirv64-amd-amdhsa");
+      // Mixing specific & SPIR-V compilation is not supported for now.
+      D.Diag(diag::err_drv_only_one_offload_target_supported);
+      return std::nullopt;
+    }
     return llvm::Triple("amdgcn-amd-amdhsa"); // Default HIP triple.
   }
   auto TT = getOffloadTargetTriple(D, Args);
@@ -236,6 +244,9 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     UserConfigDir = static_cast<std::string>(P);
   }
 #endif
+
+  // Compute the path to the resource directory.
+  ResourceDir = GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
 }
 
 void Driver::setDriverMode(StringRef Value) {
@@ -252,24 +263,6 @@ void Driver::setDriverMode(StringRef Value) {
     Mode = *M;
   else
     Diag(diag::err_drv_unsupported_option_argument) << OptName << Value;
-}
-
-void Driver::setResourceDirectory() {
-  // Compute the path to the resource directory, depending on the driver mode.
-  switch (Mode) {
-  case GCCMode:
-  case GXXMode:
-  case CPPMode:
-  case CLMode:
-  case DXCMode:
-    ResourceDir = GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
-    break;
-  case FlangMode:
-    SmallString<64> customResourcePathRelativeToDriver{".."};
-    ResourceDir =
-        GetResourcesPath(ClangExecutable, customResourcePathRelativeToDriver);
-    break;
-  }
 }
 
 InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
@@ -1569,7 +1562,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (!DriverMode.empty())
     setDriverMode(DriverMode);
 
-  setResourceDirectory();
   // FIXME: What are we going to do with -V and -b?
 
   // Arguments specified in command line.
@@ -4166,10 +4158,20 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty()) {
+<<<<<<< HEAD
         if (ToolChains.front()->getTriple().isSPIROrSPIRV())
           GpuArchList.push_back(CudaArch::Generic);
         else
+=======
+        if (ToolChains.front()->getTriple().isSPIRV()) {
+          if (ToolChains.front()->getTriple().getVendor() == llvm::Triple::AMD)
+            GpuArchList.push_back(CudaArch::AMDGCNSPIRV);
+          else
+            GpuArchList.push_back(CudaArch::Generic);
+        } else {
+>>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
           GpuArchList.push_back(DefaultCudaArch);
+        }
       }
 
       return Error;
@@ -10180,11 +10182,21 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
       break;
     case Action::OFK_HIP: {
+<<<<<<< HEAD
       if (Target.getArch() == llvm::Triple::amdgcn &&
           Target.getVendor() == llvm::Triple::AMD &&
           Target.getOS() == llvm::Triple::AMDHSA)
         TC = std::make_unique<toolchains::HIPAMDToolChain>(
             *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+=======
+      if (((Target.getArch() == llvm::Triple::amdgcn ||
+            Target.getArch() == llvm::Triple::spirv64) &&
+           Target.getVendor() == llvm::Triple::AMD &&
+           Target.getOS() == llvm::Triple::AMDHSA) ||
+          !Args.hasArgNoClaim(options::OPT_offload_EQ))
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(*this, Target,
+                                                           HostTC, Args);
+>>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
       else if (Target.getArch() == llvm::Triple::spirv64 &&
                Target.getVendor() == llvm::Triple::UnknownVendor &&
                Target.getOS() == llvm::Triple::UnknownOS)
