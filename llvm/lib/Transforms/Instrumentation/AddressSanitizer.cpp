@@ -1405,16 +1405,21 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
   if (Triple(M.getTargetTriple()).isSPIR()) {
-    for (Function &F : M) {
-      // ESIMD kernel doesn't support noinline functions, so we can't
-      // support sanitizer for it
+    bool HasESIMDKernel = false;
+
+    // ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    for (Function &F : M)
       if (F.hasMetadata("sycl_explicit_simd")) {
         F.removeFnAttr(Attribute::SanitizeAddress);
-        // FIXME: we can't check if the kernel is ESIMD at UR, so we
-        // have to disable asan completely
-        return PreservedAnalyses::all();
+        HasESIMDKernel = true;
       }
-    }
+
+    // FIXME: we can't check if the kernel is ESIMD kernel at UR, so we
+    // have to disable ASan completely in this case
+    if (HasESIMDKernel)
+      return PreservedAnalyses::all();
+
     ExtendSpirKernelArgs(M, FAM);
   }
 
