@@ -1,32 +1,30 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// Print test names and pass status
+// Print test names and pass status.
 // #define VERBOSE_LV1
 
 // Same as above plus sampler, offset, margin of error, largest error found and
-// results of one mismatch
+// results of one mismatch.
 // #define VERBOSE_LV2
 
-// Same as above but all mismatches are printed
+// Same as above but all mismatches are printed.
 // #define VERBOSE_LV3
 
-#include "helpers/common.hpp"
-#include "helpers/sampling.hpp"
-#include <cassert>
+#include "../helpers/common.hpp"
+#include "../helpers/sampling.hpp"
 #include <iostream>
-#include <random>
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
-
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 namespace util {
-// parallel_for ND bound normalized
+
+// parallel_for ND bound normalized.
 template <int NDims, typename DType, int NChannels>
 static void
 runNDimTestHost(sycl::range<NDims> globalSize, float offset,
@@ -37,38 +35,48 @@ runNDimTestHost(sycl::range<NDims> globalSize, float offset,
   using VecType = sycl::vec<DType, NChannels>;
   bool isNorm =
       (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
+  bindless_helpers::ImageArrayDims<NDims> dims{globalSize};
 
   sycl::vec<float, 2> coords;
 
   sycl::range<2> globalSizeTwoComp;
 
-  for (int i = 0; i < NDims; i++) {
-    globalSizeTwoComp[i] = globalSize[i];
+  for (int i = 0; i < NDims - 1; i++) {
+    globalSizeTwoComp[i] = dims.array_dims[i];
   }
 
-  for (int i = 0; i < 2 - NDims; i++) {
-    globalSizeTwoComp[NDims - i] = 1;
+  for (int i = 0; i < 2 - (NDims - 1); i++) {
+    globalSizeTwoComp[NDims - 1 - i] = 1;
   }
 
-  for (int i = 0; i < globalSizeTwoComp[0]; i++) {
-    for (int j = 0; j < globalSizeTwoComp[1]; j++) {
-      if (isNorm) {
-        coords[0] = (float)i / (float)globalSizeTwoComp[0];
-        coords[1] = (float)j / (float)globalSizeTwoComp[1];
+  for (int arr_idx = 0; arr_idx < dims.array_count; arr_idx++) {
+    for (int i = 0; i < globalSizeTwoComp[0]; i++) {
+      for (int j = 0; j < globalSizeTwoComp[1]; j++) {
+        if (isNorm) {
+          coords[0] = (float)i / (float)globalSizeTwoComp[0];
+          coords[1] = (float)j / (float)globalSizeTwoComp[1];
 
-      } else {
-        coords[0] = i;
-        coords[1] = j;
+        } else {
+          coords[0] = i;
+          coords[1] = j;
+        }
+
+        // Sampling is done only within array layers, not accross layers.
+        // To mimic this on host, extract the layer and sample that.
+        std::vector<sycl::vec<DType, NChannels>> layer(
+            inputImage.begin() + arr_idx * globalSizeTwoComp.size(),
+            inputImage.begin() + (arr_idx + 1) * globalSizeTwoComp.size());
+        VecType result = sampling_helpers::read<NDims - 1, DType, NChannels>(
+            globalSizeTwoComp, coords, offset, samp, layer);
+
+        output[arr_idx * globalSizeTwoComp.size() + i + (globalSize[0] * j)] =
+            result;
       }
-
-      VecType result = sampling_helpers::read<NDims, DType, NChannels>(
-          globalSizeTwoComp, coords, offset, samp, inputImage);
-      output[i + (globalSize[0] * j)] = result;
     }
   }
 }
 
-// parallel_for ND bindless normalized
+// parallel_for ND bindless normalized.
 template <int NDims, typename DType, int NChannels, typename KernelName>
 static void
 runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
@@ -83,23 +91,24 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
       (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
   try {
     q.submit([&](sycl::handler &cgh) {
-      auto outAcc =
-          output.template get_access<sycl::access_mode::write>(cgh, bufSize);
+      auto outAcc = output.template get_access<sycl::access_mode::write>(
+          cgh, bindless_helpers::reverse_dims(bufSize));
       cgh.parallel_for<KernelName>(
           sycl::nd_range<NDims>{globalSize, localSize},
           [=](sycl::nd_item<NDims> it) {
             sycl::id<NDims> accessorCoords;
-            sycl::vec<float, NDims> coords;
+            sycl::vec<float, NDims - 1> coords;
+            size_t arr_idx = it.get_global_id(NDims - 1);
 
             if (isNorm) {
-              for (int i = 0; i < NDims; i++) {
+              for (int i = 0; i < NDims - 1; i++) {
                 coords[i] =
                     ((float)it.get_global_id(i) / (float)globalSize[i]) +
                     offset;
               }
 
             } else {
-              for (int i = 0; i < NDims; i++) {
+              for (int i = 0; i < NDims - 1; i++) {
                 coords[i] = (float)it.get_global_id(i) + offset;
               }
             }
@@ -108,7 +117,8 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
               accessorCoords[i] = it.get_global_id(NDims - i - 1);
             }
 
-            VecType px1 = syclexp::sample_image<VecType>(inputImage, coords);
+            VecType px1 = syclexp::sample_image_array<VecType>(
+                inputImage, coords, int(arr_idx));
 
             outAcc[accessorCoords] = px1;
           });
@@ -131,10 +141,8 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  size_t numElems = dims[0];
-  if constexpr (NDims == 2) {
-    numElems *= dims[1];
-  }
+  size_t numElems = dims.size();
+  auto image_array_dims = bindless_helpers::ImageArrayDims<NDims>(dims);
 
   std::vector<VecType> input(numElems);
   std::vector<VecType> expected(numElems);
@@ -150,20 +158,11 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   try {
-    // Check default constructor for image_descriptor
-    syclexp::image_descriptor desc;
-    desc = syclexp::image_descriptor(dims, NChannels, CType);
+    syclexp::image_descriptor desc(image_array_dims.array_dims, NChannels,
+                                   CType, syclexp::image_type::array, 1,
+                                   image_array_dims.array_count);
 
     syclexp::image_mem imgMem(desc, q);
-
-    // Check that image_mem_handle can be constructed from raw_handle_type
-    syclexp::image_mem_handle img_mem_handle_copy{
-        static_cast<syclexp::image_mem_handle::raw_handle_type>(
-            imgMem.get_handle().raw_handle)};
-    if (img_mem_handle_copy.raw_handle != imgMem.get_handle().raw_handle) {
-      std::cerr << "Failed to copy raw_handle_type" << std::endl;
-      return false;
-    }
 
     auto img_input = syclexp::create_image(imgMem, samp, desc, q);
 
@@ -173,14 +172,15 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     {
       sycl::range<NDims> bufSize = dims;
       sycl::range<NDims> globalSize = dims;
-      sycl::buffer<VecType, NDims> outBuf((VecType *)actual.data(), bufSize);
+      sycl::buffer<VecType, NDims> outBuf(
+          (VecType *)actual.data(), bindless_helpers::reverse_dims(bufSize));
       q.wait_and_throw();
       runNDimTestDevice<NDims, DType, NChannels, KernelName>(
           q, globalSize, localSize, offset, samp, img_input, outBuf, bufSize);
       q.wait_and_throw();
     }
 
-    // Cleanup
+    // Cleanup.
     syclexp::destroy_image_handle(img_input, q);
 
   } catch (sycl::exception e) {
@@ -191,7 +191,7 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     return true;
   }
 
-  // Collect and validate output
+  // Collect and validate output.
 
   // The following sets the percentage margin of error.
 
@@ -212,7 +212,6 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   if (samp.filtering == sycl::filtering_mode::nearest) {
     deviation = 0.0f;
   }
-
   bool validated = true;
   float largestError = 0.0f;
   float largestPercentError = 0.0f;
@@ -238,8 +237,8 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
       if (mismatch) {
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
         std::cout << "\tResult mismatch at [" << i << "][" << j
-                  << "] Expected: " << +DType(expected[i][j])
-                  << ", Actual: " << +DType(actual[i][j]) << std::endl;
+                  << "] Expected: " << +expected[i][j]
+                  << ", Actual: " << +actual[i][j] << std::endl;
 #endif
 
 #ifndef VERBOSE_LV3
@@ -272,11 +271,10 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   return !validated;
 }
-
 }; // namespace util
 
-template <int NDims, typename = std::enable_if_t<NDims == 1>>
-bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
+template <int NDims, typename = std::enable_if_t<NDims == 2>>
+bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
               int seed, sycl::coordinate_normalization_mode normMode) {
 
   // addressing_mode::none currently removed due to
@@ -296,7 +294,7 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
     for (auto filtMode : filtModes) {
 
       if (normMode == sycl::coordinate_normalization_mode::unnormalized) {
-        // These sampler combinations are not valid according to the SYCL spec
+        // These sampler combinations are not valid according to the SYCL spec.
         if (addrMode == sycl::addressing_mode::repeat ||
             addrMode == sycl::addressing_mode::mirrored_repeat) {
           continue;
@@ -418,21 +416,14 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
       failed |=
           util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
                         class half4_1d>(dims, localSize, offset, samp, seed);
-
-      bindless_helpers::printTestName<NDims>("Running 1D float", {512}, {32});
-      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              class float_1d1>({512}, {32}, offset, samp, seed);
-      bindless_helpers::printTestName<NDims>("Running 1D float4", {512}, {8});
-      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                              class float4_1d2>({512}, {8}, offset, samp, seed);
     }
   }
 
   return !failed;
 }
 
-template <int NDims, typename = std::enable_if_t<NDims == 2>>
-bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
+template <int NDims, typename = std::enable_if_t<NDims == 3>>
+bool runTests(sycl::range<3> dims, sycl::range<3> localSize, float offset,
               int seed, sycl::coordinate_normalization_mode normMode) {
 
   // addressing_mode::none currently removed due to
@@ -452,7 +443,7 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
     for (auto filtMode : filtModes) {
 
       if (normMode == sycl::coordinate_normalization_mode::unnormalized) {
-        // These sampler combinations are not valid according to the SYCL spec
+        // These sampler combinations are not valid according to the SYCL spec.
         if (addrMode == sycl::addressing_mode::repeat ||
             addrMode == sycl::addressing_mode::mirrored_repeat) {
           continue;
@@ -574,17 +565,6 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
       failed |=
           util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
                         class half4_2d>(dims, localSize, offset, samp, seed);
-
-      bindless_helpers::printTestName<NDims>("Running 2D float", {512, 512},
-                                             {32, 32});
-      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              class float_2d1>({512, 512}, {32, 32}, offset,
-                                               samp, seed);
-      bindless_helpers::printTestName<NDims>("Running 2D float4", {512, 512},
-                                             {8, 8});
-      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                              class float4_2d2>({512, 512}, {8, 8}, offset,
-                                                samp, seed);
     }
   }
 
@@ -635,10 +615,10 @@ bool runAll(sycl::range<NDims> dims, sycl::range<NDims> localSize, float offset,
 int main() {
 
   unsigned int seed = 0;
-  std::cout << "Running 1D Sampled Image Tests!\n";
-  bool result1D = runAll<1>({256}, {32}, 20, seed);
-  std::cout << "Running 2D Sampled Image Tests!\n";
-  bool result2D = runAll<2>({256, 256}, {32, 32}, 20, seed);
+  std::cout << "Running 1D Sampled Image Array Tests!\n";
+  bool result1D = runAll<2>({64, 32}, {16, 16}, 20, seed);
+  std::cout << "Running 2D Sampled Image Array Tests!\n";
+  bool result2D = runAll<3>({64, 32, 16}, {16, 16, 4}, 20, seed);
 
   if (result1D && result2D) {
     std::cout << "All tests passed!\n";
