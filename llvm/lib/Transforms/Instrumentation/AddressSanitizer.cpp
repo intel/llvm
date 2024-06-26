@@ -3363,6 +3363,12 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getName().contains("__sycl_service_kernel__"))
     return false;
 
+  // Skip referenced-indirectly function as we may insert access to shared local
+  // memory (SLM) __AsanLaunchInfo in report function and access to SLM in
+  // referenced-indirectly function isn't supported in intel-graphics-compiler.
+  if (TargetTriple.isSPIR() && F.hasFnAttribute("referenced-indirectly"))
+    return false;
+
   bool FunctionModified = false;
 
   // If needed, insert __asan_init before checking for SanitizeAddress attr.
