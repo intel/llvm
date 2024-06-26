@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// https://github.com/intel/llvm/issues/14297
+// UNSUPPORTED: gpu-intel-gen12
+
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
