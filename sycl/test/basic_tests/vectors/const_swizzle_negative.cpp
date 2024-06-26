@@ -1,7 +1,8 @@
 // REQUIRES: preview-breaking-changes-supported
 // RUN: %clangxx -fsycl-device-only -ferror-limit=0 -Xclang -fsycl-is-device -fsyntax-only -fpreview-breaking-changes -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 int main() {
   sycl::queue Q;
