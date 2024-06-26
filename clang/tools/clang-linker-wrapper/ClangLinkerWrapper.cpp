@@ -572,10 +572,10 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   bool SplitEsimd =
       Args.hasFlag(OPT_sycl_device_code_split_esimd,
                    OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
-
-  // Symbol file and specialization constant info generation is mandatory -
+  if (!Args.hasArg(OPT_sycl_thin_lto))
+    PostLinkArgs.push_back("-symbols");
+  // Specialization constant info generation is mandatory -
   // add options unconditionally
-  PostLinkArgs.push_back("-symbols");
   PostLinkArgs.push_back("-emit-exported-symbols");
   PostLinkArgs.push_back("-emit-imported-symbols");
   if (SplitEsimd)

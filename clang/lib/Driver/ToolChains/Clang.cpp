@@ -11178,8 +11178,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
       CmdArgs.push_back("-sycl-is-windows-msvc-env");
+
+    bool IsUsingLTO = D.isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (IsUsingLTO && LTOMode == LTOK_Thin)
+      CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
+
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and
     // -Xsycl-target-backend.
