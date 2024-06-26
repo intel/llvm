@@ -34,8 +34,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
   sycl::buffer<bool, 1> SuccessBuf{1};
 
   // Make sure we don't use fp64 on devices that don't support it.
-  sycl::context ctx;
-  sycl::queue q{ctx, ctx.get_devices()[0]};
+  sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor Success{SuccessBuf, cgh};
     cgh.single_task([=]() {
