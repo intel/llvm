@@ -15,12 +15,13 @@
 #include "helper.hpp"
 
 #define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
-  class KernelFunctor##                                                        \
-  SIZE{public : [[sycl::reqd_sub_group_size(SIZE)]] void operator()(           \
-      sycl::nd_item<1> Item) const {const auto GID = Item.get_global_id();     \
+class KernelFunctor##SIZE {                                                    \
+public:                                                                        \
+  [[sycl::reqd_sub_group_size(SIZE)]] void                                     \
+  operator()(sycl::nd_item<1> Item) const {                                    \
+    const auto GID = Item.get_global_id();                                     \
   }                                                                            \
-  }                                                                            \
-  ;
+};
 
 KERNEL_FUNCTOR_WITH_SIZE(1);
 KERNEL_FUNCTOR_WITH_SIZE(2);
