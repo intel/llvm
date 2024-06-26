@@ -297,12 +297,12 @@ void exec_graph_impl::makePartitions() {
 }
 
 graph_impl::~graph_impl() {
-  try{
-  clearQueues();
-  for (auto &MemObj : MMemObjs) {
-    MemObj->markNoLongerBeingUsedInGraph();
-  }
-  }catch(std::exception &e){
+  try {
+    clearQueues();
+    for (auto &MemObj : MMemObjs) {
+      MemObj->markNoLongerBeingUsedInGraph();
+    }
+  } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
 }
@@ -786,37 +786,37 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  try{
-  const sycl::detail::PluginPtr &Plugin =
-      sycl::detail::getSyclObjImpl(MContext)->getPlugin();
-  MSchedule.clear();
-  // We need to wait on all command buffer executions before we can release
-  // them.
-  for (auto &Event : MExecutionEvents) {
-    Event->wait(Event);
-  }
+  try {
+    const sycl::detail::PluginPtr &Plugin =
+        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
+    MSchedule.clear();
+    // We need to wait on all command buffer executions before we can release
+    // them.
+    for (auto &Event : MExecutionEvents) {
+      Event->wait(Event);
+    }
 
-  for (const auto &Partition : MPartitions) {
-    Partition->MSchedule.clear();
-    for (const auto &Iter : Partition->MPiCommandBuffers) {
-      if (auto CmdBuf = Iter.second; CmdBuf) {
+    for (const auto &Partition : MPartitions) {
+      Partition->MSchedule.clear();
+      for (const auto &Iter : Partition->MPiCommandBuffers) {
+        if (auto CmdBuf = Iter.second; CmdBuf) {
+          pi_result Res = Plugin->call_nocheck<
+              sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+          (void)Res;
+          assert(Res == pi_result::PI_SUCCESS);
+        }
+      }
+    }
+
+    for (auto &Iter : MCommandMap) {
+      if (auto Command = Iter.second; Command) {
         pi_result Res = Plugin->call_nocheck<
-            sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+            sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
         (void)Res;
         assert(Res == pi_result::PI_SUCCESS);
       }
     }
-  }
-
-  for (auto &Iter : MCommandMap) {
-    if (auto Command = Iter.second; Command) {
-      pi_result Res = Plugin->call_nocheck<
-          sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
-      (void)Res;
-      assert(Res == pi_result::PI_SUCCESS);
-    }
-  }
-  }catch(std::exception &e){
+  } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~exec_graph_impl", e);
   }
 }
