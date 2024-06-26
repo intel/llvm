@@ -17,7 +17,7 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
-#include "../../invoke_simd_utils.hpp"
+#include "../../../ESIMD/esimd_test_utils.hpp"
 #include "Inputs/common.hpp"
 
 int main(void) {

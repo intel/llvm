@@ -104,7 +104,7 @@ int main() {
                    "should have thrown an exception"
                 << std::endl;
       return -1;
-    } catch (const sycl::feature_not_supported &e) {
+    } catch (const sycl::exception &e) {
       if (e.code() != sycl::errc::feature_not_supported) {
         std::cerr
             << "error code should be errc::feature_not_supported instead of "
@@ -113,7 +113,7 @@ int main() {
       }
     } catch (...) {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
-                   "should have thrown sycl::feature_not_supported"
+                   "should have thrown sycl::exception"
                 << std::endl;
       return -1;
     }

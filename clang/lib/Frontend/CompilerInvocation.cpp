@@ -3858,7 +3858,7 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             checkFPAccuracyIsValid(ValElement[0], Diags);
             // No need to fill the map if the FPaccuracy is 'default'.
             // The default builtin will be generated.
-            if (!ValElement[0].equals("default")) {
+            if (ValElement[0] != "default") {
               // if FPAccuracyFuncMap of this function has been previously set
               // update its value; the last fp-accuracy option in the command
               // line wins.

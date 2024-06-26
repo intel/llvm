@@ -41,6 +41,7 @@ def do_configure(args):
     fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
+    libclc_build_native = 'OFF'
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
@@ -88,8 +89,10 @@ def do_configure(args):
         sycl_enabled_plugins.append("hip")
 
     if args.native_cpu:
-        # Todo: we should set whatever targets we support for native cpu
-        libclc_targets_to_build += ";x86_64-unknown-linux-gnu"
+        if args.native_cpu_libclc_targets:
+            libclc_targets_to_build += ";" + args.native_cpu_libclc_targets
+        else:
+            libclc_build_native = "ON"
         libclc_gen_remangled_variants = "ON"
         sycl_enabled_plugins.append("native_cpu")
 
@@ -191,6 +194,7 @@ def do_configure(args):
                 "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(
                     libclc_gen_remangled_variants
                 ),
+                "-DLIBCLC_NATIVECPU_HOST_TARGET={}".format(libclc_build_native),
             ]
         )
 
@@ -257,8 +261,8 @@ def main():
     parser.add_argument("--native_cpu", action='store_true', help="Enable SYCL Native CPU")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--host-target", default='X86',
-                        help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
+    parser.add_argument("--host-target", default='host',
+                        help="host LLVM target architecture, defaults to \'host\', multiple targets may be provided as a semi-colon separated string")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
@@ -276,6 +280,7 @@ def main():
     parser.add_argument("--disable-preview-lib", action='store_true', help="Disable building of the SYCL runtime major release preview library")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
+    parser.add_argument('--native-cpu-libclc-targets', help='Target triples for libclc, used by the Native CPU backend')
     args = parser.parse_args()
 
     print("args:{}".format(args))

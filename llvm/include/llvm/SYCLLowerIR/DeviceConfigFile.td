@@ -206,6 +206,8 @@ def : CudaTargetInfo<"nvidia_gpu_sm_89", !listconcat(CudaMinAspects, CudaBindles
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+def : CudaTargetInfo<"nvidia_gpu_sm_90a", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
 
 //
 // HIP / AMDGPU device aspects

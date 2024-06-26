@@ -40,6 +40,18 @@ DEVICE_EXTERN_C_INLINE
 float fminf(float x, float y) { return __devicelib_fminf(x, y); }
 
 DEVICE_EXTERN_C_INLINE
+float truncf(float x) { return __devicelib_truncf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float sinpif(float x) { return __devicelib_sinpif(x); }
+
+DEVICE_EXTERN_C_INLINE
+float rsqrtf(float x) { return __devicelib_rsqrtf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float exp10f(float x) { return __devicelib_exp10f(x); }
+
+DEVICE_EXTERN_C_INLINE
 div_t div(int x, int y) { return __devicelib_div(x, y); }
 
 DEVICE_EXTERN_C_INLINE

@@ -43,6 +43,7 @@ config.vulkan_lib = "@Vulkan_LIBRARY@"
 config.vulkan_found = "@Vulkan_FOUND@"
 
 config.run_launcher = lit_config.params.get('run_launcher', "@SYCL_E2E_RUN_LAUNCHER@")
+config.allow_unknown_arch = "@SYCL_E2E_LIT_ALLOW_UNKNOWN_ARCH@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

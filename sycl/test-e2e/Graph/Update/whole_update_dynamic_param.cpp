@@ -31,6 +31,7 @@ int main() {
   Queue.copy(InputDataHost1.data(), InputDataDevice1, Size);
   Queue.copy(InputDataHost2.data(), InputDataDevice2, Size);
   Queue.copy(OutputDataHost1.data(), OutputDataDevice1, Size);
+  Queue.wait();
 
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 

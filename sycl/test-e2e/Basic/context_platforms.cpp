@@ -23,10 +23,11 @@ int main(int argc, char const *argv[]) {
     context all_context = context(all_platforms_devices);
     std::cerr << "Test failed: exception wasn't thrown" << std::endl;
     return 1;
-  } catch (runtime_error &E) {
-    if (std::string(E.what()).find(
+  } catch (sycl::exception &E) {
+    if (E.code() != sycl::errc::kernel_argument ||
+        std::string(E.what()).find(
             "Can't add devices across platforms to a single context.") ==
-        std::string::npos) {
+            std::string::npos) {
       std::cerr << "Received error is incorrect" << std::endl;
       return 1;
     }

@@ -1,4 +1,4 @@
-// RUN: %{build} -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
+// RUN: %{build} -O3 -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 #include "atomic_memory_order.h"

@@ -134,7 +134,7 @@ void test(queue q, InputContainer input, OutputContainer output,
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
             const InputT *first =
-                in.template get_multi_ptr<access::decorated::no>();
+                in.template get_multi_ptr<access::decorated::no>().get();
             const InputT *last = first + N;
             // check reduce_over_group w/o init
             out[0] = sycl::ext::oneapi::experimental::reduce_over_group(

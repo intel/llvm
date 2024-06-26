@@ -64,3 +64,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sin(double x) {
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sin, double);
 
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(half, __spirv_ocl_sin, __builtin_sin, half)
+
+#endif

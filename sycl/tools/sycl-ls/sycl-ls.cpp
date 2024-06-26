@@ -22,6 +22,7 @@
 #include <iostream>
 #include <map>
 #include <stdlib.h>
+#include <string>
 #include <vector>
 
 #ifdef _WIN32
@@ -68,6 +69,58 @@ std::string getDeviceTypeName(const device &Device) {
   }
 }
 
+const char *getArchName(const device &Device) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  auto arch = Device.get_info<syclex::info::device::architecture>();
+  switch (arch) {
+#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
+  case syclex::architecture::ARCH:                                             \
+    return #ARCH;
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
+#include <sycl/ext/oneapi/experimental/architectures.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  }
+  return "unknown";
+}
+
+template <typename RangeTy, typename ElemTy>
+bool contains(RangeTy &&Range, const ElemTy &Elem) {
+  return std::find(Range.begin(), Range.end(), Elem) != Range.end();
+}
+
+bool isPartitionableBy(const device &Dev, info::partition_property Prop) {
+  return contains(Dev.get_info<info::device::partition_properties>(), Prop);
+}
+
+std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
+  int NumSubDevices = 0;
+  int NumSubSubDevices = 0;
+
+  // Assume a composite device hierarchy and try to partition Device by
+  // affinity.
+  if (isPartitionableBy(
+          Device, info::partition_property::partition_by_affinity_domain)) {
+    auto SubDevs = Device.create_sub_devices<
+        info::partition_property::partition_by_affinity_domain>(
+        info::partition_affinity_domain::next_partitionable);
+    NumSubDevices = SubDevs.size();
+    NumSubSubDevices = GetNumberOfSubAndSubSubDevices(SubDevs[0])[0];
+  } else if (isPartitionableBy(
+                 Device,
+                 info::partition_property::ext_intel_partition_by_cslice)) {
+    auto SubDevs = Device.create_sub_devices<
+        info::partition_property::ext_intel_partition_by_cslice>();
+    NumSubDevices = SubDevs.size();
+    // CCSs can't be divided further.
+    NumSubSubDevices = 0;
+  } else {
+    // Not partitionable for OpenCL, CUDA, and HIP backends.
+  }
+
+  return {NumSubDevices, NumSubDevices * NumSubSubDevices};
+}
+
 static void printDeviceInfo(const device &Device, bool Verbose,
                             const std::string &Prepend) {
   auto DeviceVersion = Device.get_info<info::device::version>();
@@ -76,14 +129,35 @@ static void printDeviceInfo(const device &Device, bool Verbose,
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (Verbose) {
-    std::cout << Prepend << "Type       : " << getDeviceTypeName(Device)
+    std::cout << Prepend << "Type              : " << getDeviceTypeName(Device)
               << std::endl;
-    std::cout << Prepend << "Version    : " << DeviceVersion << std::endl;
-    std::cout << Prepend << "Name       : " << DeviceName << std::endl;
-    std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
-    std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
+    std::cout << Prepend << "Version           : " << DeviceVersion
+              << std::endl;
+    std::cout << Prepend << "Name              : " << DeviceName << std::endl;
+    std::cout << Prepend << "Vendor            : " << DeviceVendor << std::endl;
+    std::cout << Prepend << "Driver            : " << DeviceDriverVersion
+              << std::endl;
 
-    std::cout << Prepend << "Aspects    :";
+    // Get and print device UUID, if it is available.
+    if (Device.has(aspect::ext_intel_device_info_uuid)) {
+      auto UUID = Device.get_info<sycl::ext::intel::info::device::uuid>();
+      std::cout << Prepend << "UUID              : ";
+      for (int i = 0; i < 16; i++) {
+        std::cout << std::to_string(UUID[i]);
+      }
+      std::cout << std::endl;
+    }
+
+    // Print sub and sub-sub devices.
+    {
+      auto DevCount = GetNumberOfSubAndSubSubDevices(Device);
+      std::cout << Prepend << "Num SubDevices    : " << DevCount[0]
+                << std::endl;
+      std::cout << Prepend << "Num SubSubDevices : " << DevCount[1]
+                << std::endl;
+    }
+
+    std::cout << Prepend << "Aspects           :";
 #define __SYCL_ASPECT(ASPECT, ID)                                              \
   if (Device.has(aspect::ASPECT))                                              \
     std::cout << " " << #ASPECT;
@@ -94,6 +168,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     for (auto size : sg_sizes)
       std::cout << " " << size;
     std::cout << std::endl;
+    std::cout << Prepend << "Architecture: " << getArchName(Device)
+              << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;

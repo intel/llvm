@@ -438,6 +438,24 @@ Level Zero:
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
 
+#### Copy Engine
+
+For performance considerations, the Unified Runtime Level Zero adapter uses
+different Level Zero command-queues to submit compute kernels and memory
+operations when the device has a dedicated copy engine. To take advantage of the
+copy engine when available, the graph workload can also be split between memory
+operations and compute kernels. To achieve this, two graph workload
+command-lists live simultaneously in a command-buffer.
+
+When the command-buffer is finalized, memory operations (e.g. buffer copy,
+buffer fill, ...) are enqueued in the *copy* command-list while the other
+commands are enqueued in the compute command-list. On submission, if not empty,
+the *copy* command-list is sent to the main copy command-queue while the compute
+command-list is sent to the compute command-queue.
+
+Both are executed concurrently. Synchronization between the command-lists is
+handled by Level Zero events.
+
 ### CUDA
 
 The SYCL Graph CUDA backend relies on the

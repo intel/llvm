@@ -91,6 +91,7 @@ and not recommended to use in production environment.
     * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
     * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
     * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * nvidia_gpu_sm_90a - NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture

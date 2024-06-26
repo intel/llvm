@@ -72,7 +72,7 @@ pi_result after_piDeviceGetInfo_unsupported(pi_device device,
   switch (param_name) {
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
-    return PI_ERROR_UNSUPPORTED_FEATURE;
+    return PI_ERROR_INVALID_VALUE;
 
   default:
     return PI_SUCCESS;
@@ -84,7 +84,7 @@ pi_result after_piDeviceGetInfo_no_component_devices(
     void *param_value, size_t *param_value_size_ret) {
   switch (param_name) {
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
-    return PI_ERROR_UNSUPPORTED_FEATURE;
+    return PI_ERROR_INVALID_VALUE;
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
     if (param_value_size_ret)
       *param_value_size_ret = 0;

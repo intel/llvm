@@ -8302,7 +8302,10 @@ let CategoryName = "Lambda Issue" in {
   def note_var_explicitly_captured_here : Note<"variable %0 is"
     "%select{| explicitly}1 captured here">;
   def err_implicit_this_capture : Error<
-    "implicit capture of 'this' is not allowed for kernel functions">;
+    "implicit capture of 'this' is not allowed for kernel functions. "
+    "Either ensure the object is allocated in the memory available "
+    "on the device (e.g., shared USM memory) and capture it explicitly "
+    "or consider capturing the current object by copy ([*this]).">;
   def err_lambda_member_access : Error<
     "invalid attempt to access member of lambda">;
 

@@ -77,6 +77,7 @@
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
+// CHECK-NEXT: ext/oneapi/experimental/architectures.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
@@ -178,5 +179,6 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
+// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-EMPTY:

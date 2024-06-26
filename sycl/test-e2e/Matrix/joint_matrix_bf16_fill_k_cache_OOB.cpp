@@ -16,9 +16,4 @@
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"
-#include <cstddef>
-
-#define SG_SZ 16
-constexpr size_t TN = 16;
-
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

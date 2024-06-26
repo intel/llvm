@@ -8,6 +8,7 @@
 // SYCL-ASAN-SAME: "-mllvm" "-asan-constructor-kind=none"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-stack=0"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-globals=0"
+// SYCL-ASAN-SAME: "-mllvm" "-asan-mapping-scale=4"
 
 // RUN: %clangxx -fsycl -fsanitize=address -mllvm -asan-stack=1 -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN-FILTER %s

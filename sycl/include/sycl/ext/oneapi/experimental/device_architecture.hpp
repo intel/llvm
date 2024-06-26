@@ -17,183 +17,11 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class architecture : uint64_t {
-  // If new element is added to this enum:
-  //
-  // Update
-  //   - "detail::min_<category>_architecture" below if needed
-  //   - "detail::max_<category>_architecture" below if needed
-  //   - sycl_ext_oneapi_device_architecture specification doc
-  //   - "-fsycl-targets" description in sycl/doc/UsersManual.md
-  //
-  // Add
-  //   - new value for -fsycl-targets option to the compiler driver in
-  //     accordance with changes from sycl/doc/UsersManual.md and update the
-  //     compiler driver tests
-  //   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
-  //   - the unique ID of the new architecture to the SYCL RT source code to
-  //     support querying the device architecture through
-  //     device::get_info<ext::oneapi::experimental::info::device::architecture>
-  //   - alias of architecture if this is Intel GPU architecture in format
-  //     intel_gpu_<intel_gpu_arch_version>
-  //
-  // Important note about keeping architecture IDs below unique:
-  //   - the architecture ID must be a hex number with 16 digits
-  //   - the architecture ID must suit the following template:
-  //     0x AA BBBB CCCCCCCC DD (without spaces), where
-  //       - AA is 2-digit ID of the architecture family which must be unique
-  //       - BBBB is 4-digit number reserved for future modifications
-  //         to keep uniqueness. It should be always 0000 for now
-  //       - CCCCCCCC is 8-digit number of architecture itself. It must be
-  //         unique for all architectures inside the family
-  //       - DD is 2-digit number reserved for future unexpected modifications
-  //         to keep uniqueness. It should be always 00 for now
-  //
-  x86_64 = 0x9900000000000000,
-  //
-  // Intel CPU architectures
-  //
-  // AA is 03,
-  // CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
-  // underlied backend
-  intel_cpu_spr = 0x0300000000000800,
-  intel_cpu_gnr = 0x0300000000000900,
-  //
-  // Intel GPU architectures
-  //
-  // AA is 00,
-  // CCCCCCCC is GMDID of that architecture
-  intel_gpu_bdw =
-      0x0000000200000000, // Intel(R) microarchitecture code name Broadwell
-  intel_gpu_skl =
-      0x0000000240000900, // Intel(R) microarchitecture code name Skylake
-  intel_gpu_kbl = 0x0000000240400900,     // Kaby Lake
-  intel_gpu_cfl = 0x0000000240800900,     // Coffee Lake
-  intel_gpu_apl = 0x0000000240c00000,     // Apollo Lake
-  intel_gpu_bxt = intel_gpu_apl,          // Broxton
-  intel_gpu_glk = 0x0000000241000000,     // Gemini Lake
-  intel_gpu_whl = 0x0000000241400000,     // Whiskey Lake
-  intel_gpu_aml = 0x0000000241800000,     // Amber Lake
-  intel_gpu_cml = 0x0000000241c00000,     // Comet Lake
-  intel_gpu_icllp = 0x00000002c0000000,   // Ice Lake
-  intel_gpu_icl = intel_gpu_icllp,        // Ice Lake
-  intel_gpu_ehl = 0x00000002c0800000,     // Elkhart Lake
-  intel_gpu_jsl = intel_gpu_ehl,          // Jasper Lake
-  intel_gpu_tgllp = 0x0000000300000000,   // Tiger Lake
-  intel_gpu_tgl = intel_gpu_tgllp,        // Tiger Lake
-  intel_gpu_rkl = 0x0000000300400000,     // Rocket Lake
-  intel_gpu_adl_s = 0x0000000300800000,   // Alder Lake S
-  intel_gpu_rpl_s = intel_gpu_adl_s,      // Raptor Lake
-  intel_gpu_adl_p = 0x0000000300c00000,   // Alder Lake P
-  intel_gpu_adl_n = 0x0000000301000000,   // Alder Lake N
-  intel_gpu_dg1 = 0x0000000302800000,     // DG1
-  intel_gpu_acm_g10 = 0x000000030dc00800, // Alchemist G10
-  intel_gpu_dg2_g10 = intel_gpu_acm_g10,  // Alchemist G10
-  intel_gpu_acm_g11 = 0x000000030e000500, // Alchemist G11
-  intel_gpu_dg2_g11 = intel_gpu_acm_g11,  // Alchemist G11
-  intel_gpu_acm_g12 = 0x000000030e400000, // Alchemist G12
-  intel_gpu_dg2_g12 = intel_gpu_acm_g12,  // Alchemist G12
-  intel_gpu_pvc = 0x000000030f000700,     // Ponte Vecchio
-  intel_gpu_pvc_vg = 0x000000030f400700,  // Ponte Vecchio VG
-  intel_gpu_mtl_u = 0x0000000311800400,   // Meteor Lake U
-  intel_gpu_mtl_s = intel_gpu_mtl_u,      // Meteor Lake S
-  intel_gpu_arl_u = intel_gpu_mtl_u,      // Arrow Lake U
-  intel_gpu_arl_s = intel_gpu_mtl_u,      // Arrow Lake S
-  intel_gpu_mtl_h = 0x0000000311c00400,   // Meteor Lake H
-  intel_gpu_arl_h = 0x0000000312800400,   // Arrow Lake H
-  intel_gpu_bmg_g21 = 0x0000000500400400, // Battlemage G21
-  intel_gpu_lnl_m = 0x0000000501000400,   // Lunar Lake
-  //
-  // NVIDIA architectures
-  //
-  // AA is 01,
-  // CCCCCCCC is the SM version ID of that architecture
-  nvidia_gpu_sm_50 = 0x0100000000005000,
-  nvidia_gpu_sm_52 = 0x0100000000005200,
-  nvidia_gpu_sm_53 = 0x0100000000005300,
-  nvidia_gpu_sm_60 = 0x0100000000006000,
-  nvidia_gpu_sm_61 = 0x0100000000006100,
-  nvidia_gpu_sm_62 = 0x0100000000006200,
-  nvidia_gpu_sm_70 = 0x0100000000007000,
-  nvidia_gpu_sm_72 = 0x0100000000007200,
-  nvidia_gpu_sm_75 = 0x0100000000007500,
-  nvidia_gpu_sm_80 = 0x0100000000008000,
-  nvidia_gpu_sm_86 = 0x0100000000008600,
-  nvidia_gpu_sm_87 = 0x0100000000008700,
-  nvidia_gpu_sm_89 = 0x0100000000008900,
-  nvidia_gpu_sm_90 = 0x0100000000009000,
-  //
-  // AMD architectures
-  //
-  // AA is 02,
-  // CCCCCCCC is the GFX version ID of that architecture
-  amd_gpu_gfx700 = 0x0200000000070000,
-  amd_gpu_gfx701 = 0x0200000000070100,
-  amd_gpu_gfx702 = 0x0200000000070200,
-  amd_gpu_gfx801 = 0x0200000000080100,
-  amd_gpu_gfx802 = 0x0200000000080200,
-  amd_gpu_gfx803 = 0x0200000000080300,
-  amd_gpu_gfx805 = 0x0200000000080500,
-  amd_gpu_gfx810 = 0x0200000000081000,
-  amd_gpu_gfx900 = 0x0200000000090000,
-  amd_gpu_gfx902 = 0x0200000000090200,
-  amd_gpu_gfx904 = 0x0200000000090400,
-  amd_gpu_gfx906 = 0x0200000000090600,
-  amd_gpu_gfx908 = 0x0200000000090800,
-  amd_gpu_gfx909 = 0x0200000000090900,
-  amd_gpu_gfx90a = 0x0200000000090a00,
-  amd_gpu_gfx90c = 0x0200000000090c00,
-  amd_gpu_gfx940 = 0x0200000000094000,
-  amd_gpu_gfx941 = 0x0200000000094100,
-  amd_gpu_gfx942 = 0x0200000000094200,
-  amd_gpu_gfx1010 = 0x0200000000101000,
-  amd_gpu_gfx1011 = 0x0200000000101100,
-  amd_gpu_gfx1012 = 0x0200000000101200,
-  amd_gpu_gfx1013 = 0x0200000000101300,
-  amd_gpu_gfx1030 = 0x0200000000103000,
-  amd_gpu_gfx1031 = 0x0200000000103100,
-  amd_gpu_gfx1032 = 0x0200000000103200,
-  amd_gpu_gfx1033 = 0x0200000000103300,
-  amd_gpu_gfx1034 = 0x0200000000103400,
-  amd_gpu_gfx1035 = 0x0200000000103500,
-  amd_gpu_gfx1036 = 0x0200000000103600,
-  amd_gpu_gfx1100 = 0x0200000000110000,
-  amd_gpu_gfx1101 = 0x0200000000110100,
-  amd_gpu_gfx1102 = 0x0200000000110200,
-  amd_gpu_gfx1103 = 0x0200000000110300,
-  amd_gpu_gfx1150 = 0x0200000000115000,
-  amd_gpu_gfx1151 = 0x0200000000115100,
-  amd_gpu_gfx1200 = 0x0200000000120000,
-  amd_gpu_gfx1201 = 0x0200000000120100,
-  //
-  // Aliases for Intel graphics architectures
-  //
-  intel_gpu_8_0_0 = intel_gpu_bdw,
-  intel_gpu_9_0_9 = intel_gpu_skl,
-  intel_gpu_9_1_9 = intel_gpu_kbl,
-  intel_gpu_9_2_9 = intel_gpu_cfl,
-  intel_gpu_9_3_0 = intel_gpu_apl,
-  intel_gpu_9_4_0 = intel_gpu_glk,
-  intel_gpu_9_5_0 = intel_gpu_whl,
-  intel_gpu_9_6_0 = intel_gpu_aml,
-  intel_gpu_9_7_0 = intel_gpu_cml,
-  intel_gpu_11_0_0 = intel_gpu_icllp,
-  intel_gpu_11_2_0 = intel_gpu_ehl,
-  intel_gpu_12_0_0 = intel_gpu_tgllp,
-  intel_gpu_12_1_0 = intel_gpu_rkl,
-  intel_gpu_12_2_0 = intel_gpu_adl_s,
-  intel_gpu_12_3_0 = intel_gpu_adl_p,
-  intel_gpu_12_4_0 = intel_gpu_adl_n,
-  intel_gpu_12_10_0 = intel_gpu_dg1,
-  intel_gpu_12_55_8 = intel_gpu_acm_g10,
-  intel_gpu_12_56_5 = intel_gpu_acm_g11,
-  intel_gpu_12_57_0 = intel_gpu_acm_g12,
-  intel_gpu_12_60_7 = intel_gpu_pvc,
-  intel_gpu_12_61_7 = intel_gpu_pvc_vg,
-  intel_gpu_12_70_4 = intel_gpu_mtl_u,
-  intel_gpu_12_71_4 = intel_gpu_mtl_h,
-  intel_gpu_12_74_4 = intel_gpu_arl_h,
-  intel_gpu_20_1_4 = intel_gpu_bmg_g21,
-  intel_gpu_20_4_4 = intel_gpu_lnl_m,
+#define __SYCL_ARCHITECTURE(NAME, VAL) NAME = VAL,
+#define __SYCL_ARCHITECTURE_ALIAS(NAME, VAL) NAME = VAL,
+#include <sycl/ext/oneapi/experimental/architectures.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
 };
 
 enum class arch_category {
@@ -231,7 +59,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =

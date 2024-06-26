@@ -51,5 +51,6 @@ int main() {
   });
 
   myQueue.wait();
+  free(result, myQueue);
   return 0;
 }

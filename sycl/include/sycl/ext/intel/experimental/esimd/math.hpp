@@ -330,6 +330,40 @@ __ESIMD_API std::enable_if_t<
   return __ESIMD_NS::ror<T0, T1, T2>(src0, src1);
 }
 
+/// Count the number of 1-bits.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return the popcounted vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+popcount(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_popcount<T, N>(vec.data());
+}
+
+/// Count the number of leading zeros.
+/// If the input is 0, the number of total bits is returned.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return vector with number of leading zeros of the input vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+clz(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_clz<T, N>(vec.data());
+}
+
+/// Count the number of trailing zeros.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return vector with number of trailing zeros of the input vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+ctz(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_ctz<T, N>(vec.data());
+}
+
 /// @} sycl_esimd_bitmanip
 
 /// @addtogroup sycl_esimd_math
@@ -1671,7 +1705,7 @@ ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
   static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
                 "fma only supports floating point types");
   using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
-  auto Ret = __esimd_fmadd<__ESIMD_DNS::__raw_t<CppT>, N>(
+  auto Ret = __spirv_ocl_fma<__ESIMD_DNS::__raw_t<CppT>, N>(
       __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));

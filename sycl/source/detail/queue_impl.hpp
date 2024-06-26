@@ -732,7 +732,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MExtGraphDeps.LastEventPtr = nullptr;
+    MExtGraphDeps.reset();
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -770,6 +770,10 @@ public:
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+  // Must be called under MMutex protection
+  void doUnenqueuedCommandCleanup(
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph);
 
 protected:
   event discard_or_return(const event &Event);
@@ -814,6 +818,12 @@ protected:
       // (blocked), we track them to prevent barrier from being enqueued
       // earlier.
       std::lock_guard<std::mutex> Lock{MMutex};
+      {
+        std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+        for (auto &UpdatedGraph : MMissedCleanupRequests)
+          doUnenqueuedCommandCleanup(UpdatedGraph);
+        MMissedCleanupRequests.clear();
+      }
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
       if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -938,6 +948,12 @@ protected:
     // ordering
     std::vector<EventImplPtr> UnenqueuedCmdEvents;
     EventImplPtr LastBarrier;
+
+    void reset() {
+      LastEventPtr = nullptr;
+      UnenqueuedCmdEvents.clear();
+      LastBarrier = nullptr;
+    }
   } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
@@ -983,6 +999,10 @@ protected:
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
+
+  std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
+      MMissedCleanupRequests;
+  std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };

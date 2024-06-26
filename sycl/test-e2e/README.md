@@ -233,6 +233,7 @@ unavailable.
  * **llvm-link** - llvm-link tool availability;
  * **fusion**: - Runtime supports kernel fusion;
  * **aspect-\<name\>**: - SYCL aspects supported by a device;
+ * **architecture-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. architecture-intel_gpu_pvc);
 
 ## llvm-lit parameters
 

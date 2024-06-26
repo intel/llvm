@@ -206,9 +206,11 @@ _PI_API(piextMemMipmapFree)
 
 // Interop
 _PI_API(piextMemImportOpaqueFD)
+_PI_API(piextImportExternalMemory)
 _PI_API(piextMemReleaseInterop)
 _PI_API(piextMemMapExternalArray)
 _PI_API(piextImportExternalSemaphoreOpaqueFD)
+_PI_API(piextImportExternalSemaphore)
 _PI_API(piextDestroyExternalSemaphore)
 _PI_API(piextWaitExternalSemaphore)
 _PI_API(piextSignalExternalSemaphore)

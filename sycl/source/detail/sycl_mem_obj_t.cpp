@@ -229,8 +229,11 @@ void SYCLMemObjT::detachMemoryObject(
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
   if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
-      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
-    Scheduler::getInstance().deferMemObjRelease(Self);
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
+    bool okToDefer = GlobalHandler::instance().isOkToDefer();
+    if (okToDefer)
+      Scheduler::getInstance().deferMemObjRelease(Self);
+  }
 }
 
 void SYCLMemObjT::handleWriteAccessorCreation() {

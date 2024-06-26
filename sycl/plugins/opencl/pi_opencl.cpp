@@ -437,11 +437,19 @@ pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
                                      ParamValueSizeRet);
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalMemory`")]]
 pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
                                  size_t Size, int FileDescriptor,
                                  pi_interop_mem_handle *RetHandle) {
   return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
                                        RetHandle);
+}
+
+pi_result piextImportExternalMemory(pi_context Context, pi_device Device,
+                                    pi_external_mem_descriptor *MemDesc,
+                                    pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextImportExternalMemory(Context, Device, MemDesc, RetHandle);
 }
 
 pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
@@ -458,6 +466,8 @@ pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
   return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalSemaphore`")]]
 pi_result
 piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
                                      int FileDescriptor,
@@ -466,27 +476,35 @@ piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
                                                      FileDescriptor, RetHandle);
 }
 
+pi_result
+piextImportExternalSemaphore(pi_context Context, pi_device Device,
+                             pi_external_semaphore_descriptor *SemDesc,
+                             pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphore(Context, Device, SemDesc,
+                                             RetHandle);
+}
+
 pi_result piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
                                         pi_interop_semaphore_handle SemHandle) {
   return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
 }
 
-pi_result piextWaitExternalSemaphore(pi_queue Queue,
-                                     pi_interop_semaphore_handle SemHandle,
-                                     pi_uint32 NumEventsInWaitList,
-                                     const pi_event *EventWaitList,
-                                     pi_event *Event) {
-  return pi2ur::piextWaitExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+__SYCL_EXPORT pi_result piextWaitExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(Queue, SemHandle, HasWaitValue,
+                                           WaitValue, NumEventsInWaitList,
+                                           EventWaitList, Event);
 }
 
-pi_result piextSignalExternalSemaphore(pi_queue Queue,
-                                       pi_interop_semaphore_handle SemHandle,
-                                       pi_uint32 NumEventsInWaitList,
-                                       const pi_event *EventWaitList,
-                                       pi_event *Event) {
-  return pi2ur::piextSignalExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+__SYCL_EXPORT pi_result piextSignalExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(Queue, SemHandle, HasSignalValue,
+                                             SignalValue, NumEventsInWaitList,
+                                             EventWaitList, Event);
 }
 
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,

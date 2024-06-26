@@ -1,0 +1,179 @@
+
+// If new element is added to this enum:
+//
+// Update
+//   - "detail::min_<category>_architecture" below if needed
+//   - "detail::max_<category>_architecture" below if needed
+//   - sycl_ext_oneapi_device_architecture specification doc
+//   - "-fsycl-targets" description in sycl/doc/UsersManual.md
+//
+// Add
+//   - new value for -fsycl-targets option to the compiler driver in
+//     accordance with changes from sycl/doc/UsersManual.md and update the
+//     compiler driver tests
+//   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+//   - the unique ID of the new architecture to the SYCL RT source code to
+//     support querying the device architecture through
+//     device::get_info<ext::oneapi::experimental::info::device::architecture>
+//   - alias of architecture if this is Intel GPU architecture in format
+//     intel_gpu_<intel_gpu_arch_version>
+//
+// Important note about keeping architecture IDs below unique:
+//   - the architecture ID must be a hex number with 16 digits
+//   - the architecture ID must suit the following template:
+//     0x AA BBBB CCCCCCCC DD (without spaces), where
+//       - AA is 2-digit ID of the architecture family which must be unique
+//       - BBBB is 4-digit number reserved for future modifications
+//         to keep uniqueness. It should be always 0000 for now
+//       - CCCCCCCC is 8-digit number of architecture itself. It must be
+//         unique for all architectures inside the family
+//       - DD is 2-digit number reserved for future unexpected modifications
+//         to keep uniqueness. It should be always 00 for now
+//
+__SYCL_ARCHITECTURE(unknown, 0x9900000000000000)
+//
+// Intel CPU architectures
+//
+// AA is 03,
+// CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
+// underlied backend
+// Note: CCCCCCCC for x86_64 consists of all zeros
+__SYCL_ARCHITECTURE(x86_64, 0x0300000000000000)
+__SYCL_ARCHITECTURE(intel_cpu_spr, 0x0300000000000800)
+__SYCL_ARCHITECTURE(intel_cpu_gnr, 0x0300000000000900)
+//
+// Intel GPU architectures
+//
+// AA is 00,
+// CCCCCCCC is GMDID of that architecture
+__SYCL_ARCHITECTURE(intel_gpu_bdw, 0x0000000200000000)           // Intel(R) microarchitecture code name Broadwell
+__SYCL_ARCHITECTURE(intel_gpu_skl, 0x0000000240000900)           // Intel(R) microarchitecture code name Skylake
+__SYCL_ARCHITECTURE(intel_gpu_kbl, 0x0000000240400900)           // Kaby Lake
+__SYCL_ARCHITECTURE(intel_gpu_cfl, 0x0000000240800900)           // Coffee Lake
+__SYCL_ARCHITECTURE(intel_gpu_apl, 0x0000000240c00000)           // Apollo Lake
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_bxt, intel_gpu_apl)          // Broxton
+__SYCL_ARCHITECTURE(intel_gpu_glk, 0x0000000241000000)           // Gemini Lake
+__SYCL_ARCHITECTURE(intel_gpu_whl, 0x0000000241400000)           // Whiskey Lake
+__SYCL_ARCHITECTURE(intel_gpu_aml, 0x0000000241800000)           // Amber Lake
+__SYCL_ARCHITECTURE(intel_gpu_cml, 0x0000000241c00000)           // Comet Lake
+__SYCL_ARCHITECTURE(intel_gpu_icllp, 0x00000002c0000000)         // Ice Lake
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_icl, intel_gpu_icllp)        // Ice Lake
+__SYCL_ARCHITECTURE(intel_gpu_ehl, 0x00000002c0800000)           // Elkhart Lake
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_jsl, intel_gpu_ehl)          // Jasper Lake
+__SYCL_ARCHITECTURE(intel_gpu_tgllp, 0x0000000300000000)         // Tiger Lake
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_tgl, intel_gpu_tgllp)        // Tiger Lake
+__SYCL_ARCHITECTURE(intel_gpu_rkl, 0x0000000300400000)           // Rocket Lake
+__SYCL_ARCHITECTURE(intel_gpu_adl_s, 0x0000000300800000)         // Alder Lake S
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_rpl_s, intel_gpu_adl_s)      // Raptor Lake
+__SYCL_ARCHITECTURE(intel_gpu_adl_p, 0x0000000300c00000)         // Alder Lake P
+__SYCL_ARCHITECTURE(intel_gpu_adl_n, 0x0000000301000000)         // Alder Lake N
+__SYCL_ARCHITECTURE(intel_gpu_dg1, 0x0000000302800000)           // DG1
+__SYCL_ARCHITECTURE(intel_gpu_acm_g10, 0x000000030dc00800)       // Alchemist G10
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_dg2_g10, intel_gpu_acm_g10)  // Alchemist G10
+__SYCL_ARCHITECTURE(intel_gpu_acm_g11, 0x000000030e000500)       // Alchemist G11
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_dg2_g11, intel_gpu_acm_g11)  // Alchemist G11
+__SYCL_ARCHITECTURE(intel_gpu_acm_g12, 0x000000030e400000)       // Alchemist G12
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_dg2_g12, intel_gpu_acm_g12)  // Alchemist G12
+__SYCL_ARCHITECTURE(intel_gpu_pvc, 0x000000030f000700)           // Ponte Vecchio
+__SYCL_ARCHITECTURE(intel_gpu_pvc_vg, 0x000000030f400700)        // Ponte Vecchio VG
+__SYCL_ARCHITECTURE(intel_gpu_mtl_u, 0x0000000311800400)         // Meteor Lake U
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_mtl_s, intel_gpu_mtl_u)      // Meteor Lake S
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_arl_u, intel_gpu_mtl_u)      // Arrow Lake U
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_arl_s, intel_gpu_mtl_u)      // Arrow Lake S
+__SYCL_ARCHITECTURE(intel_gpu_mtl_h, 0x0000000311c00400)         // Meteor Lake H
+__SYCL_ARCHITECTURE(intel_gpu_arl_h, 0x0000000312800400)         // Arrow Lake H
+__SYCL_ARCHITECTURE(intel_gpu_bmg_g21, 0x0000000500400400)       // Battlemage G21
+__SYCL_ARCHITECTURE(intel_gpu_lnl_m, 0x0000000501000400)         // Lunar Lake
+//
+// NVIDIA architectures
+//
+// AA is 01,
+// CCCCCCCC is the SM version ID of that architecture
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_50, 0x0100000000005000)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_52, 0x0100000000005200)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_53, 0x0100000000005300)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_60, 0x0100000000006000)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_61, 0x0100000000006100)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_62, 0x0100000000006200)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_70, 0x0100000000007000)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_72, 0x0100000000007200)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_75, 0x0100000000007500)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_80, 0x0100000000008000)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_86, 0x0100000000008600)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_87, 0x0100000000008700)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_89, 0x0100000000008900)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_90, 0x0100000000009000)
+__SYCL_ARCHITECTURE(nvidia_gpu_sm_90a, 0x01000000000090a0)
+//
+// AMD architectures
+//
+// AA is 02,
+// CCCCCCCC is the GFX version ID of that architecture
+__SYCL_ARCHITECTURE(amd_gpu_gfx700, 0x0200000000070000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx701, 0x0200000000070100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx702, 0x0200000000070200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx801, 0x0200000000080100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx802, 0x0200000000080200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx803, 0x0200000000080300)
+__SYCL_ARCHITECTURE(amd_gpu_gfx805, 0x0200000000080500)
+__SYCL_ARCHITECTURE(amd_gpu_gfx810, 0x0200000000081000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx900, 0x0200000000090000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx902, 0x0200000000090200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx904, 0x0200000000090400)
+__SYCL_ARCHITECTURE(amd_gpu_gfx906, 0x0200000000090600)
+__SYCL_ARCHITECTURE(amd_gpu_gfx908, 0x0200000000090800)
+__SYCL_ARCHITECTURE(amd_gpu_gfx909, 0x0200000000090900)
+__SYCL_ARCHITECTURE(amd_gpu_gfx90a, 0x0200000000090a00)
+__SYCL_ARCHITECTURE(amd_gpu_gfx90c, 0x0200000000090c00)
+__SYCL_ARCHITECTURE(amd_gpu_gfx940, 0x0200000000094000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx941, 0x0200000000094100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx942, 0x0200000000094200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1010, 0x0200000000101000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1011, 0x0200000000101100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1012, 0x0200000000101200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1013, 0x0200000000101300)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1030, 0x0200000000103000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1031, 0x0200000000103100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1032, 0x0200000000103200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1033, 0x0200000000103300)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1034, 0x0200000000103400)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1035, 0x0200000000103500)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1036, 0x0200000000103600)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1100, 0x0200000000110000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1101, 0x0200000000110100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1102, 0x0200000000110200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1103, 0x0200000000110300)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1150, 0x0200000000115000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1151, 0x0200000000115100)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1200, 0x0200000000120000)
+__SYCL_ARCHITECTURE(amd_gpu_gfx1201, 0x0200000000120100)
+//
+// Aliases for Intel graphics architectures
+//
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_8_0_0, intel_gpu_bdw)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_0_9, intel_gpu_skl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_1_9, intel_gpu_kbl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_2_9, intel_gpu_cfl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_3_0, intel_gpu_apl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_4_0, intel_gpu_glk)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_5_0, intel_gpu_whl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_6_0, intel_gpu_aml)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_9_7_0, intel_gpu_cml)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_11_0_0, intel_gpu_icllp)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_11_2_0, intel_gpu_ehl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_0_0, intel_gpu_tgllp)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_1_0, intel_gpu_rkl)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_2_0, intel_gpu_adl_s)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_3_0, intel_gpu_adl_p)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_4_0, intel_gpu_adl_n)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_10_0, intel_gpu_dg1)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_55_8, intel_gpu_acm_g10)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_56_5, intel_gpu_acm_g11)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_57_0, intel_gpu_acm_g12)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_60_7, intel_gpu_pvc)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_61_7, intel_gpu_pvc_vg)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_70_4, intel_gpu_mtl_u)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_71_4, intel_gpu_mtl_h)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_74_4, intel_gpu_arl_h)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_1_4, intel_gpu_bmg_g21)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_4_4, intel_gpu_lnl_m)

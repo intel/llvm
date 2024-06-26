@@ -185,7 +185,7 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"
-// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-emit-exported-symbols"{{.*}} "-o" "{{.*}}.table" "{{.*}}.bc"
+// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-emit-exported-symbols" "-emit-imported-symbols"{{.*}} "-o" "{{.*}}.table" "{{.*}}.bc"
 
 /// ###########################################################################
 /// test llvm-link behavior for special user input whose filename resembles SYCL device library

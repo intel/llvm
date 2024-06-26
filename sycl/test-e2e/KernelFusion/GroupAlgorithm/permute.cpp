@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
 // RUN: %{run} %t.out
 
 // Test fusion works with permute and remapping.

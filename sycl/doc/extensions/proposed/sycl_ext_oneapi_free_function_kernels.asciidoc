@@ -773,6 +773,62 @@ int main() {
 ```
 
 
+== {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
+
+The contents of this section are non-normative and apply only to the {dpcpp}
+implementation.
+Kernels written using the free function kernel syntax can be submitted to a
+device by using the Level Zero or OpenCL backends, without going through the
+SYCL host runtime APIs.
+This works only when the kernel is AOT compiled to native device code using the
+`-fsycl-targets` compiler option.
+
+The interface to the kernel in the native device code module is only guaranteed
+when the kernel adheres to the following restrictions:
+
+* The kernel is written in the free function kernel syntax;
+* The kernel function is declared as `extern "C"`;
+* Each formal argument to the kernel is either a {cpp} trivially copyable type
+  or the `work_group_memory` type (see
+  link:../proposed/sycl_ext_oneapi_work_group_memory.asciidoc[
+  sycl_ext_oneapi_work_group_memory]); and
+* The translation unit containing the kernel is compiled with the
+  `-fno-sycl-dead-args-optimization` option.
+
+Both Level Zero and OpenCL identify a kernel via a _name_ string.
+(See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
+When a kernel is defined according to the restrictions above, the _name_ is
+guaranteed to be the same as the name of the kernel's function in the {cpp}
+source code but with "++__sycl_kernel_++" prefixed.
+For example, if the function name is "foo", the kernel's name in the native
+device code module is "++__sycl_kernel_foo++".
+
+Both Level Zero and OpenCL set kernel argument values using three pieces of
+information:
+
+* The index of the argument;
+* The size (in bytes) of the value; and
+* A pointer to the start of the value.
+
+(See `zeKernelSetArgumentValue` and `clSetKernelArg` in their respective
+specifications.)
+
+When a kernel is defined according to the restrictions above, the argument
+indices are the same as the positions of the formal kernel arguments in the
+{cpp} source code.
+The first argument has index 0, the next has index 1, etc.
+
+If an argument has a trivially copyable type, the size must be the size of that
+type, and the pointer must point to a memory region that has the same size and
+representation as that trivially copyable type.
+
+If an argument has the type `work_group_memory`, the size must be the size (in
+bytes) of the device local memory that is represented by the
+`work_group_memory` argument.
+The pointer passed to  `zeKernelSetArgumentValue` or `clSetKernelArg` must be
+NULL in this case.
+
+
 == Implementation notes
 
 === Compiler diagnostics

@@ -30,8 +30,7 @@ int main() {
   int val;
   sycl::buffer<int, 1> Buf{&val, sycl::range<1>(1)};
 
-  sycl::default_selector DeviceSelector;
-  sycl::device Dev = DeviceSelector.select_device();
+  sycl::device Dev(sycl::default_selector_v);
   sycl::context Ctx{Dev};
 
   sycl::queue InOrderQueueA{Ctx, Dev, sycl::property::queue::in_order()};

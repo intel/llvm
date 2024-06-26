@@ -1,4 +1,4 @@
-// REQUIRES: linux,cuda,aspect-ext_oneapi_cubemap
+// REQUIRES: cuda,aspect-ext_oneapi_cubemap
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
 
 // RUN: %{build} -o %t.out

@@ -244,11 +244,6 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
-  /// Associate event with provided queue.
-  ///
-  /// @return
-  void associateWithQueue(const QueueImplPtr &Queue);
-
   /// Indicates if this event is not associated with any command and doesn't
   /// have native handle.
   ///

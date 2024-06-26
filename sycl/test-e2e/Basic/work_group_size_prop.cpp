@@ -63,20 +63,9 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
           KernelFunc);
     });
     Q.wait_and_throw();
-  } catch (nd_range_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected "
-                 "nd_range_error exception: "
+  } catch (exception &E) {
+    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
               << E.what() << std::endl;
-    return 1;
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected "
-                 "runtime_error exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: something unexpected "
-                 "has been caught"
-              << std::endl;
     return 1;
   }
 
@@ -86,20 +75,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
         nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
         KernelFunc);
     Q.wait_and_throw();
-  } catch (nd_range_error &E) {
+  } catch (exception &E) {
     std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
-                 "nd_range_error exception: "
+                 "exception: "
               << E.what() << std::endl;
-    return 1;
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
-                 "runtime_error exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: something "
-                 "unexpected has been caught"
-              << std::endl;
     return 1;
   }
 
@@ -114,21 +93,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
             repeatRange<Dims>(16), Props, KernelFunc);
       });
       Q.wait_and_throw();
-    } catch (nd_range_error &E) {
+    } catch (exception &E) {
       std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
-                   "nd_range_error exception: "
+                   "exception: "
                 << E.what() << std::endl;
-      return 1;
-    } catch (runtime_error &E) {
-      std::cerr
-          << "Test case ReqdWGSizeNoLocalPositive: unexpected runtime_error "
-             "exception: "
-          << E.what() << std::endl;
-      return 1;
-    } catch (...) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: something "
-                   "unexpected has been caught"
-                << std::endl;
       return 1;
     }
 
@@ -136,23 +104,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
       Q.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, true, Is...>>(
           repeatRange<Dims>(16), Props, KernelFunc);
       Q.wait_and_throw();
-    } catch (nd_range_error &E) {
-      std::cerr
-          << "Test case ReqdWGSizeNoLocalPositive shortcut failed: unexpected "
-             "nd_range_error exception: "
-          << E.what() << std::endl;
-      return 1;
-    } catch (runtime_error &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut: unexpected "
-                   "runtime_error "
-                   "exception: "
+    } catch (exception &E) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut failed: "
+                   "unexpected exception: "
                 << E.what() << std::endl;
-      return 1;
-    } catch (...) {
-      std::cerr
-          << "Test case ReqdWGSizeNoLocalPositive shortcut failed: something "
-             "unexpected has been caught"
-          << std::endl;
       return 1;
     }
   }
@@ -168,28 +123,18 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
     std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
-  } catch (nd_range_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
       std::cerr
-          << "Test case ReqdWGSizeNegativeA failed: unexpected nd_range_error "
-             "exception: "
+          << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
           << E.what() << std::endl;
       return 1;
     }
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: unexpected "
-                 "nd_range_error exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: something unexpected "
-                 "has been caught"
-              << std::endl;
-    return 1;
   }
 
   // Same as above but using the queue shortcuts.
@@ -202,28 +147,18 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
                  "has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
-  } catch (nd_range_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
       std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
-                   "nd_range_error "
                    "exception: "
                 << E.what() << std::endl;
       return 1;
     }
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
-                 "nd_range_error exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: something "
-                 "unexpected has been caught"
-              << std::endl;
-    return 1;
   }
 
   return 0;

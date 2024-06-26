@@ -522,6 +522,71 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
+// Add any sycl-post-link options that rely on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/lib/Driver/ToolChains/Clang.cpp.
+static void
+getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
+                               SmallVector<StringRef, 8> &PostLinkArgs,
+                               const llvm::Triple Triple) {
+  const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+  bool SYCLNativeCPU = (HostTriple == Triple);
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() ||
+                              !Triple.isSPIRAOT() && !SYCLNativeCPU);
+  if (SpecConstsSupported)
+    PostLinkArgs.push_back("-spec-const=native");
+  else
+    PostLinkArgs.push_back("-spec-const=emulation");
+
+  // See if device code splitting is already requested. If not requested, then
+  // set -split=auto for non-FPGA targets.
+  bool NoSplit = true;
+  for (auto Arg : PostLinkArgs)
+    if (Arg.contains("-split=")) {
+      NoSplit = false;
+      break;
+    }
+  if (NoSplit && (Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
+    PostLinkArgs.push_back("-split=auto");
+
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                     OPT_sycl_remove_unused_external_funcs, false) &&
+       !SYCLNativeCPU) &&
+      !Triple.isNVPTX() && !Triple.isAMDGPU())
+    PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
+
+  if (!Triple.isAMDGCN())
+    PostLinkArgs.push_back("-emit-param-info");
+  // Enable program metadata
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || SYCLNativeCPU)
+    PostLinkArgs.push_back("-emit-program-metadata");
+
+  bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
+  bool SplitEsimd =
+      Args.hasFlag(OPT_sycl_device_code_split_esimd,
+                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
+
+  // Symbol file and specialization constant info generation is mandatory -
+  // add options unconditionally
+  PostLinkArgs.push_back("-symbols");
+  PostLinkArgs.push_back("-emit-exported-symbols");
+  PostLinkArgs.push_back("-emit-imported-symbols");
+  if (SplitEsimd)
+    PostLinkArgs.push_back("-split-esimd");
+  PostLinkArgs.push_back("-lower-esimd");
+
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
+}
+
 // Run sycl-post-link tool
 static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
                                            const ArgList &Args) {
@@ -536,12 +601,13 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*SYCLPostLinkPath);
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
   StringRef SYCLPostLinkOptions;
   if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
     SYCLPostLinkOptions = A->getValue();
-
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*SYCLPostLinkPath);
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
