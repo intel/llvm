@@ -6,8 +6,9 @@
 // CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
 // CHECK: store target("spirv.Sampler") [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
+// CHECK-NEXT: [[GEP2:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load target("spirv.Sampler"), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP]], target("spirv.Sampler") [[LOAD_SAMPLER_ARG]])
+// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP2]], target("spirv.Sampler") [[LOAD_SAMPLER_ARG]])
 //
 
 // CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(target("spirv.Sampler") [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]])
