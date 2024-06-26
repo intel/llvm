@@ -4163,7 +4163,7 @@ class OffloadingActionBuilder final {
             GpuArchList.push_back(CudaArch::AMDGCNSPIRV);
           else
             GpuArchList.push_back(CudaArch::Generic);
-	} else {
+        } else {
           GpuArchList.push_back(DefaultCudaArch);
         }
       }
