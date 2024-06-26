@@ -5,8 +5,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <level_zero/ze_api.h>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

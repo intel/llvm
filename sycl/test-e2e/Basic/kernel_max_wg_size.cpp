@@ -7,7 +7,8 @@
 // UNSUPPORTED: cuda || hip
 
 // clang-format off
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 // clang-format on
 
@@ -50,5 +51,6 @@ int main() {
   });
 
   myQueue.wait();
+  free(result, myQueue);
   return 0;
 }

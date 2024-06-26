@@ -12,6 +12,8 @@
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-CUDA %s
 // RUN: %clang_cc1 %s  -triple amdgcn-amd-amdhsa -target-cpu gfx906 -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-HIP %s
 
+// RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_90a -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-CUDA-FEATURE %s
+
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define SYCL_EXTERNAL
 // CHECK-NOT:#define CL_SYCL_LANGUAGE_VERSION 121
@@ -37,3 +39,5 @@
 // CHECK-CUDA-NOT:#define __CUDA_ARCH__ 800
 
 // CHECK-HIP:#define __CUDA_ARCH__ 0
+
+// CHECK-CUDA-FEATURE:#define __CUDA_ARCH_FEAT_SM90_ALL 1

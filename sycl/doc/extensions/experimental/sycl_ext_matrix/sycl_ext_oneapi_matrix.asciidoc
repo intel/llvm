@@ -467,6 +467,10 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> it) {
   }
 });
 ```
+The `Rows` and `Cols` template parameters represent the logical shape
+of the matrix, which is not necessarily the way the matrix is layed
+out in memory. Thus, these template parameters have the same meaning
+in `joint_matrix_prefetch` as they do for `joint_matrix_load`.
 
 === Support for Machine Learning Types
 Some devices support special matrix element types that are commonly
@@ -1081,6 +1085,13 @@ multiple of 4 when `T` is `float`; where `T` is the type of the
 `joint_matrix` elements. When `T` is not `half` or `float` there are
 no restrictions to `stride`.
 
+IMPORTANT: For some devices it is important to use the sm version
+(Compute Capability) corresponding to the device that will run the
+program when specifying e.g. `-fsycl-targets=nvidia_gpu_sm_xx` during
+compilation. This particularly affects matrix operations using `half`.
+For more information on this issue consult
+https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
+
 ==== AMD Matrix Cores Supported Combinations
 The complete set of matrix data types and dimensions that are supported by
 the `ext_oneapi_hip` backend are represented in the following
@@ -1135,4 +1146,5 @@ supported combinations
 load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
+|12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
 |======================

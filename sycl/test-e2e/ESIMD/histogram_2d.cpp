@@ -11,10 +11,9 @@
 
 #include "esimd_test_utils.hpp"
 
+#include <sycl/accessor_image.hpp>
+
 #include <array>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

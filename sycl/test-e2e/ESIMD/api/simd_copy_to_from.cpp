@@ -13,17 +13,12 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstdlib>
-#include <iostream>
 #include <sycl/builtins_esimd.hpp>
-#include <sycl/sycl.hpp>
 #ifdef _WIN32
 #include <malloc.h>
 #endif // _WIN32
-
-#include <sycl/ext/intel/esimd.hpp>
 
 // Workaround for absense of std::aligned_alloc on Windows.
 #ifdef _WIN32
