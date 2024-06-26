@@ -1,0 +1,68 @@
+; RUN: llvm-spirv -spirv-text -r %s -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: define spir_kernel void @test{{.*}} !kernel_arg_runtime_aligned ![[RTALIGN_MD:[0-9]+]] {{.*}}
+; CHECK-LLVM: ![[RTALIGN_MD]] = !{i1 true, i1 false, i1 true, i1 false, i1 false}
+
+119734787 65536 393230 22 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+2 Capability Int8 
+2 Capability RuntimeAlignedAttributeINTEL 
+8 Extension "SPV_INTEL_runtime_aligned" 
+5 ExtInstImport 1 "OpenCL.std" 
+3 MemoryModel 2 2 
+5 EntryPoint 6 14 "test" 
+3 Source 0 0 
+4 Name 7 "test" 
+3 Name 8 "a" 
+3 Name 9 "b" 
+3 Name 10 "c" 
+3 Name 11 "d" 
+3 Name 12 "e" 
+4 Name 13 "entry" 
+3 Name 15 "a" 
+3 Name 16 "b" 
+3 Name 17 "c" 
+3 Name 18 "d" 
+3 Name 19 "e" 
+
+6 Decorate 7 LinkageAttributes "test" Export 
+4 Decorate 8 FuncParamAttr 5940 
+4 Decorate 10 FuncParamAttr 5940 
+4 Decorate 15 FuncParamAttr 5940 
+4 Decorate 17 FuncParamAttr 5940 
+4 TypeInt 3 8 0 
+4 TypeInt 5 32 0 
+2 TypeVoid 2 
+4 TypePointer 4 5 3 
+8 TypeFunction 6 2 4 4 4 5 5 
+
+
+
+5 Function 2 7 0 6 
+3 FunctionParameter 4 8 
+3 FunctionParameter 4 9 
+3 FunctionParameter 4 10 
+3 FunctionParameter 5 11 
+3 FunctionParameter 5 12 
+
+2 Label 13 
+1 Return 
+
+1 FunctionEnd 
+
+5 Function 2 14 0 6 
+3 FunctionParameter 4 15 
+3 FunctionParameter 4 16 
+3 FunctionParameter 4 17 
+3 FunctionParameter 5 18 
+3 FunctionParameter 5 19 
+
+2 Label 20 
+9 FunctionCall 2 21 7 15 16 17 18 19 
+1 Return 
+
+1 FunctionEnd 
+
