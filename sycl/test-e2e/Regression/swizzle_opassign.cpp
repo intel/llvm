@@ -6,7 +6,8 @@
 // Tests that the mutating operators (+=, -=, ..., ++, --) on swizzles compile
 // and correctly mutate the elements in the corresponding vector.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 constexpr std::string_view OpNames[] = {
     "+=", "-=",  "*=",  "/=",        "%=",        "&=",         "|=",
