@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/context_impl.hpp> // For context_impl::setPlugin
 #include <detail/plugin.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -131,6 +132,9 @@ public:
   ///        it's pointing to is then set according to the outcome.
   void waitInternal(bool *Success = nullptr);
 
+  /// Waits for the event with respect to device type.
+  void waitForHostTaskNativeEvents();
+
   /// Marks this event as completed.
   void setComplete();
 
@@ -188,6 +192,11 @@ public:
   ///
   /// \return a native handle.
   pi_native_handle getNative();
+
+  /// Gets the vector of native handles associated with the SYCL event.
+  ///
+  /// \return a native handle.
+  std::vector<pi_native_handle> getNativeVector();
 
   /// Returns vector of event dependencies.
   ///
@@ -321,6 +330,28 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  void addHostTaskNativeEvent(EventImplPtr Event) {
+    // We need to keep track of which native events refer to
+    // this one host task event, we do that so we can correctly
+    // return the vec of native events when calling get_native
+    MHostTaskNativeEvents.push_back(Event);
+    // We also add to the PreparedDepsEvents so that we can do standard
+    // dependency analysis
+    MPreparedDepsEvents.push_back(Event);
+  }
+
+  bool hasHostTaskNativeEvents() const {
+    return MHostTaskNativeEvents.size() > 0;
+  }
+
+  bool backendSet() const {
+    return !MContext->is_host() || hasHostTaskNativeEvents();
+  }
+
+  const std::vector<EventImplPtr> &getHostTaskNativeEvents() const {
+    return MHostTaskNativeEvents;
+  }
+
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
   // Sets a command-buffer command when this event represents an enqueue to a
@@ -378,6 +409,12 @@ protected:
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
+
+  // Used to hold pi_events for native events that are stored with
+  // interop_handle::add_native_events
+  std::vector<EventImplPtr> MHostTaskNativeEvents;
+  std::atomic<bool> MHostTaskNativeEventsHaveBeenWaitedOn = false;
+  std::mutex MHostTaskNativeEventsMutex;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.

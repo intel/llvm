@@ -82,12 +82,23 @@ void event_impl::waitInternal(bool *Success) {
         "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
+    // In the case that the Host Task function stores native events with
+    // add_native_events, waitInternal will only wait on the lambda to complete,
+    // not on the asynchronous events
     std::unique_lock<std::mutex> lock(MMutex);
     cv.wait(lock, [this] { return MState == HES_Complete; });
   }
 
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->wait(Event);
+}
+
+void event_impl::waitForHostTaskNativeEvents() {
+  std::unique_lock<std::mutex> Lock(MHostTaskNativeEventsMutex);
+  if (MHostTaskNativeEventsHaveBeenWaitedOn.exchange(true))
+    return;
+  for (const EventImplPtr &Event : MHostTaskNativeEvents)
     Event->wait(Event);
 }
 
@@ -264,6 +275,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     waitInternal(Success);
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self, Success);
+
+  if (MHostTaskNativeEvents.size())
+    waitForHostTaskNativeEvents();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -483,9 +497,32 @@ pi_native_handle event_impl::getNative() {
   }
   if (MContext->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  pi_native_handle Handle = 0;
+  if (auto HandleRef = getHandleRef())
+    Plugin->call<PiApiKind::piextEventGetNativeHandle>(HandleRef, &Handle);
   return Handle;
+}
+
+std::vector<pi_native_handle> event_impl::getNativeVector() {
+  // Return empty vec if native events have already been waited on
+  if (isCompleted() && (!hasHostTaskNativeEvents() ||
+                        MHostTaskNativeEventsHaveBeenWaitedOn.load()))
+    return {};
+
+  // If there is a native event return that. This will also initialize context
+  if (auto nativeEvent = getNative())
+    return {nativeEvent};
+
+  // Return native events submitted via host task interop
+  auto Plugin = getPlugin();
+  std::vector<pi_native_handle> HandleVec;
+  for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {
+    pi_native_handle Handle;
+    Plugin->call<PiApiKind::piextEventGetNativeHandle>(
+        HostTaskNativeEventImpl->MEvent, &Handle);
+    HandleVec.push_back(Handle);
+  }
+  return HandleVec;
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
@@ -502,6 +539,8 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
                 MPreparedDepsEvents.end());
   Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
                 MPreparedHostDepsEvents.end());
+  Result.insert(Result.end(), MHostTaskNativeEvents.begin(),
+                MHostTaskNativeEvents.end());
 
   return Result;
 }

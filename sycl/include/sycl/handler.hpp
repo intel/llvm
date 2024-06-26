@@ -1866,7 +1866,7 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func);
+  host_task_impl(FuncT &&Func, const property_list &);
 
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
@@ -2067,8 +2067,8 @@ public:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task(FuncT &&Func) {
-    host_task_impl(Func);
+  host_task(FuncT &&Func, const property_list PropList = {}) {
+    host_task_impl(Func, PropList);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and

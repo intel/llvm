@@ -50,7 +50,8 @@ template <> struct interop<backend::ext_oneapi_cuda, device> {
 };
 
 template <> struct interop<backend::ext_oneapi_cuda, event> {
-  using type = CUevent;
+  using type = std::vector<CUevent>;
+  using value_type = CUevent;
 };
 
 template <> struct interop<backend::ext_oneapi_cuda, queue> {
@@ -90,7 +91,8 @@ template <> struct BackendInput<backend::ext_oneapi_cuda, event> {
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_cuda, event> {
-  using type = CUevent;
+  using type = std::vector<CUevent>;
+  using value_type = CUevent;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_cuda, queue> {

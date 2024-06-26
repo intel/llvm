@@ -141,7 +141,8 @@ public:
 
   // \return the Plugin associated with this platform.
   const PluginPtr &getPlugin() const {
-    assert(!MHostPlatform && "Plugin is not available for Host.");
+    assert((!MHostPlatform || MBackendSet) &&
+           "Plugin is not available for Host.");
     return MPlugin;
   }
 
@@ -241,6 +242,7 @@ private:
   bool MHostPlatform = false;
   sycl::detail::pi::PiPlatform MPlatform = 0;
   backend MBackend;
+  bool MBackendSet = !MHostPlatform;
 
   PluginPtr MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
