@@ -21,6 +21,19 @@
 #define NS sycl::ext::intel::esimd
 #endif
 
+// https://stackoverflow.com/questions/776508
+template <typename T> T rotl(T n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT * sizeof(n) - 1);
+  c &= mask;
+  return (n << c) | (n >> ((-c) & mask));
+}
+
+template <typename T> T rotr(T n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT * sizeof(n) - 1);
+  c &= mask;
+  return (n >> c) | (n << ((-c) & mask));
+}
+
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -85,14 +98,14 @@ template <typename T> bool test_rotate(sycl::queue &Queue) {
 
   for (int I = 0; I < VL; I++) {
     using OpT = std::make_unsigned_t<T>;
-    ExpectedRorScalar[I] = std::rotr<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRorScalar[I]), ScalarRotateFactor);
-    ExpectedRolScalar[I] = std::rotl<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRolScalar[I]), ScalarRotateFactor);
-    ExpectedRorVector[I] = std::rotr<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRorVector[I]), VectorRotateFactor[I]);
-    ExpectedRolVector[I] = std::rotl<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRolVector[I]), VectorRotateFactor[I]);
+    ExpectedRorScalar[I] = rotr<OpT>(sycl::bit_cast<OpT>(ExpectedRorScalar[I]),
+                                     ScalarRotateFactor);
+    ExpectedRolScalar[I] = rotl<OpT>(sycl::bit_cast<OpT>(ExpectedRolScalar[I]),
+                                     ScalarRotateFactor);
+    ExpectedRorVector[I] = rotr<OpT>(sycl::bit_cast<OpT>(ExpectedRorVector[I]),
+                                     VectorRotateFactor[I]);
+    ExpectedRolVector[I] = rotl<OpT>(sycl::bit_cast<OpT>(ExpectedRolVector[I]),
+                                     VectorRotateFactor[I]);
   }
   for (int I = 0; I < VL; I++) {
     if (ExpectedRorScalar[I] != OutputRorScalar[I]) {

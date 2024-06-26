@@ -38,8 +38,7 @@ template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
 __ESIMD_INTRIN void
 __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
-__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
-
-__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
+__ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
+    __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

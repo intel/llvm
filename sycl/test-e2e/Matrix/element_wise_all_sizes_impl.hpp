@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 static constexpr size_t M_MULTIPLIER = 16;
+template <typename T, size_t TileM, size_t TileN, size_t TileK> class add;
 
 template <typename T, size_t M, size_t N>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read_write> C,
@@ -23,7 +24,8 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read_write> C,
     }
 }
 
-template <typename T, typename T1, size_t TM, size_t TK, typename kernel_name>
+template <typename T, typename T1, size_t TM, size_t TN, size_t TK,
+          typename kernel_name>
 void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
   static constexpr size_t M = TM * M_MULTIPLIER;
   static constexpr size_t K = 128;
@@ -69,35 +71,60 @@ void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
   assert_ops_ref<T, M, K>(bufA.get_host_access(), result);
 }
 
-template <typename Ta, size_t tM, size_t tK, typename kernel_name>
+template <typename Ta, size_t tM, size_t tN, size_t tK, typename kernel_name>
 void add_ref() {
   if constexpr (std::is_same_v<Ta, bfloat16>) {
     // Tests whether 5 + 2 = 7 operation is successful.
-    matrix_verify_add<bfloat16, bfloat16, tM, tK, kernel_name>(
+    matrix_verify_add<bfloat16, bfloat16, tM, tN, tK, kernel_name>(
         bfloat16(5.0), bfloat16(2.0), bfloat16(7.0));
   }
   if constexpr (std::is_same_v<Ta, int8_t>) {
-    matrix_verify_add<int8_t, int, tM, tK, kernel_name>(5 /*val1*/, 2 /*val2*/,
-                                                        7 /*result*/);
+    matrix_verify_add<int8_t, int, tM, tN, tK, kernel_name>(
+        5 /*val1*/, 2 /*val2*/, 7 /*result*/);
   }
 }
 
-int main() {
-  add_ref<bfloat16, 1 /*TM*/, 16 /*TK*/, class test_bfloat16_1>();
-  add_ref<bfloat16, 2 /*TM*/, 16 /*TK*/, class test_bfloat16_2>();
-  add_ref<bfloat16, 3 /*TM*/, 16 /*TK*/, class test_bfloat16_3>();
-  add_ref<bfloat16, 4 /*TM*/, 16 /*TK*/, class test_bfloat16_4>();
-  add_ref<bfloat16, 5 /*TM*/, 16 /*TK*/, class test_bfloat16_5>();
-  add_ref<bfloat16, 6 /*TM*/, 16 /*TK*/, class test_bfloat16_6>();
-  add_ref<bfloat16, 7 /*TM*/, 16 /*TK*/, class test_bfloat16_7>();
+template <size_t TN> void test() {
+  add_ref<bfloat16, 1, TN, 16, add<bfloat16, 1, TN, 16>>();
+  add_ref<bfloat16, 2, TN, 16, add<bfloat16, 2, TN, 16>>();
+  add_ref<bfloat16, 3, TN, 16, add<bfloat16, 3, TN, 16>>();
+  add_ref<bfloat16, 4, TN, 16, add<bfloat16, 4, TN, 16>>();
+  add_ref<bfloat16, 5, TN, 16, add<bfloat16, 5, TN, 16>>();
+  add_ref<bfloat16, 6, TN, 16, add<bfloat16, 6, TN, 16>>();
+  add_ref<bfloat16, 7, TN, 16, add<bfloat16, 7, TN, 16>>();
 
-  add_ref<int8_t, 1 /*TM*/, 32 /*TK*/, class test_int8_1>();
-  add_ref<int8_t, 2 /*TM*/, 32 /*TK*/, class test_int8_2>();
-  add_ref<int8_t, 3 /*TM*/, 32 /*TK*/, class test_int8_3>();
-  add_ref<int8_t, 4 /*TM*/, 32 /*TK*/, class test_int8_4>();
-  add_ref<int8_t, 5 /*TM*/, 32 /*TK*/, class test_int8_5>();
-  add_ref<int8_t, 6 /*TM*/, 32 /*TK*/, class test_int8_6>();
-  add_ref<int8_t, 7 /*TM*/, 32 /*TK*/, class test_int8_7>();
+  add_ref<int8_t, 1, TN, 32, add<int8_t, 1, TN, 32>>();
+  add_ref<int8_t, 2, TN, 32, add<int8_t, 2, TN, 32>>();
+  add_ref<int8_t, 3, TN, 32, add<int8_t, 3, TN, 32>>();
+  add_ref<int8_t, 4, TN, 32, add<int8_t, 4, TN, 32>>();
+  add_ref<int8_t, 5, TN, 32, add<int8_t, 5, TN, 32>>();
+  add_ref<int8_t, 6, TN, 32, add<int8_t, 6, TN, 32>>();
+  add_ref<int8_t, 7, TN, 32, add<int8_t, 7, TN, 32>>();
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<8>();
+      break;
+    }
+  }
 
   std::cout << "Passed\n";
 }

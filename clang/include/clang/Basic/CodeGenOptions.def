@@ -465,6 +465,11 @@ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 /// Optimize SYCL Framework functions. These are functions
 /// which do not contain "user" code.
 CODEGENOPT(OptimizeSYCLFramework, 1, 0)
+
+/// Turn on fp64 partial emulation for kernels with only fp64 conversion
+/// operations and no fp64 computation operations (requires Intel GPU backend
+/// supporting fp64 partial emulation)
+CODEGENOPT(FP64ConvEmu, 1, 0)
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"
 

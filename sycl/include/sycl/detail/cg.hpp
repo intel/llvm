@@ -78,6 +78,7 @@ public:
     CopyImage = 23,
     SemaphoreWait = 24,
     SemaphoreSignal = 25,
+    ProfilingTag = 26,
   };
 
   struct StorageInitHelper {
@@ -344,6 +345,12 @@ public:
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
 };
 
+class CGProfilingTag : public CG {
+public:
+  CGProfilingTag(CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CG::ProfilingTag, std::move(CGData), std::move(loc)) {}
+};
+
 /// "Copy 2D USM" command group class.
 class CGCopy2DUSM : public CG {
   void *MSrc;
@@ -527,33 +534,41 @@ public:
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MWaitValue;
 
 public:
   CGSemaphoreWait(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
+  }
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MSignalValue;
 
 public:
   CGSemaphoreSignal(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle),
+        MSignalValue(SignalValue) {}
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };
 
 /// "Execute command-buffer" command group class.
