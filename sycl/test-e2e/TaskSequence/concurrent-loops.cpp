@@ -93,6 +93,6 @@ int main() {
     q.wait();
   }
 
-  assert(abs(out[0] - golden) < 0.001);
+  assert(std::abs(out[0] - golden) < 0.001);
   return 0;
 }

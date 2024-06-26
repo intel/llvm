@@ -66,7 +66,7 @@ int main() {
 
   // verification
   for (int i = 0; i < kNumInputs; ++i) {
-    assert(abs(results[i] - golden[i]) < 0.001);
+    assert(std::abs(results[i] - golden[i]) < 0.001);
   }
 
   return 0;
