@@ -10589,7 +10589,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
       llvm::Triple Triple = TC.getTriple();
       getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
-        // Handle -Xspirv-translator
+      // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
           Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
           options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
