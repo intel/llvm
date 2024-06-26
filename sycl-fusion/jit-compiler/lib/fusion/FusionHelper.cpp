@@ -12,6 +12,7 @@
 #include "helper/ErrorHandling.h"
 #include "kernel-fusion/SYCLKernelFusion.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/PassManagerImpl.h"
 
 using namespace llvm;
 
