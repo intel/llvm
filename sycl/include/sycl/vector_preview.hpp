@@ -1429,8 +1429,7 @@ private:
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      // Cast required for int8_t -> std::byte
-      return static_cast<DataT>(m_Vector->getValue(Idxs[Index]));
+      return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<DataT>();
     return Op(m_LeftOperation.getValue(Index),
