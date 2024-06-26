@@ -30,7 +30,13 @@ namespace llvm {
 class Function;
 class Module;
 
+namespace cl {
+class OptionCategory;
+}
+
 namespace module_split {
+
+extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -261,13 +267,11 @@ public:
 };
 
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints,
-                                        bool SupportDynamicLinking);
+                                        bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints,
-                      bool SupportDynamicLinking);
+                      bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
