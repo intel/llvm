@@ -5276,6 +5276,8 @@ typedef struct ur_kernel_native_properties_t {
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid program handle to return the
+///       native kernel handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -5284,7 +5286,7 @@ typedef struct ur_kernel_native_properties_t {
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == hProgram`
+///         + If `hProgram == NULL` and the implementation requires a valid program.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -5293,7 +5295,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel,                 ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext,                     ///< [in] handle of the context object
-    ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
+    ur_program_handle_t hProgram,                     ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
 );
