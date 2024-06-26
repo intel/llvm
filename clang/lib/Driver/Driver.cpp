@@ -4158,13 +4158,11 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty()) {
-        if (ToolChains.front()->getTriple().isSPIRV()) {
+        if (ToolChains.front()->getTriple().isSPIROrSPIRV()) {
           if (ToolChains.front()->getTriple().getVendor() == llvm::Triple::AMD)
             GpuArchList.push_back(CudaArch::AMDGCNSPIRV);
           else
             GpuArchList.push_back(CudaArch::Generic);
-        } else if (ToolChains.front()->getTriple().isSPIR()) {
-          GpuArchList.push_back(CudaArch::Generic);
 	} else {
           GpuArchList.push_back(DefaultCudaArch);
         }
