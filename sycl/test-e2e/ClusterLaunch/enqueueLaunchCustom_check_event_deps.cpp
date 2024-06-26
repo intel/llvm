@@ -29,9 +29,7 @@ int main() {
   std::vector<int> a(4096, -20);
   sycl::queue queue;
 
-  auto computeCapability = std::stof(
-      queue.get_device().get_info<sycl::info::device::backend_version>());
-  if (computeCapability < 9.0) {
+  if (!queue.get_device().has(sycl::aspect::ext_oneapi_cuda_cluster_group)) {
     printf("Cluster group not supported on this arch, exiting...\n");
     return 0;
   }

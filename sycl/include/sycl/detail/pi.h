@@ -506,6 +506,9 @@ typedef enum {
 
   // Timestamp enqueue
   PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
+
+  // Return whether cluster launch is supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
 } _pi_device_info;
 
 typedef enum {

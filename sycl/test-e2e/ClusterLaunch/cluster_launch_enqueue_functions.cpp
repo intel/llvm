@@ -68,10 +68,8 @@ int test_cluster_launch_enqueue_functions(sycl::queue &queue,
 int main() {
 
   sycl::queue queue;
-  auto computeCapability = std::stof(
-      queue.get_device().get_info<sycl::info::device::backend_version>());
 
-  if (computeCapability < 9.0) {
+  if (!queue.get_device().has(sycl::aspect::ext_oneapi_cuda_cluster_group)) {
     printf("Cluster group not supported on this arch, exiting...\n");
     return 0;
   }
