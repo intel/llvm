@@ -491,6 +491,13 @@ public:
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                  ContextImplPtr Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
+                                  ContextImplPtr Context);
+
 protected:
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
@@ -642,8 +649,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          const Requirement *Req,
-                                          std::vector<Command *> &ToEnqueue);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);

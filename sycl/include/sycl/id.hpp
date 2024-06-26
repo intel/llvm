@@ -99,16 +99,6 @@ public:
   id(ParamTy<N, 3, const item<Dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
-  __SYCL_DEPRECATED("range() conversion is deprecated")
-  explicit operator range<Dimensions>() const {
-    range<Dimensions> result(
-        detail::InitializedVal<Dimensions, range>::template get<0>());
-    for (int i = 0; i < Dimensions; ++i) {
-      result[i] = this->get(i);
-    }
-    return result;
-  }
-
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   /* Template operator is not allowed because it disables further type
    * conversion. For example, the next code will not work in case of template

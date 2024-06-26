@@ -23,6 +23,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+class handler;
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>

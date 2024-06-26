@@ -204,7 +204,7 @@ public:
 
     Func(HItem);
 #else
-    id<Dimensions> GroupStartID = index * localRange;
+    id<Dimensions> GroupStartID = index * id<Dimensions>{localRange};
 
     // ... host variant needs explicit 'iterate' because it is serial
     detail::NDLoop<Dimensions>::iterate(

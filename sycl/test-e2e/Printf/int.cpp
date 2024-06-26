@@ -15,7 +15,8 @@
 // RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
 // RUN: %{run} %t.constant.out | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 

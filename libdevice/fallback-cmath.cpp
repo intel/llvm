@@ -29,6 +29,35 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_fabsf(float x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C_INLINE
+float __devicelib_ceilf(float x) { return __spirv_ocl_ceil(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_copysignf(float x, float y) {
+  return __spirv_ocl_copysign(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_cospif(float x) { return __spirv_ocl_cospi(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_fmaxf(float x, float y) { return __spirv_ocl_fmax(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_fminf(float x, float y) { return __spirv_ocl_fmin(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_truncf(float x) { return __spirv_ocl_trunc(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_sinpif(float x) { return __spirv_ocl_sinpi(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_rsqrtf(float x) { return __spirv_ocl_rsqrt(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_exp10f(float x) { return __spirv_ocl_exp10(x); }
+
+DEVICE_EXTERN_C_INLINE
 div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C_INLINE

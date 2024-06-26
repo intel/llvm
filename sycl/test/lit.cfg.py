@@ -5,7 +5,6 @@ import platform
 import re
 import subprocess
 import tempfile
-from distutils.spawn import find_executable
 
 import lit.formats
 import lit.util
@@ -177,6 +176,14 @@ if "amdgcn-amd-amdhsa" in triple:
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
             "--offload-arch=gfx906",
         ]
+
+config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
+if config.sycl_headers_filter is not None:
+    lit_config.note(
+        "SYCL_HEADERS_FILTER param is set to '{}', it will impact amount of tests discovered within self-contained-headers sub-suite".format(
+            config.sycl_headers_filter
+        )
+    )
 
 # Dump-only tests do not have clang available
 if not dump_only_tests:

@@ -20,7 +20,6 @@
 
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
-#include <sstream>     // for operator<<, basic_ostream, string...
 #include <stddef.h>    // for size_t
 #include <string>      // for char_traits, string
 #include <type_traits> // for false_type, true_type
@@ -104,22 +103,6 @@ bool trace(TraceLevel level);
 
 __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
-template <typename T>
-void handleUnknownParamName(const char *functionName, T parameter) {
-  std::stringstream stream;
-  stream << "Unknown parameter " << parameter << " passed to " << functionName
-         << "\n";
-  auto str = stream.str();
-  auto msg = str.c_str();
-  die(msg);
-}
-
-// This macro is used to report invalid enumerators being passed to PI API
-// GetInfo functions. It will print the name of the function that invoked it
-// and the value of the unknown enumerator.
-#define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
-  { sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
-
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
@@ -159,6 +142,8 @@ using PiImageMemHandle = ::pi_image_mem_handle;
 using PiImageCopyFlags = ::pi_image_copy_flags;
 using PiInteropMemHandle = ::pi_interop_mem_handle;
 using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiExternalMemDescriptor = ::pi_external_mem_descriptor;
+using PiExternalSemaphoreDescriptor = ::pi_external_semaphore_descriptor;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.20.0)
 
 set(XPTI_VERSION 0.6.0)
 

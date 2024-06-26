@@ -1,6 +1,3 @@
-// TODO: enable when Jira ticket resolved
-// XFAIL: gpu
-//
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -g -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -13,9 +10,9 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -87,15 +84,18 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_pointer() + offset);
-            float vb = sg.load(PB.get_pointer() + offset);
+            float va = sg.load(
+                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vb = sg.load(
+                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
 
             // Invoke SIMD function:
             // va values from each work-item are combined into a simd<float,
             // VL>. vb values from each work-item are combined into a
             // simd<float, VL>.
             float vc = invoke_simd(sg, SIMD_CALLEE_doVadd, va, vb);
-            sg.store(PC.get_pointer() + offset, vc);
+            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
+                     vc);
           });
     });
     e.wait();

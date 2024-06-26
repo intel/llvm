@@ -1,9 +1,10 @@
+// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -11,12 +12,12 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <type_traits>
 
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 static sycl::device dev;
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Helpers and utilities.
 struct util {
@@ -121,8 +122,7 @@ struct util {
 };
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
               unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
@@ -153,9 +153,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   bindless_helpers::add_host(input_0, input_1, expected);
 
   try {
-    syclexp::image_descriptor desc({dims[0], NDims > 2 ? dims[1] : 0}, COrder,
-                                   CType, syclexp::image_type::array, 1,
-                                   NDims > 2 ? dims[2] : dims[1]);
+    syclexp::image_descriptor desc({dims[0], NDims > 2 ? dims[1] : 0},
+                                   NChannels, CType, syclexp::image_type::array,
+                                   1, NDims > 2 ? dims[2] : dims[1]);
 
     // Extension: allocate memory on device and create the handle.
     syclexp::image_mem img_mem_0(desc, q);
@@ -238,215 +238,175 @@ int main() {
 
   printTestName("Running 1D int\n");
   failed |= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::r, class int_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class int_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D int\n");
   failed |= run_test<3, int32_t, 1, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::r, class int_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class int_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D int2\n");
   failed |= run_test<2, int32_t, 2, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rg, class int2_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class int2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D int2\n");
   failed |= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rg, class int2_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class int2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D int4\n");
   failed |= run_test<2, int32_t, 4, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rgba, class int4_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class int4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D int4\n");
   failed |= run_test<3, int32_t, 4, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rgba, class int4_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class int4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D unsigned int\n");
   failed |= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::r, class uint_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class uint_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned int\n");
   failed |= run_test<3, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::r, class uint_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class uint_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned int2\n");
   failed |= run_test<2, uint32_t, 2, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rg, class uint2_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class uint2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned int2\n");
   failed |= run_test<3, uint32_t, 2, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rg, class uint2_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class uint2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned int4\n");
   failed |= run_test<2, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rgba, class uint4_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class uint4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned int4\n");
   failed |= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rgba, class uint4_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class uint4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D short\n");
   failed |= run_test<2, short, 1, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::r, class short_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class short_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D short\n");
   failed |= run_test<3, short, 1, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::r, class short_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class short_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D short2\n");
   failed |= run_test<2, short, 2, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rg, class short2_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class short2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D short2\n");
   failed |= run_test<3, short, 2, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rg, class short2_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class short2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D short4\n");
   failed |= run_test<2, short, 4, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rgba, class short4_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class short4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D short4\n");
   failed |= run_test<3, short, 4, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rgba, class short4_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class short4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D unsigned short\n");
   failed |=
       run_test<2, unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::r, class ushort_1d>({2816, 32},
-                                                              {32, 32}, seed);
+               class ushort_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned short\n");
   failed |=
       run_test<3, unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::r, class ushort_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+               class ushort_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned short2\n");
   failed |=
       run_test<2, unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rg, class ushort2_1d>({2816, 32},
-                                                                {32, 32}, seed);
+               class ushort2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned short2\n");
   failed |=
       run_test<3, unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rg, class ushort2_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+               class ushort2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned short4\n");
   failed |=
       run_test<2, unsigned short, 4, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rgba, class ushort4_1d>(
-          {2816, 32}, {32, 32}, seed);
+               class ushort4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned short4\n");
   failed |=
       run_test<3, unsigned short, 4, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rgba, class ushort4_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+               class ushort4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D char\n");
   failed |= run_test<2, signed char, 1, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::r, class char_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class char_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D char\n");
   failed |= run_test<3, signed char, 1, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::r, class char_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class char_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D char2\n");
   failed |= run_test<2, signed char, 2, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rg, class char2_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class char2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D char2\n");
   failed |= run_test<3, signed char, 2, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rg, class char2_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class char2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D char4\n");
   failed |= run_test<2, signed char, 4, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rgba, class char4_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class char4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D char4\n");
   failed |= run_test<3, signed char, 4, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rgba, class char4_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class char4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D unsigned char\n");
   failed |=
       run_test<2, unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::r, class uchar_1d>({2816, 32},
-                                                             {32, 32}, seed);
+               class uchar_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned char\n");
   failed |=
       run_test<3, unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::r, class uchar_2d>({48, 128, 32},
-                                                             {16, 16, 4}, seed);
+               class uchar_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned char2\n");
   failed |=
       run_test<2, unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::rg, class uchar2_1d>({2816, 32},
-                                                               {32, 32}, seed);
+               class uchar2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned char2\n");
   failed |=
       run_test<3, unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::rg, class uchar2_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+               class uchar2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D unsigned char4\n");
   failed |=
       run_test<2, unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::rgba, class uchar4_1d>(
-          {2816, 32}, {32, 32}, seed);
+               class uchar4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D unsigned char4\n");
   failed |=
       run_test<3, unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-               sycl::image_channel_order::rgba, class uchar4_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+               class uchar4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   printTestName("Running 1D float\n");
-  failed |= run_test<2, float, 1, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::r, class float_1d>(
-      {2816, 32}, {32, 32}, seed);
+  failed |=
+      run_test<2, float, 1, sycl::image_channel_type::fp32, class float_1d>(
+          {2816, 32}, {32, 32}, seed);
   printTestName("Running 2D float\n");
-  failed |= run_test<3, float, 1, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::r, class float_2d>(
-      {1024, 832, 32}, {16, 16, 4}, seed);
+  failed |=
+      run_test<3, float, 1, sycl::image_channel_type::fp32, class float_2d>(
+          {1024, 832, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D float2\n");
-  failed |= run_test<2, float, 2, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rg, class float2_1d>(
-      {2816, 32}, {32, 32}, seed);
+  failed |=
+      run_test<2, float, 2, sycl::image_channel_type::fp32, class float2_1d>(
+          {2816, 32}, {32, 32}, seed);
   printTestName("Running 2D float2\n");
-  failed |= run_test<3, float, 2, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rg, class float2_2d>(
-      {832, 1024, 32}, {16, 16, 4}, seed);
+  failed |=
+      run_test<3, float, 2, sycl::image_channel_type::fp32, class float2_2d>(
+          {832, 1024, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D float4\n");
-  failed |= run_test<2, float, 4, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rgba, class float4_1d>(
-      {2816, 32}, {32, 32}, seed);
+  failed |=
+      run_test<2, float, 4, sycl::image_channel_type::fp32, class float4_1d>(
+          {2816, 32}, {32, 32}, seed);
   printTestName("Running 2D float4\n");
-  failed |= run_test<3, float, 4, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rgba, class float4_2d>(
-      {1024, 1024, 16}, {16, 16, 4}, seed);
+  failed |=
+      run_test<3, float, 4, sycl::image_channel_type::fp32, class float4_2d>(
+          {1024, 1024, 16}, {16, 16, 4}, seed);
 
   printTestName("Running 1D half\n");
-  failed |= run_test<2, sycl::half, 1, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::r, class half_1d>(
-      {2816, 32}, {32, 32}, seed);
+  failed |=
+      run_test<2, sycl::half, 1, sycl::image_channel_type::fp16, class half_1d>(
+          {2816, 32}, {32, 32}, seed);
   printTestName("Running 2D half\n");
-  failed |= run_test<3, sycl::half, 1, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::r, class half_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+  failed |=
+      run_test<3, sycl::half, 1, sycl::image_channel_type::fp16, class half_2d>(
+          {48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D half2\n");
   failed |= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rg, class half2_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class half2_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D half2\n");
   failed |= run_test<3, sycl::half, 2, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rg, class half2_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class half2_2d>({48, 128, 32}, {16, 16, 4}, seed);
   printTestName("Running 1D half4\n");
   failed |= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rgba, class half4_1d>(
-      {2816, 32}, {32, 32}, seed);
+                     class half4_1d>({2816, 32}, {32, 32}, seed);
   printTestName("Running 2D half4\n");
   failed |= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rgba, class half4_2d>(
-      {48, 128, 32}, {16, 16, 4}, seed);
+                     class half4_2d>({48, 128, 32}, {16, 16, 4}, seed);
 
   if (failed) {
     std::cerr << "An error has occured!\n";

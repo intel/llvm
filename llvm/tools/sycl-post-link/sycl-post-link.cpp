@@ -14,17 +14,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceLibReqMask.h"
-#include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 #include "Support.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
@@ -34,12 +35,14 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/Support/CommandLine.h"
@@ -105,9 +108,32 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
-                                    cl::value_desc("filename"), cl::init("-"),
-                                    cl::cat(PostLinkCat)};
+struct TargetFilenamePair {
+  std::optional<std::string> Target;
+  std::string Filename;
+};
+
+struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
+  using cl::basic_parser<TargetFilenamePair>::basic_parser;
+  bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
+             TargetFilenamePair &Val) const {
+    auto [Target, Filename] = ArgValue.split(",");
+    if (Filename == "")
+      std::swap(Target, Filename);
+    Val = {Target.str(), Filename.str()};
+    return false;
+  }
+};
+
+cl::list<TargetFilenamePair, bool, TargetFilenamePairParser> OutputFiles{
+    "o",
+    cl::desc(
+        "Specifies an output file. Multiple output files can be "
+        "specified. Additionally, a target may be specified alongside an "
+        "output file, which has the effect that when module splitting is "
+        "performed, the modules that are in that output table are filtered "
+        "so those modules are compatible with the target."),
+    cl::value_desc("target filename pair"), cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
                     cl::cat(PostLinkCat)};
@@ -203,10 +229,19 @@ cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                   cl::desc("emit exported symbols"),
                                   cl::cat(PostLinkCat)};
 
+cl::opt<bool> EmitImportedSymbols{"emit-imported-symbols",
+                                  cl::desc("emit imported symbols"),
+                                  cl::cat(PostLinkCat)};
+
 cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     "emit-only-kernels-as-entry-points",
     cl::desc("Consider only sycl_kernel functions as entry points for "
              "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
     cl::cat(PostLinkCat), cl::init(false)};
 
 cl::opt<bool> DeviceGlobals{
@@ -225,6 +260,7 @@ struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
+  bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
 };
 
@@ -314,7 +350,22 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
+  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
+  if (MD == nullptr)
+    return false;
+  assert(MD->getNumOperands() != 0);
+  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
+  return MDVal->getString() == "asan";
+}
+
+// Gets work_group_num_dim information for function Func, conviniently 0 if
+// metadata is not present.
+uint32_t getKernelWorkGroupNumDim(const Function &Func) {
+  MDNode *MaxDimMD = Func.getMetadata("work_group_num_dim");
+  if (!MaxDimMD)
+    return 0;
+  assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
+  return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))->getZExtValue();
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -337,13 +388,14 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
-                             : sys::path::parent_path(OutputFilename);
+                             : sys::path::parent_path(OutputFiles[0].Filename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
   if (!Dir0.empty() && !Dir0.ends_with(Sep))
     Dir += Sep.str();
-  return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
-         std::to_string(I) + Ext.str();
+  return (Dir + sys::path::stem(OutputFiles[0].Filename) + Suffix + "_" +
+          Twine(I) + Ext)
+      .str();
 }
 
 void saveModuleIR(Module &M, StringRef OutFilename) {
@@ -382,9 +434,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, llvm::util::PropertyValue> Requirements;
-    getSYCLDeviceRequirements(MD, Requirements);
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                MD.getOrComputeDeviceRequirements().asMap());
   }
   if (MD.Props.SpecConstsMet) {
     // extract spec constant maps per each module
@@ -434,24 +485,52 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
       if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(), true);
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(),
+                    /*PropVal=*/true);
       }
     }
   }
+
+  if (GlobProps.EmitImportedSymbols) {
+    // record imported functions in the property set
+    for (const auto &F : M) {
+      if ( // A function that can be imported may still be defined in one split
+           // image. Only add import property if this is not the image where the
+           // function is defined.
+          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
+
+        // StripDeadPrototypes is called during module splitting
+        // cleanup.  At this point all function decls should have uses.
+        assert(!F.use_empty() && "Function F has no uses");
+
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
   // Metadata names may be composite so we keep them alive until the
   // properties have been written.
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    // Add reqd_work_group_size information to program metadata
+    // Add reqd_work_group_size and work_group_num_dim information to
+    // program metadata.
     for (const Function &Func : M.functions()) {
       std::vector<uint32_t> KernelReqdWorkGroupSize =
           getKernelReqdWorkGroupSizeMetadata(Func);
-      if (KernelReqdWorkGroupSize.empty())
-        continue;
-      MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
-                  KernelReqdWorkGroupSize);
+      if (!KernelReqdWorkGroupSize.empty()) {
+        MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    KernelReqdWorkGroupSize);
+      }
+
+      uint32_t WorkGroupNumDim = getKernelWorkGroupNumDim(Func);
+      if (WorkGroupNumDim) {
+        MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    WorkGroupNumDim);
+      }
     }
 
     // Add global_id_mapping information with mapping between device-global
@@ -644,6 +723,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
   }
+  MPM.addPass(ESIMDLowerSLMReservationCalls{});
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
   MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
                                      /*RewriteSingleElementVectorsIn*/ false));
@@ -681,7 +761,8 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, DeviceGlobals};
+                               EmitExportedSymbols, EmitImportedSymbols,
+                               DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
 
   if (DoSymGen) {
@@ -891,7 +972,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // when linked back because functions shared between graphs are cloned and
   // renamed.
   SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -937,7 +1018,51 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   return Result;
 }
 
-std::unique_ptr<util::SimpleTable>
+// Checks if the given target and module are compatible.
+// A target and module are compatible if all the optional kernel features
+// the module uses are supported by that target (i.e. that module can be
+// compiled for that target and then be executed on that target). This
+// information comes from the device config file (DeviceConfigFile.td).
+// For example, the intel_gpu_tgllp target does not support fp64 - therefore,
+// a module using fp64 would *not* be compatible with intel_gpu_tgllp.
+bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
+                                  module_split::ModuleDesc &IrMD) {
+  // When the user does not specify a target,
+  // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
+  // Target will have no value and we will not want to perform any filtering, so
+  // we return true here.
+  if (!Target.has_value())
+    return true;
+
+  // TODO: If a target not found in the device config file is passed,
+  // to sycl-post-link, then we should probably throw an error. However,
+  // since not all the information for all the targets is filled out
+  // right now, we return true, having the affect that unrecognized
+  // targets have no filtering applied to them.
+  if (!is_contained(DeviceConfigFile::TargetTable, *Target))
+    return true;
+
+  const DeviceConfigFile::TargetInfo &TargetInfo =
+      DeviceConfigFile::TargetTable[*Target];
+  const SYCLDeviceRequirements &ModuleReqs =
+      IrMD.getOrComputeDeviceRequirements();
+
+  // Check to see if all the requirements of the input module
+  // are compatbile with the target.
+  for (const auto &Aspect : ModuleReqs.Aspects) {
+    if (!is_contained(TargetInfo.aspects, Aspect.Name))
+      return false;
+  }
+
+  // Check if module sub group size is compatible with the target.
+  if (ModuleReqs.SubGroupSize.has_value() &&
+      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
+    return false;
+
+  return true;
+}
+
+std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
@@ -949,7 +1074,13 @@ processInputModule(std::unique_ptr<Module> M) {
   Expected<std::unique_ptr<util::SimpleTable>> TableE =
       util::SimpleTable::create(ColumnTitles);
   CHECK_AND_EXIT(TableE.takeError());
-  std::unique_ptr<util::SimpleTable> Table = std::move(TableE.get());
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables;
+  for (size_t i = 0; i < OutputFiles.size(); ++i) {
+    Expected<std::unique_ptr<util::SimpleTable>> TableE =
+        util::SimpleTable::create(ColumnTitles);
+    CHECK_AND_EXIT(TableE.takeError());
+    Tables.push_back(std::move(TableE.get()));
+  }
 
   // Used in output filenames generation.
   int ID = 0;
@@ -1007,7 +1138,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -1049,14 +1180,14 @@ processInputModule(std::unique_ptr<Module> M) {
               "' can't be used");
       }
       MMs.front().cleanup();
-      saveModuleIR(MMs.front().getModule(), OutputFilename);
-      return Table;
+      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
     // it:
     std::string OutIRFileName = "";
 
-    if (!Modified && (OutputFilename.getNumOccurrences() == 0)) {
+    if (!Modified && (OutputFiles.getNumOccurrences() == 0)) {
       assert(!SplitOccurred);
       OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
       errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
@@ -1064,7 +1195,9 @@ processInputModule(std::unique_ptr<Module> M) {
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
       IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-      addTableRow(*Table, T);
+      for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+        if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+          addTableRow(*Table, T);
     }
 
     ++ID;
@@ -1073,13 +1206,15 @@ processInputModule(std::unique_ptr<Module> M) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-        addTableRow(*Table, T);
+        for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+          if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+            addTableRow(*Table, T);
       }
 
       ++ID;
     }
   }
-  return Table;
+  return Tables;
 }
 
 } // namespace
@@ -1146,13 +1281,14 @@ int main(int argc, char **argv) {
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
+  bool DoImportedSyms = EmitImportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
   bool DoGenerateDeviceImageWithDefaulValues =
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
-      !DoLowerEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms &&
+      !DoDeviceGlobals && !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -1186,6 +1322,11 @@ int main(int argc, char **argv) {
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
+  if (IROutputOnly && DoImportedSyms) {
+    errs() << "error: -" << EmitImportedSymbols.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
   if (IROutputOnly && DoGenerateDeviceImageWithDefaulValues) {
     errs() << "error: -" << GenerateDeviceImageWithDefaultSpecConsts.ArgStr
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
@@ -1203,23 +1344,26 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (OutputFilename.getNumOccurrences() == 0) {
-    std::string S =
+  if (OutputFiles.getNumOccurrences() == 0) {
+    StringRef S =
         IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
-    OutputFilename = (Twine(sys::path::stem(InputFilename)) + S).str();
+    OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
-  std::unique_ptr<util::SimpleTable> Table = processInputModule(std::move(M));
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables =
+      processInputModule(std::move(M));
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
     return 0;
 
-  // Emit the resulting table
-  std::error_code EC;
-  raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening file '" + OutputFilename + "'");
-  Table->write(Out);
+  // Emit the resulting tables
+  for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles)) {
+    std::error_code EC;
+    raw_fd_ostream Out{OutputFile.Filename, EC, sys::fs::OF_None};
+    checkError(EC, "error opening file '" + OutputFile.Filename + "'");
+    Table->write(Out);
+  }
 
   return 0;
 }

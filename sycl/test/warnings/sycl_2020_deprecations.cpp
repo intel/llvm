@@ -1,5 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
+// expected-warning@sycl/CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
@@ -165,8 +166,10 @@ int main() {
   using PBS = sycl::info::device::printf_buffer_size;
   // expected-warning@+1{{'preferred_interop_user_sync' is deprecated: deprecated in SYCL 2020}}
   using PIUS = sycl::info::device::preferred_interop_user_sync;
-  // expected-warning@+1{{'usm_system_allocator' is deprecated: use info::device::usm_system_allocations instead}}
-  using USA = sycl::info::device::usm_system_allocator;
+  // expected-warning@+1{{'image_max_array_size' is deprecated: support for image arrays has been removed in SYCL 2020}}
+  using IMAS = sycl::info::device::image_max_array_size;
+  // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_backend_info instead}}
+  using OCV = sycl::info::device::opencl_c_version;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;

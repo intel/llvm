@@ -141,12 +141,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   )
 
   if(SYCL_ENABLE_KERNEL_FUSION)
-    target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)
-    target_link_libraries(${LIB_OBJ_NAME} PRIVATE sycl-fusion)
-    if (BUILD_SHARED_LIBS)
-     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+    if(NOT DEFINED LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR)
+      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR variable: Must be set when SYCL fusion is enabled")
+    endif()
+    set(SYCL_FUSION_INCLUDE_DIRS 
+        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/common/include
+        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/jit-compiler/include)
+    add_dependencies(${LIB_NAME} sycl-fusion)
+    add_dependencies(${LIB_OBJ_NAME} sycl-fusion)
+    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-fusion)
-    endif (BUILD_SHARED_LIBS)
   endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)
