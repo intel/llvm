@@ -118,7 +118,7 @@ supports
 Because of the special scheduling guarantees associated with a cluster launch,
 the backend must know which kernel would be using this feature. Thus, this 
 proposal introduces a new launch property called as `cluster_size` that will
-contain the cluster  in terms of number of workgroups.
+contain the cluster in terms of number of work-groups.
  
 
 [source,c++]
