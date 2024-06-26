@@ -65,6 +65,9 @@ static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
     "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
     "%p)\n";
+static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
+    "%p)\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -224,6 +227,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
 
     auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
     const auto shadow_offset = launch_info->PrivateShadowOffset;
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
 
     if (shadow_offset == 0) {
       return 0;
@@ -237,6 +241,14 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     uptr shadow_ptr = shadow_offset +
                       ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+
+    if (shadow_ptr > shadow_offset_end) {
+      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+        __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr,
+                           WG_LID, (uptr)shadow_offset);
+      }
+      return 0;
+    }
     return shadow_ptr;
   }
 
