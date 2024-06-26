@@ -99,24 +99,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
-  # Merge: a011f092 d8500a36
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jun 21 10:22:52 2024 +0100
-  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
-  #     Correct level of indirection used in KernelSetArgPointer calls.
-  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 27e030fe44aeb6758a8d9d5a3c47ecaf9402ad82)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
-    # Merge: 08acafb6 b3f36b96
-    # Author: Callum Fare <callum@codeplay.com>
-    # Date:   Tue Jun 25 11:19:54 2024 +0100
-    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
-    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
-    f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -126,13 +114,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08acafb6b36c9ff12753922365df150f677655e7
-    # Merge: 1e9b1b49 8e5a33b6
-    # Author: Callum Fare <callum@codeplay.com>
-    # Date:   Mon Jun 24 10:56:12 2024 +0100
-    #     Merge pull request #1714 from cppchedy/chedy/fix-copy-in-bytes-bug
-    #     [CUDA][Bindless][Exp] Fix subregion copies
-    08acafb6b36c9ff12753922365df150f677655e7
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
