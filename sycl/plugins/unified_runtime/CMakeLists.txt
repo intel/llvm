@@ -99,7 +99,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
   # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
   # Merge: a011f092 d8500a36
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
@@ -110,13 +110,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
-    # Merge: 08acafb6 b3f36b96
-    # Author: Callum Fare <callum@codeplay.com>
-    # Date:   Tue Jun 25 11:19:54 2024 +0100
-    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
-    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
-    f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    # commit 72c8aa173551f6b4b570baa87c3fb43decc67933
+    # Author: Duncan Brawley <duncan.brawley@codeplay.com>
+    # Date:   Mon, 10 Jun 2024 17:27:17 +0100
+    #     [Bindless][Exp] Create mapping of host and device handle
+    72c8aa173551f6b4b570baa87c3fb43decc67933
   )
 
   fetch_adapter_source(opencl
