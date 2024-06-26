@@ -1308,8 +1308,10 @@ void CodeGenModule::Release() {
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
-  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
-    getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
+  if (LangOpts.SYCLIsDevice) {
+    getModule().addModuleFlag(llvm::Module::Error, "sycl-device", 1);
+    if (LangOpts.SYCLIsNativeCPU)
+      getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)
@@ -4587,7 +4589,7 @@ llvm::GlobalValue::LinkageTypes getMultiversionLinkage(CodeGenModule &CGM,
 }
 
 static FunctionDecl *createDefaultTargetVersionFrom(const FunctionDecl *FD) {
-  DeclContext *DeclCtx = FD->getASTContext().getTranslationUnitDecl();
+  auto *DeclCtx = const_cast<DeclContext *>(FD->getDeclContext());
   TypeSourceInfo *TInfo = FD->getTypeSourceInfo();
   StorageClass SC = FD->getStorageClass();
   DeclarationName Name = FD->getNameInfo().getName();

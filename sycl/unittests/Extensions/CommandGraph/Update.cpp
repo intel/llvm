@@ -109,6 +109,18 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
     cgh.host_task([]() {});
   }));
 
+  ASSERT_ANY_THROW(auto NodeBarreriTask = Graph.add([&](sycl::handler &cgh) {
+    cgh.set_arg(0, DynamicParam);
+    cgh.ext_oneapi_barrier();
+  }));
+
+  Graph.begin_recording(Queue);
+  ASSERT_ANY_THROW(auto NodeBarrierTask = Graph.add([&](sycl::handler &cgh) {
+    cgh.set_arg(0, DynamicParam);
+    cgh.ext_oneapi_barrier();
+  }));
+  Graph.end_recording(Queue);
+
   auto NodeEmpty = Graph.add();
 
   experimental::command_graph Subgraph(Queue.get_context(), Dev);
@@ -374,4 +386,34 @@ TEST_F(WholeGraphUpdateTest, MissingUpdatableProperty) {
 
   auto GraphExec = Graph.finalize();
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
+}
+
+TEST_F(WholeGraphUpdateTest, EmptyNode) {
+  // Test that updating a graph that has an empty node is not an error
+  auto NodeEmpty = Graph.add();
+  auto UpdateNodeEmpty = UpdateGraph.add();
+
+  auto NodeKernel = Graph.add(EmptyKernel);
+  auto UpdateNodeKernel = UpdateGraph.add(EmptyKernel);
+
+  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
+  GraphExec.update(UpdateGraph);
+}
+
+TEST_F(WholeGraphUpdateTest, BarrierNode) {
+  // Test that updating a graph that has a barrier node is not an error
+  Graph.begin_recording(Queue);
+  auto NodeKernel = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Queue.ext_oneapi_submit_barrier({NodeKernel});
+  Graph.end_recording(Queue);
+
+  UpdateGraph.begin_recording(Queue);
+  auto UpdateNodeKernel = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Queue.ext_oneapi_submit_barrier({UpdateNodeKernel});
+  UpdateGraph.end_recording(Queue);
+
+  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
+  GraphExec.update(UpdateGraph);
 }

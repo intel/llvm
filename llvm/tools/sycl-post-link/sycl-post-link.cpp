@@ -25,6 +25,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
@@ -228,10 +229,19 @@ cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                   cl::desc("emit exported symbols"),
                                   cl::cat(PostLinkCat)};
 
+cl::opt<bool> EmitImportedSymbols{"emit-imported-symbols",
+                                  cl::desc("emit imported symbols"),
+                                  cl::cat(PostLinkCat)};
+
 cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     "emit-only-kernels-as-entry-points",
     cl::desc("Consider only sycl_kernel functions as entry points for "
              "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
     cl::cat(PostLinkCat), cl::init(false)};
 
 cl::opt<bool> DeviceGlobals{
@@ -250,6 +260,7 @@ struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
+  bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
 };
 
@@ -474,10 +485,30 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
       if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(), true);
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(),
+                    /*PropVal=*/true);
       }
     }
   }
+
+  if (GlobProps.EmitImportedSymbols) {
+    // record imported functions in the property set
+    for (const auto &F : M) {
+      if ( // A function that can be imported may still be defined in one split
+           // image. Only add import property if this is not the image where the
+           // function is defined.
+          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
+
+        // StripDeadPrototypes is called during module splitting
+        // cleanup.  At this point all function decls should have uses.
+        assert(!F.use_empty() && "Function F has no uses");
+
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
   // Metadata names may be composite so we keep them alive until the
   // properties have been written.
   SmallVector<std::string, 4> MetadataNames;
@@ -730,7 +761,8 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, DeviceGlobals};
+                               EmitExportedSymbols, EmitImportedSymbols,
+                               DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
 
   if (DoSymGen) {
@@ -940,7 +972,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // when linked back because functions shared between graphs are cloned and
   // renamed.
   SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -1014,41 +1046,12 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
       DeviceConfigFile::TargetTable[*Target];
   const SYCLDeviceRequirements &ModuleReqs =
       IrMD.getOrComputeDeviceRequirements();
-  // The device config file data stores the target's supported
-  // aspects as a vector of the strings, so we need to translate
-  // the values to a common format.
-  const NamedMDNode *Node = IrMD.getModule().getNamedMetadata("sycl_aspects");
-  if (Node) {
-    SmallMapVector<StringRef, int, 32> AspectNameToValue;
-    for (const MDNode *N : Node->operands()) {
-      assert(N->getNumOperands() == 2 &&
-             "Each operand of sycl_aspects must be a pair.");
 
-      // The aspect's name is the first operand.
-      const auto *AspectName = cast<MDString>(N->getOperand(0));
-
-      // The aspect's integral value is the second operand.
-      const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
-      const Constant *AspectC = AspectCAM->getValue();
-
-      AspectNameToValue[AspectName->getString()] =
-          cast<ConstantInt>(AspectC)->getSExtValue();
-    }
-
-    // Make the set of aspects values the target supports.
-    SmallSet<int64_t, 32> TargetAspectValueSet;
-    for (const auto &Aspect : TargetInfo.aspects) {
-      auto It = AspectNameToValue.find(Aspect);
-      assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
-      TargetAspectValueSet.insert(It->second);
-    }
-
-    // Now check to see if all the requirements of the input module
-    // are compatbile with the target.
-    for (const auto &Aspect : ModuleReqs.Aspects) {
-      if (!TargetAspectValueSet.contains(Aspect))
-        return false;
-    }
+  // Check to see if all the requirements of the input module
+  // are compatbile with the target.
+  for (const auto &Aspect : ModuleReqs.Aspects) {
+    if (!is_contained(TargetInfo.aspects, Aspect.Name))
+      return false;
   }
 
   // Check if module sub group size is compatible with the target.
@@ -1135,7 +1138,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, SupportDynamicLinking);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -1278,13 +1281,14 @@ int main(int argc, char **argv) {
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
+  bool DoImportedSyms = EmitImportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
   bool DoGenerateDeviceImageWithDefaulValues =
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
-      !DoLowerEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms &&
+      !DoDeviceGlobals && !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -1315,6 +1319,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoImportedSyms) {
+    errs() << "error: -" << EmitImportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

@@ -12035,10 +12035,10 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
     // or `indirectly_callable' attribute must be emitted regardless of number
     // of actual uses
     if (LangOpts.SYCLIsDevice && isa<CXXMethodDecl>(D)) {
-      if (auto *A = D->getAttr<SYCLDeviceIndirectlyCallableAttr>())
-        return !A->isImplicit();
-      if (auto *A = D->getAttr<SYCLDeviceAttr>())
-        return !A->isImplicit();
+      if (D->hasAttr<SYCLDeviceIndirectlyCallableAttr>())
+        return true;
+      if (D->hasAttr<SYCLDeviceAttr>())
+        return true;
     }
 
     GVALinkage Linkage = GetGVALinkageForFunction(FD);

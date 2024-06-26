@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// RUN: %{build} -o %t.out
+// REQUIRES: gpu-intel-dg2
+// DEFINE: %{winBuildFlag} =  %if windows %{-Qfp-speculation=safe%} %else %{%}
+// RUN: %{build} %{winBuildFlag}-o %t.out
 // RUN: %{run} %t.out
 
 #include "Inputs/lsc_usm_store.hpp"
@@ -31,10 +32,11 @@ template <int TestCastNum, typename T> bool tests() {
   passed &= test<TestCastNum + 10, T, 4, 4, 1, 4, true>();
 
   // large number of elements
+#ifdef USE_PVC
   passed &= test<TestCastNum + 11, T, 4, 4, 1, 128, true,
                  lsc_data_size::default_size, cache_hint::none,
                  cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
-
+#endif
   return passed;
 }
 

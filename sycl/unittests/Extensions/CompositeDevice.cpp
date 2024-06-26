@@ -72,7 +72,7 @@ pi_result after_piDeviceGetInfo_unsupported(pi_device device,
   switch (param_name) {
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
-    return PI_ERROR_UNSUPPORTED_FEATURE;
+    return PI_ERROR_INVALID_VALUE;
 
   default:
     return PI_SUCCESS;
@@ -84,7 +84,7 @@ pi_result after_piDeviceGetInfo_no_component_devices(
     void *param_value, size_t *param_value_size_ret) {
   switch (param_name) {
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
-    return PI_ERROR_UNSUPPORTED_FEATURE;
+    return PI_ERROR_INVALID_VALUE;
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
     if (param_value_size_ret)
       *param_value_size_ret = 0;
@@ -111,7 +111,7 @@ pi_result after_piContextCreate(const pi_context_properties *,
 } // namespace
 
 TEST(CompositeDeviceTest, DescendentDeviceSupportInContext) {
-  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
+  sycl::unittest::PiMock Mock;
   Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       after_piDeviceGetInfo);
@@ -119,8 +119,6 @@ TEST(CompositeDeviceTest, DescendentDeviceSupportInContext) {
       after_piContextCreate);
 
   sycl::platform Plt = Mock.getPlatform();
-  ASSERT_EQ(Plt.get_backend(), sycl::backend::ext_oneapi_level_zero);
-
   sycl::device RootDevice = Plt.get_devices()[0];
   ASSERT_TRUE(RootDevice.has(sycl::aspect::ext_oneapi_is_component));
   sycl::context Ctx(RootDevice);
@@ -152,7 +150,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupportInContext) {
 }
 
 TEST(CompositeDeviceTest, DescendentDeviceSupportInQueue) {
-  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
+  sycl::unittest::PiMock Mock;
   Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       after_piDeviceGetInfo);
@@ -160,8 +158,6 @@ TEST(CompositeDeviceTest, DescendentDeviceSupportInQueue) {
       after_piContextCreate);
 
   sycl::platform Plt = Mock.getPlatform();
-  ASSERT_EQ(Plt.get_backend(), sycl::backend::ext_oneapi_level_zero);
-
   sycl::device ComponentDevice = Plt.get_devices()[0];
   ASSERT_TRUE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_component));
 

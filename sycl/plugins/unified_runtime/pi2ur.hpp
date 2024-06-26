@@ -83,8 +83,6 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_IMAGE_SIZE;
   case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
     return PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
-  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
     return PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE;
   case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
@@ -862,13 +860,13 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_platform_native_properties_t UrProperties{};
-  urPlatformCreateWithNativeHandle(UrNativeHandle, &UrProperties, &UrPlatform);
+  urPlatformCreateWithNativeHandle(UrNativeHandle, adapter, &UrProperties,
+                                   &UrPlatform);
 
   *Platform = reinterpret_cast<pi_platform>(UrPlatform);
 
@@ -2290,7 +2288,10 @@ inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                        size_t ArgSize, const void *ArgValue) {
   std::ignore = ArgSize;
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
@@ -2554,7 +2555,10 @@ inline pi_result piProgramRelease(pi_program Program) {
 inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           size_t, const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
@@ -2968,7 +2972,6 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
     UrDesc->type = TO;                                                         \
     break;                                                                     \
   }
-    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_BUFFER, UR_MEM_TYPE_BUFFER)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE3D, UR_MEM_TYPE_IMAGE3D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE2D_ARRAY,
@@ -2976,8 +2979,6 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_ARRAY,
                             UR_MEM_TYPE_IMAGE1D_ARRAY)
-    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_BUFFER,
-                            UR_MEM_TYPE_IMAGE1D_BUFFER)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE_CUBEMAP,
                             UR_MEM_TYPE_IMAGE_CUBEMAP_EXP)
 #undef PI_TO_UR_MAP_IMAGE_TYPE
@@ -5374,6 +5375,8 @@ inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalMemory`")]]
 inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
                                         size_t Size, int FileDescriptor,
                                         pi_interop_mem_handle *RetHandle) {
@@ -5382,7 +5385,7 @@ inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_interop_mem_handle_t *UrRetHandle =
+  auto *UrRetHandle =
       reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
 
   ur_exp_file_descriptor_t PosixFD{};
@@ -5393,8 +5396,75 @@ inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
   InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
   InteropMemDesc.pNext = &PosixFD;
 
-  HANDLE_ERRORS(urBindlessImagesImportOpaqueFDExp(
-      UrContext, UrDevice, Size, &InteropMemDesc, UrRetHandle));
+  HANDLE_ERRORS(urBindlessImagesImportExternalMemoryExp(
+      UrContext, UrDevice, Size, UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
+      &InteropMemDesc, UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextImportExternalMemory(pi_context Context, pi_device Device,
+                          pi_external_mem_descriptor *MemDescriptor,
+                          pi_interop_mem_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto *UrRetHandle =
+      reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
+
+  ur_exp_interop_mem_desc_t InteropMemDesc{};
+  InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+
+  ur_exp_external_mem_type_t UrExternalMemHandleType;
+  switch (MemDescriptor->handleType) {
+#ifndef _WIN32
+  case pi_external_mem_handle_type::opaque_fd:
+    UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
+    break;
+#else
+  case pi_external_mem_handle_type::win32_nt_handle:
+    UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
+    break;
+  case pi_external_mem_handle_type::win32_nt_dx12_resource:
+    UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
+    break;
+#endif
+  default:
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+#ifndef _WIN32
+  ur_exp_file_descriptor_t OpaqueFD{};
+#else
+  ur_exp_win32_handle_t Win32Handle{};
+#endif
+  switch (MemDescriptor->handleType) {
+#ifndef _WIN32
+  case pi_external_mem_handle_type::opaque_fd: {
+    OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+    OpaqueFD.fd = MemDescriptor->handle.file_descriptor;
+    InteropMemDesc.pNext = &OpaqueFD;
+    break;
+  }
+#else
+  case pi_external_mem_handle_type::win32_nt_handle:
+  case pi_external_mem_handle_type::win32_nt_dx12_resource: {
+    Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
+    Win32Handle.handle = MemDescriptor->handle.win32_handle;
+    InteropMemDesc.pNext = &Win32Handle;
+    break;
+  }
+#endif
+  default:
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+  HANDLE_ERRORS(urBindlessImagesImportExternalMemoryExp(
+      UrContext, UrDevice, MemDescriptor->memorySizeBytes,
+      UrExternalMemHandleType, &InteropMemDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -5439,6 +5509,8 @@ inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalSemaphore`")]]
 inline pi_result
 piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
                                      int FileDescriptor,
@@ -5448,7 +5520,7 @@ piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_exp_interop_semaphore_handle_t *UrRetHandle =
+  auto *UrRetHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
 
   ur_exp_file_descriptor_t PosixFD{};
@@ -5459,8 +5531,76 @@ piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
   InteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
   InteropSemDesc.pNext = &PosixFD;
 
-  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
-      UrContext, UrDevice, &InteropSemDesc, UrRetHandle));
+  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreExp(
+      UrContext, UrDevice, UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
+      &InteropSemDesc, UrRetHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextImportExternalSemaphore(pi_context Context, pi_device Device,
+                             pi_external_semaphore_descriptor *SemDescriptor,
+                             pi_interop_semaphore_handle *RetHandle) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto *UrRetHandle =
+      reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
+
+  ur_exp_interop_semaphore_desc_t InteropSemDesc{};
+  InteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
+
+  ur_exp_external_semaphore_type_t UrExternalSemHandleType;
+  switch (SemDescriptor->handleType) {
+#ifndef _WIN32
+  case pi_external_semaphore_handle_type::opaque_fd:
+    UrExternalSemHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD;
+    break;
+#else
+  case pi_external_semaphore_handle_type::win32_nt_handle:
+    UrExternalSemHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT;
+    break;
+  case pi_external_semaphore_handle_type::win32_nt_dx12_fence:
+    UrExternalSemHandleType =
+        UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
+    break;
+#endif
+  default:
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+#ifndef _WIN32
+  ur_exp_file_descriptor_t OpaqueFD{};
+#else
+  ur_exp_win32_handle_t Win32Handle{};
+#endif
+  switch (SemDescriptor->handleType) {
+#ifndef _WIN32
+  case pi_external_semaphore_handle_type::opaque_fd: {
+    OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+    OpaqueFD.fd = SemDescriptor->handle.file_descriptor;
+    InteropSemDesc.pNext = &OpaqueFD;
+    break;
+  }
+#else
+  case pi_external_semaphore_handle_type::win32_nt_dx12_fence:
+  case pi_external_semaphore_handle_type::win32_nt_handle: {
+    Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
+    Win32Handle.handle = SemDescriptor->handle.win32_handle;
+    InteropSemDesc.pNext = &Win32Handle;
+    break;
+  }
+#endif
+  default:
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreExp(
+      UrContext, UrDevice, UrExternalSemHandleType, &InteropSemDesc,
+      UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -5482,11 +5622,10 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
-inline pi_result
-piextWaitExternalSemaphore(pi_queue Queue,
-                           pi_interop_semaphore_handle SemHandle,
-                           pi_uint32 NumEventsInWaitList,
-                           const pi_event *EventWaitList, pi_event *Event) {
+inline pi_result piextWaitExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
@@ -5497,16 +5636,16 @@ piextWaitExternalSemaphore(pi_queue Queue,
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesWaitExternalSemaphoreExp(
-      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UREvent));
+      UrQueue, UrSemHandle, HasWaitValue, WaitValue, NumEventsInWaitList,
+      UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
 
-inline pi_result
-piextSignalExternalSemaphore(pi_queue Queue,
-                             pi_interop_semaphore_handle SemHandle,
-                             pi_uint32 NumEventsInWaitList,
-                             const pi_event *EventWaitList, pi_event *Event) {
+inline pi_result piextSignalExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
@@ -5517,7 +5656,8 @@ piextSignalExternalSemaphore(pi_queue Queue,
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesSignalExternalSemaphoreExp(
-      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UREvent));
+      UrQueue, UrSemHandle, HasSignalValue, SignalValue, NumEventsInWaitList,
+      UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
