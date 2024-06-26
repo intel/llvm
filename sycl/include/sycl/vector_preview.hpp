@@ -574,7 +574,7 @@ public:
   }
   void load(size_t Offset, const DataT *Ptr) {
     for (int I = 0; I < NumElements; ++I)
-      setValue(I, Ptr[Offset * NumElements + I]);
+      m_Data[I] = Ptr[Offset * NumElements + I];
   }
 
   template <access::address_space Space, access::decorated DecorateAddress>

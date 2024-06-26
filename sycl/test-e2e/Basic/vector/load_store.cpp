@@ -28,7 +28,7 @@ int main() {
 
   int Failures = 0;
 
-  // Load on host
+  // Load on host.
   // Note: multi_ptr is not usable on host, so only raw pointer is tested.
   {
     const int Ref[] = {0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13};
@@ -37,7 +37,7 @@ int main() {
     Failures += CheckResult<4>(V, Ref + 8, "load with raw pointer on host");
   }
 
-  // store on host
+  // Store on host.
   // Note: multi_ptr is not usable on host, so only raw pointer is tested.
   {
     int Out[] = {0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13};
@@ -48,7 +48,7 @@ int main() {
         CheckResult<std::size(Ref)>(Out, Ref, "store in raw pointer on host");
   }
 
-  // Load on device
+  // Load on device.
   {
     const int Ref[] = {0,  2,  1,  4,  3,  6,  5,  8,  7,  10, 9,  12,
                        11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21, 24};
@@ -70,31 +70,31 @@ int main() {
             LocalRefAcc[I] = GlobalRefAcc[I];
           }
 
-          // Load with global multi_ptr
+          // Load with global multi_ptr.
           auto GlobalMPtr =
               GlobalRefAcc.get_multi_ptr<sycl::access::decorated::no>();
           VAcc[0].load(0, GlobalMPtr);
 
-          // Load with local multi_ptr
+          // Load with local multi_ptr.
           auto LocalMPtr =
               LocalRefAcc.get_multi_ptr<sycl::access::decorated::no>();
           VAcc[1].load(1, LocalMPtr);
 
-          // Load with private multi_ptr
+          // Load with private multi_ptr.
           auto PrivateMPtr = sycl::address_space_cast<
               sycl::access::address_space::private_space,
               sycl::access::decorated::no>(PrivateRef);
           VAcc[2].load(2, PrivateMPtr);
 
-          // Load with global raw pointer
+          // Load with global raw pointer.
           const int *GlobalRawPtr = GlobalMPtr.get_raw();
           VAcc[3].load(3, GlobalRawPtr);
 
-          // Load with local raw pointer
+          // Load with local raw pointer.
           const int *LocalRawPtr = LocalMPtr.get_raw();
           VAcc[4].load(4, LocalRawPtr);
 
-          // Load with private raw pointer
+          // Load with private raw pointer.
           VAcc[5].load(5, PrivateRef);
         });
       });
@@ -114,7 +114,7 @@ int main() {
                                "load with private raw pointer on device");
   }
 
-  // Store on device
+  // Store on device.
   {
     int Out[24] = {0};
     const sycl::int4 V[] = {{0, 2, 1, 4},     {3, 6, 5, 8},
@@ -130,33 +130,33 @@ int main() {
         CGH.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
           int PrivateVal[std::size(Out)] = {0};
 
-          // Store in global multi_ptr
+          // Store in global multi_ptr.
           auto GlobalMPtr = OutAcc.get_multi_ptr<sycl::access::decorated::no>();
           V[0].store(0, GlobalMPtr);
 
-          // Store in local multi_ptr
+          // Store in local multi_ptr.
           auto LocalMPtr =
               LocalOutAcc.get_multi_ptr<sycl::access::decorated::no>();
           V[1].store(1, LocalMPtr);
 
-          // Store in private multi_ptr
+          // Store in private multi_ptr.
           auto PrivateMPtr = sycl::address_space_cast<
               sycl::access::address_space::private_space,
               sycl::access::decorated::no>(PrivateVal);
           V[2].store(2, PrivateMPtr);
 
-          // Store in global raw pointer
+          // Store in global raw pointer.
           int *GlobalRawPtr = GlobalMPtr.get_raw();
           V[3].store(3, GlobalRawPtr);
 
-          // Store in local raw pointer
+          // Store in local raw pointer.
           int *LocalRawPtr = LocalMPtr.get_raw();
           V[4].store(4, LocalRawPtr);
 
-          // Store in private raw pointer
+          // Store in private raw pointer.
           V[5].store(5, PrivateVal);
 
-          // Write local and private results back to the global buffer
+          // Write local and private results back to the global buffer.
           for (size_t I = 0; I < 4; ++I) {
             OutAcc[4 + I] = LocalMPtr[4 + I];
             OutAcc[8 + I] = PrivateVal[8 + I];
