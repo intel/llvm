@@ -1196,6 +1196,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       if (!SYCLPostLinkFile)
         return SYCLPostLinkFile.takeError();
       auto OutputFile = sycl::runWrapperAndCompile(*SYCLPostLinkFile, Args);
+      //TODO: run clang over each module that comes out of sycl-post-link
       if (!OutputFile)
         return OutputFile.takeError();
       return *OutputFile;
@@ -1913,7 +1914,12 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
       bool SYCLNativeCPU = (HostTriple == Triple);
       if(SYCLNativeCPU) {
-        auto NCpuObj = generic::clang({*TmpOutputOrErr}, Args, true);
+        // TODO: we set IsNativeCPU to true here since we need to add the 
+        // -mllvm -sycl-native-cpu-backend option, which triggers the SYCL
+        // Native CPU pass pipeline. Perhaps we could move the SYCL Native CPU
+        // pass pipeline to sycl-post-link, and run an umodified clang invocation
+        // on the modules that come out of sycl-post-link.
+        auto NCpuObj = generic::clang({*TmpOutputOrErr}, Args, /*IsNativeCPU*/ true);
         if (!NCpuObj)
           return NCpuObj.takeError();
         std::scoped_lock Guard(ImageMtx);
