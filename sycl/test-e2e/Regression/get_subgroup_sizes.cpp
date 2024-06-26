@@ -1,5 +1,5 @@
 // UNSUPPORTED: accelerator
-// TODO: FPGAs currently report `sub_group_sizes` as non-empty list, 
+// TODO: FPGAs currently report `sub_group_sizes` as non-empty list,
 // despite not having extension `cl_intel_required_subgroup_size`
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

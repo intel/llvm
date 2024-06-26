@@ -1,5 +1,5 @@
 // UNSUPPORTED: accelerator
-// TODO: FPGAs currently report supported subgroups as {4,8,16,32,64}, causing 
+// TODO: FPGAs currently report supported subgroups as {4,8,16,32,64}, causing
 // this test to fail. Additionally, the kernel max_sub_group_size checks
 // crash on FPGAs
 // RUN: %{build} -o %t.out
@@ -31,7 +31,7 @@ int main() {
 
   /* Check info::device parameters. */
   if (!old_opencl) {
-    // Independent forward progress is missing on OpenCL backend prior to 
+    // Independent forward progress is missing on OpenCL backend prior to
     // version 2.1
     Device.get_info<info::device::sub_group_independent_forward_progress>();
   }
