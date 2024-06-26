@@ -18,6 +18,8 @@
 #include "queue.hpp"
 #include "ur_level_zero.hpp"
 
+#include "v2/context.hpp"
+
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, ///< [in] the number of devices given in phDevices
     const ur_device_handle_t
@@ -36,7 +38,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   ZE2UR_CALL(zeContextCreate, (Platform->ZeDriver, &ContextDesc, &ZeContext));
   try {
     ur_context_handle_t_ *Context =
-        new ur_context_handle_t_(ZeContext, DeviceCount, Devices, true);
+        new v2::ur_context_handle_t_(ZeContext, DeviceCount, Devices, true);
 
     Context->initialize();
     *RetContext = reinterpret_cast<ur_context_handle_t>(Context);
