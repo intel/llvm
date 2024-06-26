@@ -1,19 +1,18 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: vulkan
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %link-vulkan %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{run} %t.out
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
+#include <sycl/properties/queue_properties.hpp>
 
 #include <random>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -29,19 +28,42 @@ struct handles_t {
   syclexp::unsampled_image_handle input_1, input_2, output;
 };
 
+template <typename InteropMemHandleT, typename InteropSemHandleT>
 handles_t
 create_test_handles(sycl::context &ctxt, sycl::device &dev,
-                    int input_image_fd_1, int input_image_fd_2,
-                    int output_image_fd, int sycl_wait_semaphore_fd,
-                    int sycl_done_semaphore_fd, const size_t img_size,
+                    InteropMemHandleT img_in_interop_handle_1,
+                    InteropMemHandleT img_in_interop_handle_2,
+                    InteropMemHandleT img_out_interop_handle,
+                    InteropSemHandleT sycl_wait_semaphore_handle,
+                    InteropSemHandleT sycl_done_semaphore_handle,
+                    const size_t img_size,
                     sycl::ext::oneapi::experimental::image_descriptor &desc) {
   // Extension: map the external memory descriptors
+
+#ifdef _WIN32
+  syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
+      input_ext_mem_desc_1{img_in_interop_handle_1,
+                           syclexp::external_mem_handle_type::win32_nt_handle,
+                           img_size};
+  syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
+      input_ext_mem_desc_2{img_in_interop_handle_2,
+                           syclexp::external_mem_handle_type::win32_nt_handle,
+                           img_size};
+  syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
+      output_ext_mem_desc{img_out_interop_handle,
+                          syclexp::external_mem_handle_type::win32_nt_handle,
+                          img_size};
+#else
   syclexp::external_mem_descriptor<syclexp::resource_fd> input_ext_mem_desc_1{
-      input_image_fd_1, img_size};
+      img_in_interop_handle_1, syclexp::external_mem_handle_type::opaque_fd,
+      img_size};
   syclexp::external_mem_descriptor<syclexp::resource_fd> input_ext_mem_desc_2{
-      input_image_fd_2, img_size};
+      img_in_interop_handle_2, syclexp::external_mem_handle_type::opaque_fd,
+      img_size};
   syclexp::external_mem_descriptor<syclexp::resource_fd> output_ext_mem_desc{
-      output_image_fd, img_size};
+      img_out_interop_handle, syclexp::external_mem_handle_type::opaque_fd,
+      img_size};
+#endif
 
   // Extension: create interop memory handles
   syclexp::interop_mem_handle input_interop_mem_handle_1 =
@@ -71,10 +93,26 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
       syclexp::create_image(output_mapped_mem_handle, desc, dev, ctxt);
 
   // Extension: import semaphores
+#ifdef _WIN32
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+      sycl_wait_external_semaphore_desc{
+          sycl_wait_semaphore_handle,
+          syclexp::external_semaphore_handle_type::win32_nt_handle};
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+      sycl_done_external_semaphore_desc{
+          sycl_done_semaphore_handle,
+          syclexp::external_semaphore_handle_type::win32_nt_handle};
+#else
   syclexp::external_semaphore_descriptor<syclexp::resource_fd>
-      sycl_wait_external_semaphore_desc{sycl_wait_semaphore_fd};
+      sycl_wait_external_semaphore_desc{
+          sycl_wait_semaphore_handle,
+          syclexp::external_semaphore_handle_type::opaque_fd};
   syclexp::external_semaphore_descriptor<syclexp::resource_fd>
-      sycl_done_external_semaphore_desc{sycl_done_semaphore_fd};
+      sycl_done_external_semaphore_desc{
+          sycl_done_semaphore_handle,
+          syclexp::external_semaphore_handle_type::opaque_fd};
+#endif
+
   syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle =
       syclexp::import_external_semaphore(sycl_wait_external_semaphore_desc, dev,
                                          ctxt);
@@ -117,33 +155,31 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
                                    ctxt);
 }
 
-template <int NDims, typename DType, sycl::image_channel_type CType,
-          int NChannels, typename KernelName>
+template <typename InteropMemHandleT, typename InteropSemHandleT, int NDims,
+          typename DType, sycl::image_channel_type CType, int NChannels,
+          typename KernelName>
 void run_ndim_test(sycl::range<NDims> global_size,
-                   sycl::range<NDims> local_size, int input_image_fd_1,
-                   int input_image_fd_2, int output_image_fd,
-                   int sycl_wait_semaphore_fd, int sycl_done_semaphore_fd) {
+                   sycl::range<NDims> local_size,
+                   InteropMemHandleT img_in_interop_handle_1,
+                   InteropMemHandleT img_in_interop_handle_2,
+                   InteropMemHandleT img_out_interop_handle,
+                   InteropSemHandleT sycl_wait_semaphore_handle,
+                   InteropSemHandleT sycl_done_semaphore_handle) {
   using VecType = sycl::vec<DType, NChannels>;
 
-  sycl::image_channel_order order = sycl::image_channel_order::r;
-  if constexpr (NChannels == 2) {
-    order = sycl::image_channel_order::rg;
-  } else if constexpr (NChannels == 4) {
-    order = sycl::image_channel_order::rgba;
-  }
-
   sycl::device dev;
-  sycl::queue q(dev);
+  sycl::queue q{dev, {sycl::property::queue::in_order{}}};
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(global_size, order, CType);
+  syclexp::image_descriptor desc(global_size, NChannels, CType);
 
   const size_t img_size = global_size.size() * sizeof(DType) * NChannels;
 
   auto handles = create_test_handles(
-      ctxt, dev, input_image_fd_1, input_image_fd_2, output_image_fd,
-      sycl_wait_semaphore_fd, sycl_done_semaphore_fd, img_size, desc);
+      ctxt, dev, img_in_interop_handle_1, img_in_interop_handle_2,
+      img_out_interop_handle, sycl_wait_semaphore_handle,
+      sycl_done_semaphore_handle, img_size, desc);
 
   // Extension: wait for imported semaphore
   q.ext_oneapi_wait_external_semaphore(
@@ -337,7 +373,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   {
     VkExportSemaphoreCreateInfo esci = {};
     esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+#ifdef _WIN32
+    esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
     esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
 
     VkSemaphoreCreateInfo sci = {};
     sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -350,7 +390,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   {
     VkExportSemaphoreCreateInfo esci = {};
     esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+#ifdef _WIN32
+    esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
     esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
 
     VkSemaphoreCreateInfo sci = {};
     sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -395,21 +439,46 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
                                 &submission, VK_NULL_HANDLE /*fence*/));
   }
 
-  printString("Getting memory file descriptors and calling into SYCL\n");
-  // Pass memory to SYCL for modification
+  printString("Getting memory interop handles\n");
 
+  // Pass memory to SYCL for modification
   auto global_size = dims;
-  auto input_fd_1 = vkutil::getMemoryOpaqueFD(inVkImgRes1.imageMemory);
-  auto input_fd_2 = vkutil::getMemoryOpaqueFD(inVkImgRes2.imageMemory);
-  auto output_fd = vkutil::getMemoryOpaqueFD(outVkImgRes.imageMemory);
+#ifdef _WIN32
+  auto input_mem_handle_1 =
+      vkutil::getMemoryWin32Handle(inVkImgRes1.imageMemory);
+  auto input_mem_handle_2 =
+      vkutil::getMemoryWin32Handle(inVkImgRes2.imageMemory);
+  auto output_mem_handle =
+      vkutil::getMemoryWin32Handle(outVkImgRes.imageMemory);
+#else
+  auto input_mem_handle_1 = vkutil::getMemoryOpaqueFD(inVkImgRes1.imageMemory);
+  auto input_mem_handle_2 = vkutil::getMemoryOpaqueFD(inVkImgRes2.imageMemory);
+  auto output_mem_handle = vkutil::getMemoryOpaqueFD(outVkImgRes.imageMemory);
+#endif
+
+  printString("Getting semaphore interop handles\n");
 
   // Pass semaphores to SYCL for synchronization
-  int sycl_wait_semaphore_fd = vkutil::getSemaphoreOpaqueFD(syclWaitSemaphore);
-  int sycl_done_semaphore_fd = vkutil::getSemaphoreOpaqueFD(syclDoneSemaphore);
+#ifdef _WIN32
+  auto sycl_wait_semaphore_handle =
+      vkutil::getSemaphoreWin32Handle(syclWaitSemaphore);
+  auto sycl_done_semaphore_handle =
+      vkutil::getSemaphoreWin32Handle(syclDoneSemaphore);
+#else
+  auto sycl_wait_semaphore_handle =
+      vkutil::getSemaphoreOpaqueFD(syclWaitSemaphore);
+  auto sycl_done_semaphore_handle =
+      vkutil::getSemaphoreOpaqueFD(syclDoneSemaphore);
+#endif
 
-  util::run_ndim_test<NDims, DType, CType, NChannels, KernelName>(
-      global_size, local_size, input_fd_1, input_fd_2, output_fd,
-      sycl_wait_semaphore_fd, sycl_done_semaphore_fd);
+  printString("Calling into SYCL with interop memory and semaphore handles\n");
+
+  util::run_ndim_test<decltype(input_mem_handle_1),
+                      decltype(sycl_wait_semaphore_handle), NDims, DType, CType,
+                      NChannels, KernelName>(
+      global_size, local_size, input_mem_handle_1, input_mem_handle_2,
+      output_mem_handle, sycl_wait_semaphore_handle,
+      sycl_done_semaphore_handle);
 
   printString("Copying image memory to staging memory\n");
   // Copy main image memory to staging
@@ -553,8 +622,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  // Currently only Nvidia devices are tested
-  if (vkutil::setupDevice("NVIDIA") != VK_SUCCESS) {
+  const char *devices[] = {"Intel", "NVIDIA"};
+  if (std::none_of(std::begin(devices), std::end(devices),
+                   [](const char *device) {
+                     return vkutil::setupDevice(device) == VK_SUCCESS;
+                   })) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

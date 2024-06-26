@@ -20,7 +20,8 @@
 // CHECK: %c %s %d %i %o %x %X %u
 // CHECK-NEXT: %f %F %e %E %a %A %g %G %n %p
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstring>
 

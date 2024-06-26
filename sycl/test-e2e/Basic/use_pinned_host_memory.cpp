@@ -31,10 +31,11 @@ int main() {
         {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
     // Expected that exception is thrown
     return 1;
-  } catch (sycl::invalid_object_error &E) {
-    if (std::string(E.what()).find(
+  } catch (sycl::exception &E) {
+    if (E.code() != sycl::errc::invalid ||
+        std::string(E.what()).find(
             "The use_pinned_host_memory cannot be used with host pointer") ==
-        std::string::npos) {
+            std::string::npos) {
       return 1;
     }
 

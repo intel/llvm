@@ -4,8 +4,10 @@
 // RUN: %{run} %t.out
 
 #include <level_zero/ze_api.h>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   using namespace sycl;

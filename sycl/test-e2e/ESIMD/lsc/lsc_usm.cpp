@@ -14,8 +14,6 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #ifdef USE_64_BIT_OFFSET
 typedef uint64_t Toffset;

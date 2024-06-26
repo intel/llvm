@@ -131,6 +131,12 @@ static void resolveTopLevelMetadata(llvm::Function *Fn,
   // they are referencing.
   for (auto &BB : *Fn) {
     for (auto &I : BB) {
+      for (llvm::DbgVariableRecord &DVR :
+           llvm::filterDbgVars(I.getDbgRecordRange())) {
+        auto *DILocal = DVR.getVariable();
+        if (!DILocal->isResolved())
+          DILocal->resolve();
+      }
       if (auto *DII = dyn_cast<llvm::DbgVariableIntrinsic>(&I)) {
         auto *DILocal = DII->getVariable();
         if (!DILocal->isResolved())
@@ -762,6 +768,19 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
         return builder.add(
             llvm::ConstantExpr::getNullValue(CGM.GlobalsInt8PtrTy));
       // Method is acceptable, continue processing as usual.
+    }
+
+    if (CGM.getLangOpts().SYCLIsDevice) {
+      // Some virtual function may be only valid in host code. Don't emit
+      // virtual functions which were not specifically marked as device code.
+      const CXXMethodDecl *MD = cast<CXXMethodDecl>(GD.getDecl());
+      // FIXME: Update check to use compile-time property instead of
+      // SYCLDeviceIndirectlyCallableAttr once Virtual function extension
+      // specification is accepted.
+      if (!MD->hasAttr<SYCLDeviceIndirectlyCallableAttr>() &&
+          !MD->hasAttr<SYCLDeviceAttr>())
+        return builder.add(
+            llvm::ConstantExpr::getNullValue(CGM.DefaultInt8PtrTy));
     }
 
     auto getSpecialVirtualFn = [&](StringRef name) -> llvm::Constant * {

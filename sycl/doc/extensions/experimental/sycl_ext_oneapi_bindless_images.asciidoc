@@ -159,23 +159,6 @@ of 3D USM images.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-enum class image_channel_order : /* unspecified */ {
-  a,
-  r,
-  rx,
-  rg,
-  rgx,
-  ra,
-  rgb,
-  rgbx,
-  rgba,
-  argb,
-  bgra,
-  intensity,
-  luminance,
-  abgr,
-};
-
 enum class image_channel_type : /* unspecified */ {
   snorm_int8,
   snorm_int16,
@@ -199,26 +182,28 @@ enum class image_type : /* unspecified */ {
 };
 
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  image_channel_type channel_type;
-  image_channel_order channel_order;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  unsigned int num_channels{4};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
 
-  image_descriptor(sycl::range<1> dims, image_channel_order channel_order,
+  image_descriptor() = default;
+
+  image_descriptor(sycl::range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
 
-  image_descriptor(sycl::range<2> dims, image_channel_order channel_order,
+  image_descriptor(sycl::range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
 
-  image_descriptor(sycl::range<3> dims, image_channel_order channel_order,
+  image_descriptor(sycl::range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
@@ -231,9 +216,9 @@ struct image_descriptor {
 }
 ```
 
-The image descriptor represents the image dimensions, channel type, and channel 
-order. An `image_type` member is also present to allow for implementation of 
-mipmapped, image array, and cubemapped images.
+The image descriptor represents the image dimensions, number of channels, and
+channel type. An `image_type` member is also present to allow for implementation
+of mipmapped, image array, and cubemapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
@@ -253,6 +238,8 @@ The `verify` member function is available to check the validity of the image
 descriptor against the limitations outlined below. If the given descriptor is 
 deemed invalid, then a `sycl::exception` will be thrown with error code 
 `sycl::errc::invalid`.
+
+For all image types, the value of `num_channels` must be `1`, `2`, or `4`.
 
 For the `standard` image type, the value of `num_levels` and `array_size` must
 both be `1`.
@@ -309,9 +296,8 @@ public:
   sycl::context get_context() const;
 
   sycl::range<3> get_range() const;
-  sycl::image_channel_type get_image_channel_type() const;
-  sycl::image_channel_type get_image_channel_order() const;
-  unsigned int get_image_num_channels() const;
+  sycl::image_channel_type get_channel_type() const;
+  unsigned int get_num_channels() const;
   image_type get_type() const;
 
   image_mem_handle get_mip_level_mem_handle(unsigned int level) const;
@@ -392,7 +378,7 @@ using the `image_mem_alloc` function. These are similar to the member functions
 provided by `image_mem`. However, since the `image_mem_handle` is a minimal 
 struct representing just the opaque handle the underlying memory object, there 
 is some information that we cannot retrieve from it, namely the `image_type`,
-`image_channel_order`, the `sycl::context` or `sycl::device` the memory was 
+`num_channels`, the `sycl::context` or `sycl::device` the memory was
 allocated in, and the `image_descriptor` used to allocate the memory.
 
 ```cpp
@@ -1070,13 +1056,13 @@ void write_image(unsampled_image_handle ImageHandle,
 ```
 
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
-or `sample_image`, passing the appropirate image handle. The `fetch_image` API 
+or `sample_image`, passing the appropriate image handle. The `fetch_image` API 
 is applicable to sampled and unsampled images, and the data will be fetched 
 exactly as is in device memory. The `sample_image` API is only applicable to 
 sampled images, the image data will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
 
-When fetching from a sampled image handle, data exatly as is in memory, no 
+When fetching from a sampled image handle, data exactly as is in memory, no 
 sampling operations will be performed, and the `bindless_image_sampler` passed 
 to the image upon creation has no effect on the returned image data. Note that 
 not all devices may support fetching of sampled image data depending on the 
@@ -1352,15 +1338,15 @@ Currently there is no support for image arrays backed by USM.
 
 === Obtaining a handle to an image array
 
-A handle to an image array is acquired in the same way as 
-`unsampled_image_handle`. We create the handle through the `create_image` 
-functions which take `image_descriptor` that has `image_type::array` and 
-`array_size` greater than `1`.
+A handle to an image array is acquired in the same way as a `standard` image for 
+both an `unsampled_image_handle` and `sampled_image_handle`. We create the 
+handle for an image array through the appropriate `create_image` functions which 
+take the `image_descriptor` and `bindless_image_sampler` for a 
+`sampled_image_handle`, or just the `image_descriptor` for an 
+`unsampled_image_handle`. 
 
-[NOTE]
-====
-Currently there is no support for sampled image arrays.
-====
+As with allocation, the descriptor must be populated appropriately, i.e. 
+`image_type::array`  and `array_size` is greater than `1`. 
 
 === Copying image array data [[copying_image_array_data]]
 
@@ -1370,27 +1356,44 @@ array of images in one call to `ext_oneapi_copy` by passing the image arrays'
 
 === Reading an image array
 
-Inside the kernel, it's possible to fetch data from an unsampled image array 
-via `fetch_image_array`, passing the `unsampled_image_handle`, the coordinates, 
-and the array index.
+Inside the kernel, it's possible to retrieve data from an image array via the 
+following APIs which all take an image handle, the coordinates to retrieve from, 
+as well as the array layer index to retrieve from.
 
-```c++
-// Fetch an unsampled image array
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+// Fetch an unsampled image array.
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image_array(const unsampled_image_handle &ImageHandle,
-                       const CoordT &Coords, const unsigned int ArrayLayer);
+                        const CoordT &Coords, unsigned int arrayLayer);
+
+// Fetch a sampled image array.
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image_array(const sampled_image_handle &ImageHandle,
+                        const CoordT &Coords, unsigned int arrayLayer);
+
+// Sample a sampled image array.
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT sample_image_array(const sampled_image_handle &ImageHandle, 
+                         const CoordT &Coords, unsigned int arrayLayer);
+}
 ```
 
-Fetching an image array follows the same restrictions on what coordinate types 
-may be used as laid out in <<reading_writing_inside_kernel>>.
+These functions follow the same template restrictions as with retrieving data 
+from standard image types, as laid out in <<reading_writing_inside_kernel>>. In
+addition, the provided `arrayLayer` must be a valid zero-indexed value within 
+the bounds of the associated `image_descriptor::array_size`, otherwise behaviour
+is undefined.
 
-Fetching an image array by providing a user-defined return `DataT` type also 
-follows the restrictions as laid out in <<reading_writing_inside_kernel>>.
+When sampling an image array, the sampling is done only within array layers and 
+not across layers.
 
 [NOTE]
 ====
-Attempting to fetch an image array with `fetch_image` or any other defined 
-fetch function will result in undefined behaviour.
+Attempting to fetch or sample from an image array with any other defined 
+functions, including those for standard and cubemapped images, will result in 
+undefined behaviour.
 ====
 
 === Writing an image array
@@ -1404,7 +1407,7 @@ provided that type is trivially copyable.
 // Write to an unsampled image array
 template <typename DataT, typename CoordT>
 DataT write_image_array(unsampled_image_handle ImageHandle,
-                        const CoordT &Coords, const unsigned int ArrayLayer
+                        const CoordT &Coords, unsigned int ArrayLayer
                         const DataT &Color);
 ```
 
@@ -1509,7 +1512,7 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
                     const int2 &Coords,
-                    const int Face);
+                    int Face);
 
 // Sampled cubemap read
 template <typename DataT, typename HintT = DataT>
@@ -1520,7 +1523,7 @@ DataT sample_cubemap(const sampled_image_handle &ImageHandle,
 template <typename DataT>
 void write_cubemap(unsampled_image_handle ImageHandle,
                    const int2 &Coords,
-                   const int Face, 
+                   int Face, 
                    const DataT &Color);
 ```
 
@@ -1608,10 +1611,18 @@ struct.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external memory handles
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_mem_descriptor {
   ResourceType external_resource;
+  external_mem_handle_type handle_type;
   size_t size_in_bytes;
 };
 
@@ -1623,9 +1634,13 @@ handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe
 a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
 for Windows NT resource handles.
 
-Once the user populates the `external_mem_descriptor` with the appropriate 
-`ResourceType` values, and the size of the external memory in bytes,
-they can then import that memory into SYCL through `import_external_memory`.
+The user must populate the `external_mem_descriptor` with the appropriate 
+`ResourceType` values, a `handle_type`, and the size of the external memory in 
+bytes, before they can then import that memory into SYCL through 
+`import_external_memory`. Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd` handle type
+is only used on Linux systems and is only compatible with the `resource_fd` 
+resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1667,7 +1682,7 @@ When calling `create_image` with an `image_mem_handle` mapped from an external
 memory object, the user must ensure that the image descriptor they pass to 
 `create_image` has members that match or map to those of the external API. 
 A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `image_channel_order` members will result in undefined behavior.
+or `num_channels` members will result in undefined behavior.
 
 Additionally, the `image_type` describing the image must match to the image of 
 the external API. The current supported importable image types are `standard` 
@@ -1704,16 +1719,32 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
+It is important to note, that the use of imported external semaphore objects
+within SYCL has the restriction in that imported external semaphores can only
+be used in conjuction with SYCL queues that have been constructed with the
+`property::queue::in_order` property. The semaphore synchronization mechanism
+is not supported for the default SYCL out-of-order queues. Use of the semaphore 
+synchronization mechanism with SYCL queues which were not constructed with the 
+`queue::in_order` property will result in undefined behaviour.
+
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external semaphore handles
+enum class external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_semaphore_descriptor {
   ResourceType external_resource;
+  external_semaphore_handle_type handle_type;
 };
 
 }
@@ -1724,9 +1755,12 @@ appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd`
 to describe a POSIX file descriptor resource on Linux systems, or a 
 `resource_win32_handle` for Windows NT resource handles.
 
-Once the user populates the `external_semaphore_descriptor` with the appropriate 
-`ResourceType` values, they can then import that semaphore into SYCL through 
-`import_external_semaphore`.
+The user must populate the `external_semaphore_descriptor` with the appropriate 
+`ResourceType` values, and `handle_type`, before they can then import that 
+semaphore into SYCL through `import_external_semaphore`. Note that some handle 
+types can only be used in combination with certain resource types, for example 
+the `opaque_fd` handle type is only used on Linux systems and is only 
+compatible with the `resource_fd` resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1742,7 +1776,6 @@ interop_semaphore_handle import_external_semaphore(
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-}
 
 template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
@@ -1753,8 +1786,11 @@ interop_semaphore_handle import_external_semaphore(
 ```
 
 The resulting `interop_semaphore_handle` can then be used in a SYCL command 
-group, to either wait until the semaphore is in the signaled state, or set the 
-semaphore to a signaled state.
+group, to either wait until the semaphore signalled, or signal the semaphore.
+
+If the type of semaphore imported supports setting the state of discrete 
+semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
+can specify which value the semaphore operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -1768,9 +1804,19 @@ public:
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
 
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value);
+
   void ext_oneapi_signal_external_semaphore(
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
+
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value);
 };
 
 class queue {
@@ -1787,6 +1833,21 @@ public:
           interop_semaphore_handle,
       const std::vector<event> &DepEvents);
 
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value, 
+      event DepEvent);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t wait_value, 
+      const std::vector<event> &DepEvents);
+
   event ext_oneapi_signal_external_semaphore(
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle);
@@ -1798,17 +1859,46 @@ public:
       ext::oneapi::experimental::interop_semaphore_handle
           interop_semaphore_handle,
       const std::vector<event> &DepEvents);
+
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value,
+      event DepEvent);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      uint64_t signal_value,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
 
-Any operations submitted to the queue after a 
-`ext_oneapi_wait_external_semaphore` call will not begin until the imported 
-semaphore is in a signaled state.
+The behaviour of waiting on a semaphore will depend on the type of the 
+semaphore which was imported.
+
+If the semaphore does not support setting of a discrete state value (the 
+semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
+the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
+until the imported semaphore is in a signalled state. After this, the semaphore 
+will be reset to a non-signalled state.
+
+If the semaphore does support setting of a discrete state value (the semaphore 
+type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
+after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
+imported semaphore is in a state greater than or equal to the `wait_value`. The 
+state of this type of semaphore will not be altered by the call to 
+`ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
-will be set to the signaled state after all commands submitted to the queue 
-prior to the `ext_oneapi_signal_external_semaphore` call complete.
+will either be set to a signalled state, or the state of the semaphore will be 
+set to `signal_value`, depending on the type of semaphore which was imported.
+This singalling will be done after all commands submitted to the queue prior to 
+the `ext_oneapi_signal_external_semaphore` call complete.
 
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
@@ -1849,7 +1939,7 @@ for (int i = 0; i < width; i++) {
 
 // Image descriptor - can use the same for both images
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    sycl::range{width}, sycl::ext::oneapi::experimental::image_channel_order::r,
+    sycl::range{width}, 1,
     sycl::ext::oneapi::experimental::image_channel_type::fp32);
 
 try {
@@ -1928,7 +2018,7 @@ for (int i = 0; i < width; i++) {
 
 // Image descriptor - can use the same for all images
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, sycl::ext::oneapi::experimental::image_channel_order::r,
+    {width, height}, 1,
     sycl::ext::oneapi::experimental::image_channel_type::fp32);
 
 try {
@@ -2028,7 +2118,7 @@ try {
 
   // Image descriptor -- number of levels
   sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, sycl::ext::oneapi::experimental::image_channel_order::r, 
+      {width}, 1,
       sycl::ext::oneapi::experimental::image_channel_type::fp32,
       sycl::ext::oneapi::experimental::image_type::mipmap, num_levels);
 
@@ -2128,7 +2218,7 @@ for (int i = 0; i < width; i++) {
 try {
   // Extension: image descriptor -- number of layers
   sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, sycl::image_channel_order::rgba, sycl::image_channel_type::fp32,
+      {width}, 4, sycl::image_channel_type::fp32,
       sycl::ext::oneapi::experimental::image_type::array, 1, array_size);
 
   // Extension: allocate image array memory on device
@@ -2257,7 +2347,7 @@ int main() {
 
   // Extension: image descriptor - Cubemap
   syclexp::image_descriptor desc(
-      {width, height}, sycl::image_channel_order::rgba,
+      {width, height}, 4,
       sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
 
   syclexp::bindless_image_sampler samp(
@@ -2360,9 +2450,9 @@ sycl::context context = queue.get_context();
 size_t width = /* passed from external API */;
 size_t height = /* passed from external API */;
 
-sycl::ext::oneapi::experimental::image_channel_order channel_order = 
+unsigned int num_channels = 1;
     /* mapped from external API */
-    /* we assume sycl::image_channel_order::r */;
+    /* we assume there is one channel */;
 
 sycl::ext::oneapi::experimental::image_channel_type channel_type = 
     /* mapped from external API */
@@ -2370,7 +2460,7 @@ sycl::ext::oneapi::experimental::image_channel_type channel_type =
 
 // Image descriptor - mapped to external API image layout
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, channel_order, channel_type);
+    {width, height}, num_channels, channel_type);
 
 size_t img_size_in_bytes = width * height * sizeof(uint32_t);
 
@@ -2380,13 +2470,17 @@ int external_output_image_file_descriptor = /* passed from external API */
 // Extension: populate external memory descriptors
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    input_ext_mem_desc{external_input_image_file_descriptor, 
-                       img_size_in_bytes};
+    input_ext_mem_desc{
+      external_input_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    output_ext_mem_desc{external_output_image_file_descriptor,
-                        img_size_in_bytes};
+    output_ext_mem_desc{
+      external_output_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 // An external API semaphore will signal this semaphore before our SYCL commands
 // can begin execution
@@ -2400,11 +2494,13 @@ int done_semaphore_file_descriptor = /* passed from external API */;
 //            We assume POSIX file descriptor resource types
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    wait_external_semaphore_desc{wait_semaphore_file_descriptor};
+    wait_external_semaphore_desc{wait_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    done_external_semaphore_desc{done_semaphore_file_descriptor};
+    done_external_semaphore_desc{done_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 try {
   // Extension: import external semaphores
@@ -2686,4 +2782,28 @@ These features still need to be handled:
                    `fetch_image` API.
 |5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
                    `fetch_cubemap` and `sample_cubemap`.
+|5.9|2024-05-14| - Default constructor for `image_descriptor`.
+|5.10|2024-05-20| - Replaced `channel_order` field in `image_descriptor` with
+                   `num_channels`.
+                  - Renamed `image_mem` functions `get_image_channel_type()`
+                    to `get_channel_type()` and `get_image_num_channels()` to
+                    `get_num_channels()`.
+                  - Removed `get_channel_order()` function from `image_mem`.
+                    This function is redundant since images don't have a notion
+                    of channel order, only the channel size. Use
+                    `get_num_channels()` instead.
+|5.11|2024-05-27| - Added `external_mem_handle_type` and 
+                    `external_semaphore_handle_type` enums. These will allow 
+                    multiple handle types to be consumed by the same interop API.
+                  - Added `handle_type` field to the `external_mem_descriptor`
+                    and `external_semaphore_descriptor` structs. This allows
+                    multiple handle types to be consumed by the API, such as 
+                    file descriptors, Windows NT handles, and other handles in 
+                    the future.
+                  - Added semaphore operations which can accept values. These
+                    are only supported for certain semaphore types 
+                    (e.g. `win32_nt_dx12_fence`).
+|5.12|2024-06-19| - Add support for sampled image arrays.
+                  - Sample image arrays with `sample_image_array` API.
+                  - Fetch sampled image arrays with `fetch_image_array` API.
 |======================
