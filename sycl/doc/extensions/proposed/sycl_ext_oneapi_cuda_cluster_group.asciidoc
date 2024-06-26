@@ -253,7 +253,7 @@ which can then be dereferenced by the calling work-item.
 |T*  map_cluster_local_pointer(T* addr, size_t group_id)
 |Accepts the equivalent address to the memory location relative to the calling 
 work-item which is to be mapped from the local memory of the work-group, as 
-specified by the group_id, denoting the flattened group_id within the cluster
+specified by the group_id, denoting the linear group_id within the cluster
 |===
 
 
