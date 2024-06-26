@@ -325,6 +325,14 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
       return ze2urResult(Result);                                              \
   }
 
+// Trace a call to Level-Zero RT, throw on error
+#define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
+  {                                                                            \
+    ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+      throw ze2urResult(Result);                                               \
+  }
+
 // Perform traced call to L0 without checking for errors
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
