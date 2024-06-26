@@ -13,8 +13,8 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <type_traits>
 
 using namespace sycl;
