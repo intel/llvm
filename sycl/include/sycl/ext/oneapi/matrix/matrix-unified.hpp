@@ -557,12 +557,8 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
 #else
   std::ignore = sg;
   auto prop = properties.template get_property<prefetch_hint_key>();
-  // Will be removed once SPIRV implementation also uses offsetpointer
-  size_t coordX = 0;
-  size_t coordY = 0;
   __spirv_CooperativeMatrixPrefetchINTEL<T>(
-      Ptr, coordX, coordY, NumRows, NumCols,
-      detail::PropertyMetaInfo<decltype(prop)>::value,
+      Ptr, NumRows, NumCols, detail::PropertyMetaInfo<decltype(prop)>::value,
       sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
 #endif // defined(__NVPTX__)
 #else

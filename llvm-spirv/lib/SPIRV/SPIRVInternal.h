@@ -364,6 +364,10 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
+const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
+const static char ConvertHandleToSampledImageINTEL[] =
+    "ConvertHandleToSampledImageINTEL";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {

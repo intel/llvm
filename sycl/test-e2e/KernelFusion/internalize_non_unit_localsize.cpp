@@ -1,5 +1,5 @@
 // REQUIRES: fusion
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} %{embed-ir} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Test private internalization with "LocalSize" == 3 on buffers that trigger
@@ -15,6 +15,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/properties/all_properties.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 

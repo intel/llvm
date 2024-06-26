@@ -3,6 +3,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/detail/host_task_impl.hpp>
+
 int main() {
   queue Queue{};
 

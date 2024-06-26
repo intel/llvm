@@ -5,7 +5,8 @@
 // UNSUPPORTED: hip
 // REQUIRES: sg-32
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

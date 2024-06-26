@@ -1179,6 +1179,47 @@ security.insecureAPI.DeprecatedOrUnsafeBufferHandling (C)
    strncpy(buf, "a", 1); // warn
  }
 
+security.SetgidSetuidOrder (C)
+""""""""""""""""""""""""""""""
+When dropping user-level and group-level privileges in a program by using
+``setuid`` and ``setgid`` calls, it is important to reset the group-level
+privileges (with ``setgid``) first. Function ``setgid`` will likely fail if
+the superuser privileges are already dropped.
+
+The checker checks for sequences of ``setuid(getuid())`` and
+``setgid(getgid())`` calls (in this order). If such a sequence is found and
+there is no other privilege-changing function call (``seteuid``, ``setreuid``,
+``setresuid`` and the GID versions of these) in between, a warning is
+generated. The checker finds only exactly ``setuid(getuid())`` calls (and the
+GID versions), not for example if the result of ``getuid()`` is stored in a
+variable.
+
+.. code-block:: c
+
+ void test1() {
+   // ...
+   // end of section with elevated privileges
+   // reset privileges (user and group) to normal user
+   if (setuid(getuid()) != 0) {
+     handle_error();
+     return;
+   }
+   if (setgid(getgid()) != 0) { // warning: A 'setgid(getgid())' call following a 'setuid(getuid())' call is likely to fail
+     handle_error();
+     return;
+   }
+   // user-ID and group-ID are reset to normal user now
+   // ...
+ }
+
+In the code above the problem is that ``setuid(getuid())`` removes superuser
+privileges before ``setgid(getgid())`` is called. To fix the problem the
+``setgid(getgid())`` should be called first. Further attention is needed to
+avoid code like ``setgid(getuid())`` (this checker does not detect bugs like
+this) and always check the return value of these calls.
+
+This check corresponds to SEI CERT Rule `POS36-C <https://wiki.sei.cmu.edu/confluence/display/c/POS36-C.+Observe+correct+revocation+order+while+relinquishing+privileges>`_.
+
 .. _unix-checkers:
 
 unix
@@ -3033,13 +3074,6 @@ Further examples of injection vulnerabilities this checker can find.
     sprintf(buf, s); // warn: untrusted data used as a format string
   }
 
-  void test() {
-    size_t ts;
-    scanf("%zd", &ts); // 'ts' marked as tainted
-    int *p = (int *)malloc(ts * sizeof(int));
-      // warn: untrusted data used as buffer size
-  }
-
 There are built-in sources, propagations and sinks even if no external taint
 configuration is provided.
 
@@ -3067,9 +3101,7 @@ Default propagations rules:
 
 Default sinks:
  ``printf``, ``setproctitle``, ``system``, ``popen``, ``execl``, ``execle``,
- ``execlp``, ``execv``, ``execvp``, ``execvP``, ``execve``, ``dlopen``,
- ``memcpy``, ``memmove``, ``strncpy``, ``strndup``, ``malloc``, ``calloc``,
- ``alloca``, ``memccpy``, ``realloc``, ``bcopy``
+ ``execlp``, ``execv``, ``execvp``, ``execvP``, ``execve``, ``dlopen``
 
 Please note that there are no built-in filter functions.
 

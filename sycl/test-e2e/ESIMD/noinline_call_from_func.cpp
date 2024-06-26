@@ -15,11 +15,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 class KernelID;
 
 ESIMD_NOINLINE int add(int A, int B) { return A + B; }

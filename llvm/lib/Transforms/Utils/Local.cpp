@@ -4037,6 +4037,14 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
   if (DemandedBW > ITy->getScalarSizeInBits())
     return false;
 
+  // SPIR targets require SPV_KHR_bit_instructions and
+  // SPV_INTEL_arbitrary_precision_integers extensions to translate
+  // llvm.bitreverse with non-standard width and this combination is not yet
+  // supported by SPV translator and/or device back-ends.
+  if (Triple(I->getModule()->getTargetTriple()).isSPIROrSPIRV() &&
+      I->getModule()->getDataLayout().isIllegalInteger(DemandedBW))
+    return false;
+
   // Now, is the bit permutation correct for a bswap or a bitreverse? We can
   // only byteswap values with an even number of bytes.
   APInt DemandedMask = APInt::getAllOnes(DemandedBW);
