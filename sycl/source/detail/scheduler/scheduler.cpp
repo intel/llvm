@@ -697,9 +697,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   // don't represent actual dependencies. Calling getContextImpl() would set
   // their context, which we wish to avoid as it is expensive.
   // NOP events also don't represent actual dependencies.
-  if ((!SyclEventImplPtr->isContextInitialized() &&
-       !SyclEventImplPtr->isHost()) ||
-      SyclEventImplPtr->isNOP()) {
+  if ((SyclEventImplPtr->isDefaultConstructed()) || SyclEventImplPtr->isNOP()) {
     return true;
   }
   if (SyclEventImplPtr->isHost()) {

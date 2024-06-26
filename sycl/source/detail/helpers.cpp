@@ -31,9 +31,7 @@ getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    if ((!SyclEventImplPtr->isContextInitialized() &&
-         !SyclEventImplPtr->isHost()) ||
-        SyclEventImplPtr->isNOP()) {
+    if (SyclEventImplPtr->isDefaultConstructed() || SyclEventImplPtr->isNOP()) {
       continue;
     }
     // The fusion command and its event are associated with a non-host context,
