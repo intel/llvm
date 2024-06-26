@@ -110,7 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    # Merge: 08acafb6 b3f36b96
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Tue Jun 25 11:19:54 2024 +0100
+    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
+    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
+    f040b1fea9313561c01ccdb81ea3ca52c1c62061
   )
 
   fetch_adapter_source(opencl
@@ -120,7 +126,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 08acafb6b36c9ff12753922365df150f677655e7
+    # Merge: 1e9b1b49 8e5a33b6
+    # Author: Callum Fare <callum@codeplay.com>
+    # Date:   Mon Jun 24 10:56:12 2024 +0100
+    #     Merge pull request #1714 from cppchedy/chedy/fix-copy-in-bytes-bug
+    #     [CUDA][Bindless][Exp] Fix subregion copies
+    08acafb6b36c9ff12753922365df150f677655e7
   )
 
   fetch_adapter_source(hip
