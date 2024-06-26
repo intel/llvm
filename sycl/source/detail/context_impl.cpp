@@ -162,10 +162,10 @@ context_impl::~context_impl() {
     }
     if (!MHostContext) {
       // TODO catch an exception and put it to list of asynchronous exceptions
-      getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
+      getPlugin()->call<PiApiKind::piContextRelease>(MContext);
     }
   } catch (std::exception &e) {
-    assert(false && "exception in ~context_impl " && e.what());
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
 }
 

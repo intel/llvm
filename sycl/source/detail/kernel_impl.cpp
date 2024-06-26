@@ -81,7 +81,7 @@ kernel_impl::~kernel_impl() {
       getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
     }
   } catch (std::exception &e) {
-    assert(false && "exception in ~kernel_impl " && e.what());
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
 }
 

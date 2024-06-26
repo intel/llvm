@@ -476,7 +476,7 @@ public:
     try {
       buffer_plain::handleRelease();
     } catch (std::exception &e) {
-      assert(false && "exception in ~buffer " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~buffer", e);
     }
   }
 

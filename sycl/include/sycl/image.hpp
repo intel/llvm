@@ -958,7 +958,7 @@ public:
       common_base::unsampledImageDestructorNotification(
           (void *)this->impl.get());
     } catch (std::exception &e) {
-      assert(false && "exception in ~unsampled_image " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~unsampled_image", e);
     }
   }
 
@@ -1103,7 +1103,7 @@ public:
     try {
       common_base::sampledImageDestructorNotification((void *)this->impl.get());
     } catch (std::exception &e) {
-      assert(false && "exception in ~sampled_image " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sampled_image", e);
     }
   }
 

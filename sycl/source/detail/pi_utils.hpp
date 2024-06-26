@@ -37,7 +37,7 @@ struct OwnedPiEvent {
         MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
 
     } catch (std::exception &e) {
-      assert(false && "exception in ~OwnedPiEvent " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~OwnedPiEvent", e);
     }
   }
 

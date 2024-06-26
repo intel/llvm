@@ -342,7 +342,7 @@ public:
       getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
     } catch (std::exception &e) {
-      assert(false && "exception in ~queue_impl " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
   }
 

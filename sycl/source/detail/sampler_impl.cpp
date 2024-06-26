@@ -49,7 +49,7 @@ sampler_impl::~sampler_impl() {
       Plugin->call<PiApiKind::piSamplerRelease>(Iter.second);
     }
   } catch (std::exception &e) {
-    assert(false && "exception in ~sampler_impl " && e.what());
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sample_impl", e);
   }
 }
 

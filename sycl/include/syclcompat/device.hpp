@@ -344,7 +344,7 @@ public:
       sycl::event::wait(_events);
       _queues.clear();
     } catch (std::exception &e) {
-      assert(false && "exception in ~device_ext " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_ext", e);
     }
   }
   device_ext(const sycl::device &base, bool print_on_async_exceptions = false,

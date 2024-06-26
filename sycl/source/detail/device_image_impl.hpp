@@ -311,7 +311,7 @@ public:
         memReleaseHelper(Plugin, MSpecConstsBuffer);
       }
     } catch (std::exception &e) {
-      assert(false && "exception in ~device_image_impl " && e.what());
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);
     }
   }
 

@@ -214,7 +214,7 @@ program_impl::~program_impl() {
       Plugin->call<PiApiKind::piProgramRelease>(MProgram);
     }
   } catch (std::exception &e) {
-    assert(false && "exception in ~program_impl " && e.what());
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~program_impl", e);
   }
 }
 
