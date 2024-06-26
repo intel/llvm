@@ -53,6 +53,13 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
   if (DIF.compile_unit_count() == 0)
     return;
 
+  if (isNonSemanticDebugInfo()) {
+    if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+    else
+      BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+  }
+
   for (DICompileUnit *CU : DIF.compile_units()) {
     transDbgEntry(CU);
     for (DIImportedEntity *IE : CU->getImportedEntities())
@@ -286,8 +293,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
   if (!MDN)
     return BM->addDebugInfo(SPIRVDebug::DebugInfoNone, getVoidTy(),
                             SPIRVWordVec());
-  if (isNonSemanticDebugInfo())
-    BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
   if (const DINode *DIEntry = dyn_cast<DINode>(MDN)) {
     switch (DIEntry->getTag()) {
     // Types
