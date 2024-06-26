@@ -4004,6 +4004,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
 
   // The left-most redzone has enough space for at least 4 pointers.
   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);
+  // SPIRV doesn't use the following metadata
   if (!TargetTriple.isSPIR()) {
     // Write the Magic value to redzone[0].
     IRB.CreateStore(ConstantInt::get(IntptrTy, kCurrentStackFrameMagic),
