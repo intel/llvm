@@ -593,6 +593,11 @@ static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
   if (Args.hasArg(options::OPT_verify_pch) && Input.getType() == types::TY_PCH)
     return;
 
+  // If the input is a Tempfilelist, this call is part for a
+  // llvm-foreach call and we should infer the type from the file extension.
+  if (Input.getType() == types::TY_Tempfilelist)
+    return;
+
   CmdArgs.push_back("-x");
   if (Args.hasArg(options::OPT_rewrite_objc))
     CmdArgs.push_back(types::getTypeName(types::TY_PP_ObjCXX));
@@ -10250,6 +10255,13 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         C.getArgsForToolChain(TC, OffloadAction->getOffloadingArch(),
                               OffloadAction->getOffloadingDeviceKind());
     StringRef File = C.getArgs().MakeArgString(TC->getInputFilename(Input));
+
+    // If the input is a Tempfilelist, it is a response file
+    // which internally contains a list of files to be processed.
+    // Add an '@' so the tool knows to expand the response file.
+    if (Input.getType() == types::TY_Tempfilelist)
+      File = C.getArgs().MakeArgString("@" + File);
+
     StringRef Arch = OffloadAction->getOffloadingArch()
                          ? OffloadAction->getOffloadingArch()
                          : TCArgs.getLastArgValue(options::OPT_march_EQ);
@@ -10407,14 +10419,34 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
 }
 
 // Utility function to gather all llvm-spirv options.
-static void getOtherSPIRVTransOpts(Compilation &C,
-                                   const llvm::opt::ArgList &TCArgs,
-                                   llvm::Triple Triple,
-                                   ArgStringList &TranslatorArgs) {
+// Not dependent on target triple.
+static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
+                                            const llvm::opt::ArgList &TCArgs,
+                                            ArgStringList &TranslatorArgs) {
+  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  bool CreatingSyclSPIRVFatObj =
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+          .equals_insensitive("spirv") &&
+      !C.getDriver().offloadDeviceOnly();
+  bool ShouldPreserveMetadataInFinalImage =
+      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+  bool ShouldPreserveMetadata =
+      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+  if (ShouldPreserveMetadata)
+    TranslatorArgs.push_back("--spirv-preserve-auxdata");
+}
+
+// Add any llvm-spirv option that relies on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+static void getTripleBasedSPIRVTransOpts(Compilation &C,
+                                         const llvm::opt::ArgList &TCArgs,
+                                         llvm::Triple Triple,
+                                         ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  TranslatorArgs.push_back("-spirv-max-version=1.4");
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   const bool IsWindowsMSVC =
       Triple.isWindowsMSVCEnvironment() ||
@@ -10434,17 +10466,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";
   TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
-  bool CreatingSyclSPIRVFatObj =
-      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
-      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-          .equals_insensitive("spirv") &&
-      !C.getDriver().offloadDeviceOnly();
-  bool ShouldPreserveMetadataInFinalImage =
-      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
-  bool ShouldPreserveMetadata =
-      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
-  if (ShouldPreserveMetadata)
-    TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
   // Disable all the extensions by default
   std::string ExtArg("-spirv-ext=-all");
@@ -10520,8 +10541,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
     llvm::Triple Triple = TC.getTriple();
-    getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
+    getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
@@ -11072,8 +11094,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIROrSPIRV() &&
-          TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // TODO: Third party AOT support needs to be added in new offloading
+      // model.
+      if (TC->getTriple().isSPIROrSPIRV()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
@@ -11152,10 +11175,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         appendOption(OptString, A);
     }
     ArgStringList TranslatorArgs;
-    getOtherSPIRVTransOpts(C, Args, TargetTriple, TranslatorArgs);
+    getNonTripleBasedSPIRVTransOpts(C, Args, TranslatorArgs);
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+
+    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
+      CmdArgs.push_back("-sycl-is-windows-msvc-env");
+
+    bool IsUsingLTO = D.isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (IsUsingLTO && LTOMode == LTOK_Thin)
+      CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and
@@ -11179,7 +11210,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           WrapperOption = "--sycl-backend-compile-options=";
         }
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gen-tool-arg=";
+          WrapperOption = "--gpu-tool-arg=";
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
           WrapperOption = "--cpu-tool-arg=";
       } else
