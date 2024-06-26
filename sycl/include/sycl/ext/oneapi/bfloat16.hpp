@@ -78,25 +78,6 @@ template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
   }
 #endif
 }
-
-// sycl::vec support
-namespace bf16 {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#ifdef __SYCL_DEVICE_ONLY__
-using Vec2StorageT = Bfloat16StorageT __attribute__((ext_vector_type(2)));
-using Vec3StorageT = Bfloat16StorageT __attribute__((ext_vector_type(3)));
-using Vec4StorageT = Bfloat16StorageT __attribute__((ext_vector_type(4)));
-using Vec8StorageT = Bfloat16StorageT __attribute__((ext_vector_type(8)));
-using Vec16StorageT = Bfloat16StorageT __attribute__((ext_vector_type(16)));
-#else
-using Vec2StorageT = std::array<Bfloat16StorageT, 2>;
-using Vec3StorageT = std::array<Bfloat16StorageT, 3>;
-using Vec4StorageT = std::array<Bfloat16StorageT, 4>;
-using Vec8StorageT = std::array<Bfloat16StorageT, 8>;
-using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
-#endif
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-} // namespace bf16
 } // namespace detail
 
 class bfloat16 {
