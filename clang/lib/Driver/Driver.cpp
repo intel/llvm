@@ -8190,6 +8190,37 @@ Action *Driver::ConstructPhaseAction(
         TargetDeviceOffloadKind != Action::OFK_None) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
+      if (getUseNewOffloadingDriver() &&
+          getLTOMode(/*IsDeviceOffloadAction=*/true) == LTOK_Thin &&
+          TargetDeviceOffloadKind == Action::OFK_SYCL) {
+        // For SYCL with thinLTO, run sycl-post-link, extract the BC files from
+        // the output table, run the backend on each output table.
+        llvm::Triple OffloadTriple =
+            Input->getOffloadingToolChain()->getTriple();
+        SYCLPostLinkJobAction *TypedPostLinkAction =
+            C.MakeAction<SYCLPostLinkJobAction>(Input, types::TY_Tempfiletable,
+                                                types::TY_Tempfiletable);
+        TypedPostLinkAction->setRTSetsSpecConstants(
+            OffloadTriple.isSPIROrSPIRV() && !OffloadTriple.isSPIRAOT());
+        auto *TypedExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+            TypedPostLinkAction, types::TY_Tempfilelist,
+            types::TY_Tempfilelist);
+
+        TypedExtractIRFilesAction->addExtractColumnTform(
+            FileTableTformJobAction::COL_CODE, false /*drop titles*/);
+        auto *OutputAction =
+            C.MakeAction<BackendJobAction>(TypedExtractIRFilesAction, Output);
+
+        auto *ForEach = C.MakeAction<ForEachWrappingAction>(
+            TypedExtractIRFilesAction, OutputAction);
+        // This final job is mostly a no-op, but we need it to set the Action
+        // type to Tempfilelist which is expected by clang-offload-packager.
+        auto *ExtractBCFiles = C.MakeAction<FileTableTformJobAction>(
+            ForEach, types::TY_Tempfilelist, types::TY_Tempfilelist);
+        ExtractBCFiles->addExtractColumnTform(FileTableTformJobAction::COL_ZERO,
+                                              false /*drop titles*/);
+        return ExtractBCFiles;
+      }
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
