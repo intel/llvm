@@ -9,6 +9,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/types.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t NumOps = 14;
 constexpr std::string_view OpNames[NumOps] = {
