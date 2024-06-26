@@ -55,7 +55,7 @@ permissions: read-all
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Windows, build]
+    runs-on: [Windows, build-test]
     environment: WindowsCILock
     # TODO use cached checkout
     outputs:
