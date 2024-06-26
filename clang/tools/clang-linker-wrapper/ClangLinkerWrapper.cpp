@@ -1380,6 +1380,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
+    if (IsSYCLKind) {
+      auto SYCLPostLinkFile = InputFiles[0];
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -2055,28 +2057,25 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
     DenseSet<OffloadKind> ActiveOffloadKinds;
     bool HasSYCLOffloadKind = false;
+    bool HasNonSYCLOffloadKinds = false;
     for (const auto &File : Input) {
       if (File.getBinary()->getOffloadKind() != OFK_None)
         ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
       if (File.getBinary()->getOffloadKind() == OFK_SYCL)
         HasSYCLOffloadKind = true;
+      else
+        HasNonSYCLOffloadKinds = true;
     }
-
-    // First link and remove all the input files containing bitcode.
-    SmallVector<StringRef> InputFiles;
-    if (Error Err = linkBitcodeFiles(Input, InputFiles, LinkerArgs))
-      return Err;
-
-    // Write any remaining device inputs to an output file for the linker.
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
-    }
-
     if (HasSYCLOffloadKind) {
-      // Link the remaining device files using the device linker for SYCL
+      SmallVector<StringRef> InputFiles;
+      // Write device inputs to an output file for the linker.
+      for (const OffloadFile &File : Input) {
+        auto FileNameOrErr = writeOffloadFile(File);
+        if (!FileNameOrErr)
+          return FileNameOrErr.takeError();
+        InputFiles.emplace_back(*FileNameOrErr);
+      }
+      // Link the input device files using the device linker for SYCL
       // offload.
       auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
       if (!TmpOutputOrErr)
@@ -2084,10 +2083,16 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
 
+      SmallVector<StringRef> SYCLPostLinkFiles;
+      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, Args);
+      if (!SYCLPostLinkFile)
+        return SYCLPostLinkFile.takeError();
+      SYCLPostLinkFiles.emplace_back(*SYCLPostLinkFile);
+ 
       auto SYCLOutputOrErr =
           Args.hasArg(OPT_embed_bitcode)
-              ? InputFilesSYCL.front()
-              : linkDevice(InputFilesSYCL, LinkerArgs, true /* IsSYCLKind */);
+              ? SYCLPostLinkFiles.front()
+              : linkDevice(SYCLPostLinkFiles, LinkerArgs, true /* IsSYCLKind */);
       if (!SYCLOutputOrErr)
         return SYCLOutputOrErr.takeError();
 
@@ -2099,39 +2104,50 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       std::scoped_lock Guard(ImageMtx);
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
+    if (HasNonSYCLOffloadKinds) {
+      // First link and remove all the input files containing bitcode.
+      SmallVector<StringRef> InputFiles;
+      if (Error Err = linkBitcodeFiles(Input, InputFiles, LinkerArgs))
+        return Err;
 
-    // Link the remaining device files using the device linker.
-    auto OutputOrErr = !Args.hasArg(OPT_embed_bitcode)
-                           ? linkDevice(InputFiles, LinkerArgs)
-                           : InputFiles.front();
-    if (!OutputOrErr)
-      return OutputOrErr.takeError();
-
-    // Store the offloading image for each linked output file.
-    for (OffloadKind Kind : ActiveOffloadKinds) {
-      if (Kind == OFK_SYCL)
-        continue;
-      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
-          llvm::MemoryBuffer::getFileOrSTDIN(*OutputOrErr);
-      if (std::error_code EC = FileOrErr.getError()) {
-        if (DryRun)
-          FileOrErr = MemoryBuffer::getMemBuffer("");
-        else
-          return createFileError(*OutputOrErr, EC);
+      // Write any remaining device inputs to an output file for the linker.
+      for (const OffloadFile &File : Input) {
+        auto FileNameOrErr = writeOffloadFile(File);
+        if (!FileNameOrErr)
+          return FileNameOrErr.takeError();
+        InputFiles.emplace_back(*FileNameOrErr);
       }
 
-      std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
-      OffloadingImage TheImage{};
-      TheImage.TheImageKind =
-          Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
-      TheImage.TheOffloadKind = Kind;
-      TheImage.StringData["triple"] =
-          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      TheImage.StringData["arch"] =
-          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
-      TheImage.Image = std::move(*FileOrErr);
+      // Link the remaining device files using the device linker.
+      auto OutputOrErr = !Args.hasArg(OPT_embed_bitcode)
+                             ? linkDevice(InputFiles, LinkerArgs)
+                             : InputFiles.front();
+      if (!OutputOrErr)
+        return OutputOrErr.takeError();
+      // Store the offloading image for each linked output file.
+      for (OffloadKind Kind : ActiveOffloadKinds) {
+        llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
+            llvm::MemoryBuffer::getFileOrSTDIN(*OutputOrErr);
+        if (std::error_code EC = FileOrErr.getError()) {
+          if (DryRun)
+            FileOrErr = MemoryBuffer::getMemBuffer("");
+          else
+            return createFileError(*OutputOrErr, EC);
+        }
 
-      Images[Kind].emplace_back(std::move(TheImage));
+        std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        OffloadingImage TheImage{};
+        TheImage.TheImageKind =
+            Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
+        TheImage.TheOffloadKind = Kind;
+        TheImage.StringData["triple"] =
+            Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+        TheImage.StringData["arch"] =
+            Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
+        TheImage.Image = std::move(*FileOrErr);
+
+        Images[Kind].emplace_back(std::move(TheImage));
+      }
     }
     return Error::success();
   });
