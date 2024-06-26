@@ -7,6 +7,7 @@
 // Tests load and store on sycl::vec.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 template <size_t N, typename T0, typename T1>
 int CheckResult(const T0 &Actual, const T1 &Reference, const char *Category) {
