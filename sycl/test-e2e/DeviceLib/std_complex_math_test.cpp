@@ -24,37 +24,34 @@ template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-static constexpr auto TestArraySize1 = 41;
-static constexpr auto TestArraySize2 = 10;
-static constexpr auto TestArraySize3 = 16;
+complex<float> ref1_results[] = {
+    complex<float>(-1.f, 1.f),          complex<float>(1.f, 3.f),
+    complex<float>(-2.f, 10.f),         complex<float>(-8.f, 31.f),
+    complex<float>(1.f, 1.f),           complex<float>(2.f, 1.f),
+    complex<float>(2.f, 2.f),           complex<float>(3.f, 4.f),
+    complex<float>(2.f, 1.f),           complex<float>(0.f, 1.f),
+    complex<float>(2.f, 0.f),           complex<float>(0.f, 0.f),
+    complex<float>(1.f, 0.f),           complex<float>(0.f, 1.f),
+    complex<float>(-1.f, 0.f),          complex<float>(0.f, M_E),
+    complex<float>(0.f, 0.f),           complex<float>(0.f, M_PI_2),
+    complex<float>(0.f, M_PI),          complex<float>(1.f, M_PI_2),
+    complex<float>(0.f, 0.f),           complex<float>(1.f, 0.f),
+    complex<float>(1.f, 0.f),           complex<float>(-1.f, 0.f),
+    complex<float>(-INFINITY, 0.f),     complex<float>(1.f, 0.f),
+    complex<float>(10.f, 0.f),          complex<float>(100.f, 0.f),
+    complex<float>(200.f, 0.f),         complex<float>(1.f, 2.f),
+    complex<float>(INFINITY, 0.f),      complex<float>(INFINITY, 0.f),
+    complex<float>(0.f, 1.f),           complex<float>(0.f, 0.f),
+    complex<float>(1.f, 0.f),           complex<float>(INFINITY, 0.f),
+    complex<float>(0.f, 0.f),           complex<float>(0.f, M_PI_2),
+    complex<float>(1.f, -4.f),          complex<float>(18.f, -7.f),
+    complex<float>(M_PI_2, 0.549306f),  complex<float>(INFINITY, 0.f),
+    complex<float>(INFINITY, INFINITY), complex<float>(INFINITY, -INFINITY)};
 
-std::array<complex<float>, TestArraySize1> ref1_results = {
-    complex<float>(-1.f, 1.f),        complex<float>(1.f, 3.f),
-    complex<float>(-2.f, 10.f),       complex<float>(-8.f, 31.f),
-    complex<float>(1.f, 1.f),         complex<float>(2.f, 1.f),
-    complex<float>(2.f, 2.f),         complex<float>(3.f, 4.f),
-    complex<float>(2.f, 1.f),         complex<float>(0.f, 1.f),
-    complex<float>(2.f, 0.f),         complex<float>(0.f, 0.f),
-    complex<float>(1.f, 0.f),         complex<float>(0.f, 1.f),
-    complex<float>(-1.f, 0.f),        complex<float>(0.f, M_E),
-    complex<float>(0.f, 0.f),         complex<float>(0.f, M_PI_2),
-    complex<float>(0.f, M_PI),        complex<float>(1.f, M_PI_2),
-    complex<float>(0.f, 0.f),         complex<float>(1.f, 0.f),
-    complex<float>(1.f, 0.f),         complex<float>(-1.f, 0.f),
-    complex<float>(-INFINITY, 0.f),   complex<float>(1.f, 0.f),
-    complex<float>(10.f, 0.f),        complex<float>(100.f, 0.f),
-    complex<float>(200.f, 0.f),       complex<float>(1.f, 2.f),
-    complex<float>(INFINITY, 0.f),    complex<float>(INFINITY, 0.f),
-    complex<float>(0.f, 1.f),         complex<float>(0.f, 0.f),
-    complex<float>(1.f, 0.f),         complex<float>(INFINITY, 0.f),
-    complex<float>(0.f, 0.f),         complex<float>(0.f, M_PI_2),
-    complex<float>(1.f, -4.f),        complex<float>(18.f, -7.f),
-    complex<float>(M_PI_2, 0.549306f)};
+float ref2_results[] = {0.f, 25.f, 169.f,    INFINITY, 0.f,
+                        5.f, 13.f, INFINITY, 0.f,      M_PI_2};
 
-std::array<float, TestArraySize2> ref2_results = {
-    0.f, 25.f, 169.f, INFINITY, 0.f, 5.f, 13.f, INFINITY, 0.f, M_PI_2};
-
-std::array<complex<float>, TestArraySize3> ref3_results = {
+complex<float> ref3_results[] = {
     complex<float>(0.f, 1.f),         complex<float>(1.f, 1.f),
     complex<float>(2.f, 0.f),         complex<float>(2.f, 3.f),
     complex<float>(M_PI_2, 0.f),      complex<float>(0.f, 0.f),
@@ -63,9 +60,14 @@ std::array<complex<float>, TestArraySize3> ref3_results = {
     complex<float>(0.f, M_PI_2),      complex<float>(INFINITY, M_PI_2),
     complex<float>(INFINITY, 0.f),    complex<float>(1.557408f, 0.f),
     complex<float>(0.f, 0.761594f),   complex<float>(M_PI_2, 0.f),
+    complex<float>(-1.f, 0.f),        complex<float>(-1.f, 0.f),
+    complex<float>(-1.f, 0.f)};
 
-};
-void device_complex_test_1(s::queue &deviceQueue) {
+static constexpr auto TestArraySize1 = std::size(ref1_results);
+static constexpr auto TestArraySize2 = std::size(ref2_results);
+static constexpr auto TestArraySize3 = std::size(ref3_results);
+
+int device_complex_test_1(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};
   s::range<1> numOfItems2{TestArraySize2};
   std::array<complex<float>, TestArraySize1> result1;
@@ -131,6 +133,9 @@ void device_complex_test_1(s::queue &deviceQueue) {
         buf_out1_access[index++] = std::conj(complex<float>(1.f, 4.f));
         buf_out1_access[index++] = std::conj(complex<float>(18.f, 7.f));
         buf_out1_access[index++] = std::atan(complex<float>(0.f, 2.f));
+        buf_out1_access[index++] = std::exp(complex<float>(1e6f, 0.f));
+        buf_out1_access[index++] = std::exp(complex<float>(1e6f, 0.1f));
+        buf_out1_access[index++] = std::exp(complex<float>(1e6f, -0.1f));
 
         index = 0;
         buf_out2_access[index++] = std::norm(complex<float>(0.f, 0.f));
@@ -147,12 +152,24 @@ void device_complex_test_1(s::queue &deviceQueue) {
     });
   }
 
+  int n_fails = 0;
   for (size_t idx = 0; idx < TestArraySize1; ++idx) {
-    assert(approx_equal_cmplx(result1[idx], ref1_results[idx]));
+    if (!approx_equal_cmplx(result1[idx], ref1_results[idx])) {
+      ++n_fails;
+      std::cout << "test array 1 fail at index " << idx << "\n";
+      std::cout << "expected: " << ref1_results[idx] << "\n";
+      std::cout << "actual:   " << result1[idx] << "\n";
+    }
   }
   for (size_t idx = 0; idx < TestArraySize2; ++idx) {
-    assert(approx_equal_fp(result2[idx], ref2_results[idx]));
+    if (!approx_equal_fp(result2[idx], ref2_results[idx])) {
+      ++n_fails;
+      std::cout << "test array 2 fail at index " << idx << "\n";
+      std::cout << "expected: " << ref2_results[idx] << "\n";
+      std::cout << "actual:   " << result2[idx] << "\n";
+    }
   }
+  return n_fails;
 }
 
 // The MSVC implementation of some complex<float> math functions depends on
@@ -160,7 +177,7 @@ void device_complex_test_1(s::queue &deviceQueue) {
 // functions can only work on Windows with fp64 extension support from
 // underlying device.
 #ifndef _WIN32
-void device_complex_test_2(s::queue &deviceQueue) {
+int device_complex_test_2(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize3};
   std::array<complex<float>, TestArraySize3> result3;
   {
@@ -185,13 +202,24 @@ void device_complex_test_2(s::queue &deviceQueue) {
         buf_out1_access[index++] = std::tan(complex<float>(1.f, 0.f));
         buf_out1_access[index++] = std::tan(complex<float>(0.f, 1.f));
         buf_out1_access[index++] = std::asin(complex<float>(1.f, 0.f));
+        buf_out1_access[index++] = std::tanh(complex<float>(-INFINITY, NAN));
+        buf_out1_access[index++] =
+            std::tanh(complex<float>(-INFINITY, -INFINITY));
+        buf_out1_access[index++] = std::tanh(complex<float>(-INFINITY, -2.f));
       });
     });
   }
 
+  int n_fails = 0;
   for (size_t idx = 0; idx < TestArraySize3; ++idx) {
-    assert(approx_equal_cmplx(result3[idx], ref3_results[idx]));
+    if (!approx_equal_cmplx(result3[idx], ref3_results[idx])) {
+      ++n_fails;
+      std::cout << "test array 3 fail at index " << idx << "\n";
+      std::cout << "expected: " << ref3_results[idx] << "\n";
+      std::cout << "actual:   " << result3[idx] << "\n";
+    }
   }
+  return n_fails;
 }
 #endif
 int main() {
@@ -208,9 +236,12 @@ int main() {
   }
 #endif
 
-  device_complex_test_1(deviceQueue);
+  int n_fails = 0;
+  n_fails += device_complex_test_1(deviceQueue);
 #ifndef _WIN32
-  device_complex_test_2(deviceQueue);
+  n_fails += device_complex_test_2(deviceQueue);
 #endif
-  std::cout << "Pass" << std::endl;
+  if (n_fails == 0)
+    std::cout << "Pass" << std::endl;
+  return n_fails;
 }

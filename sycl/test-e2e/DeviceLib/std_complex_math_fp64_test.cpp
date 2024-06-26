@@ -24,73 +24,78 @@ template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-static constexpr auto TestArraySize1 = 57;
+complex<double> ref1_results[] = {complex<double>(-1., 1.),
+                                  complex<double>(1., 3.),
+                                  complex<double>(-2., 10.),
+                                  complex<double>(-8., 31.),
+                                  complex<double>(1., 1.),
+                                  complex<double>(2., 1.),
+                                  complex<double>(2., 2.),
+                                  complex<double>(3., 4.),
+                                  complex<double>(2., 1.),
+                                  complex<double>(0., 1.),
+                                  complex<double>(2., 0.),
+                                  complex<double>(0., 0.),
+                                  complex<double>(0., 1.),
+                                  complex<double>(1., 1.),
+                                  complex<double>(2., 0.),
+                                  complex<double>(2., 3.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(0., 1.),
+                                  complex<double>(-1., 0.),
+                                  complex<double>(0., M_E),
+                                  complex<double>(0., 0.),
+                                  complex<double>(0., M_PI_2),
+                                  complex<double>(0., M_PI),
+                                  complex<double>(1., M_PI_2),
+                                  complex<double>(0., 0.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(-1., 0.),
+                                  complex<double>(-INFINITY, 0.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(10., 0.),
+                                  complex<double>(100., 0.),
+                                  complex<double>(200., 0.),
+                                  complex<double>(1., 2.),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(0., 1.),
+                                  complex<double>(M_PI_2, 0.),
+                                  complex<double>(0., 0.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(0., 0.),
+                                  complex<double>(1., 0.),
+                                  complex<double>(0., 0.),
+                                  complex<double>(INFINITY, M_PI_2),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(0., M_PI_2),
+                                  complex<double>(INFINITY, M_PI_2),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(0., 0.),
+                                  complex<double>(0., M_PI_2),
+
+                                  complex<double>(1., -4.),
+                                  complex<double>(18., -7.),
+                                  complex<double>(1.557407724654902, 0.),
+                                  complex<double>(0, 0.761594155955765),
+                                  complex<double>(M_PI_2, 0.),
+                                  complex<double>(M_PI_2, 0.549306144334055),
+                                  complex<double>(-1., 0.),
+                                  complex<double>(-1., 0.),
+                                  complex<double>(-1., 0.),
+                                  complex<double>(INFINITY, 0.),
+                                  complex<double>(INFINITY, INFINITY),
+                                  complex<double>(INFINITY, -INFINITY)};
+
+double ref2_results[] = {0., 25., 169.,     INFINITY, 0.,
+                         5., 13., INFINITY, 0.,       M_PI_2};
+
+static constexpr auto TestArraySize1 = std::size(ref1_results);
 static constexpr auto TestArraySize2 = 10;
 
-std::array<complex<double>, TestArraySize1> ref1_results = {
-    complex<double>(-1., 1.),
-    complex<double>(1., 3.),
-    complex<double>(-2., 10.),
-    complex<double>(-8., 31.),
-    complex<double>(1., 1.),
-    complex<double>(2., 1.),
-    complex<double>(2., 2.),
-    complex<double>(3., 4.),
-    complex<double>(2., 1.),
-    complex<double>(0., 1.),
-    complex<double>(2., 0.),
-    complex<double>(0., 0.),
-    complex<double>(0., 1.),
-    complex<double>(1., 1.),
-    complex<double>(2., 0.),
-    complex<double>(2., 3.),
-    complex<double>(1., 0.),
-    complex<double>(0., 1.),
-    complex<double>(-1., 0.),
-    complex<double>(0., M_E),
-    complex<double>(0., 0.),
-    complex<double>(0., M_PI_2),
-    complex<double>(0., M_PI),
-    complex<double>(1., M_PI_2),
-    complex<double>(0., 0.),
-    complex<double>(1., 0.),
-    complex<double>(1., 0.),
-    complex<double>(-1., 0.),
-    complex<double>(-INFINITY, 0.),
-    complex<double>(1., 0.),
-    complex<double>(10., 0.),
-    complex<double>(100., 0.),
-    complex<double>(200., 0.),
-    complex<double>(1., 2.),
-    complex<double>(INFINITY, 0.),
-    complex<double>(INFINITY, 0.),
-    complex<double>(0., 1.),
-    complex<double>(M_PI_2, 0.),
-    complex<double>(0., 0.),
-    complex<double>(1., 0.),
-    complex<double>(INFINITY, 0.),
-    complex<double>(0., 0.),
-    complex<double>(1., 0.),
-    complex<double>(0., 0.),
-    complex<double>(INFINITY, M_PI_2),
-    complex<double>(INFINITY, 0.),
-    complex<double>(0., M_PI_2),
-    complex<double>(INFINITY, M_PI_2),
-    complex<double>(INFINITY, 0.),
-    complex<double>(0., 0.),
-    complex<double>(0., M_PI_2),
-
-    complex<double>(1., -4.),
-    complex<double>(18., -7.),
-    complex<double>(1.557407724654902, 0.),
-    complex<double>(0, 0.761594155955765),
-    complex<double>(M_PI_2, 0.),
-    complex<double>(M_PI_2, 0.549306144334055)};
-
-std::array<double, TestArraySize2> ref2_results = {
-    0., 25., 169., INFINITY, 0., 5., 13., INFINITY, 0., M_PI_2};
-
-void device_complex_test(s::queue &deviceQueue) {
+int device_complex_test(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};
   s::range<1> numOfItems2{TestArraySize2};
   std::array<complex<double>, TestArraySize1> result1;
@@ -172,6 +177,13 @@ void device_complex_test(s::queue &deviceQueue) {
         buf_out1_access[index++] = std::tan(complex<double>(0., 1.));
         buf_out1_access[index++] = std::asin(complex<double>(1., 0.));
         buf_out1_access[index++] = std::atan(complex<double>(0., 2.));
+        buf_out1_access[index++] = std::tanh(complex<double>(-INFINITY, NAN));
+        buf_out1_access[index++] =
+            std::tanh(complex<double>(-INFINITY, -INFINITY));
+        buf_out1_access[index++] = std::tanh(complex<double>(-INFINITY, -2.));
+        buf_out1_access[index++] = std::exp(complex<double>(1e6, 0.));
+        buf_out1_access[index++] = std::exp(complex<double>(1e6, 0.1));
+        buf_out1_access[index++] = std::exp(complex<double>(1e6, -0.1));
 
         index = 0;
         buf_out2_access[index++] = std::norm(complex<double>(0., 0.));
@@ -188,16 +200,30 @@ void device_complex_test(s::queue &deviceQueue) {
     });
   }
 
+  int n_fails = 0;
   for (size_t idx = 0; idx < TestArraySize1; ++idx) {
-    assert(approx_equal_cmplx(result1[idx], ref1_results[idx]));
+    if (!approx_equal_cmplx(result1[idx], ref1_results[idx])) {
+      ++n_fails;
+      std::cout << "test array 1 fail at index " << idx << "\n";
+      std::cout << "expected: " << ref1_results[idx] << "\n";
+      std::cout << "actual:   " << result1[idx] << "\n";
+    }
   }
   for (size_t idx = 0; idx < TestArraySize2; ++idx) {
-    assert(approx_equal_fp(result2[idx], ref2_results[idx]));
+    if (!approx_equal_fp(result2[idx], ref2_results[idx])) {
+      ++n_fails;
+      std::cout << "test array 2 fail at index " << idx << "\n";
+      std::cout << "expected: " << ref2_results[idx] << "\n";
+      std::cout << "actual:   " << result2[idx] << "\n";
+    }
   }
+  return n_fails;
 }
 
 int main() {
   s::queue deviceQueue;
-  device_complex_test(deviceQueue);
-  std::cout << "Pass" << std::endl;
+  auto n_fails = device_complex_test(deviceQueue);
+  if (n_fails == 0)
+    std::cout << "Pass" << std::endl;
+  return n_fails;
 }
