@@ -1,0 +1,259 @@
+:sectnums:
+
+= Test plan for virtual functions support in SYCL
+
+This is a test plan for virtual functions functionality described by the
+corresponding upcoming `ext_sycl_intel_virtual_functions` extension.
+
+NOTE: This test plan does not cover unit tests, or negative tests related to
+compiler diagnostics, it is focused on end-to-end examples to make sure that the
+new functionality works as expected in different scenarios.
+
+== Testing scope
+
+=== Device coverage
+
+All of the tests described below are performed on a single device, which could
+be any device: the feature is guarded by an aspect, so tests are expected to
+exit early if a device doesn't support virtual functions.
+
+=== Data types coverage
+
+There is no need to repeat each and every test using different data types,
+because it won't bring any significant improvements to tests quality. However,
+for some test cases data types used in them matter more. Their description would
+contain explicit requirements about data types which should be covered.
+
+=== Code paths coverage
+
+Test cases below often describe an example where behavior of a virtual member
+function in a base class is overridden by derived classes. In those scenarios
+test case should be repeated several times, each time taking a code path to a
+different _actual_ class used under the hood.
+
+For example, for the following scenario:
+[source,c++]
+----
+class Base {
+public:
+  virtual void foo() { /* ... */ }
+};
+class Derived1 : public Base {
+public:
+  void foo() override { /* ... */ }
+};
+class Derived2 : public Base {
+public:
+  void foo() override { /* ... */ }
+};
+----
+
+Test cases should be repeated to invoke both +Derived1::foo+ and
++Derived2::foo+.
+
+== Tests
+
+NOTE: Compiler will attempt to de-virtualize the program as much as possible.
+Therefore, it is important that it is not statically known which exact method
+of which exact class is being called in all test cases.
+
+=== The simplest case: create and call
+
+Key feature of this group of test cases is that an object of a polymorphic class
+is created and used (virtual member functions of it are called) within the same
+kernel.
+
+Tests in this category should only use default set of virtual functions.
+
+NOTE: Tests in this category are specifically simplified to use limited set of
+available functionality in each case. The intent here is to have a sub-suite of
+basic acceptance tests, which are closer to unit tests in context of being
+focused on a single aspect of feature, but still being E2E tests.
+
+==== Virtual functions with no access to object data
+
+For each test in this sub-category, classes with virtual functions should not
+have any data members. Virtual functions should simply return some values,
+possibly based on input arguments.
+
+===== Simple hierarchy
+
+Test checks that a very basic usage model of virtual functions works.
+
+There is a base class with a virtual member function, which is being overridden
+in several derived classes.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of either one of derived classes, or of a base class. Address of that
+object is stored in a variable of type "pointer to a base class" and used within
+the same kernel to call a virtual member function. Result is stored in a buffer
+and verified on host.
+
+===== More complex hierarchy
+
+Test checks that derived classes can be derived further and that pointers to
+objects of polymorphic classes can be passed to functions and that virtual
+functions continue to work correctly.
+
+There is a base class with a virtual member function, which is being overridden
+in a derived class (further referred as "level 1 class"). That sub-class defines
+another virtual member function, which uses first virtual member function from
+the base class. That second virtual member function is overridden in several
+more sub-derived classes (further referred as "level 2 classes").
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of one of level 2 classes and passes it to a function accepting a
+pointer to a level 1 class object. The function calls the second virtual member
+function, result is stored to a buffer and verified on host.
+
+===== Missing overrides
+
+Test checks that the right functions are being called, trying different
+combinations of which classes in hierarchy override virtual member function
+from a base class.
+
+There is a base class with a few virtual member functions. There is a set of
+derived classes which may themselves be parents to some other classes, building
+an hierarchy of 5-7 different classes. Not all virtual member functions from
+base class are overridden in every sub-class. Example of cases which are
+expected to be tested:
+
+- `Base` defines `foo`; `Derived1` inherits `Base`; `Derived2` inherits
+  `Derived1`, overrides `foo`
+- `Base` defines `bar`; `Derived3` inherits `Base`, overrides `bar`;
+  `Derived4` inherits `Derived3`; `Derived5` inherits `Derived4`, overrides
+  `bar`
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of one of classes in the hierarchy and passes it to a function
+accepting a pointer to a base object. The function calls virtual member
+functions, results are stored in a buffer and verified on host.
+
+==== Virtual functions with access to class/object data
+
+Tests in this sub-category intended to check access to both static and
+non-static class data members.
+
+===== Static data members access in a simple hierarchy
+
+Test checks that a static data member can be accessed through virtual member
+functions from different overrides in a classes hierarchy.
+
+There is a base class with static data members and a virtual member function,
+which is being overridden in few derived classes. All overrides of the virtual
+member function access static data members of the base class.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of either one of derived classes, or of a base class. Address of that
+object is stored in a variable of type "pointer to a base class" and used within
+the same kernel to call a virtual member function. Result is stored in a buffer
+and verified on host.
+
+===== Static data members access in a more complex hierarchy
+
+Test checks that a static data member can be accessed through virtual member
+functions from different overrides in a classes hierarchy.
+
+There is a base class with static data members and a virtual member function,
+which is being overridden in few derived classes. Some of those classes have
+extra static data members and in turn may have derived classes as well. All
+overrides of the virtual member function access static data member of their base
+classes.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of one of derived classes and passes it to a function accepting a
+pointer to a base class object. The function the virtual member function, result
+is stored to a buffer and verified on host.
+
+===== Non-static data members access to read data in a simple hierarchy
+
+Test checks that virtual member functions can access non-static data members
+of the current and base classes to read their values.
+
+There is a base class with non-static data members and a virtual member
+function, which is being overridden in a few derived classes. All overrides of
+the virtual member function access non-static data members described in the
+base class to only read their values.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of either one of derived classes, or of a base class. Address of that
+object is stored in a variable of type "pointer to a base class" and used within
+the same kernel to call a virtual member function. Result is stored in a buffer
+and verified on host.
+
+NOTE: This test case can have a variation where virtual member functions are
+additionally marked as `const`.
+
+===== Non-static data members access to read data in a more complex hierarchy
+
+Test checks that non-static data members can be accessed through virtual member
+functions from different overrides in a classes hierarchy.
+
+There is a base class with non-static data members and a virtual member
+function, which is being overridden in few derived classes. Some of those
+classes have extra non-static data members and in turn may have derived classes
+as well. All overrides of the virtual member function access non-static data
+members of their base classes.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of one of derived classes and passes it to a function accepting a
+pointer to a base class object. The function the virtual member function, result
+is stored to a buffer and verified on host.
+
+=== Passing objects of polymorphic classes between kernels
+
+Contrary to the previous section, an object of a polymorphic class is
+constructed in one kernel, but used in another, which is closer to a real
+examples where initialization is a separate phase of an application.
+
+This category also makes use of non-default sets of virtual functions, i.e. it
+tests template arguments that you can pass into the new compile-time properties.
+
+Both USM and SYCL buffers should be used by tests as a mean of storing data and
+transferring it between kernels.
+
+==== Single construct, single use
+
+Test submits two kernels: one constructs an object of a polymorphic class and
+another performs virtual function calls using that object. The test should
+check both default and non-default sets of virtual functions, as well as
+access to object's data members.
+
+==== Single construct, multiple use
+
+In this test, different virtual functions should be put into different sets, but
+there should still be a single kernel that constructs an object of a polymorphic
+class.
+
+Then there should be a few kernels that each perform a virtual function call of
+a method from a different set on that single object.
+
+==== Multiple construct, single use
+
+In this test, there should be several kernels each constructing an object of a
+different derived class. It should be followed by a single kernel that calls
+virtual functions from that created object.
+
+==== Multiple construct, multiple use
+
+In this test, there should be several kernels each constructing an object of a
+different derived class. Those objects should have several virtual functions
+each in a different set. The "construct" kernel should be followed by a few
+"use" kernels each performing a virtual call of a different virtual method of
+that created object.
+
+=== Separate translation units
+
+TBD.
+
+=== Optional kernel features
+
+TBD.
+
+=== Misc TODOs
+
+Test where each work-item in a sub-group calls a different virtual function
+Test that experimental::printf works within virtual functions
+Test that work-group built-ins work within virtual functions. Barriers?
+Test that class can have non-device virtual functions
+
