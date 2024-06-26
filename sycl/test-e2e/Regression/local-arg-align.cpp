@@ -2,6 +2,9 @@
 //
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/10682
+// UNSUPPORTED: gpu-intel-gen12
+
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,9 +12,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// https://github.com/intel/llvm/issues/14297
-// UNSUPPORTED: gpu-intel-gen12
 
 #include <iostream>
 
