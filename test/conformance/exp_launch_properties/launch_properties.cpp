@@ -75,7 +75,12 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
             props.push_back(coop_prop);
         }
 
-        if (compute_capability >= 9.0) {
+        ur_bool_t cluster_launch_supported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(device, UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP,
+                            sizeof(ur_bool_t), &cluster_launch_supported, nullptr));
+
+        if (cluster_launch_supported) {
             ur_exp_launch_property_t cluster_dims_prop;
             cluster_dims_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
             cluster_dims_prop.value.clusterDim[0] = 1;
