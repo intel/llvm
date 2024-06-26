@@ -576,10 +576,14 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
 /// ASAN Load/Store Report Built-ins
 ///
 
+static __SYCL_CONSTANT__ const char __mem_load_store[] =
+    "[kernel] __asan_load/store_%d(%p as(%d))\n";
+
 #define ASAN_REPORT_ERROR(type, is_write, size)                                \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
       uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    __spirv_ocl_printf(__mem_load_store, size, addr, as);                      \
     if (__asan_address_is_poisoned(addr, as, size)) {                          \
       __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
                                  func);                                        \
@@ -630,7 +634,11 @@ ASAN_REPORT_ERROR_N(store, true)
 /// ASAN convert memory address to shadow memory address
 ///
 
+static __SYCL_CONSTANT__ const char __mem_to_shadow[] =
+    "[kernel] __asan_mem_to_shadow\n";
+
 DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
+  __spirv_ocl_printf(__mem_to_shadow);
   return MemToShadow(ptr, as);
 }
 
