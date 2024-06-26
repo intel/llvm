@@ -8,6 +8,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/types.hpp>
+#include <sycl/usm.hpp>
 
 constexpr std::string_view OpNames[] = {
     "+=", "-=",  "*=",  "/=",        "%=",        "&=",         "|=",
