@@ -10416,23 +10416,25 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
   constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
 }
 
-// Utility function to gather all options for LLVM to SPIR-V translation using
-// the SPIR-V backend. This set of options is expected to get updated as we add
+// Utility function to gather all arguments for SPIR-V generation using the
+// SPIR-V backend. This set of arguments is expected to get updated as we add
 // more features/extensions to the SPIR-V backend.
 static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
-                                ArgStringList &TranslatorArgs) {
-  TranslatorArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
-  TranslatorArgs.push_back(
+                                ArgStringList &BackendArgs) {
+  BackendArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
+  BackendArgs.push_back(
       TCArgs.MakeArgString("-mtriple=spirv64-unknown-unknown"));
   // TODO: Optimization level is currently forced to -O0 due to some testing
   // issues. Update optimization level after testing issues are resolved.
-  TranslatorArgs.push_back(TCArgs.MakeArgString("-O0"));
-  TranslatorArgs.push_back(
+  BackendArgs.push_back(TCArgs.MakeArgString("-O0"));
+  BackendArgs.push_back(
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
-  TranslatorArgs.push_back(
+  BackendArgs.push_back(
       TCArgs.MakeArgString("--translator-compatibility-mode"));
 
-  // Disable all the extensions by default
+  // TODO: There is some overlap between the lists of extensions in SPIR-V
+  // backend and SPIR-V Trnaslator). We will try to combine them when SPIR-V
+  // backdn is ready.
   std::string ExtArg("--spirv-ext=");
   std::string DefaultExtArg =
       "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
@@ -10452,7 +10454,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
             ",+SPV_EXT_shader_atomic_float16_add"
             ",+SPV_KHR_bit_instructions";
 
-  TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
 
 // Utility function to gather all llvm-spirv options.
@@ -10560,6 +10562,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
 }
 
 // Begin SPIRVTranslator
+// TODO: Add a unique 'llc' JobAction for SPIR-V backends.
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
