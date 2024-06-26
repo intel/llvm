@@ -178,22 +178,22 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor;
 class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func:: *)(Arg) const);
+static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func:: *)(Arg));
+static Arg member_ptr_helper(RetType (Func::*)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func:: *)(Arg1, Arg2) const);
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func:: *)(Arg1, Arg2));
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
