@@ -178,22 +178,22 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor;
 class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
+static Arg member_ptr_helper(RetType (Func:: *)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg));
+static Arg member_ptr_helper(RetType (Func:: *)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
+static Arg1 member_ptr_helper(RetType (Func:: *)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
+static Arg1 member_ptr_helper(RetType (Func:: *)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -464,8 +464,8 @@ private:
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          bool /*ABI Break: to remove */);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -475,10 +475,10 @@ private:
   /// \param PrimaryQueue is the primary SYCL queue of the submission.
   /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
   ///        is null if no secondary queue is associated with the submission.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+          std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          bool /*ABI Break: to remove */);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -609,7 +609,7 @@ private:
   ~handler() = default;
 
   // TODO: Private and unusued. Remove when ABI break is allowed.
-  bool is_host() { return MIsHost; }
+  bool is_host() { return false; }
 
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
@@ -888,12 +888,6 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    if (IsCallableWithKernelHandler && MIsHost) {
-      throw sycl::feature_not_supported(
-          "kernel_handler is not yet supported by host device.",
-          PI_ERROR_INVALID_OPERATION);
-    }
-
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
@@ -1042,8 +1036,7 @@ private:
   std::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
-    if (!MIsHost &&
-        IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
+    if (IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
       return false;
 
     range<1> LinearizedRange(Src.size());
@@ -1065,6 +1058,7 @@ private:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
+  // ABI break: to remove whole method
   template <typename TSrc, int DimSrc, access::mode ModeSrc,
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
@@ -1072,16 +1066,11 @@ private:
   std::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
-    if (!MIsHost)
-      return false;
-
-    single_task<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                              ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
-        [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
-    return true;
+    return false;
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
+  // ABI break: to remove whole method
   /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
@@ -1101,6 +1090,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
   /// pointed by Dst.
   ///
@@ -1118,6 +1108,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies the memory pointed by Src into the memory accessed by Dst.
   ///
   /// \param Src is a pointer to source memory.
@@ -1135,6 +1126,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
   /// accessor Dst.
   ///
@@ -2245,7 +2237,7 @@ public:
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2282,7 +2274,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(false);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2322,7 +2314,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(false);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2361,7 +2353,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(true);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2688,14 +2680,6 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForSourceAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      // TODO: Temporary implementation for host. Should be handled by memory
-      // manager.
-      copyAccToPtrHost(Src, Dst);
-      return;
-    }
-#endif
     setType(detail::CG::CopyAccToPtr);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
@@ -2732,14 +2716,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // TODO: Add static_assert with is_device_copyable when vec is
     // device-copyable.
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      // TODO: Temporary implementation for host. Should be handled by memory
-      // manager.
-      copyPtrToAccHost(Src, Dst);
-      return;
-    }
-#endif
+
     setType(detail::CG::CopyPtrToAcc);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2853,8 +2830,6 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
-    assert(!MIsHost && "fill() should no longer be callable on a host device.");
-
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
 
@@ -3392,7 +3367,7 @@ private:
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
 
-  bool MIsHost = false;
+  bool MIsHost = false; // ABI break: to remove
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

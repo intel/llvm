@@ -121,9 +121,7 @@ public:
   static std::vector<platform> get_platforms();
 
   // \return the Plugin associated with this platform.
-  const PluginPtr &getPlugin() const {
-    return MPlugin;
-  }
+  const PluginPtr &getPlugin() const { return MPlugin; }
 
   /// Sets the platform implementation to use another plugin.
   ///
