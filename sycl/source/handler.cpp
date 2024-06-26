@@ -403,19 +403,6 @@ event handler::finalize() {
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      // if no event to wait for was specified, we add all exit
-      // nodes/events of the graph
-      if (MEventsWaitWithBarrier.size() == 0) {
-        MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
-        // Graph-wide barriers take precedence over previous one.
-        // We therefore remove the previous ones from ExtraDependencies list.
-        // The current barrier is then added to this list in the graph_impl.
-        std::vector<detail::EventImplPtr> EventsBarriers =
-            GraphImpl->removeBarriersFromExtraDependencies();
-        MEventsWaitWithBarrier.insert(std::end(MEventsWaitWithBarrier),
-                                      std::begin(EventsBarriers),
-                                      std::end(EventsBarriers));
-      }
       CGData.MEvents.insert(std::end(CGData.MEvents),
                             std::begin(MEventsWaitWithBarrier),
                             std::end(MEventsWaitWithBarrier));
@@ -533,6 +520,7 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
+    EventImpl->setSubmittedQueue(MQueue);
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
 
@@ -564,7 +552,17 @@ event handler::finalize() {
       // queue.
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+      auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      if (LastBarrierRecordedFromQueue) {
+        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
+                                  {LastBarrierRecordedFromQueue});
+      } else {
+        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+      }
+
+      if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
+        GraphImpl->setBarrierDep(MQueue, NodeImpl);
+      }
     }
 
     // Associate an event with this new node and return the event.

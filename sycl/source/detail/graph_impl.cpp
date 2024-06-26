@@ -353,9 +353,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
-  // Add any deps from the vector of extra dependencies
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
@@ -488,19 +485,11 @@ graph_impl::add(node_type NodeType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
-  // Add any deps from the extra dependencies vector
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
-
-  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
-  if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
-    MExtraDependencies.push_back(NodeImpl);
-  }
 
   return NodeImpl;
 }
@@ -610,12 +599,17 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   removeRoot(Dest); // remove receiver from root node list
 }
 
-std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
+    std::weak_ptr<sycl::detail::queue_impl> RecordedQueue) {
   std::vector<sycl::detail::EventImplPtr> Events;
 
+  auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      Events.push_back(getEventForNode(Node));
+      auto EventForNode = getEventForNode(Node);
+      if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
+        Events.push_back(getEventForNode(Node));
+      }
     }
   }
 
