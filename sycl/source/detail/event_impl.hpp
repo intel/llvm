@@ -49,8 +49,8 @@ public:
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
   event_impl(std::optional<HostEventState> State = HES_Complete)
-      : MIsInitialized(false), MIsHostEvent(State), MIsFlushed(true),
-        MState(State.value_or(HES_Complete)) {
+      : MIsInitialized(false), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)),  MIsHostEvent(State) {
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
     // event methods. This ::get() call uses static vars to read and parse the

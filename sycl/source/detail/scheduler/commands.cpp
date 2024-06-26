@@ -1353,7 +1353,7 @@ void MapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#77AFFF\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "MAP ON " << queueDeviceToString(MQueue) : "host") << "\\n";
+  Stream << "MAP ON " << queueDeviceToString(MQueue) << "\\n";
 
   Stream << "\"];" << std::endl;
 
