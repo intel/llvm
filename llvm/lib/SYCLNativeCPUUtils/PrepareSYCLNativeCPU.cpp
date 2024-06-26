@@ -473,6 +473,5 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       ModuleChanged = true;
     }
   }
-
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
