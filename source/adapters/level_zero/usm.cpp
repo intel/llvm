@@ -21,6 +21,9 @@
 
 #include <umf_helpers.hpp>
 
+usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
+    InitializeDisjointPoolConfig();
+
 ur_result_t umf2urResult(umf_result_t umfResult) {
   if (umfResult == UMF_RESULT_SUCCESS)
     return UR_RESULT_SUCCESS;
