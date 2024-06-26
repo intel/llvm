@@ -138,47 +138,6 @@ function(add_devicelib_spv spv_filename)
           COMPONENT libsycldevice)
 endfunction()
 
-# Links together one or more bytecode files
-#
-# Arguments:
-# * TARGET <string>
-#     Custom target to create
-# * INPUT <string> ...
-#     List of bytecode files to link together
-function(link_bc)
-  cmake_parse_arguments(ARG
-    ""
-    "TARGET"
-    "INPUTS"
-    ${ARGN}
-  )
-
-  set( LINK_INPUT_ARG ${ARG_INPUTS} )
-  if( WIN32 OR CYGWIN )
-    # Create a response file in case the number of inputs exceeds command-line
-    # character limits on certain platforms.
-    file( TO_CMAKE_PATH ${bc_binary_dir}/${ARG_TARGET}.rsp RSP_FILE )
-    # Turn it into a space-separate list of input files
-    list( JOIN ARG_INPUTS " " RSP_INPUT )
-    file( WRITE ${RSP_FILE} ${RSP_INPUT} )
-    # Ensure that if this file is removed, we re-run CMake
-    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-      ${RSP_FILE}
-    )
-    set( LINK_INPUT_ARG "@${RSP_FILE}" )
-  endif()
-
-  add_custom_command(
-    #ToDo maybe add bc_binary_dir to path
-    OUTPUT ${bc_binary_dir}/${ARG_TARGET}.bc
-    COMMAND ${llvm-link} -o ${bc_binary_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
-    DEPENDS ${llvm-link} ${ARG_INPUTS} ${RSP_FILE}
-  )
-
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${bc_binary_dir}/${ARG_TARGET}.bc )
-  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${bc_binary_dir}/${ARG_TARGET}.bc)
-endfunction()
-
 function(append_to_property arg)
   cmake_parse_arguments(BC  "" "TGT" "" ${ARGN})
   get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS_${BC_TGT})
@@ -485,15 +444,18 @@ set(obj_suffix devicelib--${OPT_ARCH}.bc)
       PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
     )
     add_dependencies(libsycldevice-bc prepare-${obj_suffix})
-    add_dependencies(libsycldevice-bc device_lib_device_${OPT_ARCH})
 endfunction()
 
 foreach(arch IN LISTS devicelib_arch)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
   link_bc(TARGET device_lib_device_${arch} INPUTS ${BC_DEVICE_LIBS_${arch}})
   set( builtins_link_lib_${arch} $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE> )
+  add_dependencies(libsycldevice-bc device_lib_device_${arch})
   set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
-  add_opt_tgt(ARCH ${arch})
+
+  opt_prepare(devicelib--${arch}.bc LIB_TGT builtins_${arch}.opt LINK_LIB
+    ${builtins_link_lib_${arch}} OUT_DIR ${bc_binary_dir})
+  add_dependencies(libsycldevice-bc prepare-devicelib--${arch}.bc)
 endforeach()
 
 set(obj_suffix ${lib-suffix})
@@ -553,7 +515,7 @@ set(install_dest_obj ${install_dest_lib})
 set(install_dest_new_offload_obj ${install_dest_lib})
 
 foreach(ftype IN ITEMS spv bc obj new_offload_obj)
-  install(FILES ${${ftype}_binary_dir}/libsycl-fallback-imf.{${ftype}_suffix}
+  install(FILES ${${ftype}_binary_dir}/libsycl-fallback-imf.${${ftype}_suffix}
                 $${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}_suffix}
                 ${${ftype}_binary_dir}/libsycl-fallback-imf-bf16.${${ftype}_suffix}
           DESTINATION ${install_dest_${ftype}}
