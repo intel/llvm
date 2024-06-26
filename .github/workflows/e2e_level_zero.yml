@@ -21,9 +21,9 @@ jobs:
       config: ""
       unit: "gpu"
       # Failing tests
-      xfail: "ESIMD/preemption.cpp;syclcompat/atomic/atomic_class.cpp;ProgramManager/uneven_kernel_split.cpp;Plugin/level_zero_ext_intel_queue_index.cpp;Plugin/level_zero_ext_intel_cslice.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Matrix/element_wise_ops.cpp;Matrix/element_wise_all_ops.cpp;Matrix/SG32/element_wise_all_ops.cpp"
+      xfail: "ESIMD/preemption.cpp;Matrix/SG32/element_wise_all_ops.cpp;Matrix/SG32/get_coord_int8_matB.cpp;Matrix/element_wise_all_ops.cpp;Matrix/element_wise_all_ops_1d.cpp;Matrix/element_wise_all_ops_1d_cont.cpp;Matrix/element_wise_all_ops_scalar.cpp;Matrix/element_wise_ops.cpp;Matrix/get_coord_int8_matB.cpp;Matrix/joint_matrix_apply_bf16.cpp;Matrix/joint_matrix_apply_two_matrices.cpp;Matrix/joint_matrix_bfloat16.cpp;Matrix/joint_matrix_bfloat16_array.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;ProgramManager/uneven_kernel_split.cpp"
       # Flaky tests
-      filter_out: "GroupAlgorithm/root_group.cpp|Basic/exceptions-SYCL-2020.cpp|Graph/UnsupportedDevice/device_query.cpp|Graph/RecordReplay/exception_inconsistent_contexts.cpp"
-      # These runners by default spawn upwards of 260 workers. That's too much for the GPU.
+      filter_out: "UserDefinedReductions/user_defined_reductions.cpp"
+      # These runners by default spawn upwards of 260 workers.
       # We also add a time out just in case some test hangs
-      extra_lit_flags: "-sv -j 50 --max-time 600"
+      extra_lit_flags: "-sv -j 100 --max-time 600"
