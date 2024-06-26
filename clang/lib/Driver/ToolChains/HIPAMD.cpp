@@ -310,7 +310,13 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back("-fapply-global-visibility-to-externs");
   }
 
-<<<<<<< HEAD
+  // For SPIR-V we embed the command-line into the generated binary, in order to
+  // retrieve it at JIT time and be able to do target specific compilation with
+  // options that match the user-supplied ones.
+  if (getTriple().isSPIRV() &&
+      !DriverArgs.hasArg(options::OPT_fembed_bitcode_marker))
+    CC1Args.push_back("-fembed-bitcode=marker");
+
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
@@ -364,16 +370,6 @@ void HIPAMDToolChain::addClangTargetOptions(
   }
 
   for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
-=======
-  // For SPIR-V we embed the command-line into the generated binary, in order to
-  // retrieve it at JIT time and be able to do target specific compilation with
-  // options that match the user-supplied ones.
-  if (getTriple().isSPIRV() &&
-      !DriverArgs.hasArg(options::OPT_fembed_bitcode_marker))
-    CC1Args.push_back("-fembed-bitcode=marker");
-
-  for (auto BCFile : getDeviceLibs(DriverArgs)) {
->>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
@@ -407,14 +403,10 @@ HIPAMDToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 }
 
 Tool *HIPAMDToolChain::buildLinker() const {
-<<<<<<< HEAD
-  assert(getTriple().getArch() == llvm::Triple::amdgcn);
-  if (OK == Action::OFK_SYCL)
-    return new tools::AMDGCN::SYCLLinker(*this);
-=======
   assert(getTriple().getArch() == llvm::Triple::amdgcn ||
          getTriple().getArch() == llvm::Triple::spirv64);
->>>>>>> 9acb533c38be833ec1d8daa06e127a9de8f0a5ef
+  if (OK == Action::OFK_SYCL)
+    return new tools::AMDGCN::SYCLLinker(*this);
   return new tools::AMDGCN::Linker(*this);
 }
 
