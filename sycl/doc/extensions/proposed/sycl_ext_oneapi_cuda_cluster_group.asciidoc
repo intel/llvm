@@ -38,6 +38,11 @@ To report problems with this extension, please open a new issue at:
 https://github.com/intel/llvm/issues
 
 
+== Contributors
+Atharva Dubey, Codeplay +
+Gordon Brown, Codeplay + 
+Jack Kirk, Codeplay 
+
 == Dependencies
 
 This extension is written against the SYCL 2020 revision 8 specification.  All
@@ -387,5 +392,8 @@ cluster_group.
 [options="header"]
 |========================================
 |Rev|Date|Authors|Changes
+|4|2024-06-26|Atharva Dubey, Jack Kirk|*Added device query and aspects, 
+                  review comments and additional cluster group member functions*
+|2|2024-05-09|Atharva Dubey|*Using enqueue functions to launch with properties*
 |1|2024-04-29|Atharva Dubey|*Initial public working draft*
 |========================================
