@@ -2288,7 +2288,10 @@ inline pi_result piKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                        size_t ArgSize, const void *ArgValue) {
   std::ignore = ArgSize;
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
@@ -2552,7 +2555,10 @@ inline pi_result piProgramRelease(pi_program Program) {
 inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           size_t, const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
+  // The old PI interface was expecting a pointer to the pointer obtained via
+  // usm/virtual memory, UR now consumes that pointer directly.
+  const void *Arg = *static_cast<const void *const *>(ArgValue);
+  HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, Arg));
 
   return PI_SUCCESS;
 }
@@ -5414,35 +5420,44 @@ piextImportExternalMemory(pi_context Context, pi_device Device,
 
   ur_exp_external_mem_type_t UrExternalMemHandleType;
   switch (MemDescriptor->handleType) {
+#ifndef _WIN32
   case pi_external_mem_handle_type::opaque_fd:
     UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
     break;
+#else
   case pi_external_mem_handle_type::win32_nt_handle:
     UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
   case pi_external_mem_handle_type::win32_nt_dx12_resource:
     UrExternalMemHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
     break;
+#endif
   default:
     return PI_ERROR_INVALID_VALUE;
   }
 
+#ifndef _WIN32
+  ur_exp_file_descriptor_t OpaqueFD{};
+#else
+  ur_exp_win32_handle_t Win32Handle{};
+#endif
   switch (MemDescriptor->handleType) {
+#ifndef _WIN32
   case pi_external_mem_handle_type::opaque_fd: {
-    ur_exp_file_descriptor_t OpaqueFD{};
     OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
     OpaqueFD.fd = MemDescriptor->handle.file_descriptor;
     InteropMemDesc.pNext = &OpaqueFD;
     break;
   }
+#else
   case pi_external_mem_handle_type::win32_nt_handle:
   case pi_external_mem_handle_type::win32_nt_dx12_resource: {
-    ur_exp_win32_handle_t Win32Handle{};
     Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
     Win32Handle.handle = MemDescriptor->handle.win32_handle;
     InteropMemDesc.pNext = &Win32Handle;
     break;
   }
+#endif
   default:
     return PI_ERROR_INVALID_VALUE;
   }
@@ -5540,9 +5555,11 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
 
   ur_exp_external_semaphore_type_t UrExternalSemHandleType;
   switch (SemDescriptor->handleType) {
+#ifndef _WIN32
   case pi_external_semaphore_handle_type::opaque_fd:
     UrExternalSemHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD;
     break;
+#else
   case pi_external_semaphore_handle_type::win32_nt_handle:
     UrExternalSemHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT;
     break;
@@ -5550,26 +5567,33 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
     UrExternalSemHandleType =
         UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
     break;
+#endif
   default:
     return PI_ERROR_INVALID_VALUE;
   }
 
+#ifndef _WIN32
+  ur_exp_file_descriptor_t OpaqueFD{};
+#else
+  ur_exp_win32_handle_t Win32Handle{};
+#endif
   switch (SemDescriptor->handleType) {
+#ifndef _WIN32
   case pi_external_semaphore_handle_type::opaque_fd: {
-    ur_exp_file_descriptor_t OpaqueFD{};
     OpaqueFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
     OpaqueFD.fd = SemDescriptor->handle.file_descriptor;
     InteropSemDesc.pNext = &OpaqueFD;
     break;
   }
+#else
   case pi_external_semaphore_handle_type::win32_nt_dx12_fence:
   case pi_external_semaphore_handle_type::win32_nt_handle: {
-    ur_exp_win32_handle_t Win32Handle{};
     Win32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
     Win32Handle.handle = SemDescriptor->handle.win32_handle;
     InteropSemDesc.pNext = &Win32Handle;
     break;
   }
+#endif
   default:
     return PI_ERROR_INVALID_VALUE;
   }

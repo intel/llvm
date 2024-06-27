@@ -7,11 +7,12 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
 #include <sycl/properties/queue_properties.hpp>
 
 #include <random>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -621,8 +622,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  // Currently only Nvidia devices are tested
-  if (vkutil::setupDevice("NVIDIA") != VK_SUCCESS) {
+  const char *devices[] = {"Intel", "NVIDIA"};
+  if (std::none_of(std::begin(devices), std::end(devices),
+                   [](const char *device) {
+                     return vkutil::setupDevice(device) == VK_SUCCESS;
+                   })) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }
