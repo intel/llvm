@@ -42,7 +42,7 @@ public:
   physical_mem &operator=(const physical_mem &rhs) = default;
   physical_mem &operator=(physical_mem &&rhs) = default;
 
-  ~physical_mem() = default;
+  ~physical_mem() noexcept(false) = default;
 
   bool operator==(const physical_mem &rhs) const { return impl == rhs.impl; }
   bool operator!=(const physical_mem &rhs) const { return !(*this == rhs); }

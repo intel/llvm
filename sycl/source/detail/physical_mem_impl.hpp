@@ -54,7 +54,7 @@ public:
     Plugin->checkPiResult(Err);
   }
 
-  ~physical_mem_impl() {
+  ~physical_mem_impl() noexcept(false) {
     const PluginPtr &Plugin = MContext->getPlugin();
     Plugin->call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
   }
