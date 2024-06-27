@@ -62,7 +62,7 @@ void ff_cp(int *ptr) {
 }
 )===";
 
-void test_1(sycl::queue &Queue, sycl::kernel &Kernel) {
+void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   constexpr int Range = 10;
   int *usmPtr = sycl::malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -74,15 +74,13 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](sycl::handler &Handler) {
     Handler.set_arg(0, usmPtr);
-    // Handler.set_arg(1, start);
-    // Handler.set_arg(2, Range);
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
 
   for (int i = 0; i < Range; i++) {
     std::cout << usmPtr[i] << " ";
-    // assert(usmPtr[i] = i + 42);
+    assert(usmPtr[i] = i + seed);
   }
   std::cout << std::endl;
 
@@ -133,22 +131,17 @@ void test_build_and_run() {
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
-  // extern "C" was used, so the name "ff_cp" is not mangled
+  // extern "C" was used, so the name "ff_cp" is not mangled and can be used
+  // directly.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
-  // the templated function name will have been mangled. Mapping from original
+  // The templated function name will have been mangled. Mapping from original
   // name to mangled is not yet supported.
   sycl::kernel k2 =
       kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_");
 
-  // COMING SOON
-  // sycl::kernel_bundle<sycl::bundle_state::executable> kb
-  //    = syclexp::build(kb_src,
-  // syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
-  // sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
-
-  // 4
-  test_1(q, k);
-  test_1(q, k2);
+  // test the kernels
+  test_1(q, k, 37 + 5); // AddEm will add 5 more
+  test_1(q, k2, 39);
 }
 
 void test_error() {

@@ -353,12 +353,10 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage,
                      std::vector<std::string> KNames,
-                     std::vector<std::string> RegKNames,
                      syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, DevImage) {
     MState = bundle_state::executable;
     KernelNames = KNames;
-    RegisteredKernelNamesVec = RegKNames;
     Language = Lang;
   }
 
@@ -451,9 +449,8 @@ public:
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         PiProgram);
     device_image_plain DevImg{DevImgImpl};
-    return std::make_shared<kernel_bundle_impl>(
-        MContext, MDevices, DevImg, KernelNames, RegisteredKernelNames,
-        Language);
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
+                                                KernelNames, Language);
   }
 
   std::string adjust_kernel_name(const std::string &Name,
@@ -464,10 +461,6 @@ public:
 
     bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
     return isMangled ? Name : "__sycl_kernel_" + Name;
-
-    // bool isRegisteredName = std::find(RegisteredKernelNamesVec.begin(),
-    // RegisteredKernelNamesVec.end(), Name) != RegisteredKernelNamesVec.end();
-    // return isRegisteredName ? Name : "__sycl_kernel_" + Name;
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
@@ -751,7 +744,6 @@ private:
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
-  std::vector<std::string> RegisteredKernelNamesVec;
   include_pairs_t IncludePairs;
 };
 
