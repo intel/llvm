@@ -93,12 +93,8 @@ class SwizzleOp;
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t) const {
-    return (DataT)0;
-  }
-  DataT operator()(DataT, DataT) {
-    return (DataT)0;
-  }
+  DataT getValue(size_t) const { return (DataT)0; }
+  DataT operator()(DataT, DataT) { return (DataT)0; }
 };
 
 } // namespace detail
