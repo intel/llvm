@@ -352,10 +352,14 @@ public:
   // interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage,
-                     std::vector<std::string> KNames)
+                     std::vector<std::string> KNames,
+                     std::vector<std::string> RegKNames,
+                     syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, DevImage) {
     MState = bundle_state::executable;
     KernelNames = KNames;
+    RegisteredKernelNamesVec = RegKNames;
+    Language = Lang;
   }
 
   std::shared_ptr<kernel_bundle_impl>
@@ -447,12 +451,28 @@ public:
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         PiProgram);
     device_image_plain DevImg{DevImgImpl};
-    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
-                                                KernelNames);
+    return std::make_shared<kernel_bundle_impl>(
+        MContext, MDevices, DevImg, KernelNames, RegisteredKernelNames,
+        Language);
+  }
+
+  std::string adjust_kernel_name(const std::string &Name,
+                                 syclex::source_language Lang) {
+    // Once name demangling support is in, we won't need this.
+    if (Lang != syclex::source_language::sycl)
+      return Name;
+
+    bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
+    return isMangled ? Name : "__sycl_kernel_" + Name;
+
+    // bool isRegisteredName = std::find(RegisteredKernelNamesVec.begin(),
+    // RegisteredKernelNamesVec.end(), Name) != RegisteredKernelNamesVec.end();
+    // return isRegisteredName ? Name : "__sycl_kernel_" + Name;
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    auto it = std::find(KernelNames.begin(), KernelNames.end(), Name);
+    auto it = std::find(KernelNames.begin(), KernelNames.end(),
+                        adjust_kernel_name(Name, Language));
     return it != KernelNames.end();
   }
 
@@ -465,9 +485,11 @@ public:
                             "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state:ext_oneapi_source>.");
 
+    std::string AdjustedName = adjust_kernel_name(Name, Language);
     if (!ext_oneapi_has_kernel(Name))
       throw sycl::exception(make_error_code(errc::invalid),
-                            "kernel '" + Name + "' not found in kernel_bundle");
+                            "kernel '" + AdjustedName +
+                                "' not found in kernel_bundle");
 
     assert(MDeviceImages.size() > 0);
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
@@ -476,7 +498,8 @@ public:
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     sycl::detail::pi::PiKernel PiKernel = nullptr;
-    Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
+    Plugin->call<PiApiKind::piKernelCreate>(PiProgram, AdjustedName.c_str(),
+                                            &PiKernel);
     // Kernel created by piKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
@@ -721,11 +744,14 @@ private:
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
   bundle_state MState;
+
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames, IncludePairs
-  const syclex::source_language Language = syclex::source_language::opencl;
+  // Language is for both state::source and state::executable
+  syclex::source_language Language = syclex::source_language::opencl;
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
+  std::vector<std::string> RegisteredKernelNamesVec;
   include_pairs_t IncludePairs;
 };
 

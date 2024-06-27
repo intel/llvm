@@ -26,6 +26,7 @@ auto constexpr SYCLSource = R"===(
 #include <sycl/sycl.hpp>
 #include "AddEm.h"
 
+// use extern "C" to avoid name mangling
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_cp(int *ptr) {
 
@@ -34,6 +35,17 @@ void ff_cp(int *ptr) {
 
   sycl::id<1> GId = Item.get_global_id();
   ptr[GId.get(0)] = AddEm(GId.get(0), 37);
+}
+
+// this name will be mangled
+template <typename T>
+SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+void ff_templated(T *ptr) {
+
+  sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
+
+  sycl::id<1> GId = Item.get_global_id();
+  ptr[GId.get(0)] = GId.get(0) + 39;
 }
 )===";
 
@@ -115,11 +127,18 @@ void test_build_and_run() {
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
-      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
+      syclex::properties{// syclex::build_options{flags},
+                         syclex::save_log{&log},
+                         syclex::registered_kernel_names{"ff_templated<int>"}});
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
-  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("__sycl_kernel_ff_cp");
+  // extern "C" was used, so the name "ff_cp" is not mangled
+  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
+  // the templated function name will have been mangled. Mapping from original
+  // name to mangled is not yet supported.
+  sycl::kernel k2 =
+      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_");
 
   // COMING SOON
   // sycl::kernel_bundle<sycl::bundle_state::executable> kb
@@ -129,6 +148,7 @@ void test_build_and_run() {
 
   // 4
   test_1(q, k);
+  test_1(q, k2);
 }
 
 void test_error() {
