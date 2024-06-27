@@ -24,11 +24,13 @@ namespace mock {
 
 struct dummy_handle_t_ {
     dummy_handle_t_(size_t DataSize = 0)
-        : MStorage(DataSize), MData(MStorage.data()) {}
-    dummy_handle_t_(unsigned char *Data) : MData(Data) {}
+        : MStorage(DataSize), MData(MStorage.data()), MSize(DataSize) {}
+    dummy_handle_t_(unsigned char *Data, size_t Size)
+        : MData(Data), MSize(Size) {}
     std::atomic<size_t> MRefCounter = 1;
     std::vector<unsigned char> MStorage;
     unsigned char *MData = nullptr;
+    size_t MSize;
 };
 
 using dummy_handle_t = dummy_handle_t_ *;
@@ -43,8 +45,9 @@ template <class T> inline T createDummyHandle(size_t Size = 0) {
 
 // Allocates a dummy handle of type T with support of reference counting
 // and associates it with the provided Data.
-template <class T> inline T createDummyHandleWithData(unsigned char *Data) {
-    auto DummyHandlePtr = new dummy_handle_t_(Data);
+template <class T>
+inline T createDummyHandleWithData(unsigned char *Data, size_t Size) {
+    auto DummyHandlePtr = new dummy_handle_t_(Data, Size);
     return reinterpret_cast<T>(DummyHandlePtr);
 }
 
