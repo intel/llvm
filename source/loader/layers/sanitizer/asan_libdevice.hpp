@@ -70,8 +70,8 @@ struct LocalArgsInfo {
 constexpr std::size_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct LaunchInfo {
-    // Don't move this field, we use it in AddressSanitizerPass
     uintptr_t PrivateShadowOffset = 0;
+    uintptr_t PrivateShadowOffsetEnd = 0;
 
     uintptr_t LocalShadowOffset = 0;
     uintptr_t LocalShadowOffsetEnd = 0;
@@ -84,6 +84,10 @@ struct LaunchInfo {
 
 constexpr unsigned ASAN_SHADOW_SCALE = 4;
 constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
+
+// Based on the observation, only the last 24 bits of the address of the private
+// variable have changed
+constexpr std::size_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
 // These magic values are written to shadow for better error
 // reporting.

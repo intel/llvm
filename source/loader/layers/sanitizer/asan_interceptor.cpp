@@ -714,16 +714,21 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type,
                            sizeof(DeviceInfo->Type));
 
-        if (DeviceInfo->Type == DeviceType::CPU) {
-            break;
-        }
-
         if (LaunchInfo.LocalWorkSize.empty()) {
-            LaunchInfo.LocalWorkSize.reserve(3);
-            // FIXME: This is W/A until urKernelSuggestGroupSize is added
-            LaunchInfo.LocalWorkSize[0] = 1;
-            LaunchInfo.LocalWorkSize[1] = 1;
-            LaunchInfo.LocalWorkSize[2] = 1;
+            LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+            auto URes = context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+                Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+                LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+            if (URes != UR_RESULT_SUCCESS) {
+                if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+                    return URes;
+                }
+                // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we fallback
+                // to inefficient implementation
+                for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+                    LaunchInfo.LocalWorkSize[Dim] = 1;
+                }
+            }
         }
 
         const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
@@ -733,56 +738,109 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                      LocalWorkSize[Dim];
         }
 
-        auto EnqueueAllocateDevice = [Context, &DeviceInfo, Queue,
-                                      NumWG](size_t Size, uptr &Ptr) {
+        auto EnqueueAllocateShadowMemory = [Context, &DeviceInfo,
+                                            Queue](size_t Size, uptr &Ptr) {
+            void *Allocated = nullptr;
             auto URes = context.urDdiTable.USM.pfnDeviceAlloc(
                 Context, DeviceInfo->Handle, nullptr, nullptr, Size,
-                (void **)&Ptr);
+                &Allocated);
             if (URes != UR_RESULT_SUCCESS) {
-                context.logger.error(
-                    "Failed to allocate shadow memory for local memory: {}",
-                    URes);
-                context.logger.error(
-                    "Maybe the number of workgroup ({}) too large", NumWG);
                 return URes;
             }
-            // Initialize shadow memory of local memory
-            URes = urEnqueueUSMSet(Queue, (void *)Ptr, 0, Size);
-            if (URes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
-                context.logger.error(
-                    "Failed to allocate shadow memory for local memory: {}",
-                    URes);
-                context.logger.error(
-                    "Maybe the number of workgroup ({}) too large", NumWG);
-                return URes;
+            // Initialize shadow memory
+            URes = urEnqueueUSMSet(Queue, Allocated, 0, Size);
+            if (URes != UR_RESULT_SUCCESS) {
+                [[maybe_unused]] auto URes =
+                    context.urDdiTable.USM.pfnFree(Context, Allocated);
+                assert(URes == UR_RESULT_SUCCESS &&
+                       "urUSMFree failed at allocating shadow memory");
+                Allocated = nullptr;
             }
+            Ptr = (uptr)Allocated;
             return URes;
         };
+
+        auto LocalMemoryUsage =
+            GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
+        auto PrivateMemoryUsage =
+            GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
+
+        context.logger.info("KernelInfo {} (LocalMemory={}, PrivateMemory={})",
+                            (void *)Kernel, LocalMemoryUsage,
+                            PrivateMemoryUsage);
 
         // Write shadow memory offset for local memory
         if (Options().DetectLocals) {
             // CPU needn't this
             if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-                size_t LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
-                size_t LocalShadowMemorySize =
+                const size_t LocalMemorySize =
+                    GetDeviceLocalMemorySize(DeviceInfo->Handle);
+                const size_t LocalShadowMemorySize =
                     (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
                 context.logger.debug(
-                    "LocalMemoryInfo(WorkGroup={}, LocalMemorySize={}, "
+                    "LocalMemory(WorkGroup={}, LocalMemorySize={}, "
                     "LocalShadowMemorySize={})",
                     NumWG, LocalMemorySize, LocalShadowMemorySize);
 
-                UR_CALL(EnqueueAllocateDevice(
-                    LocalShadowMemorySize, LaunchInfo.Data->LocalShadowOffset));
+                if (EnqueueAllocateShadowMemory(
+                        LocalShadowMemorySize,
+                        LaunchInfo.Data->LocalShadowOffset) !=
+                    UR_RESULT_SUCCESS) {
+                    context.logger.warning(
+                        "Failed to allocate shadow memory for local "
+                        "memory, maybe the number of workgroup ({}) is too "
+                        "large",
+                        NumWG);
+                    context.logger.warning(
+                        "Skip checking local memory of kernel <{}>",
+                        GetKernelName(Kernel));
+                } else {
+                    LaunchInfo.Data->LocalShadowOffsetEnd =
+                        LaunchInfo.Data->LocalShadowOffset +
+                        LocalShadowMemorySize - 1;
 
-                LaunchInfo.Data->LocalShadowOffsetEnd =
-                    LaunchInfo.Data->LocalShadowOffset + LocalShadowMemorySize -
-                    1;
+                    context.logger.info(
+                        "ShadowMemory(Local, {} - {})",
+                        (void *)LaunchInfo.Data->LocalShadowOffset,
+                        (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+                }
+            }
+        }
 
-                context.logger.info(
-                    "ShadowMemory(Local, {} - {})",
-                    (void *)LaunchInfo.Data->LocalShadowOffset,
-                    (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+        // Write shadow memory offset for private memory
+        if (Options().DetectPrivates) {
+            if (DeviceInfo->Type == DeviceType::CPU) {
+                LaunchInfo.Data->PrivateShadowOffset = DeviceInfo->ShadowOffset;
+            } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+                const size_t PrivateShadowMemorySize =
+                    (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
+
+                context.logger.debug("PrivateMemory(WorkGroup={}, "
+                                     "PrivateShadowMemorySize={})",
+                                     NumWG, PrivateShadowMemorySize);
+
+                if (EnqueueAllocateShadowMemory(
+                        PrivateShadowMemorySize,
+                        LaunchInfo.Data->PrivateShadowOffset) !=
+                    UR_RESULT_SUCCESS) {
+                    context.logger.warning(
+                        "Failed to allocate shadow memory for private "
+                        "memory, maybe the number of workgroup ({}) is too "
+                        "large",
+                        NumWG);
+                    context.logger.warning(
+                        "Skip checking private memory of kernel <{}>",
+                        GetKernelName(Kernel));
+                } else {
+                    LaunchInfo.Data->PrivateShadowOffsetEnd =
+                        LaunchInfo.Data->PrivateShadowOffset +
+                        PrivateShadowMemorySize - 1;
+                    context.logger.info(
+                        "ShadowMemory(Private, {} - {})",
+                        (void *)LaunchInfo.Data->PrivateShadowOffset,
+                        (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+                }
             }
         }
     } while (false);
