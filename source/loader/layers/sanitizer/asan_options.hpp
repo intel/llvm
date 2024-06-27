@@ -37,6 +37,7 @@ struct AsanOptions {
     uint64_t MaxRZSize = 2048;
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
+    bool DetectPrivates = true;
 
   private:
     AsanOptions() {
@@ -91,6 +92,7 @@ struct AsanOptions {
 
         SetBoolOption("debug", Debug);
         SetBoolOption("detect_locals", DetectLocals);
+        SetBoolOption("detect_privates", DetectPrivates);
 
         auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
