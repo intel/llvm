@@ -17,6 +17,8 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
@@ -386,7 +388,13 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (is_bfloat16_v<no_ref>) {
+    // On host, don't interpret BF16 as uint16.
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    return sycl::bit_cast<OpenCLType>(x);
+#else
     return std::forward<T>(x);
+#endif
   } else if constexpr (std::is_floating_point_v<no_ref>) {
     static_assert(std::is_same_v<no_ref, float> ||
                       std::is_same_v<no_ref, double>,

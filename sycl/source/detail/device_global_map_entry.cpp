@@ -81,7 +81,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
                                 sizeof(MDeviceGlobalPtr)),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
                             std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent);
+                            &InitEvent, nullptr);
     NewAlloc.MInitEvent = InitEvent;
   }
 

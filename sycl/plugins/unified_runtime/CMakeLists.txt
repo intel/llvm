@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit 396fb20498c315a526c961d7cb645b42795acd2c
+  # Merge: 719bb9cd e2ffea69
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Thu May 23 10:53:03 2024 +0100
+  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
+  #     [Testing] Spec clarifications and testing updates for kernel
+  set(UNIFIED_RUNTIME_TAG 764b75c9087930799963a30be726ac76fcf1ac11)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -131,13 +125,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
-    # Merge: abe85cc9 3e011c70
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Jun 13 10:22:34 2024 +0100
-    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
-    #     [HIP] Enable more ordering and scope capabilities for atomic fences
-    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu

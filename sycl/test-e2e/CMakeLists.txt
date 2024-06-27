@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.20.0)
 
 message("Configuring SYCL End-to-End Tests")
 
+option(SYCL_E2E_LIT_ALLOW_UNKNOWN_ARCH
+  "Allow unknown architectures when configuring e2e tests" Off)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(sycl-e2e-test-suite CXX)
   set(SYCL_TEST_E2E_STANDALONE TRUE)
