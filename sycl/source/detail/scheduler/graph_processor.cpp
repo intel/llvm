@@ -54,7 +54,7 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
   if (Cmd == RootCommand || Blocking)
     return true;
 
-  const auto hostDepEvents = RootCommand->getPreparedHostDepsEvents();
+  const auto &hostDepEvents = RootCommand->getPreparedHostDepsEvents();
   const auto eventIter = std::find_if(
       hostDepEvents.begin(), hostDepEvents.end(),
       [&](const auto Event) { return Event->getCommand() == Cmd; });
