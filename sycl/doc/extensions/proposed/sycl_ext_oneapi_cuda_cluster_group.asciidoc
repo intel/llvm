@@ -64,9 +64,7 @@ without prior notice. *Shipping software products should not rely on APIs
 defined in this specification.*
 
 === Backend support status 
-
-This extension is only supported by the `ext_oneapi_cuda` backend.
-
+This extension has not been implemented.
 
 == Glossary
 
@@ -80,9 +78,9 @@ of NVIDIA's GPUs conveying the feature set associated with that number.
 NVIDIA’s compute capability (cc) 9.0 devices introduced a new level in the
 thread hierarchy, called as thread block clusters, in CUDA terminology. A thread
 block cluster, is a collection of thread blocks (a work-group in SYCL
-terminology). The work-groups which make up a cluster have the ability to access
-each other's local memory, and can be synchronized. This has various
-applications, convolutions, GEMMs and FFTs to name a few.
+terminology) that run concurrently. The work-groups which make up a cluster 
+have the ability to access one another's local memory, and can be synchronized. 
+This has various applications, convolutions, GEMMs and FFTs to name a few.
 
 This proposal introduces a SYCL API to expose this capability, to be called as
 `cluster_group`, and adds the methods to launch a kernel with a cluster range
@@ -121,6 +119,21 @@ proposal introduces a new launch property called as `cluster_size` that will
 contain the cluster in terms of number of work-groups.
  
 
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  sycl_ext_oneapi_cuda_cluster_group
+}
+}
+----
+
+A device requires the `sycl_ext_oneapi_cuda_cluster_group` aspect to
+support launching a kernel with the property defined in the following section.
+
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::cuda {
@@ -133,7 +146,7 @@ template <int Dim>
 struct cluster_size {
   cluster_size(const sycl::range<Dim>& size) : 
     size(size) {}
-  size_t operator[](int i) { return size[i]; }
+  sycl::range<Dim> get_cluster_size();
   sycl::range<Dim> size;
 };
 using cluster_size_key = cluster_size;
@@ -176,19 +189,30 @@ the various ids of the work-item and work-groups.
 
 [source,c++]
 ----
+    template<int Dim>
     class cluster_group {
     public:
-        using id_type = id<3>;
-        using range_type = range<3>;
+        using id_type = id<Dim>;
+        using range_type = range<Dim>;
         using linear_id_type = size_t;
 
         linear_id_type get_group_linear_id() const;
 
         linear_id_type get_local_linear_id() const;
 
-        range_type get_cluster_group_range() const;
+        range_type get_group_range() const;
 
         id_type get_group_id() const;
+
+        id_type get_local_id() const;
+
+        range_type get_local_range() const;
+
+        linear_id_type get_local_linear_range() const;
+
+        linear_id_type get_group_linear_range() const;
+
+        bool leader() const;
     }
 ----
 
@@ -199,32 +223,49 @@ the various ids of the work-item and work-groups.
 |Description
 
 |`linear_id get_group_linear_id() const`
-|Returns the flattened id of the calling `group` within the cluster
+|Returns the linearized id of the calling `group` within the cluster
 
 |`linear_id get_local_linear_id() const`
-|Returns the flattened index of the calling work-item within the cluster
+|Returns the linearized index of the calling work-item within the cluster
 
-|`range_type get_cluster_group_range() const`
-|Returns the number of work-groups in each dimension
+|`range_type get_group_range() const`
+|Returns the number of work-groups in each dimension within the cluster
 
 |`id_type get_group_id() const`
-|Returns the id of the calling work-group along each dimension
+|Returns the id of the calling work-group along each dimension within the cluster
+
+|id_type get_local_id() const;
+|Returns the id of calling work-item along each dimension within the cluster
+
+|range_type get_local_range() const;
+|Returns the number of work-items along each dimension within the cluster.
+
+|linear_id_type get_local_linear_range() const;
+|Returns a linearized version of the `range_type` returned by  `get_local_range`
+
+|linear_id_type get_group_linear_range() const;
+|Returns a linearized version of the `range_type` returned by  `get_group_range`
+
+|bool leader() const;
+|Returns true for exactly one work-item in the cluster, if the calling work-item
+is the leader of the cluster group. The leader is guaranteed to be the work-item
+for which `get_local_linear_id` return 0.
 |===
 
 
-To obtain the total number of clusters in the kernel, and to obtain the 
+To obtain the total number of clusters in the nd_range, and to obtain the 
 id of the cluster of the calling work-item, this extension proposes to add two
 new member functions the `nd_item` class, namely 
-`ext_oneapi_cuda_get_size` and `ext_oneapi_cuda_get_cluster_id`
+`ext_oneapi_cuda_get_cluster_range` and `ext_oneapi_cuda_get_cluster_id`
 
 
 [%header,cols="10,5"]
 |===
 
-|`range<3> nd_item::ext_oneapi_cuda_get_size(size_t) const`
-|Returns the total number of `cluster_groups` across each dimension.
+|`range<Dim> nd_item::ext_oneapi_cuda_get_cluster_range() const`
+|Returns the total number of clusters across each dimension.
 
-|`id<3> nd_item::get_cluster_id() const`
+|`id<Dim> nd_item::get_cluster_id() const`
 |Returns the id of the cluster along each dimension.
 |===
 
@@ -265,6 +306,19 @@ this proposal introduces a new memory scope,
 `sycl_ext_oneapi_experimental_cuda_cluster_fence` which can be used with the
 existing `atomic_ref` class.
 
+[source, c++]
+----
+  enum class memory_scope {
+  ...
+  sycl_ext_oneapi_experimental_cuda_cluster_group,
+  ...
+  };
+
+  inline constexpr auto sycl_ext_oneapi_experimental_cuda_memory_scope_cluster_group
+  = memory_scope::sycl_ext_oneapi_experimental_cuda_cluster_group;
+----
+
+
 [source,c++]
 ----
     class cluster_group {
@@ -274,7 +328,6 @@ existing `atomic_ref` class.
                 memory_scope::sycl_ext_oneapi_experimental_cuda_cluster_fence;
     }
 ----
-
 
 To synchronize all workitems in the cluster group, `sycl::group_barrier` can be 
 used, accepting the `cluster_group` class.
