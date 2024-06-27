@@ -196,9 +196,34 @@ static bool isCallToAFuncMarkedWithMD(const Instruction *I, const char *MD) {
   return F && F->getMetadata(MD);
 }
 
-// Checks is this is a call to parallel_for_work_item.
+// Recursively searches for a call to a function with work_group
+// metadata inside F.
+static bool hasCallToAFuncWithWGMetadata(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (isCallToAFuncMarkedWithMD(&I, WG_SCOPE_MD))
+        return true;
+      const CallInst *Call = dyn_cast<CallInst>(&I);
+      Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
+                                                    : nullptr);
+      if (F && hasCallToAFuncWithWGMetadata(*F))
+        return true;
+    }
+  return false;
+}
+
+// Checks if this is a call to parallel_for_work_item.
 static bool isPFWICall(const Instruction *I) {
   return isCallToAFuncMarkedWithMD(I, PFWI_MD);
+}
+
+// Checks if F has any calls to function marked with PFWI_MD metadata.
+static bool hasPFWICall(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB)
+      if (isPFWICall(&I))
+        return true;
+  return false;
 }
 
 // Checks if given instruction must be executed by all work items.
@@ -754,6 +779,10 @@ static void shareByValParams(Function &F, const Triple &TT) {
 PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
+    return PreservedAnalyses::all();
+  // If a function does not have any PFWI calls and it has calls to a function
+  // that has work_group metadata, then we do not need to lower such functions.
+  if (!hasPFWICall(F) && hasCallToAFuncWithWGMetadata(F))
     return PreservedAnalyses::all();
   LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
