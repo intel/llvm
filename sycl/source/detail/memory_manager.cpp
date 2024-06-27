@@ -973,17 +973,6 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
       DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
-                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-  std::vector<char> vecPattern{static_cast<char>(Pattern)};
-  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
-                          OutEventImpl);
-}
-
 void MemoryManager::prefetch_usm(
     void *Mem, QueueImplPtr Queue, size_t Length,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
@@ -1593,17 +1582,6 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
   Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
       CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
       Deps.data(), OutSyncPoint);
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
-    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  std::vector<char> vecPattern{static_cast<char>(Pattern)};
-  ext_oneapi_fill_usm_cmd_buffer(Context, CommandBuffer, DstMem, Len,
-                                 vecPattern, Deps, OutSyncPoint);
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(

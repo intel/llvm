@@ -172,7 +172,7 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   auto EventImpl = std::make_shared<detail::event_impl>(Queue);
   EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
   EventImpl->setStateIncomplete();
-  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), 0, {},
+  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {},
                           &EventImpl->getHandleRef(), EventImpl);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
 }
