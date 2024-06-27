@@ -1190,6 +1190,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       WithColor::warning(errs(), LinkerExecutable)
           << "Compatible SYCL device library binary not found\n";
   }
+  if (ExtractedDeviceLibFiles.empty())
+    return *LinkedFile;
 
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
