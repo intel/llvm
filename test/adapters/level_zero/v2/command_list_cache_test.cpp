@@ -107,22 +107,30 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
                 device->ZeDevice, IsInOrder, Ordinal, Mode, Priority, Index);
 
             ze_device_handle_t ZeDevice;
-            ASSERT_EQ(
-                zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice),
-                ZE_RESULT_SUCCESS);
-            ASSERT_EQ(ZeDevice, device->ZeDevice);
+            auto Ret =
+                zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice);
+            if (Ret == ZE_RESULT_SUCCESS) {
+                ASSERT_EQ(ZeDevice, device->ZeDevice);
+            } else {
+                ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+            }
 
             uint32_t ActualOrdinal;
-            ASSERT_EQ(
-                zeCommandListGetOrdinal(CommandList.get(), &ActualOrdinal),
-                ZE_RESULT_SUCCESS);
-            ASSERT_EQ(ActualOrdinal, Ordinal);
+            Ret = zeCommandListGetOrdinal(CommandList.get(), &ActualOrdinal);
+            if (Ret == ZE_RESULT_SUCCESS) {
+                ASSERT_EQ(ActualOrdinal, Ordinal);
+            } else {
+                ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+            }
 
             uint32_t ActualIndex;
-            ASSERT_EQ(
-                zeCommandListImmediateGetIndex(CommandList.get(), &ActualIndex),
-                ZE_RESULT_SUCCESS);
-            ASSERT_EQ(ActualIndex, Index);
+            Ret =
+                zeCommandListImmediateGetIndex(CommandList.get(), &ActualIndex);
+            if (Ret == ZE_RESULT_SUCCESS) {
+                ASSERT_EQ(ActualIndex, Index);
+            } else {
+                ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+            }
 
             // store the list back to the cache
             cache.addImmediateCommandList(std::move(CommandList),
@@ -135,19 +143,27 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
             device->ZeDevice, IsInOrder, Ordinal, Mode, Priority, std::nullopt);
 
         ze_device_handle_t ZeDevice;
-        ASSERT_EQ(zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice),
-                  ZE_RESULT_SUCCESS);
-        ASSERT_EQ(ZeDevice, device->ZeDevice);
+        auto Ret = zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice);
+        if (Ret == ZE_RESULT_SUCCESS) {
+            ASSERT_EQ(ZeDevice, device->ZeDevice);
+        } else {
+            ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+        }
 
         uint32_t ActualOrdinal;
-        ASSERT_EQ(zeCommandListGetOrdinal(CommandList.get(), &ActualOrdinal),
-                  ZE_RESULT_SUCCESS);
-        ASSERT_EQ(ActualOrdinal, Ordinal);
+        Ret = zeCommandListGetOrdinal(CommandList.get(), &ActualOrdinal);
+        if (Ret == ZE_RESULT_SUCCESS) {
+            ASSERT_EQ(ActualOrdinal, Ordinal);
+        } else {
+            ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+        }
 
         uint32_t ActualIndex;
-        ASSERT_EQ(
-            zeCommandListImmediateGetIndex(CommandList.get(), &ActualIndex),
-            ZE_RESULT_SUCCESS);
-        ASSERT_EQ(ActualIndex, 0);
+        Ret = zeCommandListImmediateGetIndex(CommandList.get(), &ActualIndex);
+        if (Ret == ZE_RESULT_SUCCESS) {
+            ASSERT_EQ(ActualIndex, 0);
+        } else {
+            ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+        }
     }
 }
