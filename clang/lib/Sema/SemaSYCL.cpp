@@ -36,12 +36,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-static const int FFDebug = [] {
-  const char* FFDebugStr = std::getenv("FFDEBUG");
-  if (!FFDebugStr)
-    return 0;
-  return std::stoi(FFDebugStr);
-  }();
 
 using namespace clang;
 using namespace std::placeholders;
@@ -5681,7 +5675,7 @@ class SYCLFwdDeclEmitter
     if (Printed.insert(D).second)
       printForwardDecl(D);
   }
-public:
+
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (size_t I = 0, E = Args.size(); I < E; ++I)
       Visit(Args[I]);
@@ -6225,8 +6219,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-
-
   for (const KernelDesc &K : KernelDescs) {
     if (!isFreeFunction(S, K.SyclKernel))
       continue;
@@ -6296,7 +6288,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "}\n";
     ++ShimCounter;
   }
-
 
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
