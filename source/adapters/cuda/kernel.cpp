@@ -167,10 +167,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, size_t localWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
+
+  // We need to set the active current device for this kernel explicitly here,
+  // because the occupancy querying API does not take device parameter.
+  ur_device_handle_t Device = hKernel->getProgram()->getDevice();
+  ScopedContext Active(Device);
+  try {
+    int MaxNumActiveGroupsPerCU{0};
+    UR_CHECK_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+        &MaxNumActiveGroupsPerCU, hKernel->get(), localWorkSize,
+        dynamicSharedMemorySize));
+    detail::ur::assertion(MaxNumActiveGroupsPerCU >= 0);
+
+    // Multiply by the number of SMs (CUs = compute units) on the device in
+    // order to retreive the total number of groups/blocks that can be launched.
+    *pGroupCountRet = Device->getNumComputeUnits() * MaxNumActiveGroupsPerCU;
+  } catch (ur_result_t Err) {
+    return Err;
+  }
   return UR_RESULT_SUCCESS;
 }
 
