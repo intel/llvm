@@ -39,12 +39,14 @@ int main() {
     std::string KernelName = I == 0 ? "Kernel1" : "Kernel2";
     Q.submit([&](sycl::handler &CGH) {
        sycl::ext::oneapi::raw_kernel_arg KernelArg0 =
-           I == 0 ? sycl::ext::oneapi::raw_kernel_arg(&IntVal, sizeof(int32_t))
-                  : sycl::ext::oneapi::raw_kernel_arg(&ShortVal, sizeof(int16_t));
+           I == 0
+               ? sycl::ext::oneapi::raw_kernel_arg(&IntVal, sizeof(int32_t))
+               : sycl::ext::oneapi::raw_kernel_arg(&ShortVal, sizeof(int16_t));
        sycl::ext::oneapi::raw_kernel_arg KernelArg1 =
            I == 0
                ? sycl::ext::oneapi::raw_kernel_arg(&IntOut, sizeof(int32_t *))
-               : sycl::ext::oneapi::raw_kernel_arg(&ShortOut, sizeof(int16_t *));
+               : sycl::ext::oneapi::raw_kernel_arg(&ShortOut,
+                                                   sizeof(int16_t *));
 
        CGH.set_arg(0, KernelArg0);
        CGH.set_arg(1, KernelArg1);

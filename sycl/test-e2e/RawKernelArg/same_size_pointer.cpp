@@ -58,4 +58,3 @@ int main() {
   sycl::free(FloatOut, Q);
   return 0;
 }
-

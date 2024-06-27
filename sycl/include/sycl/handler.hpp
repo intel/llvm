@@ -499,8 +499,7 @@ private:
     return Storage;
   }
 
-  void *
-  storeRawArg(const sycl::ext::oneapi::raw_kernel_arg &RKA) {
+  void *storeRawArg(const sycl::ext::oneapi::raw_kernel_arg &RKA) {
     CGData.MArgsStorage.emplace_back(RKA.MArgSize);
     void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
     std::memcpy(Storage, RKA.MArgData, RKA.MArgSize);
@@ -735,8 +734,8 @@ private:
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex, sycl::ext::oneapi::raw_kernel_arg &&Arg) {
     auto StoredArg = storeRawArg(Arg);
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout,
-                        StoredArg, Arg.MArgSize, ArgIndex);
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
+                       Arg.MArgSize, ArgIndex);
   }
 
   /// Registers a dynamic parameter with the handler for later association with
