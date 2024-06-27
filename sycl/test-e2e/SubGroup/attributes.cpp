@@ -5,7 +5,6 @@
 // TODO: Device subgroup sizes reports {32}, but when we try to use it with a
 // kernel attribute and check it, we get a subgroup size of 0.
 
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
