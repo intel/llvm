@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 45c34290e192faebd160d3d6c3f697a9e15ede1e
-  # Merge: b854c86a 8bf55967
-  # Author: Callum Fare <callum@codeplay.com>
-  # Date:   Wed Jun 26 14:25:00 2024 +0100  
-  #     Merge pull request #1637 from yingcong-wu/yc/devicesan/fix-free-problems-0517    
-  #     [DeviceSanitizer] refactor options handling and fix use-after-free related problem
-  set(UNIFIED_RUNTIME_TAG 45c34290e192faebd160d3d6c3f697a9e15ede1e)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG exp-interop-entrypoint)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
