@@ -100,11 +100,15 @@ on:
           - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
       target_devices:
+        description: |
+          For SYCL-CTS use "level_zero:gpu" insted of "ext_oneapi_level_zero:gpu".
+          ONEAPI_DEVICE_SELECTOR doesn't support the second one.
         type: choice
         options:
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
+          - 'level_zero:gpu'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
