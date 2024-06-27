@@ -53,6 +53,14 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   BlockingT Blocking) {
   if (Cmd == RootCommand || Blocking)
     return true;
+
+  const auto hostDepEvents = RootCommand->getPreparedHostDepsEvents();
+  const auto eventIter = std::find_if(
+      hostDepEvents.begin(), hostDepEvents.end(),
+      [&](const auto Event) { return Event->getCommand() == Cmd; });
+  if (eventIter != std::end(hostDepEvents))
+    return true;
+
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
