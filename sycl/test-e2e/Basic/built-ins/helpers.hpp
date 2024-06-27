@@ -43,7 +43,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
     cgh.single_task([=]() {
       auto R = F(Args...);
       static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
-      Success[0] = equal(R, Expected, fp64 ? delta : d);
+      Success[0] = fp64 ? equal(R, Expected, delta) : equal(R, Expected, d);
     });
   });
   assert(sycl::host_accessor{SuccessBuf}[0]);
