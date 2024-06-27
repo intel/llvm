@@ -53,15 +53,19 @@ public:
     if (MModifyCounter)
       MCounter++;
   }
-  ~ObjectUsageCounter() noexcept(false) {
-    if (!MModifyCounter)
-      return;
+  ~ObjectUsageCounter() {
+    try {
+      if (!MModifyCounter)
+        return;
 
-    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-    MCounter--;
-    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-    if (RTGlobalObjHandler) {
-      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
+      MCounter--;
+      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+      if (RTGlobalObjHandler) {
+        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
   }
 
@@ -233,13 +237,18 @@ void GlobalHandler::releaseDefaultContexts() {
 }
 
 struct EarlyShutdownHandler {
-  ~EarlyShutdownHandler() noexcept(false) {
+  ~EarlyShutdownHandler() {
+    try {
 #ifdef _WIN32
-    // on Windows we keep to the existing shutdown procedure
-    GlobalHandler::instance().releaseDefaultContexts();
+      // on Windows we keep to the existing shutdown procedure
+      GlobalHandler::instance().releaseDefaultContexts();
 #else
-    shutdown_early();
+      shutdown_early();
 #endif
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~EarlyShutdownHandler",
+                                        e);
+    }
   }
 };
 

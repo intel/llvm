@@ -48,7 +48,13 @@ public:
     enqueueHelper<N>(std::forward<Funcs>(funcs)...);
   }
 
-  ~ThreadPool() noexcept(false) { wait(); }
+  ~ThreadPool() {
+    try {
+      wait();
+    } catch (std::exception &e) {
+      std::cerr << "exception in ~ThreadPool" << e.what() << std::endl;
+    }
+  }
 
 private:
   template <int N, typename Func, typename... Funcs>
