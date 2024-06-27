@@ -36,14 +36,14 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
   sycl::queue q;
   sycl::device dev = q.get_device();
   // Make sure we don't use fp64 on devices that don't support it.
-  if (!dev.has(sycl::aspect::fp64))
-    delta = static_cast<sycl::detail::get_elem_type_t<ExpectedTy>>(delta);
+  const bool fp64 = dev.has(sycl::aspect::fp64);
+  sycl::detail::get_elem_type_t<ExpectedTy> d(delta);
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor Success{SuccessBuf, cgh};
     cgh.single_task([=]() {
       auto R = F(Args...);
       static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
-      Success[0] = equal(R, Expected, delta);
+      Success[0] = equal(R, Expected, fp64 ? delta : d);
     });
   });
   assert(sycl::host_accessor{SuccessBuf}[0]);
