@@ -22,7 +22,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-class __SYCL_EXPORT stream_impl {
+class stream_impl {
 public:
   // TODO: This constructor is unused.
   // To be removed when API/ABI changes are allowed.
