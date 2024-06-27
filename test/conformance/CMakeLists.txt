@@ -10,8 +10,11 @@ set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
     "Internal cache variable for device binaries directory")
 
 function(add_test_adapter name adapter)
+    if(NOT "${ARGN}" STREQUAL "")
+        set(EXTRA_NAME "-${ARGN}")
+    endif()
     set(TEST_TARGET_NAME test-${name})
-    set(TEST_NAME ${name}-${adapter})
+    set(TEST_NAME ${name}-${adapter}${EXTRA_NAME})
 
     set(TEST_COMMAND
         "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --test_devices_count=${UR_TEST_DEVICES_COUNT} --test_platforms_count=${UR_TEST_PLATFORMS_COUNT}"
@@ -23,7 +26,7 @@ function(add_test_adapter name adapter)
             -D TEST_FILE=${Python3_EXECUTABLE}
             -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${TEST_COMMAND}"
             -D MODE=stdout
-            -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match
+            -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}${EXTRA_NAME}.match
             -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
             DEPENDS ${TEST_TARGET_NAME}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -38,6 +41,9 @@ function(add_test_adapter name adapter)
     endif()
 
     set(TEST_ENV UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
+    if("${ARGN}" STREQUAL "v2")
+        list(APPEND TEST_ENV "UR_L0_USE_QUEUE_V2=1")
+    endif()
     if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
         list(APPEND TEST_ENV GTEST_COLOR=no)
     endif()
@@ -69,6 +75,7 @@ function(add_conformance_test name)
     endif()
     if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_level_zero)
+        add_test_adapter(${name} adapter_level_zero v2)
     endif()
     if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_opencl)
