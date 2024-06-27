@@ -98,7 +98,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
 
   // Emulating construction of stream object inside command group
   detail::StreamImplPtr StreamImpl =
-      std::make_shared<detail::stream_impl>(1024, 200, MockCGH);
+      std::make_shared<detail::stream_impl>(1024, 200, property_list{});
   detail::GlobalBufAccessorT FlushBufAcc =
       StreamImpl->accessGlobalFlushBuf(MockCGH);
   MockCGH.addStream(StreamImpl);

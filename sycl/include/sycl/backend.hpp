@@ -59,10 +59,6 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-// TODO each backend can have its own custom errc enumeration
-// but the details for this are not fully specified yet
-enum class backend_errc : unsigned int {};
-
 // Convert from PI backend to SYCL backend enum
 backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
@@ -74,8 +70,6 @@ public:
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
-
-  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>
