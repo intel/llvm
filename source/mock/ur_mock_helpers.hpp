@@ -41,6 +41,13 @@ template <class T> inline T createDummyHandle(size_t Size = 0) {
     return reinterpret_cast<T>(DummyHandlePtr);
 }
 
+// Allocates a dummy handle of type T with support of reference counting
+// and associates it with the provided Data.
+template <class T> inline T createDummyHandleWithData(unsigned char *Data) {
+    auto DummyHandlePtr = new dummy_handle_t_(Data);
+    return reinterpret_cast<T>(DummyHandlePtr);
+}
+
 // Decrement reference counter for the handle and deallocates it if the
 // reference counter becomes zero
 template <class T> inline void releaseDummyHandle(T Handle) {
