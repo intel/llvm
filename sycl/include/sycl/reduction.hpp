@@ -1277,7 +1277,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           for (size_t E = 0; E < NElements; ++E) {
             *getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
-          Reducer.template atomic_combine(&Out[0]);
+          Reducer.atomic_combine(&Out[0]);
         }
       });
     });
