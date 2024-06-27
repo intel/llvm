@@ -1,10 +1,8 @@
 // REQUIRES: cuda
 // RUN: %{build} -o %t.out -lcuda
 // RUN: %{run} %t.out
-
-#include <sycl/ext/adaptivecpp/custom_operation.hpp>
-
 #include <cuda.h>
+
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>

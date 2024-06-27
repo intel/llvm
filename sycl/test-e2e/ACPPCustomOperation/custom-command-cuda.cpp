@@ -4,8 +4,6 @@
 
 #include <cuda.h>
 
-#include <sycl/ext/adaptivecpp/custom_operation.hpp>
-
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
