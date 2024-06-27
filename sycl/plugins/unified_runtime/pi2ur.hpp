@@ -5704,7 +5704,7 @@ piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
 
 inline pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
                                         size_t MemSize,
-                                        pi_physical_mem *RetPhsycialMem) {
+                                        pi_physical_mem *RetPhyscialMem) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
@@ -5713,7 +5713,7 @@ inline pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_physical_mem_handle_t *UrPhysicalMem =
-      reinterpret_cast<ur_physical_mem_handle_t *>(RetPhsycialMem);
+      reinterpret_cast<ur_physical_mem_handle_t *>(RetPhyscialMem);
 
   HANDLE_ERRORS(urPhysicalMemCreate(UrContext, UrDevice, MemSize, nullptr,
                                     UrPhysicalMem));

@@ -54,7 +54,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
-  size_t Granularity;
+  size_t Granularity = 0;
   Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
       ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
       sizeof(size_t), &Granularity, nullptr);
@@ -69,7 +69,8 @@ __SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,
       })) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device does not support aspect::ext_oneapi_virtual_mem.");
+        "One or more devices in the context does not support "
+        "aspect::ext_oneapi_virtual_mem.");
   }
 
   // CUDA only needs page-size granularity.

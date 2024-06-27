@@ -345,16 +345,16 @@ void unmap(const void *ptr, size_t numBytes, const context &syclContext);
 |Function |Description
 
 |`void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext)` |
-Changes the access mode of a virtual memory range specified by `ptr` and
+Changes the access mode of a mapped virtual memory range specified by `ptr` and
 `numBytes`.
 
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 `ptr` pointer is accessible after the call as read-only or read-write
-respectively. Otherwise, it is considered inaccessible and accessing it will result
-in undefined behavior.
+respectively. Otherwise, it is considered inaccessible and accessing it will
+result in undefined behavior.
 
-The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
-virtual memory ranges previously mapped to `physical_mem`. `ptr`
+The virtual memory range specified by `ptr` and `numBytes` must be a sub-range
+of virtual memory ranges previously mapped to `physical_mem`. `ptr`
 must be aligned to the minimum memory granularity of the device associated with
 the `physical_mem` the range is mapped to and `numBytes` must be a multiple of
 the minimum memory granularity of the device associated with the `physical_mem`
@@ -367,11 +367,11 @@ An accessible pointer behaves the same as a pointer to device USM memory and can
 be used in place of a device USM pointer in any interface accepting one.
 
 |`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
-Returns the access mode of the virtual memory range specified by `ptr` and
-`numBytes`.
+Returns the access mode of the mapped virtual memory range specified by `ptr`
+and `numBytes`.
 
-The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
-virtual memory ranges previously mapped to `physical_mem`. `ptr`
+The virtual memory range specified by `ptr` and `numBytes` must be a sub-range
+of virtual memory ranges previously mapped to `physical_mem`. `ptr`
 must be aligned to the minimum memory granularity of the device associated with
 the `physical_mem` the range is mapped to and `numBytes` must be a multiple of
 the minimum memory granularity of the device associated with the `physical_mem`
