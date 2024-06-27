@@ -37,6 +37,7 @@
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/raw_kernel_arg.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -498,6 +499,14 @@ private:
     return Storage;
   }
 
+  void *
+  storeRawArg(const sycl::ext::oneapi::raw_kernel_arg &RKA) {
+    CGData.MArgsStorage.emplace_back(RKA.MArgSize);
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, RKA.MArgData, RKA.MArgSize);
+    return Storage;
+  }
+
   void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
   detail::CG::CGTYPE getType() { return MCGType; }
@@ -721,6 +730,13 @@ private:
     // Register the dynamic parameter with the handler for later association
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
+  }
+
+  // setArgHelper for the raw_kernel_arg extension type.
+  void setArgHelper(int ArgIndex, sycl::ext::oneapi::raw_kernel_arg &&Arg) {
+    auto StoredArg = storeRawArg(Arg);
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout,
+                        StoredArg, Arg.MArgSize, ArgIndex);
   }
 
   /// Registers a dynamic parameter with the handler for later association with
@@ -2016,6 +2032,11 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for the raw_kernel_arg extension type.
+  void set_arg(int argIndex, ext::oneapi::raw_kernel_arg &&Arg) {
+    setArgHelper(argIndex, std::move(Arg));
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
