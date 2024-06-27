@@ -8,10 +8,6 @@
 
 #include "../../esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 

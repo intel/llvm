@@ -10,9 +10,7 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/backend_types.hpp>             // for backend
 #include <sycl/detail/cl.h>                   // for cl_int
-#include <sycl/detail/common.hpp>             // for codeToString
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
@@ -50,14 +48,19 @@ enum class errc : unsigned int {
   backend_mismatch = 14,
 };
 
-template <backend B> using errc_for = typename backend_traits<B>::errc;
-
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
+__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
+
+inline std::string codeToString(pi_int32 code) {
+  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
+                     ")");
+}
+
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
 public:
   const char *name() const noexcept override { return "sycl"; }

@@ -93,6 +93,8 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
 
 CodeGenFunction::~CodeGenFunction() {
   assert(LifetimeExtendedCleanupStack.empty() && "failed to emit a cleanup");
+  assert(DeferredDeactivationCleanupStack.empty() &&
+         "missed to deactivate a cleanup");
 
   if (getLangOpts().OpenMP && CurFn)
     CGM.getOpenMPRuntime().functionFinished(*this);
@@ -348,6 +350,16 @@ static void EmitIfUsed(CodeGenFunction &CGF, llvm::BasicBlock *BB) {
 void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   assert(BreakContinueStack.empty() &&
          "mismatched push/pop in break/continue stack!");
+  assert(LifetimeExtendedCleanupStack.empty() &&
+         "mismatched push/pop of cleanups in EHStack!");
+  assert(DeferredDeactivationCleanupStack.empty() &&
+         "mismatched activate/deactivate of cleanups!");
+
+  if (CGM.shouldEmitConvergenceTokens()) {
+    ConvergenceTokenStack.pop_back();
+    assert(ConvergenceTokenStack.empty() &&
+           "mismatched push/pop in convergence stack!");
+  }
 
   bool OnlySimpleReturnStmts = NumSimpleReturnExprs > 0
     && NumSimpleReturnExprs == NumReturnExprs
@@ -658,6 +670,10 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     AttrMDArgs.push_back(
         llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
 
+    for (auto i = AttrMDArgs.size(); i < 3; ++i)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(llvm::APInt(32, 1))));
+
     Fn->setMetadata("work_group_size_hint",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -678,16 +694,28 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
+    llvm::APInt NumDims(32, 1); // X
     // On SYCL target the dimensions are reversed if present.
-    if (ZDimVal)
+    if (ZDimVal) {
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
-    if (YDimVal)
+      ++NumDims;
+    }
+    if (YDimVal) {
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+      ++NumDims;
+    }
     AttrMDArgs.push_back(
         llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
 
+    for (auto i = NumDims.getZExtValue(); i < 3; ++i)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(llvm::APInt(32, 1))));
+
+    Fn->setMetadata("work_group_num_dim",
+                    llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
+                                                   Builder.getInt(NumDims))));
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -1207,6 +1235,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
   }
 
+  if (FD && FD->hasAttr<ClspvLibclcBuiltinAttr>()) {
+    Fn->setMetadata("clspv_libclc_builtin",
+                    llvm::MDNode::get(getLLVMContext(), {}));
+  }
+
   // If we are checking function types, emit a function type signature as
   // prologue data.
   if (FD && SanOpts.has(SanitizerKind::Function)) {
@@ -1510,6 +1543,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (CurFuncDecl)
     if (const auto *VecWidth = CurFuncDecl->getAttr<MinVectorWidthAttr>())
       LargestVectorWidth = VecWidth->getVectorWidth();
+
+  if (CGM.shouldEmitConvergenceTokens())
+    ConvergenceTokenStack.push_back(getOrEmitConvergenceEntryToken(CurFn));
 }
 
 void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
@@ -1744,6 +1780,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Ensure that the function adheres to the forward progress guarantee, which
   // is required by certain optimizations.
+  // In C++11 and up, the attribute will be removed if the body contains a
+  // trivial empty loop.
   if (checkIfFunctionMustProgress())
     CurFn->addFnAttr(llvm::Attribute::MustProgress);
 
@@ -2735,11 +2773,11 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
 Address CodeGenFunction::EmitVAListRef(const Expr* E) {
   if (getContext().getBuiltinVaListType()->isArrayType())
     return EmitPointerWithAlignment(E);
-  return EmitLValue(E).getAddress(*this);
+  return EmitLValue(E).getAddress();
 }
 
 Address CodeGenFunction::EmitMSVAListRef(const Expr *E) {
-  return EmitLValue(E).getAddress(*this);
+  return EmitLValue(E).getAddress();
 }
 
 void CodeGenFunction::EmitDeclRefExprDbgValue(const DeclRefExpr *E,
@@ -3126,8 +3164,13 @@ llvm::Value *CodeGenFunction::FormAArch64ResolverCondition(
     const MultiVersionResolverOption &RO) {
   llvm::SmallVector<StringRef, 8> CondFeatures;
   for (const StringRef &Feature : RO.Conditions.Features) {
-    // Form condition for features which are not yet enabled in target
-    if (!getContext().getTargetInfo().hasFeature(Feature))
+    // Optimize the Function Multi Versioning resolver by creating conditions
+    // only for features that are not enabled in the target. The exception is
+    // for features whose extension instructions are executed as NOP on targets
+    // without extension support.
+    if (!getContext().getTargetInfo().hasFeature(Feature) || Feature == "bti" ||
+        Feature == "memtag" || Feature == "memtag2" || Feature == "memtag3" ||
+        Feature == "dgh")
       CondFeatures.push_back(Feature);
   }
   if (!CondFeatures.empty()) {

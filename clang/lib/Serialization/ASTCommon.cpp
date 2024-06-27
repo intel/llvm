@@ -186,6 +186,9 @@ serialization::TypeIdxFromBuiltin(const BuiltinType *BT) {
   case BuiltinType::Overload:
     ID = PREDEF_TYPE_OVERLOAD_ID;
     break;
+  case BuiltinType::UnresolvedTemplate:
+    ID = PREDEF_TYPE_UNRESOLVED_TEMPLATE;
+    break;
   case BuiltinType::BoundMember:
     ID = PREDEF_TYPE_BOUND_MEMBER;
     break;
@@ -268,8 +271,8 @@ serialization::TypeIdxFromBuiltin(const BuiltinType *BT) {
   case BuiltinType::IncompleteMatrixIdx:
     ID = PREDEF_TYPE_INCOMPLETE_MATRIX_IDX;
     break;
-  case BuiltinType::OMPArraySection:
-    ID = PREDEF_TYPE_OMP_ARRAY_SECTION;
+  case BuiltinType::ArraySection:
+    ID = PREDEF_TYPE_ARRAY_SECTION;
     break;
   case BuiltinType::OMPArrayShaping:
     ID = PREDEF_TYPE_OMP_ARRAY_SHAPING;
@@ -345,7 +348,7 @@ serialization::getDefinitiveDeclContext(const DeclContext *DC) {
 
   // FIXME: These are defined in one place, but properties in class extensions
   // end up being back-patched into the main interface. See
-  // Sema::HandlePropertyInClassExtension for the offending code.
+  // SemaObjC::HandlePropertyInClassExtension for the offending code.
   case Decl::ObjCInterface:
     return nullptr;
 

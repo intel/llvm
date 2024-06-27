@@ -240,7 +240,20 @@ struct PyGlobalDebugFlag {
     // Debug flags.
     py::class_<PyGlobalDebugFlag>(m, "_GlobalDebug", py::module_local())
         .def_property_static("flag", &PyGlobalDebugFlag::get,
-                             &PyGlobalDebugFlag::set, "LLVM-wide debug flag");
+                             &PyGlobalDebugFlag::set, "LLVM-wide debug flag")
+        .def_static(
+            "set_types",
+            [](const std::string &type) {
+              mlirSetGlobalDebugType(type.c_str());
+            },
+            "types"_a, "Sets specific debug types to be produced by LLVM")
+        .def_static("set_types", [](const std::vector<std::string> &types) {
+          std::vector<const char *> pointers;
+          pointers.reserve(types.size());
+          for (const std::string &str : types)
+            pointers.push_back(str.c_str());
+          mlirSetGlobalDebugTypes(pointers.data(), pointers.size());
+        });
   }
 };
 
@@ -1255,14 +1268,31 @@ void PyOperationBase::walk(
     MlirWalkOrder walkOrder) {
   PyOperation &operation = getOperation();
   operation.checkValid();
+  struct UserData {
+    std::function<MlirWalkResult(MlirOperation)> callback;
+    bool gotException;
+    std::string exceptionWhat;
+    py::object exceptionType;
+  };
+  UserData userData{callback, false, {}, {}};
   MlirOperationWalkCallback walkCallback = [](MlirOperation op,
                                               void *userData) {
-    auto *fn =
-        static_cast<std::function<MlirWalkResult(MlirOperation)> *>(userData);
-    return (*fn)(op);
+    UserData *calleeUserData = static_cast<UserData *>(userData);
+    try {
+      return (calleeUserData->callback)(op);
+    } catch (py::error_already_set &e) {
+      calleeUserData->gotException = true;
+      calleeUserData->exceptionWhat = e.what();
+      calleeUserData->exceptionType = e.type();
+      return MlirWalkResult::MlirWalkResultInterrupt;
+    }
   };
-
-  mlirOperationWalk(operation, walkCallback, &callback, walkOrder);
+  mlirOperationWalk(operation, walkCallback, &userData, walkOrder);
+  if (userData.gotException) {
+    std::string message("Exception raised in callback: ");
+    message.append(userData.exceptionWhat);
+    throw std::runtime_error(message);
+  }
 }
 
 py::object PyOperationBase::getAsm(bool binary,

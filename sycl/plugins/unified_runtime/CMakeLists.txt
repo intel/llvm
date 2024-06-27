@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1906ce76c9c2d2112584cc0679c25f00c4935e73
-  # Merge: 3e3d8748 7f9b30f6
+  # commit 396fb20498c315a526c961d7cb645b42795acd2c
+  # Merge: 719bb9cd e2ffea69
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 30 11:25:19 2024 +0100
-  #     Merge pull request #1452 from jinge90/omp_device_global_intercept
-  #     [ASAN] Intercept urProgramLink in sanitizer layer
-  set(UNIFIED_RUNTIME_TAG 1906ce76c9c2d2112584cc0679c25f00c4935e73)
+  # Date:   Thu May 23 10:53:03 2024 +0100
+  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
+  #     [Testing] Spec clarifications and testing updates for kernel
+  set(UNIFIED_RUNTIME_TAG 764b75c9087930799963a30be726ac76fcf1ac11)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

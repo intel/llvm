@@ -28,18 +28,17 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/experimental/root_group.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -161,6 +160,10 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
+namespace ext ::oneapi ::experimental {
+struct image_descriptor;
+} // namespace ext::oneapi::experimental
+
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
 } // namespace ext::oneapi::experimental::detail
@@ -173,6 +176,7 @@ class stream_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
+class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -936,6 +940,11 @@ private:
     }
   }
 
+  void verifyDeviceHasProgressGuarantee(
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -954,6 +963,10 @@ private:
                  sycl::ext::intel::experimental::fp_control_key>() &&
              KI::isESIMD()),
         "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -970,6 +983,36 @@ private:
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     setKernelIsCooperative(UsesRootSync);
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          sub_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::sub_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::sub_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_item_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_item_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_item,
+          prop.coordinationScope);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1555,8 +1598,7 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1574,8 +1616,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
+                                               kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1593,8 +1635,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1611,8 +1652,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
+                                                kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -1825,18 +1866,7 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    // Need to copy these rather than move so that we can check associated
-    // accessors during finalize
-    MArgs = MAssociatedAccesors;
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CodeplayHostTask);
-  }
+  host_task_impl(FuncT &&Func);
 
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
@@ -3266,22 +3296,48 @@ public:
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
 
-  /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
-  /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// commands submitted to the queue have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Instruct the queue to set the state of the external semaphore to
+  /// \p SignalValue once all previous commands submitted to the queue have
+  /// completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
@@ -3651,6 +3707,43 @@ private:
 
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+
+  inline void internalProfilingTagImpl() {
+    throwIfActionIsCreated();
+    setType(detail::CG::ProfilingTag);
+  }
+
+  friend class detail::HandlerAccess;
+
+protected:
+  /// Registers event dependencies in this command group.
+  void depends_on(const detail::EventImplPtr &Event);
+  /// Registers event dependencies in this command group.
+  void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
+
+namespace detail {
+class HandlerAccess {
+public:
+  static void internalProfilingTagImpl(handler &Handler) {
+    Handler.internalProfilingTagImpl();
+  }
+};
+} // namespace detail
+
 } // namespace _V1
 } // namespace sycl
+
+#ifdef __SYCL_BUILD_SYCL_DLL
+// The following fails (somewhat expectedly) when compiled with MSVC:
+//
+//   #include <memory>
+//   struct __declspec(dllexport) handler {
+//      std::unique_ptr<struct Incomplete> Member;
+//   };
+//
+// We do __SYCL_EXPORT sycl::handler class and it has an
+// std::unique_ptr<detail::HostTask> member. As such, ensure the type is
+// complete if we're building the SYCL shared library.
+#include <sycl/detail/host_task_impl.hpp>
+#endif

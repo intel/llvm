@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 #if !defined(accessor_new_api_test) && !defined(buffer_new_api_test) &&        \
     !defined(accessor_placeholder_new_api_test) &&                             \

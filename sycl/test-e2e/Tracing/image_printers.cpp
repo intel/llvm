@@ -11,7 +11,8 @@
 // CHECK:   pi_image_offset x/y/z : 0/0/0
 // CHECK:   pi_image_region width/height/depth : 4/4/1
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace sycl;

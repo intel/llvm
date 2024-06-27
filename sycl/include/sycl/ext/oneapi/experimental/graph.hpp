@@ -167,6 +167,14 @@ class updatable
 public:
   updatable() = default;
 };
+
+/// Property used to enable executable graph profiling. Enables profiling on
+/// events returned by submissions of the executable graph
+class enable_profiling : public ::sycl::detail::DataLessProperty<
+                             ::sycl::detail::GraphEnableProfiling> {
+public:
+  enable_profiling() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -197,8 +205,6 @@ public:
 
 } // namespace node
 } // namespace property
-
-template <graph_state State> class command_graph;
 
 namespace detail {
 // Templateless modifiable command-graph base class.

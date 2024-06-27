@@ -261,6 +261,7 @@ void exec_graph_impl::makePartitions() {
     }
     if (Partition->MRoots.size() > 0) {
       Partition->schedule();
+      Partition->MIsInOrderGraph = Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       PartitionFinalNum++;
     }
@@ -371,7 +372,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   (void)Args;
   sycl::handler Handler{Impl};
   CGF(Handler);
-  Handler.finalize();
 
   if (Handler.MCGType == sycl::detail::CG::Barrier) {
     throw sycl::exception(
@@ -379,6 +379,8 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
         "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
         "SYCL Graph Explicit API. Please use empty nodes instead.");
   }
+
+  Handler.finalize();
 
   node_type NodeType =
       Handler.MImpl->MUserFacingNodeType !=
@@ -698,7 +700,9 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      MIsUpdatable};
+      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
+      pi_bool(MEnableProfiling), pi_bool(MIsUpdatable)};
+
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
@@ -760,7 +764,9 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
-      MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
+      MIsUpdatable(PropList.has_property<property::graph::updatable>()),
+      MEnableProfiling(
+          PropList.has_property<property::graph::enable_profiling>()) {
 
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -999,6 +1005,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->attachEventToComplete(Elem.second);
     }
   }
+  NewEvent->setProfilingEnabled(MEnableProfiling);
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
@@ -1230,18 +1237,22 @@ void exec_graph_impl::update(
           sycl::make_error_code(errc::invalid),
           "Node passed to update() is not part of the graph.");
     }
-    if (Node->MCGType != sycl::detail::CG::Kernel) {
-      throw sycl::exception(errc::invalid, "Cannot update non-kernel nodes");
+
+    if (!(Node->isEmpty() || Node->MCGType == sycl::detail::CG::Kernel ||
+          Node->MCGType == sycl::detail::CG::Barrier)) {
+      throw sycl::exception(errc::invalid,
+                            "Unsupported node type for update. Only kernel, "
+                            "barrier and empty nodes are supported.");
     }
 
-    if (Node->MCommandGroup->getRequirements().size() == 0) {
-      continue;
-    }
-    NeedScheduledUpdate = true;
+    if (const auto &CG = Node->MCommandGroup;
+        CG && CG->getRequirements().size() != 0) {
+      NeedScheduledUpdate = true;
 
-    UpdateRequirements.insert(UpdateRequirements.end(),
-                              Node->MCommandGroup->getRequirements().begin(),
-                              Node->MCommandGroup->getRequirements().end());
+      UpdateRequirements.insert(UpdateRequirements.end(),
+                                Node->MCommandGroup->getRequirements().begin(),
+                                Node->MCommandGroup->getRequirements().end());
+    }
   }
 
   // Clean up any execution events which have finished so we don't pass them to
@@ -1275,6 +1286,8 @@ void exec_graph_impl::update(
   // Rebuild cached requirements for this graph with updated nodes
   MRequirements.clear();
   for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
@@ -1282,6 +1295,11 @@ void exec_graph_impl::update(
 }
 
 void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
+  // Kernel node update is the only command type supported in UR for update.
+  // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
+  if (Node->MCGType != sycl::detail::CG::Kernel) {
+    return;
+  }
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
@@ -1295,6 +1313,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto NDRDesc = ExecCG.MNDRDesc;
 
   pi_kernel PiKernel = nullptr;
+  pi_program PiProgram = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
   std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
@@ -1318,7 +1337,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     PiKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, std::ignore) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
   }
@@ -1441,6 +1460,12 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   pi_result Res = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferUpdateKernelLaunch>(
       Command, &UpdateDesc);
+
+  if (PiProgram) {
+    // We retained these objects by calling getOrCreateKernel()
+    Plugin->call<sycl::detail::PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<sycl::detail::PiApiKind::piProgramRelease>(PiProgram);
+  }
 
   if (Res != PI_SUCCESS) {
     throw sycl::exception(errc::invalid, "Error updating command_graph");
@@ -1691,22 +1716,22 @@ node node::get_node_from_event(event nodeEvent) {
       GraphImpl->getNodeForEvent(EventImpl));
 }
 
-template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<2>(nd_range<2> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<2>(nd_range<2> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<3>(nd_range<3> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<3>(nd_range<3> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_range<1>(range<1> Range) {
+template <> __SYCL_EXPORT void node::update_range<1>(range<1> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<2>(range<2> Range) {
+template <> __SYCL_EXPORT void node::update_range<2>(range<2> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<3>(range<3> Range) {
+template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
   impl->updateRange(Range);
 }
 } // namespace experimental

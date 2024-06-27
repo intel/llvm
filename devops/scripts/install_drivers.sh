@@ -108,25 +108,21 @@ InstallIGFX () {
   echo "Compute Runtime version $CR_TAG"
   echo "CM compiler version $CM_TAG"
   echo "Level Zero version $L0_TAG"
-  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
-  IGNORE_CHECKSUM=false
-  DPKG_OPTIONS=""
-  if [ "$IS_IGC_DEV" == "Yes" ]; then
-    echo "IGC dev git hash $IGC_DEV_VER"
-    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
-    IGNORE_CHECKSUM=true
-    DPKG_OPTIONS=" --force-depends-version"
-  else
-    echo "IGC version $IGC_TAG"
-    get_release intel/intel-graphics-compiler $IGC_TAG \
-      | grep ".*deb" \
-      | wget -qi -
-  fi
+  echo "IGC version $IGC_TAG"
+  # Always install released igc version first to get rid of the dependency issue
+  # by installing the igc first, we will satisfy all the dpkg dependencies .
+  # When we install dev igc later, it will then be treated as downgrade (because dev igc come with lowest version 1.0).
+  # This can help us avoid using the risky force-depends-version option in dpkg command.
+  #
+  # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
+  get_release intel/intel-graphics-compiler $IGC_TAG \
+    | grep ".*deb" \
+    | wget -qi -
   get_release intel/compute-runtime $CR_TAG \
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   # Perform the checksum conditionally and then get the release
-  ( [ "$IGNORE_CHECKSUM" ] || sha256sum -c *.sum ) && \
+  sha256sum -c *.sum  && \
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
@@ -134,7 +130,27 @@ InstallIGFX () {
   get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
     | wget -qi -
-  dpkg -i $DPKG_OPTIONS *.deb && rm *.deb *.sum
+  dpkg -i *.deb && rm *.deb *.sum
+  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
+  if [ "$IS_IGC_DEV" == "Yes" ]; then
+    # Dev IGC deb package did not include libopencl-clang
+    # opencl-clang repo does not provide release deb package either.
+    # Backup and install it from release igc as a temporarily workaround
+    # while we working to resolve the issue.
+    echo "Backup libopencl-clang"
+    cp -d /usr/local/lib/libopencl-clang.so.14*  .
+    echo "Download IGC dev git hash $IGC_DEV_VER"
+    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
+    echo "Install IGC dev git hash $IGC_DEV_VER"
+    dpkg -i *.deb
+    echo "Install libopencl-clang"
+    # Workaround only, will download deb and install with dpkg once fixed.
+    cp -d libopencl-clang.so.14*  /usr/local/lib/
+    echo "Clean up"
+    rm *.deb libopencl-clang.so.14*
+    echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
+  fi
 }
 
 InstallCPURT () {

@@ -7,7 +7,8 @@
 // extra submissions.
 
 #include <level_zero/ze_api.h>
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace std;

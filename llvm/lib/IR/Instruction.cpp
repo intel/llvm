@@ -19,6 +19,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/MemoryModelRelaxationAnnotations.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
@@ -440,7 +441,7 @@ void Instruction::dropPoisonGeneratingFlags() {
     break;
 
   case Instruction::GetElementPtr:
-    cast<GetElementPtrInst>(this)->setIsInBounds(false);
+    cast<GetElementPtrInst>(this)->setNoWrapFlags(GEPNoWrapFlags::none());
     break;
 
   case Instruction::UIToFP:
@@ -636,6 +637,13 @@ void Instruction::copyIRFlags(const Value *V, bool IncludeWrapFlags) {
     }
   }
 
+  if (auto *TI = dyn_cast<TruncInst>(V)) {
+    if (isa<TruncInst>(this)) {
+      setHasNoSignedWrap(TI->hasNoSignedWrap());
+      setHasNoUnsignedWrap(TI->hasNoUnsignedWrap());
+    }
+  }
+
   // Copy the exact flag.
   if (auto *PE = dyn_cast<PossiblyExactOperator>(V))
     if (isa<PossiblyExactOperator>(this))
@@ -652,7 +660,8 @@ void Instruction::copyIRFlags(const Value *V, bool IncludeWrapFlags) {
 
   if (auto *SrcGEP = dyn_cast<GetElementPtrInst>(V))
     if (auto *DestGEP = dyn_cast<GetElementPtrInst>(this))
-      DestGEP->setIsInBounds(SrcGEP->isInBounds() || DestGEP->isInBounds());
+      DestGEP->setNoWrapFlags(SrcGEP->getNoWrapFlags() |
+                              DestGEP->getNoWrapFlags());
 
   if (auto *NNI = dyn_cast<PossiblyNonNegInst>(V))
     if (isa<PossiblyNonNegInst>(this))
@@ -692,7 +701,8 @@ void Instruction::andIRFlags(const Value *V) {
 
   if (auto *SrcGEP = dyn_cast<GetElementPtrInst>(V))
     if (auto *DestGEP = dyn_cast<GetElementPtrInst>(this))
-      DestGEP->setIsInBounds(SrcGEP->isInBounds() && DestGEP->isInBounds());
+      DestGEP->setNoWrapFlags(SrcGEP->getNoWrapFlags() &
+                              DestGEP->getNoWrapFlags());
 
   if (auto *NNI = dyn_cast<PossiblyNonNegInst>(V))
     if (isa<PossiblyNonNegInst>(this))

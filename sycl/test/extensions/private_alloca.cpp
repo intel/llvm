@@ -7,13 +7,11 @@
 // Check SPIR-V code generation for 'sycl_ext_oneapi_private_alloca'. Each call
 // to the extension API is annotated as follows for future reference:
 //
-// <NAME>: storage_class=<sc>, element_type=<et>, alignment=<align>
+// <NAME>: element_type=<et>, alignment=<align>
 //
 // - <NAME>: Variable name in the test below. These will be the result of
 // bitcasting a variable to a different pointer type. We use this instead of the
 // variable due to FileCheck limitations.
-// - <sc>: 'generic' if <NAME> is casted to generic before being stored in the
-// multi_ptr or 'function' otherwise.
 // - <et>: element type. 'Bitcast X <NAME> Y' will originate value <NAME>, being
 // X a pointer to <et> and storage class function.
 // - <align>: alignment. <NAME> will appear in a 'Decorage <NAME> Aligment
@@ -44,17 +42,17 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
   keep(/*B0: storage_class=function, element_type=f32, alignment=4*/
        sycl::ext::oneapi::experimental::private_alloca<
            float, int8_id, sycl::access::decorated::yes>(kh),
-       /*B1: storage_class=generic, element_type=f64, alignment=8*/
+       /*B1: element_type=f64, alignment=8*/
        sycl::ext::oneapi::experimental::private_alloca<
            double, uint32_id, sycl::access::decorated::no>(kh),
-       /*B2: storage_class=function, element_type=i32, alignment=4*/
+       /*B2: element_type=i32, alignment=4*/
        sycl::ext::oneapi::experimental::private_alloca<
            int, int16_id, sycl::access::decorated::legacy>(kh),
-       /*B3: storage_class=generic, element_type=i64, alignment=16*/
+       /*B3: element_type=i64, alignment=16*/
        sycl::ext::oneapi::experimental::aligned_private_alloca<
            int64_t, alignof(int64_t) * 2, uint64_id,
            sycl::access::decorated::no>(kh),
-       /*B4: storage_class=function, element_type=composite, alignment=32*/
+       /*B4: element_type=composite, alignment=32*/
        sycl::ext::oneapi::experimental::aligned_private_alloca<
            composite, alignof(composite) * 8, int32_id,
            sycl::access::decorated::yes>(kh));
@@ -83,23 +81,11 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-NEXT-LOG:{10, 4, 46}
 // CHECK-NEXT-LOG:{22, 8, 81}
 
-// CHECK-SPV-DAG: Name [[#B0:]] "alloca1"
-// CHECK-SPV-DAG: Name [[#B1:]] "alloca"
-// CHECK-SPV-DAG: Name [[#B2:]] "alloca2"
-// CHECK-SPV-DAG: Name [[#B3:]] "alloca3"
-// CHECK-SPV-DAG: Name [[#B4:]] "alloca4"
-
 // CHECK-SPV-DAG: Decorate [[#SPEC0:]] SpecId 0
 // CHECK-SPV-DAG: Decorate [[#SPEC1:]] SpecId 1
 // CHECK-SPV-DAG: Decorate [[#SPEC2:]] SpecId 2
 // CHECK-SPV-DAG: Decorate [[#SPEC3:]] SpecId 3
 // CHECK-SPV-DAG: Decorate [[#SPEC4:]] SpecId 4
-// CHECK-SPV-DAG: Decorate [[#B0]] Alignment 4
-// CHECK-SPV-DAG: Decorate [[#B1]] Alignment 8
-// CHECK-SPV-DAG: Decorate [[#B2]] Alignment 4
-// CHECK-SPV-DAG: Decorate [[#B3]] Alignment 16
-// CHECK-SPV-DAG: Decorate [[#B4]] Alignment 32
-
 // CHECK-SPV-DAG: TypeInt [[#I8TY:]]  8 0
 // CHECK-SPV-DAG: TypeInt [[#I16TY:]] 16 0
 // CHECK-SPV-DAG: TypeInt [[#I32TY:]] 32 0
@@ -107,13 +93,11 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-SPV-DAG: TypeFloat [[#F32TY:]] 32
 // CHECK-SPV-DAG: TypeFloat [[#F64TY:]] 64
 // CHECK-SPV-DAG: TypeStruct [[#COMPTY:]] [[#I32TY]] [[#I32TY]]
-
 // CHECK-SPV-DAG: SpecConstant [[#I8TY]]  [[#SPEC0]] 42
 // CHECK-SPV-DAG: SpecConstant [[#I32TY]] [[#SPEC1]] 46
 // CHECK-SPV-DAG: SpecConstant [[#I16TY]] [[#SPEC2]] 34
 // CHECK-SPV-DAG: SpecConstant [[#I64TY]] [[#SPEC3]] 81
 // CHECK-SPV-DAG: SpecConstant [[#I32TY]] [[#SPEC4]] 52
-
 // CHECK-SPV-DAG: TypeArray [[#ARRF32TY:]] [[#F32TY]] [[#SPEC0]]
 // CHECK-SPV-DAG: TypePointer [[#ARRF32PTRTY:]] [[#FUNCTIONSTORAGE:]] [[#ARRF32TY]]
 // CHECK-SPV-DAG: TypePointer [[#F32PTRTY:]] [[#FUNCTIONSTORAGE]] [[#F32TY]]
@@ -129,21 +113,23 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-SPV-DAG: TypeArray [[#ARRCOMPTY:]] [[#COMPTY]] [[#SPEC4]]
 // CHECK-SPV-DAG: TypePointer [[#ARRCOMPPTRTY:]] [[#FUNCTIONSTORAGE]] [[#ARRCOMPTY]]
 // CHECK-SPV-DAG: TypePointer [[#COMPPTRTY:]] [[#FUNCTIONSTORAGE]] [[#COMPTY]]
-
 // CHECK-SPV-DAG: Variable [[#ARRF32PTRTY]] [[#V0:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#F32PTRTY]] [[#B0]] [[#V0]]
+// CHECK-SPV-DAG: Bitcast [[#F32PTRTY]] [[#B0:]] [[#V0]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B0]]
 // CHECK-SPV-DAG: Variable [[#ARRF64PTRTY]] [[#V1:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#F64PTRTY]] [[#B1]] [[#V1]]
-// CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G1:]] [[#B1]]
-// CHECK-SPV-DAG: Store {{.*}} [[#G1]]
+// CHECK-SPV-DAG: Bitcast [[#F64PTRTY]] [[#B1:]] [[#V1]]
+// CHECK-SPV-DAG: Store {{.*}} [[#B1]]
 // CHECK-SPV-DAG: Variable [[#ARRI32PTRTY]] [[#V2:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#I32PTRTY]] [[#B2]] [[#V2]]
+// CHECK-SPV-DAG: Bitcast [[#I32PTRTY]] [[#B2:]] [[#V2]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B2]]
 // CHECK-SPV-DAG: Variable [[#ARRI64PTRTY]] [[#V3:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#I64PTRTY]] [[#B3]] [[#V3]]
-// CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G3:]] [[#B3]]
-// CHECK-SPV-DAG: Store {{.*}} [[#G3]]
+// CHECK-SPV-DAG: Bitcast [[#I64PTRTY]] [[#B3:]] [[#V3]]
+// CHECK-SPV-DAG: Store {{.*}} [[#B3]]
 // CHECK-SPV-DAG: Variable [[#ARRCOMPPTRTY]] [[#V4:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#COMPPTRTY]] [[#B4]] [[#V4]]
+// CHECK-SPV-DAG: Bitcast [[#COMPPTRTY]] [[#B4:]] [[#V4]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B4]]
+// CHECK-SPV-DAG: Decorate [[#B0]] Alignment 4
+// CHECK-SPV-DAG: Decorate [[#B1]] Alignment 8
+// CHECK-SPV-DAG: Decorate [[#B2]] Alignment 4
+// CHECK-SPV-DAG: Decorate [[#B3]] Alignment 16
+// CHECK-SPV-DAG: Decorate [[#B4]] Alignment 32

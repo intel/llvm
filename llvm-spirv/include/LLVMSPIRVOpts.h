@@ -89,9 +89,9 @@ inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
   return "unknown";
 }
 
-inline bool isSPIRVVersionKnown(uint32_t Ver) {
-  return Ver >= static_cast<uint32_t>(VersionNumber::MinimumVersion) &&
-         Ver <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+inline bool isSPIRVVersionKnown(VersionNumber Ver) {
+  return Ver >= VersionNumber::MinimumVersion &&
+         Ver <= VersionNumber::MaximumVersion;
 }
 
 enum class ExtensionID : uint32_t {

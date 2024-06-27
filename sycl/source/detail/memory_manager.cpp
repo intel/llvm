@@ -18,6 +18,8 @@
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>

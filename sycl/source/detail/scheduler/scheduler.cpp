@@ -478,6 +478,9 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Thus we employ read-lock of graph.
 
   std::vector<Command *> ToCleanUp;
+  auto CmdEvent = Cmd->getEvent();
+  auto QueueImpl = CmdEvent->getSubmittedQueue();
+  assert(QueueImpl && "Submitted queue for host task must not be null");
   {
     ReadLockT Lock = acquireReadLock();
 
@@ -487,14 +490,15 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
-
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
-      Cmd->getEvent()->setComplete();
+      CmdEvent->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
+  QueueImpl->revisitUnenqueuedCommandsState(CmdEvent);
+
   cleanupCommands(ToCleanUp);
 }
 

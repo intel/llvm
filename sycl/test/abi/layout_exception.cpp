@@ -29,7 +29,7 @@ void foo() {
 // CHECK-NEXT:        32 |       element_type * _M_ptr
 // CHECK-NEXT:        40 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT:        40 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:        48 |   class std::error_code MErrC
+// CHECK-NEXT:        48 |   {{class|struct}} std::error_code MErrC
 // CHECK-NEXT:        48 |     int _M_value
 // CHECK-NEXT:        56 |     const error_category * _M_cat
 // CHECK-NEXT:         0 |   class std::exception (primary virtual base)

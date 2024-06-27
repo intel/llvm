@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/nd_item.hpp>
@@ -26,13 +26,6 @@ struct max_num_work_group_sync {
   using return_type = size_t;
 };
 } // namespace info::kernel_queue_specific
-
-struct use_root_sync_key
-    : detail::compile_time_property_key<detail::PropKind::UseRootSync> {
-  using value_t = property_value<use_root_sync_key>;
-};
-
-inline constexpr use_root_sync_key::value_t use_root_sync;
 
 template <int Dimensions> class root_group {
 public:

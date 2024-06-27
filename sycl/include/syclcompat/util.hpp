@@ -34,7 +34,8 @@
 #include <cassert>
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
@@ -579,9 +580,9 @@ unsigned int match_all_over_sub_group(sycl::sub_group g, unsigned member_mask,
 
 namespace experimental {
 
-// FIXME(@intel/syclcompat-lib-reviewers): unify once supported in the AMD
-// backend.
-#if defined(__AMDGPU__)
+// FIXME(@intel/syclcompat-lib-reviewers): unify once supported in the CUDA and
+// AMD backends.
+#if defined(__AMDGPU__) || defined(__NVPTX__)
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
