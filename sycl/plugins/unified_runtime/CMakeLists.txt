@@ -106,7 +106,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Thu May 23 10:53:03 2024 +0100
   #     Merge pull request #1501 from RossBrunton/ross/kerneltests
   #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG review/yang/multiple_reports)
+  set(UNIFIED_RUNTIME_TAG 764b75c9087930799963a30be726ac76fcf1ac11)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
