@@ -73,20 +73,7 @@ int main(int argc, char *argv[]) {
   cout << "   iter GPU:   " << iter_gpu << "\n";
 #endif
 
-  std::vector<sycl::device> dlist;
-  if (gpu_dev == 999) {
-    try {
-      sel_dev = sycl::device(sycl::gpu_selector_v);
-    } catch (...) {
-      cout << "no gpu device found\n";
-    }
-  } else {
-    if (gpu_dev > dlist.size() - 1) {
-      cout << "ERROR: selected device index [" << gpu_dev << "] is too large\n";
-      exit(1);
-    }
-    sel_dev = dlist[gpu_dev];
-  }
+  sel_dev = sycl::device(sycl::default_selector_v);
   std::cout << "selected dev: " << sel_dev.get_info<sycl::info::device::name>()
             << "\n";
 
