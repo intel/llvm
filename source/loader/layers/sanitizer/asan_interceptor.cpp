@@ -354,16 +354,23 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Result = context.urDdiTable.Queue.pfnFinish(Queue);
 
     if (Result == UR_RESULT_SUCCESS) {
-        const auto &AH = LaunchInfo.Data->SanitizerReport;
-        if (!AH.Flag) {
-            return UR_RESULT_SUCCESS;
-        }
-        if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
-            ReportUseAfterFree(AH, Kernel, GetContext(Queue));
-        } else if (AH.ErrorType == DeviceSanitizerErrorType::OUT_OF_BOUNDS) {
-            ReportOutOfBoundsError(AH, Kernel);
-        } else {
-            ReportGenericError(AH);
+        for (const auto &AH : LaunchInfo.Data->SanitizerReport) {
+            if (!AH.Flag) {
+                continue;
+            }
+            if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
+                ReportUseAfterFree(AH, Kernel, GetContext(Queue));
+            } else if (AH.ErrorType ==
+                           DeviceSanitizerErrorType::OUT_OF_BOUNDS ||
+                       AH.ErrorType == DeviceSanitizerErrorType::MISALIGNED ||
+                       AH.ErrorType == DeviceSanitizerErrorType::NULL_POINTER) {
+                ReportOutOfBoundsError(AH, Kernel);
+            } else {
+                ReportGenericError(AH);
+            }
+            if (!AH.IsRecover) {
+                exit(1);
+            }
         }
     }
 
