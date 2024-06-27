@@ -3,19 +3,13 @@
 ;    - CPP_for_OpenCL is mapped to DW_LANG_C_plus_plus_17
 ;    - OpenCL_C, GLSL, ESSL, HLSL, and Unknown are mapped to DW_LANG_OpenCL
 
-; LLVM does not yet define DW_LANG_C_plus_plus_17. When it is defined, the
-; test case for C++ for OpenCL should be updated to check that CPP_for_OpenCL
-; is mapped to DW_LANG_C_plus_plus_17, not DW_LANG_C_plus_plus_14.
-
 ; REQUIRES: spirv-as
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_CPP/' %s | spirv-as --target-env spv1.3 - -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
 
-; COM: TODO: Enable this test when the version of SPIRV-Tools used by buildbot is updated to 
-; COM: recognise CPP_for_OpenCL as a valid source language.
-; COM: sed -e 's/SOURCE_LANGUAGE/CPP_for_OpenCL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; COM: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
+; RUN: sed -e 's/SOURCE_LANGUAGE/CPP_for_OpenCL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP17
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_C/' %s | spirv-as --target-env spv1.3 - -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
@@ -64,3 +58,4 @@
 
 ; CHECK-OPENCL: !DICompileUnit(language: DW_LANG_OpenCL,
 ; CHECK-CPP14: !DICompileUnit(language: DW_LANG_C_plus_plus_14,
+; CHECK-CPP17: !DICompileUnit(language: DW_LANG_C_plus_plus_17,

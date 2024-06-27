@@ -2,6 +2,7 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx940 < %s | FileCheck --check-prefixes=GCN %s
 
 ; TODO: Add global-isel when it can support bf16
+
 define amdgpu_ps float @v_test_cvt_bf16_f32_v(bfloat %v) {
 ; GCN-LABEL: v_test_cvt_bf16_f32_v:
 ; GCN:       ; %bb.0:
@@ -10,6 +11,7 @@ define amdgpu_ps float @v_test_cvt_bf16_f32_v(bfloat %v) {
   %cvt = fpext bfloat %v to float
   ret float %cvt
 }
+
 define amdgpu_ps float @v_test_cvt_bf16_f32_s(bfloat inreg %v) {
 ; GCN-LABEL: v_test_cvt_bf16_f32_s:
 ; GCN:       ; %bb.0:
@@ -19,6 +21,7 @@ define amdgpu_ps float @v_test_cvt_bf16_f32_s(bfloat inreg %v) {
   %cvt = fpext bfloat %v to float
   ret float %cvt
 }
+
 define amdgpu_ps float @v_test_cvt_v2f32_v2bf16_v(<2 x float> %src) {
 ; GCN-LABEL: v_test_cvt_v2f32_v2bf16_v:
 ; GCN:       ; %bb.0:
@@ -42,6 +45,7 @@ define amdgpu_ps float @v_test_cvt_v2f32_v2bf16_v(<2 x float> %src) {
   %cast = bitcast <2 x bfloat> %res to float
   ret float %cast
 }
+
 define amdgpu_ps float @v_test_cvt_v2f32_v2bf16_s(<2 x float> inreg %src) {
 ; GCN-LABEL: v_test_cvt_v2f32_v2bf16_s:
 ; GCN:       ; %bb.0:
@@ -51,7 +55,8 @@ define amdgpu_ps float @v_test_cvt_v2f32_v2bf16_s(<2 x float> inreg %src) {
 ; GCN-NEXT:    s_add_i32 s5, s2, 0x7fff
 ; GCN-NEXT:    v_cmp_u_f32_e64 s[2:3], s1, s1
 ; GCN-NEXT:    s_and_b64 s[2:3], s[2:3], exec
-; GCN-NEXT:    s_cselect_b32 s2, s4, s5
+; GCN-NEXT:    s_cselect_b32 s1, s4, s5
+; GCN-NEXT:    s_lshr_b32 s2, s1, 16
 ; GCN-NEXT:    s_bfe_u32 s1, s0, 0x10010
 ; GCN-NEXT:    s_add_i32 s1, s1, s0
 ; GCN-NEXT:    s_or_b32 s3, s0, 0x400000
@@ -59,13 +64,15 @@ define amdgpu_ps float @v_test_cvt_v2f32_v2bf16_s(<2 x float> inreg %src) {
 ; GCN-NEXT:    v_cmp_u_f32_e64 s[0:1], s0, s0
 ; GCN-NEXT:    s_and_b64 s[0:1], s[0:1], exec
 ; GCN-NEXT:    s_cselect_b32 s0, s3, s4
-; GCN-NEXT:    s_pack_hh_b32_b16 s0, s0, s2
+; GCN-NEXT:    s_lshr_b32 s0, s0, 16
+; GCN-NEXT:    s_pack_ll_b32_b16 s0, s0, s2
 ; GCN-NEXT:    v_mov_b32_e32 v0, s0
 ; GCN-NEXT:    ; return to shader part epilog
   %res = fptrunc <2 x float> %src to <2 x bfloat>
   %cast = bitcast <2 x bfloat> %res to float
   ret float %cast
 }
+
 define amdgpu_ps float @v_test_cvt_f32_bf16_v(float %src) {
 ; GCN-LABEL: v_test_cvt_f32_bf16_v:
 ; GCN:       ; %bb.0:
@@ -82,6 +89,7 @@ define amdgpu_ps float @v_test_cvt_f32_bf16_v(float %src) {
   %ext = fpext bfloat %trunc to float
   ret float %ext
 }
+
 define amdgpu_ps float @v_test_cvt_v2f64_v2bf16_v(<2 x double> %src) {
 ; GCN-LABEL: v_test_cvt_v2f64_v2bf16_v:
 ; GCN:       ; %bb.0:
@@ -128,6 +136,7 @@ define amdgpu_ps float @v_test_cvt_v2f64_v2bf16_v(<2 x double> %src) {
   %cast = bitcast <2 x bfloat> %res to float
   ret float %cast
 }
+
 define amdgpu_ps float @fptrunc_f32_f32_to_v2bf16(float %a, float %b) {
 ; GCN-LABEL: fptrunc_f32_f32_to_v2bf16:
 ; GCN:       ; %bb.0: ; %entry
@@ -155,6 +164,7 @@ entry:
   %ret = bitcast <2 x bfloat> %v2.2 to float
   ret float %ret
 }
+
 define amdgpu_ps float @fptrunc_f32_f32_to_v2bf16_mods(float %a, float %b) {
 ; GCN-LABEL: fptrunc_f32_f32_to_v2bf16_mods:
 ; GCN:       ; %bb.0: ; %entry
@@ -186,6 +196,7 @@ entry:
   %ret = bitcast <2 x bfloat> %v2.2 to float
   ret float %ret
 }
+
 define amdgpu_ps void @fptrunc_f32_to_bf16(float %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f32_to_bf16:
 ; GCN:       ; %bb.0: ; %entry
@@ -205,6 +216,7 @@ entry:
   store bfloat %a.cvt, ptr %out
   ret void
 }
+
 define amdgpu_ps void @fptrunc_f32_to_bf16_abs(float %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f32_to_bf16_abs:
 ; GCN:       ; %bb.0: ; %entry
@@ -226,6 +238,7 @@ entry:
   store bfloat %a.cvt, ptr %out
   ret void
 }
+
 define amdgpu_ps void @fptrunc_f32_to_bf16_neg(float %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f32_to_bf16_neg:
 ; GCN:       ; %bb.0: ; %entry
@@ -247,6 +260,7 @@ entry:
   store bfloat %a.cvt, ptr %out
   ret void
 }
+
 define amdgpu_ps void @fptrunc_f64_to_bf16(double %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f64_to_bf16:
 ; GCN:       ; %bb.0: ; %entry
@@ -276,6 +290,7 @@ entry:
   store bfloat %a.cvt, ptr %out
   ret void
 }
+
 define amdgpu_ps void @fptrunc_f64_to_bf16_neg(double %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f64_to_bf16_neg:
 ; GCN:       ; %bb.0: ; %entry
@@ -307,6 +322,7 @@ entry:
   store bfloat %a.cvt, ptr %out
   ret void
 }
+
 define amdgpu_ps void @fptrunc_f64_to_bf16_abs(double %a, ptr %out) {
 ; GCN-LABEL: fptrunc_f64_to_bf16_abs:
 ; GCN:       ; %bb.0: ; %entry
@@ -341,4 +357,3 @@ entry:
 
 declare float @llvm.fabs.f32(float)
 declare double @llvm.fabs.f64(double)
-

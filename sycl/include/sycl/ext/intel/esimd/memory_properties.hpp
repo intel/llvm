@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/experimental/fpga_utils.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -229,6 +230,38 @@ public:
 template <typename PropertyListT, size_t Alignment>
 using add_alignment_property_t =
     typename add_alignment_property<PropertyListT, Alignment>::type;
+
+// Removes the 'alignment' property from 'PropertyListT' if it is there.
+// Otherwise, keeps the 'PropertyListT' without changes.
+template <typename PropertyListT> struct remove_alignment_property {
+  using type = PropertyListT;
+};
+template <size_t Alignment, typename... LastTs>
+struct remove_alignment_property<
+    properties<std::tuple<alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<std::tuple<LastTs...>>;
+};
+template <typename FirstT, size_t Alignment, typename... LastTs>
+struct remove_alignment_property<properties<
+    std::tuple<FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<std::tuple<FirstT, LastTs...>>;
+};
+template <typename PropertyListT>
+using remove_alignment_property_t =
+    typename remove_alignment_property<PropertyListT>::type;
+
+// Creates and adds a compile-time property 'alignment<Alignment>' to the given
+// property list 'PropertyListT'. If 'alignment' property was already in
+// 'PropertyListT', then it is replaced with a new one - `alignment<Alignment>`.
+template <typename PropertyListT, size_t Alignment>
+struct add_or_replace_alignment_property {
+  using type =
+      add_alignment_property_t<remove_alignment_property_t<PropertyListT>,
+                               Alignment>;
+};
+template <typename PropertyListT, size_t Alignment>
+using add_or_replace_alignment_property_t =
+    typename add_or_replace_alignment_property<PropertyListT, Alignment>::type;
 
 // Creates the type for the list of L1, L2, and alignment properties.
 template <cache_hint L1H, cache_hint L2H, size_t Alignment>

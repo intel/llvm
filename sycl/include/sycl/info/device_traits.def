@@ -190,11 +190,11 @@ __SYCL_PARAM_TRAITS_SPEC(device, usm_restricted_shared_allocations, bool,
                          PI_USM_CROSS_SHARED_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, bool,
                          PI_USM_SYSTEM_SHARED_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,
-                         PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
-// To be dropped (no alternatives)
 __SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string,
                          PI_DEVICE_INFO_OPENCL_C_VERSION)
+// To be dropped (no alternatives)
+__SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,
+                         PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
 // Extensions
 __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                          PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)

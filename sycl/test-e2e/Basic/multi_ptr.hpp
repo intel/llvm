@@ -8,7 +8,8 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/usm_pointers.hpp>
 #include <type_traits>
 
 using namespace sycl;

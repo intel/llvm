@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/device.hpp>
 
 class DeviceTestsFixt {
@@ -32,7 +32,7 @@ protected:
 
 public:
   DeviceTestsFixt()
-      : n_devices{syclcompat::detail::dev_mgr::instance().device_count()},
+      : n_devices{syclcompat::device_count()},
         def_q_{syclcompat::get_default_queue()} {}
 
   unsigned int get_n_devices() { return n_devices; }
@@ -49,4 +49,33 @@ public:
   void SetUp() { dev_.reset(); }
 
   syclcompat::device_ext &get_dev_ext() { return dev_; }
+};
+
+// Helper for counting the output lines of syclcompat::list_devices
+// Used to override std::cout
+class CountingStream : public std::streambuf {
+public:
+  CountingStream(std::streambuf *buf) : buf(buf), line_count(0) {}
+
+  int overflow(int c) override {
+    if (c == '\n') {
+      ++line_count;
+    }
+    return buf->sputc(c);
+  }
+
+  std::streamsize xsputn(const char_type *s, std::streamsize count) override {
+    for (std::streamsize i = 0; i < count; ++i) {
+      if (s[i] == '\n') {
+        ++line_count;
+      }
+    }
+    return buf->sputn(s, count);
+  }
+
+  int get_line_count() const { return line_count; }
+
+private:
+  std::streambuf *buf;
+  int line_count;
 };

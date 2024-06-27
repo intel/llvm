@@ -43,8 +43,9 @@ template <typename... Ts> struct last_intptr_rest_same {
     return (
         (... &&
          (++i == N
-              ? /* last */ is_multi_ptr_v<Ts> &&
-                    has_writeable_addr_space_v<Ts> &&
+              ? /* last */ (
+                    std::is_pointer_v<Ts> ||
+                    (is_multi_ptr_v<Ts> && has_writeable_addr_space_v<Ts>)) &&
                     builtin_same_shape_v<first_type, get_elem_type_t<Ts>> &&
                     !is_swizzle_v<get_elem_type_t<Ts>> &&
                     std::is_same_v<get_elem_type_t<get_elem_type_t<Ts>>,
@@ -195,7 +196,8 @@ BUILTIN_GENF_NATIVE_OPT(TWO_ARGS, powr)
 namespace detail {
 template <typename T0, typename T1>
 inline constexpr bool builtin_ptr_check_v =
-    is_multi_ptr_v<T1> && has_writeable_addr_space_v<T1> &&
+    (std::is_pointer_v<T1> ||
+     (is_multi_ptr_v<T1> && has_writeable_addr_space_v<T1>)) &&
     is_valid_elem_type_v<T1, simplify_if_swizzle_t<T0>>;
 
 template <typename T0, typename T1>
@@ -226,7 +228,6 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
       return address_space_cast<PtrTy::address_space,
                                 get_multi_ptr_decoration_v<PtrTy>>(&(*p)[0]);
     else
-      // Deprecated case of raw ptr/host impl.
       return &(*p)[0];
   }();
 
@@ -284,22 +285,11 @@ using builtin_last_raw_intptr_t =
     change_elements_t<std::conditional_t<is_marray_v<T>, int, int32_t>,
                       simplify_if_swizzle_t<T>> *;
 }
-#define BUILTIN_LAST_RAW_INTPTR(NUM_ARGS, NAME)                                \
-  template <SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TYPENAME_TYPE)>                   \
-  __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have "  \
-                    "been deprecated. Please use multi_ptr.")                  \
-  detail::builtin_enable_math_allow_scalar_t<SYCL_CONCAT(LESS_ONE(NUM_ARGS),   \
-                                                         _TEMPLATE_TYPE)>      \
-  NAME(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE_ARG),                    \
-       detail::builtin_last_raw_intptr_t<T0> p) {                              \
-    return detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p);      \
-  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define BUILTIN_LAST_INTPTR(NUM_ARGS, NAME)                                    \
   BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_scalar_t,        \
-                   builtin_enable_last_intptr_non_scalar_t)                    \
-  BUILTIN_LAST_RAW_INTPTR(NUM_ARGS, NAME)
+                   builtin_enable_last_intptr_non_scalar_t)
 #else
 #define LAST_INT_PTR_DECLARE_SCALAR(NUM_ARGS, NAME, TYPE)                      \
   __SYCL_EXPORT TYPE NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TYPE)(TYPE), \
@@ -321,8 +311,7 @@ using builtin_last_raw_intptr_t =
   }                                                                            \
   } /* namespace detail */                                                     \
   BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_scalar_t,        \
-                   builtin_enable_last_intptr_non_scalar_t)                    \
-  BUILTIN_LAST_RAW_INTPTR(NUM_ARGS, NAME)
+                   builtin_enable_last_intptr_non_scalar_t)
 #endif
 
 BUILTIN_LAST_INTPTR(TWO_ARGS, frexp)
@@ -344,13 +333,6 @@ template <typename T0, typename T1> auto fract_impl(T0 &x, T1 &y) {
 #endif
 BUILTIN_LAST_PTR(TWO_ARGS, fract, builtin_enable_ptr_scalar_t,
                  builtin_enable_ptr_non_scalar_t)
-template <typename T0>
-__SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
-                  "deprecated. Please use multi_ptr.")
-detail::builtin_enable_math_allow_scalar_t<T0> fract(
-    T0 x, detail::simplify_if_swizzle_t<T0> *y) {
-  return detail::fract_impl(x, y);
-}
 
 #ifndef __SYCL_DEVICE_ONLY__
 namespace detail {
@@ -372,13 +354,6 @@ template <typename T0, typename T1> auto modf_impl(T0 &x, T1 &&y) {
 #endif
 BUILTIN_LAST_PTR(TWO_ARGS, modf, builtin_enable_ptr_scalar_t,
                  builtin_enable_ptr_non_scalar_t)
-template <typename T0>
-__SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
-                  "deprecated. Please use multi_ptr.")
-detail::builtin_enable_math_allow_scalar_t<T0> modf(
-    T0 x, detail::simplify_if_swizzle_t<T0> *y) {
-  return detail::modf_impl(x, y);
-}
 
 #undef BUILTIN_LAST_PTR
 
@@ -457,13 +432,6 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
 } // namespace detail
 BUILTIN_LAST_PTR_COMMON(TWO_ARGS, sincos, builtin_enable_ptr_scalar_t,
                         builtin_enable_ptr_non_scalar_t)
-template <typename T0>
-__SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
-                  "deprecated. Please use multi_ptr.")
-detail::builtin_enable_math_allow_scalar_t<T0> sincos(
-    T0 x, detail::simplify_if_swizzle_t<T0> *y) {
-  return detail::sincos_impl(x, y);
-}
 
 #undef BUILTIN_LAST_PTR_COMMON
 #undef LAST_PTR_SCALAR
@@ -544,11 +512,5 @@ template <typename T> detail::builtin_enable_nan_t<T> nan(T x) {
 }
 #endif
 
-template <typename T>
-__SYCL_DEPRECATED("abs for floating point types is non-standard and has been "
-                  "deprecated. Please use fabs instead.")
-detail::builtin_enable_math_allow_scalar_t<T> abs(T x) {
-  return fabs(x);
-}
 } // namespace _V1
 } // namespace sycl

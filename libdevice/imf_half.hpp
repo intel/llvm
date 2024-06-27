@@ -17,7 +17,7 @@
 #include <type_traits>
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 typedef _Float16 _iml_half_internal;
 #else
 typedef uint16_t _iml_half_internal;
@@ -426,7 +426,7 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
 static inline _iml_half_internal __float2half(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __iml_fp2half<float>(x, __IML_RTE);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_FConvert_Rhalf_rte(x);
 #endif
 }
@@ -469,7 +469,7 @@ static inline float __half2float(_iml_half_internal x) {
   fp32_bits |= (exp32 << 23);
   fp32_bits |= frac32;
   return __builtin_bit_cast(float, fp32_bits);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_FConvert_Rfloat_rte(x);
 #endif
 }
@@ -492,7 +492,7 @@ public:
     return _half_internal == rh._half_internal;
   }
   bool operator!=(const _iml_half &rh) { return !operator==(rh); }
-#if (__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   _iml_half &operator+=(const _iml_half &rh) {
     _half_internal += rh._half_internal;
     return *this;

@@ -38,7 +38,7 @@ using GetAnnotatedHostPtrProperties =
 //  returned annotated_ptr of "aligned_alloc_annotated"
 ////
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -46,13 +46,13 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const context &syclContext,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   auto tmp = aligned_alloc_annotated(alignment, numBytes, {}, syclContext,
                                      sycl::usm::alloc::host, propList);
   return annotated_ptr<void, propertyListB>(tmp.get());
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -60,13 +60,13 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t count,
                              const context &syclContext,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   auto tmp = aligned_alloc_annotated<T>(alignment, count, {}, syclContext,
                                         sycl::usm::alloc::host, propList);
   return annotated_ptr<T, propertyListB>(tmp.get());
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -74,12 +74,12 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const queue &syclQueue,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated(alignment, numBytes,
                                       syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -87,7 +87,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t count,
                              const queue &syclQueue,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated<T>(alignment, count,
                                          syclQueue.get_context(), propList);
 }
@@ -99,47 +99,47 @@ aligned_alloc_host_annotated(size_t alignment, size_t count,
 //  with alignment 0
 ////
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckHostPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_host_annotated(size_t numBytes, const context &syclContext,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated(0, numBytes, syclContext, propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckHostPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const context &syclContext,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated<T>(0, count, syclContext, propList);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckHostPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_host_annotated(size_t numBytes, const queue &syclQueue,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return malloc_host_annotated(numBytes, syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedHostPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckHostPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const queue &syclQueue,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return malloc_host_annotated<T>(count, syclQueue.get_context(), propList);
 }
 

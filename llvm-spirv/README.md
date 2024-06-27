@@ -203,7 +203,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, and `1.4`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, and `1.5`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)

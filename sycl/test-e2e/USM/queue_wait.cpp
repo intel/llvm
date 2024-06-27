@@ -36,13 +36,13 @@ int main() {
     Q.memset(nullptr, 42, Size);
     Q.wait_and_throw();
     assert(false && "Expected to have an exception throw instead of assert");
-  } catch (runtime_error e) {
+  } catch (exception e) {
   }
   try {
     Q.memcpy(nullptr, DevArr, Size);
     Q.wait_and_throw();
     assert(false && "Expected to have an exception throw instead of assert");
-  } catch (runtime_error e) {
+  } catch (exception e) {
   }
 
   Q.memset(nullptr, 42, 0);

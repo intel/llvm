@@ -10,16 +10,8 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-#define __CLC_XOR ^
+#define __CLC_OP ^
+#define __SPIRV_BUILTIN _Z17__spirv_AtomicXor
+#define __HIP_BUILTIN __hip_atomic_fetch_xor
 
-AMDGPU_CAS_ATOMIC(_Z17__spirv_AtomicXor, int, i, __CLC_XOR)
-AMDGPU_CAS_ATOMIC(_Z17__spirv_AtomicXor, unsigned int, j, __CLC_XOR)
-AMDGPU_CAS_ATOMIC(_Z17__spirv_AtomicXor, long, l, __CLC_XOR)
-AMDGPU_CAS_ATOMIC(_Z17__spirv_AtomicXor, unsigned long, m, __CLC_XOR)
-
-#undef __CLC_XOR
-#undef AMDGPU_ATOMIC
-#undef AMDGPU_ATOMIC_IMPL
-#undef AMDGPU_ARCH_GEQ
-#undef AMDGPU_ARCH_BETWEEN
-#undef GET_ATOMIC_SCOPE_AND_ORDER
+#include "atomic_safe.def"

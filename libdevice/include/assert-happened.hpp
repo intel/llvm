@@ -10,7 +10,7 @@
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 // NOTE Layout of this structure should be aligned with the one in
 // sycl/include/sycl/detail/assert_happened.hpp

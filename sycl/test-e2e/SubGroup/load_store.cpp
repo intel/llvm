@@ -10,7 +10,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <sycl/sycl.hpp>
 
 #include <algorithm>
 

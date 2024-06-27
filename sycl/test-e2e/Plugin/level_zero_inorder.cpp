@@ -12,10 +12,12 @@
 // batching. IMPORTANT NOTE: this is a critical test, double-check if your
 // changes are related to L0 events and links between commands.
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
 #include <numeric>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 static constexpr int MAGIC_NUM1 = 2;
 static constexpr int buffer_size = 100;

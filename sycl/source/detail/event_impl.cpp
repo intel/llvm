@@ -167,15 +167,11 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue) {
+event_impl::event_impl(const QueueImplPtr &Queue)
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
-  this->associateWithQueue(Queue);
-}
-
-void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
-  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
     if (Queue->has_property<property::queue::enable_profiling>()) {
@@ -248,7 +244,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
 
-  if (MGraph.lock()) {
+  if (!MGraph.expired()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for an event associated "
                           "with a command graph.");
@@ -290,7 +286,7 @@ void event_impl::checkProfilingPreconditions() const {
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
   }
-  if (!MIsProfilingEnabled) {
+  if (!MIsProfilingEnabled && !MProfilingTagEvent) {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
@@ -302,6 +298,12 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  if (isProfilingTagEvent()) {
+    // For profiling tag events we rely on the submission time reported as
+    // the start time has undefined behavior.
+    return get_event_profiling_info<info::event_profiling::command_submit>(
+        this->getHandleRef(), this->getPlugin());
+  }
 
   // The delay between the submission and the actual start of a CommandBuffer
   // can be short. Consequently, the submission time, which is based on
@@ -331,11 +333,6 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
-
-  // For nop command start time is equal to submission time.
-  if (isNOP() && MSubmitTime)
-    return MSubmitTime;
-
   if (!MHostEvent) {
     if (MEvent) {
       auto StartTime =
@@ -363,11 +360,6 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
-
-  // For nop command end time is equal to submission time.
-  if (isNOP() && MSubmitTime)
-    return MSubmitTime;
-
   if (!MHostEvent) {
     if (MEvent) {
       auto EndTime =
@@ -419,6 +411,61 @@ event_impl::get_info<info::event::command_execution_status>() {
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
+}
+
+template <>
+typename info::platform::version::return_type
+event_impl::get_backend_info<info::platform::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    return Queue->getDeviceImplPtr()
+        ->get_platform()
+        .get_info<info::platform::version>();
+  }
+  return ""; // If the queue has been released, no platform will be associated
+             // so return empty string
+}
+
+template <>
+typename info::device::version::return_type
+event_impl::get_backend_info<info::device::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+  }
+  return ""; // If the queue has been released, no device will be associated so
+             // return empty string
+}
+
+template <>
+typename info::device::backend_version::return_type
+event_impl::get_backend_info<info::device::backend_version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
 }
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
@@ -503,7 +550,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled)
+  if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {

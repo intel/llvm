@@ -78,13 +78,12 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
                                   buffer<int, 1> &Buf,
                                   detail::Requirement &MockReq) {
   bool CommandDeleted = false;
-  std::vector<detail::Command *> AuxCmds;
   std::vector<detail::Command *> ToCleanUp;
   std::vector<detail::Command *> ToEnqueue;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq, AuxCmds);
+      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq);
   detail::AllocaCommandBase *AllocaCmd =
-      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, AuxCmds);
+      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
   std::function<void()> Callback = [&CommandDeleted]() {
     CommandDeleted = true;
   };
@@ -176,13 +175,12 @@ static void checkCleanupOnLeafUpdate(
     detail::Requirement &MockReq,
     std::function<void(detail::MemObjRecord *)> SchedulerCall) {
   bool CommandDeleted = false;
-  std::vector<detail::Command *> AuxCmds;
   std::vector<detail::Command *> ToCleanUp;
   std::vector<detail::Command *> ToEnqueue;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq, AuxCmds);
+      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq);
   detail::AllocaCommandBase *AllocaCmd =
-      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, AuxCmds);
+      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
   std::function<void()> Callback = [&CommandDeleted]() {
     CommandDeleted = true;
   };
@@ -405,8 +403,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     auto BufPtr = std::make_shared<buffer<char, 1>>(
         MockAuxResourcePtr->getDataPtr(), range<1>{1});
     detail::Requirement MockReq = getMockRequirement(*BufPtr);
-    std::vector<detail::Command *> AuxCmds;
-    MSPtr->getOrInsertMemObjRecord(QueueImplPtr, &MockReq, AuxCmds);
+    MSPtr->getOrInsertMemObjRecord(QueueImplPtr, &MockReq);
     MockCGH.use_kernel_bundle(ExecBundle);
     MockCGH.addReduction(std::move(MockAuxResourcePtr));
     MockCGH.addReduction(std::move(BufPtr));

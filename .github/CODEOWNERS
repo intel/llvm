@@ -47,6 +47,12 @@ sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
+# Transform Dialect in MLIR.
+/mlir/include/mlir/Dialect/Transform/* @ftynse @nicolasvasilache
+/mlir/lib/Dialect/Transform/* @ftynse @nicolasvasilache
+/mlir/**/*TransformOps* @ftynse @nicolasvasilache
+
+
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
 
@@ -120,6 +126,7 @@ sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 sycl/include/sycl/ext/oneapi/matrix/ @intel/sycl-matrix-reviewers
 sycl/test-e2e/Matrix @intel/sycl-matrix-reviewers
 sycl/test/matrix @intel/sycl-matrix-reviewers
+sycl/test/check_device_code/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
@@ -158,3 +165,15 @@ sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
+
+# Sanitizer
+clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review
+libdevice/sanitizer_utils.cpp @intel/dpcpp-sanitizers-review
+libdevice/include/asan_libdevice.hpp @intel/dpcpp-sanitizers-review
+libdevice/include/sanitizer_utils.hpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
+sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-sanitizers-review

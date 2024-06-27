@@ -540,6 +540,14 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
     return;
   }
 
+  // Don't touch sanitized functions. The "__asan_launch" argument needs to be
+  // present at all times, even if it's not used.
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      F.hasFnAttribute(Attribute::SanitizeAddress)) {
+    markLive(F);
+    return;
+  }
+
   unsigned RetCount = numRetVals(&F);
 
   // Assume all return values are dead

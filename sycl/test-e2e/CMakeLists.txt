@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20.0)
 
 message("Configuring SYCL End-to-End Tests")
+
+option(SYCL_E2E_LIT_ALLOW_UNKNOWN_ARCH
+  "Allow unknown architectures when configuring e2e tests" Off)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(sycl-e2e-test-suite CXX)
@@ -28,7 +31,7 @@ find_package(Vulkan)
 
 if(NOT LLVM_LIT)
   find_program(LLVM_LIT
-               NAMES llvm-lit lit.py lit
+               NAMES llvm-lit.py llvm-lit lit.py lit
                PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
                DOC "Path to lit.py")
 endif()

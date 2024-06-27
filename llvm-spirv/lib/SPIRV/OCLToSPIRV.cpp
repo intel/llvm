@@ -340,6 +340,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     visitCallDot(&CI, MangledName, DemangledName);
     return;
   }
+  if (DemangledName.starts_with(kOCLBuiltinName::ClockReadPrefix)) {
+    visitCallClockRead(&CI, MangledName, DemangledName);
+    return;
+  }
   if (DemangledName == kOCLBuiltinName::FMin ||
       DemangledName == kOCLBuiltinName::FMax ||
       DemangledName == kOCLBuiltinName::Min ||
@@ -497,7 +501,8 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
 }
 
 void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
-  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
+  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0),
+                           CI->getIterator());
   ST->takeName(CI);
   CI->dropAllReferences();
   CI->eraseFromParent();
@@ -513,11 +518,11 @@ void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   auto *Zero = Constant::getNullValue(Args[0]->getType());
 
   auto *Cmp = CmpInst::Create(CmpInst::ICmp, CmpInst::ICMP_SLT, Args[0], Zero,
-                              "cast", CI);
+                              "cast", CI->getIterator());
 
   if (!isa<VectorType>(ArgTy)) {
-    auto *Cast = CastInst::CreateZExtOrBitCast(Cmp, Type::getInt32Ty(*Ctx), "",
-                                               Cmp->getNextNode());
+    auto *Cast = CastInst::CreateZExtOrBitCast(
+        Cmp, Type::getInt32Ty(*Ctx), "", Cmp->getNextNode()->getIterator());
     CI->replaceAllUsesWith(Cast);
     CI->eraseFromParent();
   } else {
@@ -742,56 +747,26 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
-  auto TargetSigned = DemangledName[8] != 'u';
 
-  std::string TargetTyName(
-      DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
-  auto FirstUnderscoreLoc = TargetTyName.find('_');
-  if (FirstUnderscoreLoc != std::string::npos)
-    TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
-
-  // Validate target type name
-  std::regex Expr("([a-z]+)([0-9]*)$");
+  // Validate conversion function name and vector size if present
+  std::regex Expr(
+      "convert_(float|double|half|u?char|u?short|u?int|u?long)(2|3|4|8|16)*"
+      "(_sat)*(_rt[ezpn])*$");
   std::smatch DestTyMatch;
-  if (!std::regex_match(TargetTyName, DestTyMatch, Expr))
+  std::string ConversionFunc(DemangledName.str());
+  if (!std::regex_match(ConversionFunc, DestTyMatch, Expr))
     return;
 
   // The first sub_match is the whole string; the next
-  // sub_match is the first parenthesized expression.
-  std::string DestTy = DestTyMatch[1].str();
+  // sub_matches are the parenthesized expressions.
+  enum { TypeIdx = 1, VecSizeIdx = 2, SatIdx = 3, RoundingIdx = 4 };
+  std::string DestTy = DestTyMatch[TypeIdx].str();
+  std::string VecSize = DestTyMatch[VecSizeIdx].str();
+  std::string Sat = DestTyMatch[SatIdx].str();
+  std::string Rounding = DestTyMatch[RoundingIdx].str();
 
-  // check it's valid type name
-  static std::unordered_set<std::string> ValidTypes = {
-      "float",  "double", "half", "char", "uchar", "short",
-      "ushort", "int",    "uint", "long", "ulong"};
+  bool TargetSigned = DestTy[0] != 'u';
 
-  if (ValidTypes.find(DestTy) == ValidTypes.end())
-    return;
-
-  // check that it's allowed vector size
-  std::string VecSize = DestTyMatch[2].str();
-  if (!VecSize.empty()) {
-    int Size = stoi(VecSize);
-    switch (Size) {
-    case 2:
-    case 3:
-    case 4:
-    case 8:
-    case 16:
-      break;
-    default:
-      return;
-    }
-  }
-  DemangledName = DemangledName.drop_front(
-      strlen(kOCLBuiltinName::ConvertPrefix) + TargetTyName.size());
-  TargetTyName = std::string("_R") + TargetTyName;
-
-  if (!DemangledName.empty() && !DemangledName.starts_with("_sat") &&
-      !DemangledName.starts_with("_rt"))
-    return;
-
-  std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
@@ -808,13 +783,13 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     } else
       OC = OpFConvert;
   }
-  auto Loc = DemangledName.find("_rt");
-  std::string Rounding;
-  if (Loc != StringRef::npos && !(isa<IntegerType>(SrcTy) && IsTargetInt)) {
-    Rounding = DemangledName.substr(Loc, 4).str();
-  }
+
+  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
+    return;
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  mutateCallInst(CI, getSPIRVFuncName(OC, TargetTyName + Sat + Rounding));
+  mutateCallInst(
+      CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
 }
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
@@ -968,7 +943,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Mutator.changeReturnType(
         Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
-            return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
+            return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
           return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });
@@ -1068,13 +1043,15 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
                                  getInt32(M, 3)};
             return new ShuffleVectorInst(NCI, ZeroVec,
-                                         ConstantVector::get(Index), "", CI);
+                                         ConstantVector::get(Index), "",
+                                         CI->getIterator());
 
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
             return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
-                                         Mask, NCI->getName(), CI);
+                                         Mask, NCI->getName(),
+                                         CI->getIterator());
           }
           return NCI;
         }
@@ -1084,7 +1061,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                          .Case(kOCLBuiltinName::GetImageDepth, 2)
                          .Case(kOCLBuiltinName::GetImageArraySize, Dim - 1);
         return ExtractElementInst::Create(NCI, getUInt32(M, I), "",
-                                          NCI->getNextNode());
+                                          NCI->getNextNode()->getIterator());
       });
 }
 
@@ -1351,6 +1328,23 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
   }
 }
 
+void OCLToSPIRVBase::visitCallClockRead(CallInst *CI, StringRef MangledName,
+                                        StringRef DemangledName) {
+  // The builtin returns i64 or <2 x i32>, but both variants are mapped to the
+  // same instruction; hence include the return type.
+  std::string OpName = getSPIRVFuncName(OpReadClockKHR, CI->getType());
+
+  // Scope is part of the OpenCL builtin name.
+  Scope ScopeArg = StringSwitch<Scope>(DemangledName)
+                       .EndsWith("device", ScopeDevice)
+                       .EndsWith("work_group", ScopeWorkgroup)
+                       .EndsWith("sub_group", ScopeSubgroup)
+                       .Default(ScopeMax);
+
+  auto Mutator = mutateCallInst(CI, OpName);
+  Mutator.appendArg(getInt32(M, ScopeArg));
+}
+
 void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
                                         StringRef DemangledName) {
   // Check if all arguments have the same type - it's simple case.
@@ -1399,11 +1393,12 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
                               getExtOp(MangledName, DemangledName)));
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
-      Instruction *Inst = InsertElementInst::Create(UndefValue::get(VecTy), V,
-                                                    getInt32(M, 0), "", CI);
+      Instruction *Inst = InsertElementInst::Create(
+          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
           Inst, UndefValue::get(VecTy),
-          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+          CI->getIterator());
     });
 }
 
@@ -1516,7 +1511,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
           LocalSizeArray->getSourceElementType(), // Pointee type
           LocalSizeArray->getPointerOperand(),    // Alloca
           {getInt32(M, 0), getInt32(M, I)},       // Indices
-          "", CI));
+          "", CI->getIterator()));
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
@@ -1525,7 +1520,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);
-  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI);
+  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI->getIterator());
   NewCall->setCallingConv(NewF->getCallingConv());
   CI->replaceAllUsesWith(NewCall);
   CI->eraseFromParent();

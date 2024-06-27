@@ -59,6 +59,14 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spirv32-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spirv64-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spirv32 -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
+// RUN:   %clang -### -fsycl-targets=spirv64 -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
 /// ###########################################################################
@@ -90,9 +98,13 @@
 
 /// Check -Xsycl-target-frontend= accepts triple aliases
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
-// RUN:   | FileCheck -DARCH=spir64 -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
-// CHK-UNUSED-ARG-WARNING-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
-// CHK-TARGET: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-unknown-unknown"{{.*}} "-D" "FOO"
+// RUN:   | FileCheck -DARCH1=spir64 -check-prefixes=CHK-UNUSED-ARG-WARNING-1,CHK-TARGET-1 %s
+// CHK-UNUSED-ARG-WARNING-1-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
+// CHK-TARGET-1: clang{{.*}} "-cc1" "-triple" "[[ARCH1]]-unknown-unknown"{{.*}} "-D" "FOO"
+// RUN:   %clang -### -fsycl -fsycl-targets=spirv64 -Xsycl-target-frontend=spirv64 -DFOO %s 2>&1 \
+// RUN:   | FileCheck -DARCH2=spirv64 -check-prefixes=CHK-UNUSED-ARG-WARNING-2,CHK-TARGET-2 %s
+// CHK-UNUSED-ARG-WARNING-2-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
+// CHK-TARGET-2: clang{{.*}} "-cc1" "-triple" "[[ARCH2]]-unknown-unknown"{{.*}} "-D" "FOO"
 
 /// ###########################################################################
 
@@ -132,6 +144,37 @@
 // CHK-PHASES: 15: clang-offload-wrapper, {14}, object, (device-sycl)
 // CHK-PHASES: 16: offload, "device-sycl (spir64-unknown-unknown)" {15}, object
 // CHK-PHASES: 17: linker, {9, 16}, image, (host-sycl)
+
+/// ###########################################################################
+
+/// Check the phases graph when using a single target, different from the host.
+/// We should have an offload action joining the host compile and device
+/// preprocessor and another one joining the device linking outputs to the host
+/// action.  The same graph should be generated when no -fsycl-targets is used
+/// The same phase graph will be used with -fsycl-device-obj=llvmir
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES-2,CHK-PHASES-DEFAULT-MODE-2 %s
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES-2,CHK-PHASES-CL-MODE-2 %s
+// CHK-PHASES-2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES-2: 1: append-footer, {0}, c++, (host-sycl)
+// CHK-PHASES-2: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-2: 3: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASES-2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// CHK-PHASES-2: 5: compiler, {4}, ir, (device-sycl)
+// CHK-PHASES-DEFAULT-MODE-2: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spirv64-unknown-unknown)" {5}, c++-cpp-output
+// CHK-PHASES-CL-MODE-2: 6: offload, "host-sycl (x86_64-pc-windows-msvc)" {2}, "device-sycl (spirv64-unknown-unknown)" {5}, c++-cpp-output
+// CHK-PHASES-2: 7: compiler, {6}, ir, (host-sycl)
+// CHK-PHASES-2: 8: backend, {7}, assembler, (host-sycl)
+// CHK-PHASES-2: 9: assembler, {8}, object, (host-sycl)
+// CHK-PHASES-2: 10: linker, {5}, ir, (device-sycl)
+// CHK-PHASES-2: 11: sycl-post-link, {10}, tempfiletable, (device-sycl)
+// CHK-PHASES-2: 12: file-table-tform, {11}, tempfilelist, (device-sycl)
+// CHK-PHASES-2: 13: llvm-spirv, {12}, tempfilelist, (device-sycl)
+// CHK-PHASES-2: 14: file-table-tform, {11, 13}, tempfiletable, (device-sycl)
+// CHK-PHASES-2: 15: clang-offload-wrapper, {14}, object, (device-sycl)
+// CHK-PHASES-2: 16: offload, "device-sycl (spirv64-unknown-unknown)" {15}, object
+// CHK-PHASES-2: 17: linker, {9, 16}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -443,7 +486,7 @@
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
 // CHECK-LINK-SYCL-CL: "--dependent-lib=sycl{{[0-9]*}}"
-// CHECK-LINK-SYCL-CL: "-defaultlib:sycl{{[0-9]*}}.lib"
+// CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 // CHECK-LINK-SYCL: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check no SYCL runtime is linked with -nolibsycl
@@ -794,16 +837,3 @@
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
-
-
-/// Check that at link step of "clang-cl -fsycl" we pull in sycl.lib even if at the compilation step sycl libraries were not provided (this is possible if user compiles manually without -fsycl by provided paths to the headers).
-// RUN: %clang_cl -### -fsycl -nolibsycl -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck -check-prefix FSYCL-CL-COMPILE-NOLIBS-CHECK %s
-// RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck -check-prefix FSYCL-CL-LINK-CHECK %s
-// FSYCL-CL-COMPILE-NOLIBS-CHECK-NOT: "--dependent-lib=sycl{{[0-9]*}}"
-// FSYCL-CL-LINK-CHECK: "-defaultlib:sycl{{[0-9]*}}.lib"
-
-/// Check that at link step of "clang-cl -fsycl /MDd" we pull in sycld.lib even if at the compilation step sycl libraries were not provided (this is possible if user compiles manually without -fsycl by provided paths to the headers).
-// RUN: %clang_cl -### -fsycl -nolibsycl /MDd -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck -check-prefix FSYCL-CL-COMPILE-NOLIBS-MDd-CHECK %s
-// RUN: %clang_cl -### -fsycl /MDd %s 2>&1 | FileCheck -check-prefix FSYCL-CL-LINK--MDd-CHECK %s
-// FSYCL-CL-COMPILE-NOLIBS-MDd-CHECK-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
-// FSYCL-CL-LINK--MDd-CHECK: "-defaultlib:sycl{{[0-9]*}}d.lib"

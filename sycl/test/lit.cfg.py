@@ -5,7 +5,6 @@ import platform
 import re
 import subprocess
 import tempfile
-from distutils.spawn import find_executable
 
 import lit.formats
 import lit.util
@@ -144,20 +143,20 @@ config.substitutions.append(("%sycl_triple", triple))
 
 additional_flags = config.sycl_clang_extra_flags.split(" ")
 
-if config.cuda_be == "ON":
-    config.available_features.add("cuda_be")
+if config.cuda == "ON":
+    config.available_features.add("cuda")
 
-if config.hip_be == "ON":
-    config.available_features.add("hip_be")
+if config.hip == "ON":
+    config.available_features.add("hip")
 
-if config.opencl_be == "ON":
-    config.available_features.add("opencl_be")
+if config.opencl == "ON":
+    config.available_features.add("opencl")
 
-if config.level_zero_be == "ON":
-    config.available_features.add("level_zero_be")
+if config.level_zero == "ON":
+    config.available_features.add("level_zero")
 
-if config.native_cpu_be == "ON":
-    config.available_features.add("native_cpu_be")
+if config.native_cpu == "ON":
+    config.available_features.add("native_cpu")
 
 if config.native_cpu_ock == "ON":
     config.available_features.add("native_cpu_ock")
@@ -177,6 +176,14 @@ if "amdgcn-amd-amdhsa" in triple:
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
             "--offload-arch=gfx906",
         ]
+
+config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
+if config.sycl_headers_filter is not None:
+    lit_config.note(
+        "SYCL_HEADERS_FILTER param is set to '{}', it will impact amount of tests discovered within self-contained-headers sub-suite".format(
+            config.sycl_headers_filter
+        )
+    )
 
 # Dump-only tests do not have clang available
 if not dump_only_tests:
