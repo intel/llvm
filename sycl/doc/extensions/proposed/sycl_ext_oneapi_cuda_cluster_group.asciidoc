@@ -194,10 +194,12 @@ class, via a method to be introduced called `ext_oneapi_cuda_get_cluster_group()
 
 [%header,cols="10,5"]
 |===
+|Method
+|Description
 
-|`cluster_group<Dimensions> nd_item::ext_oneapi_cuda_get_cluster_group()`
+|`cluster_group<Dim> nd_item::ext_oneapi_cuda_get_cluster_group()`
 |Returns the constituent `cluster_group` in the kernel, representing this
-`cluster_group`'s overall position in the `nd_range`
+`cluster_group` 's overall position in the `nd_range`
 |===
 
 
@@ -251,19 +253,19 @@ the various ids of the work-item and work-groups.
 |`id_type get_group_id() const`
 |Returns the id of the calling work-group along each dimension within the cluster
 
-|id_type get_local_id() const;
+|`id_type get_local_id() const`;
 |Returns the id of calling work-item along each dimension within the cluster
 
-|range_type get_local_range() const;
+|`range_type get_local_range() const`;
 |Returns the number of work-items along each dimension within the cluster.
 
-|linear_id_type get_local_linear_range() const;
+|`linear_id_type get_local_linear_range() const`;
 |Returns a linearized version of the `range_type` returned by  `get_local_range`
 
-|linear_id_type get_group_linear_range() const;
+|`linear_id_type get_group_linear_range() const`;
 |Returns a linearized version of the `range_type` returned by  `get_group_range`
 
-|bool leader() const;
+|`bool leader() const`;
 |Returns true for exactly one work-item in the cluster, if the calling work-item
 is the leader of the cluster group. The leader is guaranteed to be the work-item
 for which `get_local_linear_id` return 0.
@@ -278,6 +280,8 @@ new member functions the `nd_item` class, namely
 
 [%header,cols="10,5"]
 |===
+|Method
+|Description
 
 |`range<Dim> nd_item::ext_oneapi_cuda_get_cluster_range() const`
 |Returns the total number of clusters across each dimension.
@@ -307,6 +311,8 @@ which can then be dereferenced by the calling work-item.
 
 [%header,cols="10,5"]
 |===
+|Method
+|Description
 
 |T*  map_cluster_local_pointer(T* addr, size_t group_id)
 |Accepts the equivalent address to the memory location relative to the calling 
