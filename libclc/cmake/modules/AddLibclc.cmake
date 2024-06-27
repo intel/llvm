@@ -217,16 +217,16 @@ endfunction(add_libclc_alias alias target)
 # runs opt and prepare-builtins on a bitcode file specified by lib_tgt
 #   LIB_TGT string
 #     Target name that becomes dependent on the out file named LIB_TGT.bc
-#   LINK_LIB string
-#     Target name of the linked libraries
+#   IN_FILE string
+#     Target name of the input bytecode file
 #   OUT_DIR string
 #     Name of the directory where the output should be placed
 function(opt_prepare out_file)
-  cmake_parse_arguments(OPT  "" "LIB_TGT;LINK_LIB;OUT_DIR" "" ${ARGN})
+  cmake_parse_arguments(OPT  "" "LIB_TGT;IN_FILE;OUT_DIR" "" ${ARGN})
   add_custom_command( OUTPUT ${OPT_LIB_TGT}.bc
     COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${OPT_LIB_TGT}.bc
-    ${OPT_LINK_LIB}
-    DEPENDS libclc::opt ${OPT_LINK_LIB}
+    ${OPT_IN_FILE}
+    DEPENDS libclc::opt ${OPT_IN_FILE}
   )
   add_custom_target( ${OPT_LIB_TGT}
     ALL DEPENDS ${OPT_LIB_TGT}.bc
@@ -330,7 +330,7 @@ macro(add_libclc_builtin_set arch_suffix)
 
   set( builtins_opt_lib_tgt builtins.opt.${arch_suffix} )
 
-  opt_prepare(${arch_suffix}.bc LIB_TGT ${builtins_opt_lib_tgt} LINK_LIB
+  opt_prepare(${arch_suffix}.bc LIB_TGT ${builtins_opt_lib_tgt} IN_FILE
     ${builtins_link_lib} OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
 
   # Add dependency to top-level pseudo target to ease making other

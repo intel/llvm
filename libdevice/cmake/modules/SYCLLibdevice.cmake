@@ -143,17 +143,17 @@ function(append_to_property arg)
   set_property(GLOBAL PROPERTY BC_DEVICE_LIBS_${BC_TGT} ${BC_DEVICE_LIBS})
 endfunction()
 
+set(compile_opts_CUDA "-fsycl-targets=nvptx64-nvidia-cuda")
+set(compile_opts_AMD "-Xsycl-target-backend=amdgcn-amd-amdhsa"
+                      "--offload-arch=gfx940")
+
 function(add_devicelib_bc bc_filename)
-  cmake_parse_arguments(BC  "CUDA;AMD" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  cmake_parse_arguments(BC  "" "" "ARCH;SRC;DEP;EXTRA_ARGS" ${ARGN})
   list(APPEND compile_opts "-fsycl-device-only" "-fsycl-device-obj=llvmir")
 
-  if(${BC_CUDA})
-    list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
-    set (bc_filename ${bc_filename}--CUDA)
-  elseif(${BC_AMD})
-    list(APPEND compile_opts "-Xsycl-target-backend=amdgcn-amd-amdhsa"
-      "--offload-arch=gfx940")
-    set (bc_filename ${bc_filename}--AMD)
+  if (NOT ${BC_ARCH} STREQUAL "")
+    set(bc_filename ${bc_filename}--${BC_ARCH})
+    list(APPEND compile_opts ${compile_opts_${BC_ARCH}})
   endif()
 
   set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
@@ -175,11 +175,7 @@ function(add_devicelib_bc bc_filename)
           DESTINATION ${install_dest_bc}
           COMPONENT libsycldevice)
 
-   if(${BC_CUDA})
-     append_to_property(${devicelib-bc-file} TGT CUDA)
-   elseif(${BC_AMD})
-     append_to_property(${devicelib-bc-file} TGT AMD)
-  endif()
+  append_to_property(${devicelib-bc-file} TGT ${BC_ARCH})
 endfunction()
 
 function(add_devicelib filename)
@@ -189,7 +185,7 @@ function(add_devicelib filename)
   add_devicelib_bc(${filename} dummy SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   foreach(arch IN LISTS devicelib_arch)
-    add_devicelib_bc(${filename} ${arch} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+    add_devicelib_bc(${filename} ARCH ${arch} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   endforeach()
 endfunction()
 
@@ -410,40 +406,6 @@ foreach(arch IN LISTS devicelib_arch)
   endforeach()
 endforeach()
 
-
-# Add opt target
-function(add_opt_tgt)
-  cmake_parse_arguments(OPT  "" "ARCH" "" ${ARGN})
-  add_custom_command( OUTPUT ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
-    COMMAND ${llvm-opt} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
-    ${builtins_link_lib_${OPT_ARCH}}
-    DEPENDS ${llvm-opt} ${builtins_link_lib_${OPT_ARCH}}
-       )
-
-     add_custom_target( ${builtins_opt_lib_tgt_${OPT_ARCH}}
-       ALL DEPENDS ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
-       )
-     set_target_properties( ${builtins_opt_lib_tgt_${OPT_ARCH}}
-       PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt_${OPT_ARCH}}.bc
-       )
-set( builtins_opt_lib_${OPT_ARCH} $<TARGET_PROPERTY:${builtins_opt_lib_tgt_${OPT_ARCH}},TARGET_FILE> )
-
-# Add prepare target
-set(obj_suffix devicelib--${OPT_ARCH}.bc)
-    add_custom_command( OUTPUT ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_LIBRARY_OUTPUT_INTDIR}
-      COMMAND prepare_builtins -o ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      ${builtins_opt_lib_${OPT_ARCH}}
-      DEPENDS ${builtins_opt_lib_${OPT_ARCH}} prepare_builtins )
-    add_custom_target( prepare-${obj_suffix} ALL
-      DEPENDS ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    )
-    set_target_properties( prepare-${obj_suffix}
-      PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    )
-    add_dependencies(libsycldevice-bc prepare-${obj_suffix})
-endfunction()
-
 foreach(arch IN LISTS devicelib_arch)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
   link_bc(TARGET device_lib_device_${arch} INPUTS ${BC_DEVICE_LIBS_${arch}})
@@ -451,7 +413,7 @@ foreach(arch IN LISTS devicelib_arch)
   add_dependencies(libsycldevice-bc device_lib_device_${arch})
   set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
 
-  opt_prepare(devicelib--${arch}.bc LIB_TGT builtins_${arch}.opt LINK_LIB
+  opt_prepare(devicelib--${arch}.bc LIB_TGT builtins_${arch}.opt IN_FILE
     ${builtins_link_lib_${arch}} OUT_DIR ${bc_binary_dir})
   add_dependencies(libsycldevice-bc prepare-devicelib--${arch}.bc)
 endforeach()
