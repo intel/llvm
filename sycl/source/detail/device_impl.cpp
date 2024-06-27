@@ -394,6 +394,8 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_host_allocations>();
   case aspect::ext_intel_mem_channel:
     return get_info<info::device::ext_intel_mem_channel>();
+  case aspect::ext_oneapi_cuda_cluster_group:
+    return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
     return is_host() ||
            (get_device_info_impl<pi_usm_capabilities,
