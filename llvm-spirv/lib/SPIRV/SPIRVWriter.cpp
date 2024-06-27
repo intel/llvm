@@ -6567,18 +6567,13 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
   }
-  case OpIAddCarry: {
+  case OpIAddCarry:
+  case OpISubBorrow:
+  case OpUMulExtended:
+  case OpSMulExtended: {
     Function *F = CI->getCalledFunction();
     StructType *St = cast<StructType>(F->getParamStructRetType(0));
-    SPIRVValue *V = BM->addBinaryInst(OpIAddCarry, transType(St),
-                                      transValue(CI->getArgOperand(1), BB),
-                                      transValue(CI->getArgOperand(2), BB), BB);
-    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
-  }
-  case OpISubBorrow: {
-    Function *F = CI->getCalledFunction();
-    StructType *St = cast<StructType>(F->getParamStructRetType(0));
-    SPIRVValue *V = BM->addBinaryInst(OpISubBorrow, transType(St),
+    SPIRVValue *V = BM->addBinaryInst(OC, transType(St),
                                       transValue(CI->getArgOperand(1), BB),
                                       transValue(CI->getArgOperand(2), BB), BB);
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
