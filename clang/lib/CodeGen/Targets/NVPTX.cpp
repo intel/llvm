@@ -8,6 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
+#include "clang/Basic/Cuda.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace clang;
@@ -79,6 +80,9 @@ public:
   // resulting MDNode to the nvvm.annotations MDNode.
   static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
                               int Operand);
+
+  static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
+                              const std::vector<int> &Operands);
 
 private:
   static void emitBuiltinSurfTexDeviceCopy(CodeGenFunction &CGF, LValue Dst,
@@ -218,6 +222,98 @@ Address NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   llvm_unreachable("NVPTX does not support varargs");
 }
 
+// Get current CudaArch and ignore any unknown values
+// Copied from CGOpenMPRuntimeGPU
+static CudaArch getCudaArch(CodeGenModule &CGM) {
+  if (!CGM.getTarget().hasFeature("ptx"))
+    return CudaArch::UNKNOWN;
+  for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
+    if (Feature.getValue()) {
+      CudaArch Arch = StringToCudaArch(Feature.getKey());
+      if (Arch != CudaArch::UNKNOWN)
+        return Arch;
+    }
+  }
+  return CudaArch::UNKNOWN;
+}
+
+static bool supportsGridConstant(CudaArch Arch) {
+  switch (Arch) {
+  case CudaArch::SM_70:
+  case CudaArch::SM_72:
+  case CudaArch::SM_75:
+  case CudaArch::SM_80:
+  case CudaArch::SM_86:
+  case CudaArch::SM_87:
+  case CudaArch::SM_89:
+  case CudaArch::SM_90:
+  case CudaArch::SM_90a:
+    return true;
+  case CudaArch::UNKNOWN:
+  case CudaArch::UNUSED:
+  case CudaArch::SM_20:
+  case CudaArch::SM_21:
+  case CudaArch::SM_30:
+  case CudaArch::SM_32_:
+  case CudaArch::SM_35:
+  case CudaArch::SM_37:
+  case CudaArch::SM_50:
+  case CudaArch::SM_52:
+  case CudaArch::SM_53:
+  case CudaArch::SM_60:
+  case CudaArch::SM_61:
+  case CudaArch::SM_62:
+    return false;
+  case CudaArch::GFX600:
+  case CudaArch::GFX601:
+  case CudaArch::GFX602:
+  case CudaArch::GFX700:
+  case CudaArch::GFX701:
+  case CudaArch::GFX702:
+  case CudaArch::GFX703:
+  case CudaArch::GFX704:
+  case CudaArch::GFX705:
+  case CudaArch::GFX801:
+  case CudaArch::GFX802:
+  case CudaArch::GFX803:
+  case CudaArch::GFX805:
+  case CudaArch::GFX810:
+  case CudaArch::GFX900:
+  case CudaArch::GFX902:
+  case CudaArch::GFX904:
+  case CudaArch::GFX906:
+  case CudaArch::GFX908:
+  case CudaArch::GFX909:
+  case CudaArch::GFX90a:
+  case CudaArch::GFX90c:
+  case CudaArch::GFX940:
+  case CudaArch::GFX941:
+  case CudaArch::GFX942:
+  case CudaArch::GFX1010:
+  case CudaArch::GFX1011:
+  case CudaArch::GFX1012:
+  case CudaArch::GFX1013:
+  case CudaArch::GFX1030:
+  case CudaArch::GFX1031:
+  case CudaArch::GFX1032:
+  case CudaArch::GFX1033:
+  case CudaArch::GFX1034:
+  case CudaArch::GFX1035:
+  case CudaArch::GFX1036:
+  case CudaArch::GFX1100:
+  case CudaArch::GFX1101:
+  case CudaArch::GFX1102:
+  case CudaArch::GFX1103:
+  case CudaArch::GFX1150:
+  case CudaArch::GFX1151:
+  case CudaArch::GFX1200:
+  case CudaArch::GFX1201:
+  case CudaArch::Generic:
+  case CudaArch::LAST:
+    llvm_unreachable("unhandled CudaArch");
+  }
+}
+
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
   if (GV->isDeclaration())
@@ -248,6 +344,21 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "kernel", 1);
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
+
+      if (supportsGridConstant(getCudaArch(M))) {
+        // Add grid_constant annotations to all relevant kernel-function
+        // parameters. We can guarantee that in SYCL, all by-val kernel
+        // parameters are "grid_constant".
+        std::vector<int> GridConstantParamIdxs;
+        for (auto [Idx, Arg] : llvm::enumerate(F->args())) {
+          if (Arg.getType()->isPointerTy() && Arg.hasByValAttr()) {
+            // Note - the parameter indices are numbered from 1.
+            GridConstantParamIdxs.push_back(Idx + 1);
+          }
+        }
+        if (!GridConstantParamIdxs.empty())
+          addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
+      }
     }
     bool HasMaxWorkGroupSize = false;
     bool HasMinWorkGroupPerCU = false;
@@ -325,6 +436,28 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
       llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
       llvm::ConstantAsMetadata::get(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+  // Append metadata to nvvm.annotations
+  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+}
+
+void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
+                                             StringRef Name,
+                                             const std::vector<int> &Operands) {
+  llvm::Module *M = GV->getParent();
+  llvm::LLVMContext &Ctx = M->getContext();
+
+  // Get "nvvm.annotations" metadata node
+  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
+
+  llvm::SmallVector<llvm::Metadata *, 8> MDOps;
+  for (int Op : Operands) {
+    MDOps.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Op)));
+  }
+  auto *OpList = llvm::MDNode::get(Ctx, MDOps);
+
+  llvm::Metadata *MDVals[] = {llvm::ConstantAsMetadata::get(GV),
+                              llvm::MDString::get(Ctx, Name), OpList};
   // Append metadata to nvvm.annotations
   MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
 }
