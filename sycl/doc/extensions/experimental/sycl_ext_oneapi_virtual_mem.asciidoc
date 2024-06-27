@@ -157,7 +157,7 @@ If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
 
 |`size_t get_mem_granularity(const context &syclContext, granularity_mode mode = granularity_mode::recommended)` |
-Returns the granularity of virtual memory range reservations on in the
+Returns the granularity of virtual memory range reservations in the
 `syclContext`. The `mode` argument specifies whether the query is for the
 minimum or recommended granularity.
 
