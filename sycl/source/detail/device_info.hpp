@@ -322,12 +322,10 @@ struct get_device_info_impl<bool,
 
 // Specialization for cuda cluster group
 template <>
-struct get_device_info_impl<bool,
-                            info::device::ext_oneapi_cuda_cluster_group> {
+struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
   static bool get(const DeviceImplPtr &Dev) {
-  bool result = false;
-    if (Dev->getBackend() == backend::ext_oneapi_cuda)
-    {
+    bool result = false;
+    if (Dev->getBackend() == backend::ext_oneapi_cuda) {
       sycl::detail::pi::PiResult Err =
           Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
               Dev->getHandleRef(),
