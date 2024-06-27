@@ -99,7 +99,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   # commit 396fb20498c315a526c961d7cb645b42795acd2c
   # Merge: 719bb9cd e2ffea69
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
@@ -130,12 +130,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 19 14:33:26 2024 +0100
-    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
-    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
-    0e5bbcb2f8709643abf08cb83469787e866e3598
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

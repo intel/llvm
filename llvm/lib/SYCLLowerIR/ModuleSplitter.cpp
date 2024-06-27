@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -23,6 +24,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
@@ -45,6 +47,11 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
+    cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
@@ -175,8 +182,13 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph
+    // We add every function into the graph except if
+    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
+
+      if (SupportDynamicLinking && canBeImportedFunction(F))
+        continue;
+
       // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
@@ -431,6 +443,11 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+cl::OptionCategory &getModuleSplitCategory() {
+  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
+  return ModuleSplitCategory;
+}
 
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
@@ -1190,8 +1207,10 @@ Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
-  auto Splitter =
-      getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false);
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
@@ -1209,6 +1228,21 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   }
 
   return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split
