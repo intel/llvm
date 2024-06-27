@@ -21,6 +21,7 @@ auto constexpr AddEmH = R"===(
   }
 )===";
 
+// TODO: remove SYCL_EXTERNAL once it is no longer needed.
 auto constexpr SYCLSource = R"===(
 #include <sycl/sycl.hpp>
 #include "AddEm.h"
