@@ -1064,8 +1064,8 @@ private:
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
   std::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
-  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
-                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
+  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc>,
+                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst>) {
     return false;
   }
 
