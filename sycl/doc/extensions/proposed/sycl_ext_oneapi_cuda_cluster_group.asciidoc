@@ -40,8 +40,7 @@ https://github.com/intel/llvm/issues
 
 == Contributors
 Atharva Dubey, Codeplay +
-Gordon Brown, Codeplay + 
-Jack Kirk, Codeplay 
+Gordon Brown, Codeplay 
 
 == Dependencies
 
