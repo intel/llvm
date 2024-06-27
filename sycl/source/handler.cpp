@@ -1754,6 +1754,9 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
 }
 
 void handler::setKernelUsesClusterLaunch(bool KernelUsesClusterLaunch) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   MImpl->MKernelUsesClusterLaunch = KernelUsesClusterLaunch;
 }
 
