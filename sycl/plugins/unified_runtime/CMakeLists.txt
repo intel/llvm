@@ -120,7 +120,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     https://github.com/GeorgeWeb/unified-runtime.git
-    f0cb1c8bea3347078cc08909d10b3b78f58fdebc
+    3883c1139bd9d799159bac3ccf9e29d151f030d4
   )
 
   fetch_adapter_source(hip
