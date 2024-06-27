@@ -286,8 +286,17 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
-  auto &SanitizerReport =
-      ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->SanitizerReport;
+
+  // work-group linear id
+  const auto WG_LID =
+      __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+          __spirv_BuiltInNumWorkgroups.z +
+      __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+      __spirv_BuiltInWorkgroupId.z;
+
+  auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
+                              ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
+
   if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
       Expected) {
     SanitizerReport.ErrorType = error_type;
@@ -315,8 +324,15 @@ bool __asan_internal_report_save(
                        launch_info->NumLocalArgs, launch_info->LocalArgs);
   }
 
-  auto &SanitizerReport =
-      ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->SanitizerReport;
+  // work-group linear id
+  const auto WG_LID =
+      __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+          __spirv_BuiltInNumWorkgroups.z +
+      __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+      __spirv_BuiltInWorkgroupId.z;
+
+  auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
+                              ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
 
   if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
       Expected) {
