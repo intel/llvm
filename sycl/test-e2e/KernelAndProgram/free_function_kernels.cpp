@@ -240,8 +240,8 @@ bool test_3(queue Queue) {
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id =
-      ext::oneapi::experimental::get_kernel_id<(void (*)(int *, int))ff_3>();
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(int *, int))ff_3<int>>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {

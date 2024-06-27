@@ -65,7 +65,7 @@ bool test_kernel_apis(queue Queue) {
   // Check for a single-task free function, which is a free function.
   // Expect: true.
   bool Pass4 = ext::oneapi::experimental::is_single_task_kernel_v<(
-      void (*)(int *, int))ff_3>;
+      void (*)(int *, int))ff_3<int>>;
   std::cerr << "Pass4=" << Pass4 << std::endl;
   Pass &= Pass4;
 
@@ -84,7 +84,7 @@ bool test_kernel_apis(queue Queue) {
   // Check for a free function.
   // Expect: true.
   bool Pass7 =
-      ext::oneapi::experimental::is_kernel_v<(void (*)(int *, int))ff_3>;
+      ext::oneapi::experimental::is_kernel_v<(void (*)(int *, int))ff_3<int>>;
   std::cerr << "Pass7=" << Pass7 << std::endl;
   Pass &= Pass7;
 
@@ -114,7 +114,7 @@ bool test_bundle_apis(queue Queue) {
   Pass &= PassA;
 
   bool PassB = ext::oneapi::experimental::has_kernel_bundle<
-      (void (*)(int *, int))ff_3, bundle_state::executable>(Context);
+      (void (*)(int *, int))ff_3<int>, bundle_state::executable>(Context);
   std::cerr << "PassB=" << PassB << std::endl;
   Pass &= PassB;
 
@@ -125,13 +125,14 @@ bool test_bundle_apis(queue Queue) {
   Pass &= PassC;
 
   bool PassD = ext::oneapi::experimental::has_kernel_bundle<
-      (void (*)(int *, int))ff_3, bundle_state::executable>(Context, Devices);
+      (void (*)(int *, int))ff_3<int>, bundle_state::executable>(Context,
+                                                                 Devices);
   std::cerr << "PassD=" << PassD << std::endl;
   Pass &= PassD;
 
   // ff_3 is compatible.
   bool PassE =
-      ext::oneapi::experimental::is_compatible<(void (*)(int *, int))ff_3>(
+      ext::oneapi::experimental::is_compatible<(void (*)(int *, int))ff_3<int>>(
           Device);
   std::cerr << "PassE=" << PassE << std::endl;
   Pass &= PassE;
@@ -153,16 +154,17 @@ bool test_bundle_apis(queue Queue) {
 
   // Check that ff_3 is found in bundle.
   kernel_bundle Bundle3 = ext::oneapi::experimental::get_kernel_bundle<
-      (void (*)(int *, int))ff_3, bundle_state::executable>(Context);
-  bool PassI = Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>();
+      (void (*)(int *, int))ff_3<int>, bundle_state::executable>(Context);
+  bool PassI = Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3<int>>();
   std::cerr << "PassI=" << PassI << std::endl;
   Pass &= PassI;
 
   bool PassJ =
-      Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
+      Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3<int>>(Device);
   std::cerr << "PassJ=" << PassJ << std::endl;
   Pass &= PassJ;
-  kernel Kernel3 = Bundle3.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3>();
+  kernel Kernel3 =
+      Bundle3.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3<int>>();
   bool PassK = true;
   std::cerr << "PassK=" << PassK << std::endl;
   Pass &= PassK;
@@ -192,17 +194,19 @@ bool test_bundle_apis(queue Queue) {
 
   // Check that ff_3 is found in bundle obtained using devices.
   kernel_bundle Bundle6 = ext::oneapi::experimental::get_kernel_bundle<
-      (void (*)(int *, int))ff_3, bundle_state::executable>(Context, Devices);
-  bool PassP = Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>();
+      (void (*)(int *, int))ff_3<int>, bundle_state::executable>(Context,
+                                                                 Devices);
+  bool PassP = Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3<int>>();
   std::cerr << "PassP=" << PassP << std::endl;
   Pass &= PassP;
 
   bool PassQ =
-      Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
+      Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3<int>>(Device);
   std::cerr << "PassQ=" << PassQ << std::endl;
   Pass &= PassQ;
 
-  kernel Kernel6 = Bundle6.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3>();
+  kernel Kernel6 =
+      Bundle6.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3<int>>();
   bool PassR = true;
   std::cerr << "PassR=" << PassR << std::endl;
   Pass &= PassR;

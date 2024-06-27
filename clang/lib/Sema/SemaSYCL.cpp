@@ -36,6 +36,12 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+static const int FFDebug = [] {
+  const char* FFDebugStr = std::getenv("FFDEBUG");
+  if (!FFDebugStr)
+    return 0;
+  return std::stoi(FFDebugStr);
+  }();
 
 using namespace clang;
 using namespace std::placeholders;
@@ -2507,7 +2513,6 @@ public:
 
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
-  SYCLIntegrationHeader &Header;
   FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
@@ -2727,9 +2732,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(SemaSYCL &S, SourceLocation Loc, bool IsInline,
-                        bool IsSIMDKernel, FunctionDecl *SYCLKernel,
-                        SYCLIntegrationHeader &H)
-      : SyclKernelFieldHandler(S), Header(H),
+                        bool IsSIMDKernel, FunctionDecl *SYCLKernel)
+      : SyclKernelFieldHandler(S),
         KernelDecl(
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
@@ -5008,9 +5012,9 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
                                      IsSIMDKernel);
 
-  SyclKernelDeclCreator kernel_decl(
-      *this, KernelObj->getLocation(), KernelCallerFunc->isInlined(),
-      IsSIMDKernel, KernelCallerFunc, getSyclIntegrationHeader());
+  SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
+                                    KernelCallerFunc->isInlined(), IsSIMDKernel,
+                                    KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc, IsSIMDKernel,
                                     CallOperator);
@@ -5056,7 +5060,7 @@ void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
                                             false /*IsSIMDKernel*/);
   SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
                                     FD->isInlined(), false /*IsSIMDKernel */,
-                                    FD, SemaSYCLRef.getSyclIntegrationHeader());
+                                    FD);
 
   FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
 
@@ -5677,7 +5681,7 @@ class SYCLFwdDeclEmitter
     if (Printed.insert(D).second)
       printForwardDecl(D);
   }
-
+public:
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (size_t I = 0, E = Args.size(); I < E; ++I)
       Visit(Args[I]);
@@ -5803,6 +5807,12 @@ public:
 
   void EmitFunctionDecl(const FunctionDecl *CFD) {
     const NamedDecl *CND = cast<NamedDecl>(CFD);
+    NamedDecl *ND = const_cast<NamedDecl *>(CND);
+    printForwardDecl(ND);
+  }
+
+  void EmitFunctionTemplateDecl(const FunctionTemplateDecl *FTD) {
+    const NamedDecl *CND = cast<NamedDecl>(FTD);
     NamedDecl *ND = const_cast<NamedDecl *>(CND);
     printForwardDecl(ND);
   }
@@ -6215,34 +6225,55 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
+
+
   for (const KernelDesc &K : KernelDescs) {
     if (!isFreeFunction(S, K.SyclKernel))
       continue;
 
     ++FreeFunctionCount;
+    // Generate forward declaration for free function.
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
-    // Currently all parameters are scalars or pointers. When more
-    // complex types are supported, use the FwdDeclEmitter to generate forward
-    // type declarations.
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
-    O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "(";
+    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    if (FTD)
+      FTD->getTemplateParameters()->print(O, S.getASTContext());
+    std::string ParmList;
     bool FirstParam = true;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
       else
-        O << ", ";
-      Param->print(O, Policy);
+        ParmList += ", ";
+      ParmList += Param->getType().getCanonicalType().getAsString();
     }
-    O << ");\n";
+    O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "("
+      << ParmList << ");\n";
+
+    // Generate a shim function that returns the address of the free function.
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
-    O << "  return (";
-    O << S.getASTContext()
-             .getPointerType(K.SyclKernel->getType())
-             .getAsString();
-    O << ")" << K.SyclKernel->getIdentifier()->getName().data() << ";\n";
+    O << "  return (void (*)(" << ParmList << "))"
+      << K.SyclKernel->getIdentifier()->getName().data();
+    if (FTD) {
+      const TemplateArgumentList *TAL =
+          K.SyclKernel->getTemplateSpecializationArgs();
+      ArrayRef<TemplateArgument> A = TAL->asArray();
+      bool FirstParam = true;
+      O << "<";
+      for (auto X : A) {
+        if (FirstParam)
+          FirstParam = false;
+        else
+          O << ", ";
+        X.print(Policy, O, true);
+      }
+      O << ">";
+    }
+    O << ";\n";
     O << "}\n";
+
+    // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
     O << "namespace sycl {\n";
     O << "template <>\n";
     O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
@@ -6265,6 +6296,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "}\n";
     ++ShimCounter;
   }
+
+
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
   }
