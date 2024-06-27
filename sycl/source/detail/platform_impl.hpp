@@ -32,9 +32,6 @@ class device_impl;
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  /// Constructs platform_impl for a SYCL host platform.
-  platform_impl() : MHostPlatform(true) {}
-
   /// Constructs platform_impl from a plug-in interoperability platform
   /// handle.
   ///
@@ -124,17 +121,13 @@ public:
   static std::vector<platform> get_platforms();
 
   // \return the Plugin associated with this platform.
-  const PluginPtr &getPlugin() const {
-    assert(!MHostPlatform && "Plugin is not available for Host.");
-    return MPlugin;
-  }
+  const PluginPtr &getPlugin() const { return MPlugin; }
 
   /// Sets the platform implementation to use another plugin.
   ///
   /// \param PluginPtr is a pointer to a plugin instance
   /// \param Backend is the backend that we want this platform to use
   void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = PluginPtr;
     MBackend = Backend;
   }
@@ -214,7 +207,6 @@ private:
   filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
                      ListT *FilterList) const;
 
-  bool MHostPlatform = false;
   sycl::detail::pi::PiPlatform MPlatform = 0;
   backend MBackend;
 

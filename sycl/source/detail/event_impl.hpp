@@ -49,8 +49,8 @@ public:
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
   event_impl(std::optional<HostEventState> State = HES_Complete)
-      : MIsInitialized(false), MIsFlushed(true),
-        MState(State.value_or(HES_Complete)) {
+      : MIsFlushed(true), MState(State.value_or(HES_Complete)),
+        MIsDefaultConstructed(!State), MIsHostEvent(State) {
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
     // event methods. This ::get() call uses static vars to read and parse the
@@ -255,15 +255,6 @@ public:
 
   QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
 
-  /// Checks if an event is in a fully intialized state. Default-constructed
-  /// events will return true only after having initialized its native event,
-  /// while other events will assume that they are fully initialized at
-  /// construction, relying on external sources to supply member data.
-  ///
-  /// \return true if the event is considered to be in a fully initialized
-  /// state.
-  bool isInitialized() const noexcept { return MIsInitialized; }
-
   /// Checks if this event is complete.
   ///
   /// \return true if this event is complete.
@@ -279,10 +270,11 @@ public:
     MPostCompleteEvents.push_back(Event);
   }
 
-  bool isContextInitialized() const noexcept { return MIsContextInitialized; }
+  bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
 
   ContextImplPtr getContextImplPtr() {
-    ensureContextInitialized();
+    if (MIsDefaultConstructed)
+      tryToInitContext();
     return MContext;
   }
 
@@ -347,11 +339,7 @@ protected:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
-  // Events constructed without a context will lazily use the default context
-  // when needed.
-  void ensureContextInitialized();
-  bool MIsInitialized = true;
-  bool MIsContextInitialized = false;
+
   sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
@@ -409,7 +397,20 @@ protected:
                   std::shared_ptr<sycl::detail::context_impl> Context);
 
   std::atomic_bool MIsEnqueued{false};
-  bool MIsHostEvent{false};
+
+  // Events constructed without a context will lazily use the default context
+  // when needed.
+  void tryToInitContext();
+  // Event class represents 3 different kinds of operations:
+  // | type  | has PI event | MContext | MIsHostTask | MIsDefaultConstructed |
+  // | dev   | true         | !nullptr | false       | false                 |
+  // | host  | false        | nullptr  | true        | false                 |
+  // |default|   *          |    *     | false       | true                  |
+  // Default constructed event is created with empty ctor in host code, MContext
+  // is lazily initialized with default device context on first context query.
+  // MEvent is lazily created in first pi handle query.
+  bool MIsDefaultConstructed = false;
+  bool MIsHostEvent = false;
 };
 
 } // namespace detail

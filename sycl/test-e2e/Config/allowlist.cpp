@@ -34,7 +34,7 @@ int main() {
 
   // Expected that the allowlist filter is not set
   if (getenv("PRINT_PLATFORM_INFO")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();
       // As a string will be used as regexp pattern, we need to get rid of
@@ -46,11 +46,13 @@ int main() {
                 << "}},PlatformVersion:{{" << Ver << "}}";
 
       return 0;
+    }
+    throw std::runtime_error("No device is found");
   }
 
   // Expected that the allowlist filter is not set
   if (getenv("PRINT_DEVICE_INFO")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       const sycl::device Dev = Platform.get_devices().at(0);
       std::string Name = Dev.get_info<sycl::info::device::name>();
       std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
@@ -64,22 +66,25 @@ int main() {
                 << "}},DriverVersion:{{" << Ver << "}}";
 
       return 0;
+    }
+    throw std::runtime_error("No device is found");
   }
 
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
   if (getenv("TEST_DEVICE_AVAILABLE")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       if (Platform.get_devices().size() != 1)
         throw std::runtime_error("Expected only one device.");
 
       return 0;
     }
+    throw std::runtime_error("No device is found");
   }
 
   // Expected the allowlist to be set but empty
   if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms())
-        throw std::runtime_error("Expected no device is available");
+      throw std::runtime_error("Expected no device is available");
     return 0;
   }
 

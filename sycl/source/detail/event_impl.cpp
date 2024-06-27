@@ -33,8 +33,8 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
 // If we do not yet have a context, use the default one.
-void event_impl::ensureContextInitialized() {
-  if (MIsContextInitialized)
+void event_impl::tryToInitContext() {
+  if (MContext || !MIsDefaultConstructed)
     return;
 
   const device SyclDevice;
@@ -114,12 +114,12 @@ const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
 sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
-  ensureContextInitialized();
+  tryToInitContext();
   return MContext;
 }
 
 const PluginPtr &event_impl::getPlugin() {
-  ensureContextInitialized();
+  tryToInitContext();
   return MContext->getPlugin();
 }
 
@@ -128,14 +128,12 @@ void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsHostEvent = Context == nullptr;
   MContext = Context;
-  MIsContextInitialized = true;
 }
 
 event_impl::event_impl(sycl::detail::pi::PiEvent Event,
                        const context &SyclContext)
-    : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)), MIsFlushed(true),
-      MState(HES_Complete) {
+    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
+      MIsFlushed(true), MState(HES_Complete) {
 
   sycl::detail::pi::PiContext TempContext;
   getPlugin()->call<PiApiKind::piEventGetInfo>(
@@ -367,7 +365,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
-  if (MEvent) {
+  if (!MIsHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>(this->getHandleRef(),
                                                         this->getPlugin());
   }
@@ -398,7 +396,7 @@ event_impl::get_info<info::event::command_execution_status>() {
 template <>
 typename info::platform::version::return_type
 event_impl::get_backend_info<info::platform::version>() const {
-  if (!MIsContextInitialized) {
+  if (!MContext) {
     return "Context not initialized, no backend info available";
   }
   if (MContext->getBackend() != backend::opencl) {
@@ -419,7 +417,7 @@ event_impl::get_backend_info<info::platform::version>() const {
 template <>
 typename info::device::version::return_type
 event_impl::get_backend_info<info::device::version>() const {
-  if (!MIsContextInitialized) {
+  if (!MContext) {
     return "Context not initialized, no backend info available";
   }
   if (MContext->getBackend() != backend::opencl) {
@@ -437,7 +435,7 @@ event_impl::get_backend_info<info::device::version>() const {
 template <>
 typename info::device::backend_version::return_type
 event_impl::get_backend_info<info::device::backend_version>() const {
-  if (!MIsContextInitialized) {
+  if (!MContext) {
     return "Context not initialized, no backend info available";
   }
   if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
@@ -456,11 +454,12 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() {
-  ensureContextInitialized();
+  if (isHost())
+    return {};
+  tryToInitContext();
 
   auto Plugin = getPlugin();
-  if (!MIsInitialized) {
-    MIsInitialized = true;
+  if (MIsDefaultConstructed && !MEvent) {
     auto TempContext = MContext.get()->getHandleRef();
     Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }

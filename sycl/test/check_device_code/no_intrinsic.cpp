@@ -17,16 +17,4 @@
 
 using namespace sycl;
 
-int main() {
-  {
-    queue Queue;
-
-    Queue.submit([&](handler &CGH) {
-      stream Out(1024, 80, CGH);
-      CGH.single_task<class integral>([=]() { Out << "Hello, World!\n"; });
-    });
-    Queue.wait();
-  }
-
-  return 0;
-}
+SYCL_EXTERNAL void integral(stream Out) { Out << "Hello, World!\n"; }

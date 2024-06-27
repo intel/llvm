@@ -587,6 +587,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     std::lock_guard<std::mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
+
+    {
+      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      for (auto &UpdatedGraph : MMissedCleanupRequests)
+        doUnenqueuedCommandCleanup(UpdatedGraph);
+      MMissedCleanupRequests.clear();
+    }
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
@@ -655,7 +662,7 @@ bool queue_impl::ext_oneapi_empty() const {
                info::event_command_status::complete;
   }
 
-  // Check the status of the backend queue if this is not a host queue.
+  // Check the status of the backend queue.
   pi_bool IsReady = false;
   getPlugin()->call<PiApiKind::piQueueGetInfo>(
       MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
@@ -696,7 +703,6 @@ void queue_impl::revisitUnenqueuedCommandsState(
     const EventImplPtr &CompletedHostTask) {
   if (MIsInorder)
     return;
-
   std::unique_lock<std::mutex> Lock{MMutex, std::try_to_lock};
   if (Lock.owns_lock())
     doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());

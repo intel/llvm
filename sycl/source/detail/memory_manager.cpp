@@ -935,7 +935,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent &OutEvent) {
 
-  // Host queue is not supported here.
+  // Execution on host is not supported here.
   if (!Queue) {
     throw runtime_error("Not supported configuration of unmap requested",
                         PI_ERROR_INVALID_OPERATION);
