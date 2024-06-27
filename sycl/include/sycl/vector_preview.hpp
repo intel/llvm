@@ -598,7 +598,7 @@ public:
   }
   void store(size_t Offset, DataT *Ptr) const {
     for (int I = 0; I < NumElements; ++I)
-      Ptr[Offset * NumElements + I] = getValue(I);
+      Ptr[Offset * NumElements + I] = m_Data[I];
   }
 
 private:
