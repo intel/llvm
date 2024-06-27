@@ -33,8 +33,12 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
 
   sycl::buffer<bool, 1> SuccessBuf{1};
 
+  sycl::queue q;
+  sycl::device dev = q.get_device();
   // Make sure we don't use fp64 on devices that don't support it.
-  sycl::queue{}.submit([&](sycl::handler &cgh) {
+  if (!dev.has(sycl::aspect::fp64))
+    delta = static_cast<sycl::detail::get_elem_type_t<ExpectedTy>>(delta);
+  q.submit([&](sycl::handler &cgh) {
     sycl::accessor Success{SuccessBuf, cgh};
     cgh.single_task([=]() {
       auto R = F(Args...);
