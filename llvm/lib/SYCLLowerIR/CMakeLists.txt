@@ -93,6 +93,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   BitWriter
   Core
+  Demangle
   IRPrinter
   Support
   ipo

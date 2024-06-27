@@ -3,17 +3,18 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include <iostream>
 #include <random>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <type_traits>
+
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 static sycl::device dev;
 
 // Uncomment to print additional test information.
 // #define VERBOSE_PRINT
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Helpers and utilities.
 struct util {

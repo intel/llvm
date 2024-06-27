@@ -13,7 +13,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
-// CHK-SYCL-FPGA-CONFLICT: error: The option -fsycl-targets= conflicts with -fintelfpga
+// CHK-SYCL-FPGA-CONFLICT: error: the option -fsycl-targets= conflicts with -fintelfpga
 
 /// Check that -aux-triple is passed with -fintelfpga
 // RUN:    %clang -### -fintelfpga %s 2>&1 \

@@ -98,7 +98,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
-
+  
   # purely for testing and will be updated once below is merged.
   set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c

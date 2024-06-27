@@ -1211,8 +1211,6 @@ struct get_device_info_impl<
     std::vector<sycl::device>,
     ext::oneapi::experimental::info::device::component_devices> {
   static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
-      return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
     pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
