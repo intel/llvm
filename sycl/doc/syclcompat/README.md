@@ -210,10 +210,8 @@ inline __SYCL_ALWAYS_INLINE size_t cvta_generic_to_shared(void *ptr);
 } // syclcompat::experimental
 ```
 
-These variables can be used in inline ptx instructions that take address
-operands; see:
-https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#addresses-as-operands
-Such inline ptx instructions are commonly used in optimized libaries.
+These variables can be used in inline PTX instructions that take address
+operands. Such inline PTX instructions are commonly used in optimized libraries.
 A simplified example usage of the above functions is as follows:
 
 ``` c++
