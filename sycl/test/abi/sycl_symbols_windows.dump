@@ -498,12 +498,10 @@
 ??0buffer_impl@detail@_V1@sycl@@QEAA@AEBV?$function@$$A6AXPEAX@Z@std@@_K_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@5@_N@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@AEBV?$shared_ptr@$$CBX@std@@_K_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@5@_N@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@Vevent@23@@Z
-??0buffer_impl@detail@_V1@sycl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@Vevent@23@@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@PEAX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@PEBX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@_K0AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@@Z
 ??0buffer_impl@detail@_V1@sycl@@QEAA@_KAEBVcontext@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@_NVevent@23@@Z
-??0buffer_impl@detail@_V1@sycl@@QEAA@_KAEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@Vevent@23@@Z
 ??0buffer_plain@detail@_V1@sycl@@IEAA@AEBV?$function@$$A6AXPEAX@Z@std@@_K_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@5@_N@Z
 ??0buffer_plain@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@$$CBX@std@@_K_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@5@_N@Z
 ??0buffer_plain@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@Vbuffer_impl@detail@_V1@sycl@@@std@@@Z
