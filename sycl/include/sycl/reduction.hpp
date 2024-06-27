@@ -1178,7 +1178,7 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
+  handler AuxHandler(CGH.MQueue);
   AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);

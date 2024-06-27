@@ -224,8 +224,8 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
-      : sycl::handler(Queue, IsHost) {}
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
+      : sycl::handler(Queue) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -290,9 +290,8 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost)
-      : MockHandler(Queue, IsHost) {}
+  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue)
+      : MockHandler(Queue) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;

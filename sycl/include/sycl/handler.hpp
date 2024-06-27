@@ -464,8 +464,7 @@ private:
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          bool /*ABI Break: to remove */);
+  handler(std::shared_ptr<detail::queue_impl> Queue);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -477,8 +476,7 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool /*ABI Break: to remove */);
+          std::shared_ptr<detail::queue_impl> SecondaryQueue);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -728,12 +726,6 @@ private:
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
       int ArgIndex);
-
-  // TODO: Unusued. Remove when ABI break is allowed.
-  void verifyKernelInvoc(const kernel &Kernel) {
-    std::ignore = Kernel;
-    return;
-  }
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
    * its argument. Since esimd plugin directly invokes the kernel (doesn’t use
@@ -1065,81 +1057,6 @@ private:
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst>) {
     return false;
   }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  // ABI break: to remove whole method
-  /// Copies the content of memory object accessed by Src into the memory
-  /// pointed by Dst.
-  ///
-  /// \param Src is a source SYCL accessor.
-  /// \param Dst is a pointer to destination memory.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<(Dim > 0)>
-  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
-                   TDst *Dst) {
-    range<Dim> Range = Src.get_range();
-    parallel_for<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        Range, [=](id<Dim> Index) {
-          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          using TSrcNonConst = typename std::remove_const_t<TSrc>;
-          (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
-  /// pointed by Dst.
-  ///
-  /// \param Src is a source SYCL accessor.
-  /// \param Dst is a pointer to destination memory.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<Dim == 0>
-  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
-                   TDst *Dst) {
-    single_task<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        [=]() {
-          using TSrcNonConst = typename std::remove_const_t<TSrc>;
-          *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies the memory pointed by Src into the memory accessed by Dst.
-  ///
-  /// \param Src is a pointer to source memory.
-  /// \param Dst is a destination SYCL accessor.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<(Dim > 0)>
-  copyPtrToAccHost(TSrc *Src,
-                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    range<Dim> Range = Dst.get_range();
-    parallel_for<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        Range, [=](id<Dim> Index) {
-          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
-  /// accessor Dst.
-  ///
-  /// \param Src is a pointer to source memory.
-  /// \param Dst is a destination SYCL accessor.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<Dim == 0>
-  copyPtrToAccHost(TSrc *Src,
-                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        [=]() {
-          *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
-        });
-  }
-#endif // __SYCL_DEVICE_ONLY__
 
   constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::device ||
@@ -3363,8 +3280,6 @@ private:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
-
-  bool MIsHost = false; // ABI break: to remove
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

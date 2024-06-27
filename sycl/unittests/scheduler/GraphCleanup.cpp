@@ -326,7 +326,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
   AttachSchedulerWrapper AttachScheduler{MSPtr};
   detail::EventImplPtr EventImplPtr;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
             QueueImplPtr->get_context());
@@ -387,7 +387,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   detail::EventImplPtr EventImplPtr;
   bool MockAuxResourceDeleted = false;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
             QueueImplPtr->get_context());
