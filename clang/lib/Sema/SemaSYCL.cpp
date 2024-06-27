@@ -837,11 +837,12 @@ class SingleDeviceFunctionTracker {
       CurrentDecl->addAttr(SYCLScopeAttr::CreateImplicit(
           Parent.SemaSYCLRef.getASTContext(), SYCLScopeAttr::Level::WorkItem));
       FunctionDecl *Caller = CallStack.back();
-      if (!Caller->hasAttr<SYCLScopeAttr>())
+      if (!Caller->hasAttr<SYCLScopeAttr>()) {
         CallStack.back()->addAttr(
             SYCLScopeAttr::CreateImplicit(Parent.SemaSYCLRef.getASTContext(),
                                           SYCLScopeAttr::Level::WorkGroup));
-      addScopeAttrToLocalVars(*Caller);
+        addScopeAttrToLocalVars(*Caller);
+      }
     }
 
     // We previously thought we could skip this function if we'd seen it before,
