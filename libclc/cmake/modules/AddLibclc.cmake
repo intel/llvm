@@ -214,7 +214,13 @@ function(add_libclc_alias alias target)
 
 endfunction(add_libclc_alias alias target)
 
-# Add opt target
+# runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#   LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+#   LINK_LIB string
+#     Target name of the linked libraries
+#   OUT_DIR string
+#     Name of the directory where the output should be placed
 function(opt_prepare out_file)
   cmake_parse_arguments(OPT  "" "LIB_TGT;LINK_LIB;OUT_DIR" "" ${ARGN})
   add_custom_command( OUTPUT ${OPT_LIB_TGT}.bc

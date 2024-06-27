@@ -27,9 +27,7 @@ set(llvm-opt $<TARGET_FILE:opt>)
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
   "spir64_x86_64-unknown-unknown,"
-  "spir64_gen-unknown-unknown,"
-  "spir64_fpga-unknown-unknown,"
-  "spir64-unknown-unknown,"
+  "spir64_gen-unknown-unknown," "spir64_fpga-unknown-unknown," "spir64-unknown-unknown,"
   "spirv64-unknown-unknown")
 
 set(compile_opts
@@ -516,7 +514,7 @@ set(install_dest_new_offload_obj ${install_dest_lib})
 
 foreach(ftype IN ITEMS spv bc obj new_offload_obj)
   install(FILES ${${ftype}_binary_dir}/libsycl-fallback-imf.${${ftype}_suffix}
-                $${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}_suffix}
+                ${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}_suffix}
                 ${${ftype}_binary_dir}/libsycl-fallback-imf-bf16.${${ftype}_suffix}
           DESTINATION ${install_dest_${ftype}}
           COMPONENT libsycldevice)
