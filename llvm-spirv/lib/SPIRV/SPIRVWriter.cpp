@@ -1212,7 +1212,10 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   auto *BM = BF->getModule();
   if (!BM->preserveAuxData())
     return;
-  BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+    BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  else
+    BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
   const auto &FnAttrs = F->getAttributes().getFnAttrs();
   for (const auto &Attr : FnAttrs) {
     std::vector<SPIRVWord> Ops;
@@ -4413,24 +4416,28 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         BM->addIntegerType(VecTy->getElementType()->getIntegerBitWidth());
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
+                                        Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
-                                      Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_fadd:
   case Intrinsic::vector_reduce_fmul: {
@@ -4440,17 +4447,22 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *StartingSVal = transValue(II->getArgOperand(0), BB);
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+      }
+      SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(),
+                                        StartingSVal, Extracts[0], BB);
+      for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
+        V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx],
+                              BB);
+      }
+      return V;
     }
-    SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(), StartingSVal,
-                                      Extracts[0], BB);
-    for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
-      V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx], BB);
-    }
-    return V;
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_smax:
   case Intrinsic::vector_reduce_smin:
@@ -4484,27 +4496,31 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
     SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
-                                             Extracts[(Idx << 1) + 1], BB);
-        Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
+                                               Extracts[(Idx << 1) + 1], BB);
+          Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
+                                             Extracts[VecSize - 1], BB);
+        Extracts[0] =
+            BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
-                                           Extracts[VecSize - 1], BB);
-      Extracts[0] =
-          BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
@@ -5604,7 +5620,7 @@ static auto stablePreDominatorTraversal(Function &F, const DominatorTree &DT) {
                                     std::forward_iterator_tag, BasicBlock> {
 
     // The passed DominatorTree; may be unset for end iterators.
-    const DominatorTree *DT;
+    const DominatorTree *DT = nullptr;
 
     // The set of basic blocks already visited in this traversal.
     SmallPtrSet<const BasicBlock *, 4> VisitedBBs;

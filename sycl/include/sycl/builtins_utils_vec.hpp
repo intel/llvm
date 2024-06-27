@@ -46,6 +46,9 @@ template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress, typename... Ts>
 struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
     : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
+template <typename ElementType, typename... Ts>
+struct is_valid_elem_type<ElementType *, Ts...>
+    : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
 
 // Utility trait for getting the number of elements in T.
 template <typename T>
