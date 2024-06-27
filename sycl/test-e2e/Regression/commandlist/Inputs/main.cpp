@@ -44,7 +44,6 @@ int main(int argc, char *argv[]) {
   int nthreadsGPU = 8;
   int arr_size = 20;
   int iter_gpu = 200;
-  unsigned int gpu_dev = 999;
   unsigned int nitems = 0;
   bool passed = true;
 
