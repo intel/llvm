@@ -111,14 +111,6 @@ supports
 |===
 
 
-=== Launching a kernel with a `cluster_group`
-
-Because of the special scheduling guarantees associated with a cluster launch,
-the backend must know which kernel would be using this feature. Thus, this 
-proposal introduces a new launch property called as `cluster_size` that will
-contain the cluster in terms of number of work-groups.
- 
-
 === Extension to `enum class aspect`
 
 [source]
@@ -134,6 +126,14 @@ enum class aspect {
 A device requires the `sycl_ext_oneapi_cuda_cluster_group` aspect to
 support launching a kernel with the property defined in the following section.
 
+
+=== Launching a kernel with a `cluster_group`
+
+Because of the special scheduling guarantees associated with a cluster launch,
+the backend must know which kernel would be using this feature. Thus, this 
+proposal introduces a new launch property called as `cluster_size` that will
+contain the cluster in terms of number of work-groups.
+ 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::cuda {
@@ -165,6 +165,18 @@ the cluster range in each dimension.
 
 The launch functions introduced in `sycl_ext_oneapi_enqueue_functions` can then
 be used to launch the kernel with the mentioned property.
+
+
+=== Querying Maximum Cluster Size
+To query the maximum supported cluster size, this proposal adds a new device
+query, `max_cluster_group_size`, which returns the maximum possible number of 
+work-groups present inside the cluster.
+
+[source, c++]
+----
+size_t max_cluster_size = 
+      device.get_info<info::device::ext_cuda_experimental_max_cluster_group_size>();
+----
 
 
 === Accessing the Cluster Group From Device Code
@@ -256,7 +268,7 @@ for which `get_local_linear_id` return 0.
 To obtain the total number of clusters in the nd_range, and to obtain the 
 id of the cluster of the calling work-item, this extension proposes to add two
 new member functions the `nd_item` class, namely 
-`ext_oneapi_cuda_get_cluster_range` and `ext_oneapi_cuda_get_cluster_id`
+`ext_oneapi_cuda_get_cluster_range` and `ext_oneapi_cuda_get_cluster_id`.
 
 
 [%header,cols="10,5"]
