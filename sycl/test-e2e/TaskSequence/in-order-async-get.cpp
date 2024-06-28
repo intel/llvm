@@ -6,10 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// FIXME: compfail, see https://github.com/intel/llvm/issues/14284, re-enable
-// when fixed:
-// UNSUPPORTED: linux, windows
-
 // REQUIRES: aspect-ext_intel_fpga_task_sequence
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %{run} %t.out
