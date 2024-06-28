@@ -7,6 +7,9 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
+// https://github.com/intel/llvm/issues/14350
+// UNSUPPORTED: linux && gpu-intel-gen12
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/host_task_last.cpp"
