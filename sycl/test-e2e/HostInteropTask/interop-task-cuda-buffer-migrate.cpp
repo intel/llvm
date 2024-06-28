@@ -1,7 +1,4 @@
 // REQUIRES: cuda
-// XFAIL: cuda
-//
-// FIXME: this is broken with a multi device context
 //
 // RUN: %{build} -o %t.out -lcuda
 // RUN: %{run} %t.out
