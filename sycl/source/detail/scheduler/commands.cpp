@@ -433,8 +433,8 @@ public:
           HostTask.MQueue->getPlugin()
               ->call<PiApiKind::piextEnqueueNativeCommand>(
                   HostTask.MQueue->getHandleRef(), InteropFreeFunc,
-                  &CustomOpData, MReqPiMem.size(), MReqPiMem.data(),
-                  0, nullptr, nullptr);
+                  &CustomOpData, MReqPiMem.size(), MReqPiMem.data(), 0, nullptr,
+                  nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);

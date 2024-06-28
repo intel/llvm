@@ -197,8 +197,6 @@
 // pi_virtual_access_flags bit flags.
 // 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
 
-
-
 #define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 55
 
