@@ -30,8 +30,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
 
   if (!CheckDevice)
     return;
-  bool result;
-  {
+  
     sycl::buffer<bool, 1> SuccessBuf{&result, sycl::range<1>{}};
 
     // Make sure we don't use fp64 on devices that don't support it.
@@ -45,8 +44,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
         Success[0] = equal(R, Expected, d);
       });
     });
-  } // SuccessBuf writes back data to host pointer on destruction
-  assert(result);
+  assert(sycl::host_accessor{SuccessBuf}[0]);
 }
 
 template <typename FuncTy, typename ExpectedTy, typename... ArgTys>
