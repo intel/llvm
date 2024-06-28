@@ -171,10 +171,13 @@ public:
 
   std::pair<ProgramBuildResultPtr, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
+    std::cout << "Cache::getOrInsertProgram(CacheKey = {"
+        << "spec const, ImgId: " << CacheKey.first.second << ", device)\n";
     auto LockedCache = acquireCachedPrograms();
     auto &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
+      std::cout << "\t did insert\n";
       It->second = std::make_shared<ProgramBuildResult>(getPlugin());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
@@ -262,8 +265,12 @@ public:
         BuildState NewState = BuildResult->waitUntilTransition();
 
         // Build succeeded.
-        if (NewState == BuildState::BS_Done)
+        if (NewState == BuildState::BS_Done) {
+          if constexpr (std::is_same<decltype(BuildResult->Val), sycl::detail::pi::PiProgram>::value) {
+            std::cout << "Cache::getOrBuild. Returning existing program " << BuildResult->Val << std::endl;
+          }
           return BuildResult;
+        }
 
         // Build failed, or this is the last attempt.
         if (NewState == BuildState::BS_Failed ||
@@ -284,6 +291,9 @@ public:
       // only the building thread will run this
       try {
         BuildResult->Val = Build();
+        if constexpr (std::is_same<decltype(BuildResult->Val), sycl::detail::pi::PiProgram>::value) {
+          std::cout << "Cache::getOrBuild. Result of BuildF() = " << BuildResult->Val << std::endl;
+        }
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
         return BuildResult;

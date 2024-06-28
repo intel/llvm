@@ -228,7 +228,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
 
-  if (DbgProgMgr > 1)
+  if (DbgProgMgr > 0)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
 
@@ -487,6 +487,7 @@ ProgramManager::getOrCreatePIProgram(const RTDeviceBinaryImage &Img,
                                      const device &Device,
                                      const std::string &CompileAndLinkOptions,
                                      SerializedObj SpecConsts) {
+  std::cout << "getOrCreatePIProgram" << std::endl;
   sycl::detail::pi::PiProgram NativePrg;
 
   auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
@@ -640,6 +641,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const std::string &KernelName, const NDRDescT &NDRDesc,
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
+  std::cout << "getBuiltPIProgram" << std::endl;
 
   std::string CompileOpts;
   std::string LinkOpts;
@@ -681,6 +683,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
           Img, {Device});
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts, &DeviceImagesToLink] {
+    std::cout << "getBuiltPIProgram::BuildF" << std::endl;
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
     // Should always come last!
@@ -728,6 +731,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       // TODO: when it is going to be released?
       ProgramsToLink.push_back(NativePrg);
     }
+    std::cout << "\t calling build()" << std::endl;
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
@@ -1158,8 +1162,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
               << ", " << JITCompilationIsRequired << ")\n";
 
-    std::cerr << "available device images:\n";
-    debugPrintBinaryImages();
+    // std::cerr << "available device images:\n";
+    // debugPrintBinaryImages();
   }
 
   if (m_UseSpvFile) {
