@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace llvm;
 
@@ -39,27 +40,34 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     if (CallingConv::SPIR_KERNEL == F.getCallingConv())
       continue;
 
-    if (F.getName().contains("call_if_on_device_conditionally") &&
-        !F.getName().contains("call_if_on_device_conditionally_helper"))
+    if (F.hasFnAttribute("sycl-call-if-on-device-conditionally") &&
+        ("true" == F.getFnAttribute("sycl-call-if-on-device-conditionally")
+                       .getValueAsString()))
       FCallers.push_back(&F);
   }
 
-  int FCallerIndex = 1;
+  // A vector instead of DenseMap to make LIT tests predictable
+  SmallVector<std::pair<Function *, Function *>, 8> FCallersToFActions;
   for (Function *FCaller : FCallers) {
     // Find call to @CallableXXX in call_if_on_device_conditionally function
     // (FAction). FAction should be a literal (i.e. not a pointer). The
     // structure of the header file ensures that there is exactly one such
     // instruction.
-    Function *FAction = nullptr;
     for (Instruction &I : instructions(FCaller)) {
-      if (auto *CI = dyn_cast<CallInst>(&I)) {
-        FAction = CI->getCalledFunction();
+      if (auto *CI = dyn_cast<CallInst>(&I);
+          CI && (Intrinsic::IndependentIntrinsics::not_intrinsic ==
+                 CI->getIntrinsicID())) {
+        FCallersToFActions.push_back(
+            std::make_pair(FCaller, CI->getCalledFunction()));
         break;
       }
     }
+  }
 
-    if (!FAction)
-      continue;
+  int FCallerIndex = 1;
+  for (const auto& FCallerToFAction : FCallersToFActions) {
+    Function *FCaller = FCallerToFAction.first;
+    Function *FAction = FCallerToFAction.second;
 
     // Create a new function type with an additional function pointer argument
     SmallVector<Type *, 4> NewParamTypes;
@@ -70,7 +78,7 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     for (Type *Ty : OldFCallerType->params())
       NewParamTypes.push_back(Ty);
 
-    FunctionType *NewFCallerType =
+    auto *NewFCallerType =
         FunctionType::get(OldFCallerType->getReturnType(), NewParamTypes,
                           OldFCallerType->isVarArg());
 
@@ -92,8 +100,8 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
         SmallVector<Value *, 4> Args;
         // Add the function pointer as the first argument
         Args.push_back(FAction);
-        for (unsigned i = 0; i < Call->arg_size(); ++i)
-          Args.push_back(Call->getArgOperand(i));
+        for (unsigned I = 0; I < Call->arg_size(); ++I)
+          Args.push_back(Call->getArgOperand(I));
 
         // Create the new call instruction
         auto *NewCall =
