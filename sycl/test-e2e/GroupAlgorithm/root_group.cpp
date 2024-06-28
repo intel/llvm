@@ -41,7 +41,7 @@ void testQueriesAndProperties() {
 
   static auto check_max_num_work_group_sync = [](auto Result) {
     static_assert(std::is_same_v<std::remove_cv_t<decltype(Result)>, size_t>,
-                "max_num_work_group_sync query must return size_t");
+                  "max_num_work_group_sync query must return size_t");
     assert(Result >= 1 && "max_num_work_group_sync query failed");
   };
   check_max_num_work_group_sync(maxWGs);
