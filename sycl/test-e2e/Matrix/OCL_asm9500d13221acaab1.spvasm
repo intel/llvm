@@ -1,0 +1,247 @@
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 149
+; Schema: 0
+               OpCapability Addresses ; 0x00000014
+               OpCapability Linkage ; 0x0000001c
+               OpCapability Kernel ; 0x00000024
+               OpCapability Int64 ; 0x0000002c
+               OpCapability GenericPointer ; 0x00000034
+               OpCapability Int8 ; 0x0000003c
+               OpCapability ExpectAssumeKHR ; 0x00000044
+               OpCapability MemoryAccessAliasingINTEL ; 0x0000004c
+               OpCapability OptNoneINTEL ; 0x00000054
+               OpExtension "SPV_INTEL_memory_access_aliasing" ; 0x0000005c
+               OpExtension "SPV_INTEL_optnone" ; 0x00000084
+               OpExtension "SPV_KHR_expect_assume" ; 0x0000009c
+          %1 = OpExtInstImport "OpenCL.std" ; 0x000000b8
+               OpMemoryModel Physical64 OpenCL ; 0x000000cc
+               OpEntryPoint Kernel %146 "_ZTS7imatrixIfLm16ELm16ELm8EE" ; 0x000000d8
+               OpSource OpenCL_CPP 100000 ; 0x00000104
+               OpName %__spirv_BuiltInGlobalInvocationId "__spirv_BuiltInGlobalInvocationId" ; 0x00000110
+               OpName %__spirv_BuiltInLocalInvocationId "__spirv_BuiltInLocalInvocationId" ; 0x0000013c
+               OpName %__spirv_BuiltInWorkgroupId "__spirv_BuiltInWorkgroupId" ; 0x00000168
+               OpName %__spirv_BuiltInGlobalLinearId "__spirv_BuiltInGlobalLinearId" ; 0x0000018c
+               OpName %__spirv_BuiltInWorkgroupSize "__spirv_BuiltInWorkgroupSize" ; 0x000001b4
+               OpName %_ZTS7imatrixIfLm16ELm16ELm8EE "_ZTS7imatrixIfLm16ELm16ELm8EE" ; 0x000001dc
+               OpName %__itt_offload_wi_start_wrapper "__itt_offload_wi_start_wrapper" ; 0x00000204
+               OpName %__itt_offload_wi_finish_wrapper "__itt_offload_wi_finish_wrapper" ; 0x0000022c
+               OpName %__itt_offload_wi_start_stub "__itt_offload_wi_start_stub" ; 0x00000254
+               OpName %__itt_offload_wi_finish_stub "__itt_offload_wi_finish_stub" ; 0x00000278
+         %21 = OpAliasDomainDeclINTEL ; 0x000002a0
+         %22 = OpAliasScopeDeclINTEL %21 ; 0x000002a8
+         %23 = OpAliasDomainDeclINTEL ; 0x000002b4
+         %24 = OpAliasScopeDeclINTEL %23 ; 0x000002bc
+         %25 = OpAliasDomainDeclINTEL ; 0x000002c8
+         %26 = OpAliasScopeDeclINTEL %25 ; 0x000002d0
+         %27 = OpAliasScopeListDeclINTEL %22 %24 %26 ; 0x000002dc
+         %33 = OpAliasDomainDeclINTEL ; 0x000002f0
+         %34 = OpAliasScopeDeclINTEL %33 ; 0x000002f8
+         %35 = OpAliasDomainDeclINTEL ; 0x00000304
+         %36 = OpAliasScopeDeclINTEL %35 ; 0x0000030c
+         %37 = OpAliasDomainDeclINTEL ; 0x00000318
+         %38 = OpAliasScopeDeclINTEL %37 ; 0x00000320
+         %39 = OpAliasScopeListDeclINTEL %34 %36 %38 ; 0x0000032c
+         %43 = OpAliasDomainDeclINTEL ; 0x00000340
+         %44 = OpAliasScopeDeclINTEL %43 ; 0x00000348
+         %45 = OpAliasDomainDeclINTEL ; 0x00000354
+         %46 = OpAliasScopeDeclINTEL %45 ; 0x0000035c
+         %47 = OpAliasDomainDeclINTEL ; 0x00000368
+         %48 = OpAliasScopeDeclINTEL %47 ; 0x00000370
+         %49 = OpAliasScopeListDeclINTEL %44 %46 %48 ; 0x0000037c
+         %53 = OpAliasDomainDeclINTEL ; 0x00000390
+         %54 = OpAliasScopeDeclINTEL %53 ; 0x00000398
+         %55 = OpAliasDomainDeclINTEL ; 0x000003a4
+         %56 = OpAliasScopeDeclINTEL %55 ; 0x000003ac
+         %57 = OpAliasDomainDeclINTEL ; 0x000003b8
+         %58 = OpAliasScopeDeclINTEL %57 ; 0x000003c0
+         %59 = OpAliasScopeListDeclINTEL %54 %56 %58 ; 0x000003cc
+               OpDecorate %__spirv_BuiltInGlobalInvocationId LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import ; 0x000003e0
+               OpDecorate %__spirv_BuiltInGlobalInvocationId Constant ; 0x00000414
+               OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId ; 0x00000420
+               OpDecorate %__spirv_BuiltInGlobalInvocationId Alignment 32 ; 0x00000430
+               OpDecorate %__spirv_BuiltInLocalInvocationId LinkageAttributes "__spirv_BuiltInLocalInvocationId" Import ; 0x00000440
+               OpDecorate %__spirv_BuiltInLocalInvocationId Constant ; 0x00000474
+               OpDecorate %__spirv_BuiltInLocalInvocationId BuiltIn LocalInvocationId ; 0x00000480
+               OpDecorate %__spirv_BuiltInLocalInvocationId Alignment 32 ; 0x00000490
+               OpDecorate %__spirv_BuiltInWorkgroupId LinkageAttributes "__spirv_BuiltInWorkgroupId" Import ; 0x000004a0
+               OpDecorate %__spirv_BuiltInWorkgroupId Constant ; 0x000004cc
+               OpDecorate %__spirv_BuiltInWorkgroupId BuiltIn WorkgroupId ; 0x000004d8
+               OpDecorate %__spirv_BuiltInWorkgroupId Alignment 32 ; 0x000004e8
+               OpDecorate %__spirv_BuiltInGlobalLinearId LinkageAttributes "__spirv_BuiltInGlobalLinearId" Import ; 0x000004f8
+               OpDecorate %__spirv_BuiltInGlobalLinearId Constant ; 0x00000528
+               OpDecorate %__spirv_BuiltInGlobalLinearId BuiltIn GlobalLinearId ; 0x00000534
+               OpDecorate %__spirv_BuiltInGlobalLinearId Alignment 8 ; 0x00000544
+               OpDecorate %__spirv_BuiltInWorkgroupSize LinkageAttributes "__spirv_BuiltInWorkgroupSize" Import ; 0x00000554
+               OpDecorate %__spirv_BuiltInWorkgroupSize Constant ; 0x00000584
+               OpDecorate %__spirv_BuiltInWorkgroupSize BuiltIn WorkgroupSize ; 0x00000590
+               OpDecorate %__spirv_BuiltInWorkgroupSize Alignment 32 ; 0x000005a0
+               OpDecorate %_ZTS7imatrixIfLm16ELm16ELm8EE LinkageAttributes "_ZTS7imatrixIfLm16ELm16ELm8EE" Export ; 0x000005b0
+               OpDecorate %__itt_offload_wi_start_wrapper LinkageAttributes "__itt_offload_wi_start_wrapper" Export ; 0x000005e0
+               OpDecorate %__itt_offload_wi_finish_wrapper LinkageAttributes "__itt_offload_wi_finish_wrapper" Export ; 0x00000610
+               OpDecorate %70 Alignment 8 ; 0x00000640
+               OpDecorate %72 SpecId 4285822057 ; 0x00000650
+               OpDecorate %__itt_offload_wi_start_stub LinkageAttributes "__itt_offload_wi_start_stub" Export ; 0x00000660
+               OpDecorate %111 Alignment 8 ; 0x0000068c
+               OpDecorate %112 SpecId 4285822057 ; 0x0000069c
+               OpDecorate %__itt_offload_wi_finish_stub LinkageAttributes "__itt_offload_wi_finish_stub" Export ; 0x000006ac
+               OpDecorate %132 Alignment 8 ; 0x000006dc
+               OpDecorate %133 Alignment 8 ; 0x000006ec
+               OpDecorate %135 Alignment 4 ; 0x000006fc
+               OpDecorate %142 Alignment 8 ; 0x0000070c
+               OpDecorate %143 Alignment 8 ; 0x0000071c
+      %ulong = OpTypeInt 64 0 ; 0x0000072c
+       %uint = OpTypeInt 32 0 ; 0x0000073c
+      %uchar = OpTypeInt 8 0 ; 0x0000074c
+     %uint_0 = OpConstant %uint 0 ; 0x0000075c
+     %uint_1 = OpConstant %uint 1 ; 0x0000076c
+%ulong_2147483648 = OpConstant %ulong 2147483648 ; 0x0000077c
+    %ulong_3 = OpConstant %ulong 3 ; 0x00000790
+         %72 = OpSpecConstant %uchar 0 ; 0x000007a4
+    %uchar_0 = OpConstant %uchar 0 ; 0x000007b4
+     %uint_2 = OpConstant %uint 2 ; 0x000007c4
+    %ulong_0 = OpConstant %ulong 0 ; 0x000007d4
+    %ulong_1 = OpConstant %ulong 1 ; 0x000007e8
+    %ulong_2 = OpConstant %ulong 2 ; 0x000007fc
+        %112 = OpSpecConstant %uchar 0 ; 0x00000810
+    %v3ulong = OpTypeVector %ulong 3 ; 0x00000820
+%_ptr_CrossWorkgroup_v3ulong = OpTypePointer CrossWorkgroup %v3ulong ; 0x00000830
+%_ptr_CrossWorkgroup_ulong = OpTypePointer CrossWorkgroup %ulong ; 0x00000840
+       %void = OpTypeVoid ; 0x00000850
+         %12 = OpTypeFunction %void ; 0x00000858
+       %bool = OpTypeBool ; 0x00000864
+%_arr_ulong_ulong_3 = OpTypeArray %ulong %ulong_3 ; 0x0000086c
+%_ptr_Function__arr_ulong_ulong_3 = OpTypePointer Function %_arr_ulong_ulong_3 ; 0x0000087c
+%_ptr_Function_uchar = OpTypePointer Function %uchar ; 0x0000088c
+%_ptr_Function_ulong = OpTypePointer Function %ulong ; 0x0000089c
+%_ptr_Generic_ulong = OpTypePointer Generic %ulong ; 0x000008ac
+        %101 = OpTypeFunction %void %_ptr_Generic_ulong %ulong %uint ; 0x000008bc
+        %124 = OpTypeFunction %void %_ptr_Generic_ulong %ulong ; 0x000008d4
+%_ptr_Function__ptr_Generic_ulong = OpTypePointer Function %_ptr_Generic_ulong ; 0x000008e8
+%_ptr_Function_uint = OpTypePointer Function %uint ; 0x000008f8
+%_ptr_Generic__ptr_Generic_ulong = OpTypePointer Generic %_ptr_Generic_ulong ; 0x00000908
+%_ptr_Generic_uint = OpTypePointer Generic %uint ; 0x00000918
+%__spirv_BuiltInGlobalInvocationId = OpVariable %_ptr_CrossWorkgroup_v3ulong CrossWorkgroup ; 0x00000928
+%__spirv_BuiltInLocalInvocationId = OpVariable %_ptr_CrossWorkgroup_v3ulong CrossWorkgroup ; 0x00000938
+%__spirv_BuiltInWorkgroupId = OpVariable %_ptr_CrossWorkgroup_v3ulong CrossWorkgroup ; 0x00000948
+%__spirv_BuiltInGlobalLinearId = OpVariable %_ptr_CrossWorkgroup_ulong CrossWorkgroup ; 0x00000958
+%__spirv_BuiltInWorkgroupSize = OpVariable %_ptr_CrossWorkgroup_v3ulong CrossWorkgroup ; 0x00000968
+%_ZTS7imatrixIfLm16ELm16ELm8EE = OpFunction %void None %12 ; 0x00000978
+         %14 = OpLabel ; 0x0000098c
+         %16 = OpFunctionCall %void %__itt_offload_wi_start_wrapper ; 0x00000994
+         %20 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInGlobalInvocationId %uint_0 %uint_1 ; 0x000009a4
+         %28 = OpLoad %ulong %20 Aligned|NoAliasINTELMask 8 %27 ; 0x000009bc
+         %31 = OpULessThan %bool %28 %ulong_2147483648 ; 0x000009d8
+               OpAssumeTrueKHR %31 ; 0x000009ec
+         %32 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInGlobalInvocationId %uint_0 %uint_0 ; 0x000009f4
+         %40 = OpLoad %ulong %32 Aligned|NoAliasINTELMask 32 %39 ; 0x00000a0c
+         %41 = OpULessThan %bool %40 %ulong_2147483648 ; 0x00000a28
+               OpAssumeTrueKHR %41 ; 0x00000a3c
+         %42 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInLocalInvocationId %uint_0 %uint_1 ; 0x00000a44
+         %50 = OpLoad %ulong %42 Aligned|NoAliasINTELMask 8 %49 ; 0x00000a5c
+         %51 = OpULessThan %bool %50 %ulong_2147483648 ; 0x00000a78
+               OpAssumeTrueKHR %51 ; 0x00000a8c
+         %52 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInLocalInvocationId %uint_0 %uint_0 ; 0x00000a94
+         %60 = OpLoad %ulong %52 Aligned|NoAliasINTELMask 32 %59 ; 0x00000aac
+         %61 = OpULessThan %bool %60 %ulong_2147483648 ; 0x00000ac8
+               OpAssumeTrueKHR %61 ; 0x00000adc
+         %63 = OpFunctionCall %void %__itt_offload_wi_finish_wrapper ; 0x00000ae4
+               OpReturn ; 0x00000af4
+               OpFunctionEnd ; 0x00000af8
+%__itt_offload_wi_start_wrapper = OpFunction %void Inline %12 ; 0x00000afc
+         %64 = OpLabel ; 0x00000b10
+         %70 = OpVariable %_ptr_Function__arr_ulong_ulong_3 Function ; 0x00000b18
+         %74 = OpIEqual %bool %72 %uchar_0 ; 0x00000b28
+         %75 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInWorkgroupSize %uint_0 %uint_0 ; 0x00000b3c
+         %76 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInWorkgroupSize %uint_0 %uint_1 ; 0x00000b54
+         %78 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %__spirv_BuiltInWorkgroupSize %uint_0 %uint_2 ; 0x00000b6c
+               OpBranchConditional %74 %66 %65 ; 0x00000b84
+         %65 = OpLabel ; 0x00000b94
+         %80 = OpBitcast %_ptr_Function_uchar %70 ; 0x00000b9c
+               OpLifetimeStart %80 24 ; 0x00000bac
+         %83 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %70 %ulong_0 %ulong_0 ; 0x00000bb8
+         %85 = OpPtrCastToGeneric %_ptr_Generic_ulong %83 ; 0x00000bd0
+         %86 = OpLoad %v3ulong %__spirv_BuiltInWorkgroupId Aligned 32 ; 0x00000be0
+         %87 = OpCompositeExtract %ulong %86 0 ; 0x00000bf8
+               OpStore %83 %87 Aligned 8 ; 0x00000c0c
+         %89 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %70 %ulong_0 %ulong_1 ; 0x00000c20
+         %90 = OpCompositeExtract %ulong %86 1 ; 0x00000c38
+               OpStore %89 %90 Aligned 8 ; 0x00000c4c
+         %92 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %70 %ulong_0 %ulong_2 ; 0x00000c60
+         %93 = OpCompositeExtract %ulong %86 2 ; 0x00000c78
+               OpStore %92 %93 Aligned 8 ; 0x00000c8c
+         %94 = OpLoad %ulong %__spirv_BuiltInGlobalLinearId Aligned 8 ; 0x00000ca0
+         %95 = OpLoad %ulong %75 Aligned 32 ; 0x00000cb8
+         %96 = OpLoad %ulong %76 Aligned 8 ; 0x00000cd0
+         %97 = OpIMul %ulong %95 %96 ; 0x00000ce8
+         %98 = OpLoad %ulong %78 Aligned 16 ; 0x00000cfc
+         %99 = OpIMul %ulong %97 %98 ; 0x00000d14
+        %100 = OpUConvert %uint %99 ; 0x00000d28
+        %106 = OpFunctionCall %void %__itt_offload_wi_start_stub %85 %94 %100 ; 0x00000d38
+        %107 = OpBitcast %_ptr_Function_uchar %70 ; 0x00000d54
+               OpLifetimeStop %107 24 ; 0x00000d64
+               OpBranch %66 ; 0x00000d70
+         %66 = OpLabel ; 0x00000d78
+               OpReturn ; 0x00000d80
+               OpFunctionEnd ; 0x00000d84
+%__itt_offload_wi_finish_wrapper = OpFunction %void Inline %12 ; 0x00000d88
+        %108 = OpLabel ; 0x00000d9c
+        %111 = OpVariable %_ptr_Function__arr_ulong_ulong_3 Function ; 0x00000da4
+        %113 = OpIEqual %bool %112 %uchar_0 ; 0x00000db4
+               OpBranchConditional %113 %110 %109 ; 0x00000dc8
+        %109 = OpLabel ; 0x00000dd8
+        %114 = OpBitcast %_ptr_Function_uchar %111 ; 0x00000de0
+               OpLifetimeStart %114 24 ; 0x00000df0
+        %115 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %111 %ulong_0 %ulong_0 ; 0x00000dfc
+        %116 = OpPtrCastToGeneric %_ptr_Generic_ulong %115 ; 0x00000e14
+        %117 = OpLoad %v3ulong %__spirv_BuiltInWorkgroupId Aligned 32 ; 0x00000e24
+        %118 = OpCompositeExtract %ulong %117 0 ; 0x00000e3c
+               OpStore %115 %118 Aligned 8 ; 0x00000e50
+        %119 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %111 %ulong_0 %ulong_1 ; 0x00000e64
+        %120 = OpCompositeExtract %ulong %117 1 ; 0x00000e7c
+               OpStore %119 %120 Aligned 8 ; 0x00000e90
+        %121 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %111 %ulong_0 %ulong_2 ; 0x00000ea4
+        %122 = OpCompositeExtract %ulong %117 2 ; 0x00000ebc
+               OpStore %121 %122 Aligned 8 ; 0x00000ed0
+        %123 = OpLoad %ulong %__spirv_BuiltInGlobalLinearId Aligned 8 ; 0x00000ee4
+        %128 = OpFunctionCall %void %__itt_offload_wi_finish_stub %116 %123 ; 0x00000efc
+        %129 = OpBitcast %_ptr_Function_uchar %111 ; 0x00000f14
+               OpLifetimeStop %129 24 ; 0x00000f24
+               OpBranch %110 ; 0x00000f30
+        %110 = OpLabel ; 0x00000f38
+               OpReturn ; 0x00000f40
+               OpFunctionEnd ; 0x00000f44
+%__itt_offload_wi_start_stub = OpFunction %void DontInline|OptNoneINTEL %101 ; 0x00000f48
+        %103 = OpFunctionParameter %_ptr_Generic_ulong ; 0x00000f5c
+        %104 = OpFunctionParameter %ulong ; 0x00000f68
+        %105 = OpFunctionParameter %uint ; 0x00000f74
+        %130 = OpLabel ; 0x00000f80
+        %132 = OpVariable %_ptr_Function__ptr_Generic_ulong Function ; 0x00000f88
+        %133 = OpVariable %_ptr_Function_ulong Function ; 0x00000f98
+        %135 = OpVariable %_ptr_Function_uint Function ; 0x00000fa8
+        %137 = OpPtrCastToGeneric %_ptr_Generic__ptr_Generic_ulong %132 ; 0x00000fb8
+        %138 = OpPtrCastToGeneric %_ptr_Generic_ulong %133 ; 0x00000fc8
+        %140 = OpPtrCastToGeneric %_ptr_Generic_uint %135 ; 0x00000fd8
+               OpStore %137 %103 Aligned 8 ; 0x00000fe8
+               OpStore %138 %104 Aligned 8 ; 0x00000ffc
+               OpStore %140 %105 Aligned 4 ; 0x00001010
+               OpReturn ; 0x00001024
+               OpFunctionEnd ; 0x00001028
+%__itt_offload_wi_finish_stub = OpFunction %void DontInline|OptNoneINTEL %124 ; 0x0000102c
+        %126 = OpFunctionParameter %_ptr_Generic_ulong ; 0x00001040
+        %127 = OpFunctionParameter %ulong ; 0x0000104c
+        %141 = OpLabel ; 0x00001058
+        %142 = OpVariable %_ptr_Function__ptr_Generic_ulong Function ; 0x00001060
+        %143 = OpVariable %_ptr_Function_ulong Function ; 0x00001070
+        %144 = OpPtrCastToGeneric %_ptr_Generic__ptr_Generic_ulong %142 ; 0x00001080
+        %145 = OpPtrCastToGeneric %_ptr_Generic_ulong %143 ; 0x00001090
+               OpStore %144 %126 Aligned 8 ; 0x000010a0
+               OpStore %145 %127 Aligned 8 ; 0x000010b4
+               OpReturn ; 0x000010c8
+               OpFunctionEnd ; 0x000010cc
+        %146 = OpFunction %void None %12 ; 0x000010d0
+        %147 = OpLabel ; 0x000010e4
+        %148 = OpFunctionCall %void %_ZTS7imatrixIfLm16ELm16ELm8EE ; 0x000010ec
+               OpReturn ; 0x000010fc
+               OpFunctionEnd ; 0x00001100

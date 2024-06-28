@@ -1,0 +1,11 @@
+IGC keys (some dump keys not shown) and command line to compile:
+
+    DumpLLVMIR    1
+
+
+IGCStandalone -api ocl -llvm 14 -device 0x4f6.0x4f80.0x0 -gmd_render 0x37.0x0 -inputcs OCL_asm45a9d8aa90a8d970.spv -finternal_options OCL_asm45a9d8aa90a8d970_internal_options.txt
+
+
+Or using the following with IGC keys set via -option
+
+IGCStandalone -api ocl -llvm 14 -device 0x4f6.0x4f80.0x0 -gmd_render 0x37.0x0 -inputcs OCL_asm45a9d8aa90a8d970.spv -finternal_options OCL_asm45a9d8aa90a8d970_internal_options.txt -option DumpLLVMIR=1

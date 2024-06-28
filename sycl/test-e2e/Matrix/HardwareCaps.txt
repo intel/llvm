@@ -1,0 +1,25 @@
+// ------------------------------------------------
+// HardwareCaps.txt
+// ------------------------------------------------
+// Hardware Caps :
+EUCount 		= 	512
+ThreadCount 		= 	4096
+SliceCount 		= 	1
+SubSliceCount 		= 	32
+TotalPsThreadsWindowerRange 		= 	0
+TotalVsThreads 		= 	0
+TotalVsThreads_Pocs 		= 	0
+TotalGsThreads 		= 	0
+TotalDsThreads 		= 	0
+TotalHsThreads 		= 	0
+MaxEuPerSubSlice 		= 	16
+EuCountPerPoolMax 		= 	0
+EuCountPerPoolMin 		= 	0
+MaxSlicesSupported 		= 	1
+MaxSubSlicesSupported 		= 	32
+ProductFamily 		= 	IGFX_DG2
+PlatformFamily 		= 	IGFX_GEN12_CORE
+UsDeviceID 		= 	0x56a0
+UsRevId 		= 	0x8
+UsDeviceID_PCH 		= 	0x0
+UsRevId_PCH 		= 	0x0
