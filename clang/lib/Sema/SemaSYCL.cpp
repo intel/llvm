@@ -4373,7 +4373,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
         SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset + OffsetAdj));
-    Header.addParamType(ParamTy);
   }
 
 public:
@@ -5798,18 +5797,6 @@ public:
   void VisitPackTemplateArgument(const TemplateArgument &TA) {
     VisitTemplateArgs(TA.getPackAsArray());
   }
-
-  void EmitFunctionDecl(const FunctionDecl *CFD) {
-    const NamedDecl *CND = cast<NamedDecl>(CFD);
-    NamedDecl *ND = const_cast<NamedDecl *>(CND);
-    printForwardDecl(ND);
-  }
-
-  void EmitFunctionTemplateDecl(const FunctionTemplateDecl *FTD) {
-    const NamedDecl *CND = cast<NamedDecl>(FTD);
-    NamedDecl *ND = const_cast<NamedDecl *>(CND);
-    printForwardDecl(ND);
-  }
 };
 
 class SYCLKernelNameTypePrinter
@@ -6344,12 +6331,6 @@ void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
   PD.Kind = Kind;
   PD.Info = Info;
   PD.Offset = Offset;
-}
-
-void SYCLIntegrationHeader::addParamType(QualType Type) {
-  auto *K = getCurKernelDesc();
-  assert(K && "no kernels");
-  K->ParamTypes.push_back(Type);
 }
 
 void SYCLIntegrationHeader::endKernel() {
