@@ -183,10 +183,10 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
 
-  sycl-bench:
+  sycl-benchmark:
     needs: [build, test]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-bench.yml
+    uses: ./.github/workflows/sycl-benchmark.yml
     with:
       runner: ${{ matrix. runner }}
       image: ${{ matrix.image }}
