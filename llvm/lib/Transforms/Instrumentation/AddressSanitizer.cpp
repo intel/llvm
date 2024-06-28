@@ -3360,14 +3360,16 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
   if (F.getName().starts_with("__asan_")) return false;
-  if (F.getName().contains("__sycl_service_kernel__"))
-    return false;
 
-  // Skip referenced-indirectly function as we may insert access to shared local
-  // memory (SLM) __AsanLaunchInfo in report function and access to SLM in
-  // referenced-indirectly function isn't supported in intel-graphics-compiler.
-  if (TargetTriple.isSPIR() && F.hasFnAttribute("referenced-indirectly"))
-    return false;
+  if (TargetTriple.isSPIR()) {
+    if (F.getName().contains("__sycl_service_kernel__"))
+      return false;
+    // Skip referenced-indirectly function as we insert access to shared local
+    // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
+    // function isn't supported yet in intel-graphics-compiler.
+    if (F.hasFnAttribute("referenced-indirectly"))
+      return false;
+  }
 
   bool FunctionModified = false;
 
