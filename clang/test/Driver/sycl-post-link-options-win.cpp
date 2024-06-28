@@ -3,7 +3,7 @@
 // RUN: %clangxx -### --target=x86_64-pc-windows-msvc -fsycl \
 // RUN:          -Xdevice-post-link -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT_OLD %s
-// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
+// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "-properties" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 
 // RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t.elf.o
 // RUN: clang-offload-packager -o %t.out --image=file=%t.elf.o,kind=sycl,triple=spir64

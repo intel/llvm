@@ -14,9 +14,9 @@
 // SYCL runtime later.
 //===----------------------------------------------------------------------===//
 
-#include "SYCLDeviceLibReqMask.h"
-#include "llvm/TargetParser/Triple.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <string>
 #include <unordered_map>

@@ -1,11 +1,11 @@
-; RUN: sycl-post-link -spec-const=emulation < %s -S -o %t.table
+; RUN: sycl-post-link -properties -spec-const=emulation < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-DEF < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS,CHECK-PROPS-DEF < %t_0.prop
-; RUN: sycl-post-link -spec-const=native < %s -S -o %t.table
+; RUN: sycl-post-link -properties -spec-const=native < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-RT < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS < %t_0.prop
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=emulation < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION %}
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=native < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -spec-const=emulation < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -spec-const=native < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE %}
 
 ; This test checks that the post link tool is able to correctly transform
 ; SYCL 2020 specialization constant intrinsics for different types in a device
