@@ -3195,7 +3195,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem)), std::move(ReqPiMem));
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqPiMem)));
 
     MShouldCompleteEventIfPossible = false;
 

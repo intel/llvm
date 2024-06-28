@@ -195,9 +195,12 @@
 // PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
+// 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
+
+
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 54
+#define _PI_H_VERSION_MINOR 55
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1279,6 +1282,7 @@ using pi_image_mem_handle = void *;
 using pi_interop_mem_handle = pi_uint64;
 using pi_interop_semaphore_handle = pi_uint64;
 using pi_physical_mem = _pi_physical_mem *;
+using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -3198,6 +3202,25 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
     bool has_signal_value, pi_uint64 signal_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API to enqueue work through a backend API such that the plugin can schedule
+/// the backend API calls within its own DAG.
+///
+/// \param command_queue is the queue instructed to signal
+/// \param fn is the user submitted native function enqueueing work to a
+///        backend API
+/// \param data is the data that will be used in fn
+/// \param num_mems is the number of mems in mem_list
+/// \param mem_list is the list of mems that are used in fn
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextEnqueueNativeCommand(
+    pi_queue command_queue, pi_enqueue_native_command_function fn, void *data,
+    pi_uint32 num_mems, const pi_mem *mem_list,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
