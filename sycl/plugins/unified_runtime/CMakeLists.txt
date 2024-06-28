@@ -108,13 +108,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
-    # Merge: 08acafb6 b3f36b96
-    # Author: Callum Fare <callum@codeplay.com>
-    # Date:   Tue Jun 25 11:19:54 2024 +0100
-    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
-    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
-    f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
