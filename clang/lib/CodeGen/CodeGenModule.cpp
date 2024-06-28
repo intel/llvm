@@ -1380,9 +1380,9 @@ void CodeGenModule::Release() {
       for (const auto &Type : TypesWithAspects) {
         StringRef Name = Type.first;
         const RecordDecl *RD = Type.second;
-        AspectsMD->addOperand(getAspectsMD(Context, TheModule.getContext(),
-                                           Name,
-                                           RD->getAttr<SYCLUsesAspectsAttr>()));
+	if (const auto *Attr = RD->getAttr<SYCLUsesAspectsAttr>())
+	  AspectsMD->addOperand(getAspectsMD(Context, TheModule.getContext(),
+				             Name, Attr));
       }
     }
 
