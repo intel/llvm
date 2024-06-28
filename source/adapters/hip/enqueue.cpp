@@ -293,7 +293,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ScopedContext Active(Dev);
 
     uint32_t StreamToken;
-    ur_stream_quard Guard;
+    ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
@@ -380,7 +380,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_quard Guard;
+    ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList,
         reinterpret_cast<const ur_event_handle_t *>(phEventWaitList), Guard,
@@ -1243,7 +1243,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_quard Guard;
+    ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
@@ -1893,7 +1893,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ScopedContext Active(hQueue->getDevice());
 
     uint32_t StreamToken;
-    ur_stream_quard Guard;
+    ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,

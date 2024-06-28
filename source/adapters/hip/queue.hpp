@@ -14,7 +14,7 @@
 #include <mutex>
 #include <vector>
 
-using ur_stream_quard = std::unique_lock<std::mutex>;
+using ur_stream_guard = std::unique_lock<std::mutex>;
 
 /// UR queue mapping on to hipStream_t objects.
 ///
@@ -97,7 +97,7 @@ struct ur_queue_handle_t_ {
   // returns a lock that needs to remain locked as long as the stream is in use
   native_type getNextComputeStream(uint32_t NumEventsInWaitList,
                                    const ur_event_handle_t *EventWaitList,
-                                   ur_stream_quard &Guard,
+                                   ur_stream_guard &Guard,
                                    uint32_t *StreamToken = nullptr);
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
@@ -247,6 +247,12 @@ struct ur_queue_handle_t_ {
     }
   }
 
+  // Thread local stream will be used if ScopedStream is active
+  static hipStream_t &getThreadLocalStream() {
+    static thread_local hipStream_t stream{0};
+    return stream;
+  }
+
   ur_context_handle_t getContext() const { return Context; };
 
   ur_device_handle_t getDevice() const { return Device; };
@@ -260,4 +266,27 @@ struct ur_queue_handle_t_ {
   uint32_t getNextEventId() noexcept { return ++EventCount; }
 
   bool backendHasOwnership() const noexcept { return HasOwnership; }
+};
+
+// RAII object to make hQueue stream getter methods all return the same stream
+// within the lifetime of this object.
+//
+// This is useful for urEnqueueNativeCommandExp where we want guarantees that
+// the user submitted native calls will be dispatched to a known stream, which
+// must be "got" within the user submitted function.
+//
+// TODO: Add a test that this scoping works
+class ScopedStream {
+  ur_queue_handle_t hQueue;
+
+public:
+  ScopedStream(ur_queue_handle_t hQueue, uint32_t NumEventsInWaitList,
+               const ur_event_handle_t *EventWaitList)
+      : hQueue{hQueue} {
+    ur_stream_guard Guard;
+    hQueue->getThreadLocalStream() =
+        hQueue->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
+  }
+  hipStream_t getStream() { return hQueue->getThreadLocalStream(); }
+  ~ScopedStream() { hQueue->getThreadLocalStream() = hipStream_t{0}; }
 };

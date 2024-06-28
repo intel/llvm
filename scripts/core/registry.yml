@@ -589,6 +589,9 @@ etors:
 - name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
   value: '227'
+- name: ENQUEUE_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xEnqueueNativeCommandExp
+  value: '228'
 ---
 type: enum
 desc: Defines structure types

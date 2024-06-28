@@ -1484,11 +1484,25 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimestampRecordingExp_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueNativeCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
+    ur_queue_handle_t,
+    ur_exp_enqueue_native_command_function_t,
+    void *,
+    uint32_t,
+    const ur_mem_handle_t *,
+    const ur_exp_enqueue_native_command_properties_t *,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
     ur_pfnEnqueueKernelLaunchCustomExp_t pfnKernelLaunchCustomExp;
     ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
     ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
+    ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
 } ur_enqueue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
