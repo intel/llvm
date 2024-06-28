@@ -26,7 +26,7 @@ template <typename T> void dummy_kernel(T *input, int N, sycl::nd_item<1> it) {
 
 int main() {
 
-  std::vector<int> a(4096, -20);
+  std::vector<int> host_array(4096, -20);
   sycl::queue queue;
 
   if (!queue.get_device().has(sycl::aspect::ext_oneapi_cuda_cluster_group)) {
@@ -35,7 +35,7 @@ int main() {
   }
 
   {
-    sycl::buffer<int, 1> a_buf(a.data(), 4096);
+    sycl::buffer<int, 1> a_buf(host_array.data(), 4096);
     queue.submit([&](sycl::handler &CGH) {
       auto a_acc = a_buf.template get_access<sycl::access::mode::write>(CGH);
       CGH.parallel_for(4096, [=](auto i) { a_acc[i] = 1; });
@@ -62,7 +62,7 @@ int main() {
     });
   }
 
-  for (auto v : a) {
+  for (auto v : host_array) {
     if (v != 15) {
       return 1;
     }
