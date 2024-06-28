@@ -5,7 +5,6 @@
 // message `The implementation handling parallel_for with reduction requires
 // work group size not bigger than 1` on Nvidia.
 
-// XFAIL: hip_nvidia
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // used with 'double' type.

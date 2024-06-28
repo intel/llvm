@@ -3,7 +3,6 @@
 // RUN: %{run} %t.out
 
 // An issue has been reported in https://github.com/intel/llvm/issues/14115
-// XFAIL: *
 
 #include <cuda.h>
 #include <sycl/detail/core.hpp>

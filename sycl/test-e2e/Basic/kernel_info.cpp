@@ -5,7 +5,6 @@
 // UNSUPPORTED: level_zero
 //
 // Consistently fails with opencl gpu, enable when fixed.
-// XFAIL: opencl && gpu
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //

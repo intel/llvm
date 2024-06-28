@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out
 
 // Group algorithms are not supported on NVidia.
-// XFAIL: hip_nvidia
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

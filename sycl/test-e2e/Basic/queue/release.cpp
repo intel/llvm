@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 //
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
 int main() {

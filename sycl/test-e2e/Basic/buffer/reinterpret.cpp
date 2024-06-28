@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: level_zero&&gpu
 
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //

@@ -15,7 +15,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %{run} %t.out
 //
-// XFAIL: hip_nvidia
 //
 
 #include <sycl/detail/core.hpp>

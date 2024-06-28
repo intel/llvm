@@ -2,7 +2,6 @@
 // UNSUPPORTED: gpu-intel-pvc
 //
 // TODO: enable when Jira ticket resolved
-// XFAIL: gpu
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out

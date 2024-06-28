@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: *
 // TODO Remove XFAIL once the simd vector provides move assignment operator
 //
 // Test for simd move and copy assignment operators.

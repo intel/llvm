@@ -2,7 +2,6 @@
 // UNSUPPORTED: cuda || hip
 //
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
-// XFAIL: (opencl && gpu)
 //
 // https://github.com/intel/llvm/issues/12797
 // UNSUPPORTED: windows

@@ -2,7 +2,6 @@
 //
 // TODO FIXME: Currently compile fail with "no or multiple invoke_simd targets
 // found"
-// XFAIL: gpu
 /*
  * Test case specification: Test and report errors if reference argument is
  * passed to invoked ESIMD function

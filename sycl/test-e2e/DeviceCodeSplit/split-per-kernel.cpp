@@ -2,7 +2,6 @@
 // RUN: -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
 

@@ -5,7 +5,6 @@
 // RUN: %{run} %t_var.out | FileCheck %s
 
 // Hits an assertion with AMD:
-// XFAIL: hip_amd
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>

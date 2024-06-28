@@ -15,7 +15,6 @@
 // RUN: %{run} %t.out
 
 // Sub-group size 32 support for this test is not currently available in IGC
-// XFAIL: gpu
 
 #include "../common.hpp"
 

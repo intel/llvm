@@ -4,7 +4,6 @@
 // (http://eel.is/c++draft/basic.types.general#def:type,scalar)
 // TODO FIXME: Compile must fail with meaningful error message, but currently it
 // compiles with no error
-// XFAIL: gpu
 /*
  * Test case specification: Test and report errors if accessor argument is
  * passed to invoked ESIMD function

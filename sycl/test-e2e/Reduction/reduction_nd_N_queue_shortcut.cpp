@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out
 
 // Group algorithms are not supported on NVidia.
-// XFAIL: hip_nvidia
 
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
