@@ -881,6 +881,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // HIP supports enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(true);
+  }
 
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_COMPONENT_DEVICES:

@@ -13,8 +13,12 @@ add_adapter_test(cuda
         urDeviceCreateWithNativeHandle.cpp
         urEventGetNativeHandle.cpp
         urEventCreateWithNativeHandle.cpp
+        urQueueGetNativeHandle.cpp
         kernel_tests.cpp
         memory_tests.cpp
+        #FIXME: make this cleaner
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/queue.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/common.cpp
     ENVIRONMENT
         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_cuda>\""
 )
