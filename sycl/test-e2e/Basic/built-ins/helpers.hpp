@@ -64,7 +64,7 @@ template <typename FuncTy, typename ExpectedTy, typename... ArgTys>
 void test(FuncTy F, ExpectedTy Expected, ArgTys... Args) {
   test(true /*CheckDevice*/, 0.0 /*delta*/, F, Expected, Args...);
 }
-template <typename FuncTy, typename ExpectedTy, 
+template <typename FuncTy, typename ExpectedTy,
           typename... ArgTys>
 void test(bool CheckDevice, FuncTy F, ExpectedTy Expected, ArgTys... Args) {
   test(CheckDevice, 0.0 /*delta*/, F, Expected, Args...);
