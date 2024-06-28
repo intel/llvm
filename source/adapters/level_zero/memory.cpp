@@ -1668,7 +1668,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     // If not shared of any type, we can import the ptr
     if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle = Context->getPlatform()->ZeDriver;
+      ze_driver_handle_t driverHandle =
+          Context->getPlatform()->ZeDriverHandleExpTranslated;
       ZeUSMImport.doZeUSMImport(driverHandle, Host, Size);
       HostPtrImported = true;
     }
@@ -2252,7 +2253,8 @@ ur_result_t _ur_buffer::free() {
       UR_CALL(ZeMemFreeHelper(UrContext, ZeHandle));
       break;
     case allocation_t::unimport:
-      ZeUSMImport.doZeUSMRelease(UrContext->getPlatform()->ZeDriver, ZeHandle);
+      ZeUSMImport.doZeUSMRelease(
+          UrContext->getPlatform()->ZeDriverHandleExpTranslated, ZeHandle);
       break;
     default:
       die("_ur_buffer::free(): Unhandled release action");
