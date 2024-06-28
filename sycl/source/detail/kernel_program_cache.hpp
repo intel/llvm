@@ -171,20 +171,16 @@ public:
 
   std::pair<ProgramBuildResultPtr, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
-    std::cout << "Cache::getOrInsertProgram(CacheKey = {"
-        << "spec const, ImgId: " << CacheKey.first.second << ", device)\n";
     auto LockedCache = acquireCachedPrograms();
     auto &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      std::cout << "\t did insert\n";
       It->second = std::make_shared<ProgramBuildResult>(getPlugin());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
     }
-    std::cout << "\tcached program state = " << (int)It->second->State.load() << std::endl;
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -253,7 +249,6 @@ public:
   /// nullptr.
   template <typename ExceptionT, typename GetCachedBuildFT, typename BuildFT>
   auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build) {
-    std::cout << "Cache::getOrBuild" << std::endl;
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
@@ -262,16 +257,12 @@ public:
       BuildState Expected = BuildState::BS_Initial;
       BuildState Desired = BuildState::BS_InProgress;
       if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
-        std::cout << "need to wait for build to complete" << std::endl;
         // no insertion took place, thus some other thread has already inserted
         // smth in the cache
         BuildState NewState = BuildResult->waitUntilTransition();
 
         // Build succeeded.
         if (NewState == BuildState::BS_Done) {
-          if constexpr (std::is_same<decltype(BuildResult->Val), sycl::detail::pi::PiProgram>::value) {
-            std::cout << "Cache::getOrBuild. Returning existing program " << BuildResult->Val << std::endl;
-          }
           return BuildResult;
         }
 
@@ -293,11 +284,7 @@ public:
 
       // only the building thread will run this
       try {
-        std::cout << "performing program build" << std::endl;
         BuildResult->Val = Build();
-        if constexpr (std::is_same<decltype(BuildResult->Val), sycl::detail::pi::PiProgram>::value) {
-          std::cout << "Cache::getOrBuild. Result of BuildF() = " << BuildResult->Val << std::endl;
-        }
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
         return BuildResult;

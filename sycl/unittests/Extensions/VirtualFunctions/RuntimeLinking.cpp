@@ -167,3 +167,7 @@ TEST(VirtualFunctions, A) {
   ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_LINKED);
 }
+
+// TODO: Test case similar to A, but with kernel bundles
+// TODO: Test case where kernelA uses setA and kernelB uses setA and setB to
+// ensure that dependencies search is recursive.
