@@ -99,14 +99,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG review/yang/private_memory)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94
+  # Author: Yang Zhao <yang2.zhao@intel.com>
+  # Date:   Thu Jun 27 20:26:17 2024 +0800
+  #     [DeviceSanitizer] Support out-of-bounds on private memory (#1676)
+  set(UNIFIED_RUNTIME_TAG 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
