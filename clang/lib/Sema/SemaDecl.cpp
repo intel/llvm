@@ -16542,20 +16542,23 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     DiscardCleanupsInEvaluationContext();
   }
 
-  if (FD && ((LangOpts.OpenMP && (LangOpts.OpenMPIsTargetDevice ||
-                                  !LangOpts.OMPTargetTriples.empty())) ||
-             LangOpts.CUDA || LangOpts.SYCLIsDevice)) {
+  if (!FD)
+    return dcl;
+
+  if ((LangOpts.OpenMP && (LangOpts.OpenMPIsTargetDevice ||
+                           !LangOpts.OMPTargetTriples.empty())) ||
+      LangOpts.CUDA || LangOpts.SYCLIsDevice) {
     auto ES = getEmissionStatus(FD);
     if (ES == Sema::FunctionEmissionStatus::Emitted ||
         ES == Sema::FunctionEmissionStatus::Unknown)
       DeclsToCheckForDeferredDiags.insert(FD);
   }
 
-  if (FD && !FD->isDeleted())
+  if (!FD->isDeleted())
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
   // Handle free functions.
-  if (FD && LangOpts.SYCLIsDevice && FD->hasAttr<SYCLDeviceAttr>() && Body &&
+  if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLDeviceAttr>() && Body &&
       (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate ||
        FD->getTemplatedKind() ==
            FunctionDecl::TK_FunctionTemplateSpecialization))
