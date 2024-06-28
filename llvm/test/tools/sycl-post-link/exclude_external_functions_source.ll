@@ -4,7 +4,7 @@
 ; Also ensure that functions in the same source that can be imported do not get split into
 ; different images.
 
-; RUN: sycl-post-link -symbols -support-dynamic-linking -split=source -S < %s -o %t.table
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -split=source -S < %s -o %t.table
 
 target triple = "spir64-unknown-unknown"
 
