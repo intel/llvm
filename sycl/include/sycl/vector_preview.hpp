@@ -745,6 +745,10 @@ class SwizzleOp {
       DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
+  template <typename RelayVecT = VecT>
+  static constexpr bool VecIsMutable =
+      !std::is_const_v<RelayVecT> && std::is_same_v<RelayVecT, VecT>;
+
   using rel_t = detail::rel_t<DataT>;
   using vec_t = vec<DataT, sizeof...(Indexes)>;
   using vec_rel_t = vec<rel_t, sizeof...(Indexes)>;
@@ -769,14 +773,20 @@ class SwizzleOp {
                             SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                       OperationCurrentT, Indexes...>,
                             OperationCurrentT_, Idx_...>;
+  template <int IdxNum>
+  static constexpr bool HasOneIndex =
+      1 == IdxNum && SwizzleOp::getNumElements() == IdxNum;
 
   template <int IdxNum, typename T = void>
-  using EnableIfOneIndex = typename std::enable_if_t<
-      1 == IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+  using EnableIfOneIndex = typename std::enable_if_t<HasOneIndex<IdxNum>, T>;
+
+  template <int IdxNum>
+  static constexpr bool HasMultipleIndices =
+      1 != IdxNum && SwizzleOp::getNumElements() == IdxNum;
 
   template <int IdxNum, typename T = void>
-  using EnableIfMultipleIndexes = typename std::enable_if_t<
-      1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+  using EnableIfMultipleIndexes =
+      typename std::enable_if_t<HasMultipleIndices<IdxNum>, T>;
 
   template <typename T>
   using EnableIfScalarType = typename std::enable_if_t<
@@ -865,14 +875,23 @@ public:
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
-  SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
-    operatorHelper<OP>(vec_t(Rhs));                                            \
-    return *this;                                                              \
+  template <typename RelayVecT = VecT>                                         \
+  friend const std::enable_if_t<VecIsMutable<RelayVecT>, SwizzleOp>            \
+      &operator OPASSIGN(const SwizzleOp & Lhs, const DataT & Rhs) {           \
+    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
+    return Lhs;                                                                \
   }                                                                            \
-  template <typename RhsOperation>                                             \
-  SwizzleOp &operator OPASSIGN(const RhsOperation & Rhs) {                     \
-    operatorHelper<OP>(Rhs);                                                   \
-    return *this;                                                              \
+  template <typename RhsOperation, typename RelayVecT = VecT>                  \
+  friend const std::enable_if_t<VecIsMutable<RelayVecT>, SwizzleOp>            \
+      &operator OPASSIGN(const SwizzleOp & Lhs, const RhsOperation & Rhs) {    \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename RelayVecT = VecT>                                         \
+  friend const std::enable_if_t<VecIsMutable<RelayVecT>, SwizzleOp>            \
+      &operator OPASSIGN(const SwizzleOp & Lhs, const vec_t & Rhs) {           \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
   }
 
   __SYCL_OPASSIGN(+=, std::plus)
@@ -891,13 +910,17 @@ public:
 #error "Undefine __SYCL_UOP macro"
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  SwizzleOp &operator UOP() {                                                  \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
-    return *this;                                                              \
+  template <typename RelayVecT = VecT>                                         \
+  friend const std::enable_if_t<VecIsMutable<RelayVecT>, SwizzleOp>            \
+      &operator UOP(const SwizzleOp & sv) {                                    \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
+    return sv;                                                                 \
   }                                                                            \
-  vec_t operator UOP(int) {                                                    \
-    vec_t Ret = *this;                                                         \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
+  template <typename RelayVecT = VecT>                                         \
+  friend std::enable_if_t<VecIsMutable<RelayVecT>, vec_t> operator UOP(        \
+      const SwizzleOp & sv, int) {                                             \
+    vec_t Ret = sv;                                                            \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
     return Ret;                                                                \
   }
 
@@ -1029,9 +1052,10 @@ public:
   __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
 
-  template <int IdxNum = getNumElements(),
-            typename = EnableIfMultipleIndexes<IdxNum>>
-  SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
+  template <int IdxNum = getNumElements(), typename RelayVecT = VecT>
+  std::enable_if_t<HasMultipleIndices<IdxNum> && VecIsMutable<RelayVecT>,
+                   SwizzleOp> &
+  operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
@@ -1039,25 +1063,22 @@ public:
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
-  SwizzleOp &operator=(const DataT &Rhs) {
-    std::array<int, IdxNum> Idxs{Indexes...};
-    (*m_Vector)[Idxs[0]] = Rhs;
-    return *this;
-  }
-
-  template <int IdxNum = getNumElements(),
-            EnableIfMultipleIndexes<IdxNum, bool> = true>
-  SwizzleOp &operator=(const DataT &Rhs) {
-    std::array<int, IdxNum> Idxs{Indexes...};
-    for (auto Idx : Idxs) {
-      (*m_Vector)[Idx] = Rhs;
+  template <typename RelayVecT = VecT>
+  std::enable_if_t<VecIsMutable<RelayVecT>, SwizzleOp> &
+  operator=(const DataT &Rhs) {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    if constexpr (getNumElements() == 1) {
+      (*m_Vector)[Idxs[0]] = Rhs;
+    } else {
+      for (auto Idx : Idxs)
+        (*m_Vector)[Idx] = Rhs;
     }
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
-  SwizzleOp &operator=(DataT &&Rhs) {
+  template <int IdxNum = getNumElements(), typename RelayVecT = VecT>
+  std::enable_if_t<HasOneIndex<IdxNum> && VecIsMutable<RelayVecT>, SwizzleOp> &
+  operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     (*m_Vector)[Idxs[0]] = Rhs;
     return *this;
@@ -1205,10 +1226,10 @@ public:
     return NewLHOp<RhsOperation, LShift, Indexes...>(m_Vector, *this, Rhs);
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<
+                sizeof...(T5) == getNumElements() && VecIsMutable<>>>
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -1217,10 +1238,10 @@ public:
     return *this;
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<
+                sizeof...(T5) == getNumElements() && VecIsMutable<>>>
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -1362,8 +1383,10 @@ public:
 
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
-  template <access::address_space Space, access::decorated DecorateAddress>
-  void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
+  template <access::address_space Space, access::decorated DecorateAddress,
+            typename RelayVecT = VecT>
+  std::enable_if_t<VecIsMutable<RelayVecT>, void>
+  load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) const {
     vec_t Tmp;
     Tmp.template load(offset, ptr);
     *this = Tmp;
@@ -1438,7 +1461,7 @@ private:
   }
 
   template <template <typename> class Operation, typename RhsOperation>
-  void operatorHelper(const RhsOperation &Rhs) {
+  void operatorHelper(const RhsOperation &Rhs) const {
     Operation<DataT> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
