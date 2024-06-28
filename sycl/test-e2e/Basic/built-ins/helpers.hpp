@@ -44,7 +44,7 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
         auto R = F(Args...);
         static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
         // use double precision error tolerance when fp64 supported
-        Success[0] = equal(R, Expected,delta); 
+        Success[0] = equal(R, Expected, delta); 
       });
     } else {
       // downscale the error tolerance when fp64 is not supported
