@@ -56,7 +56,6 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
         Success[0] = equal(R, Expected, d);
       });
     }
->>>>>>> b5278f4223c7 (Update helpers.hpp)
   });
   assert(sycl::host_accessor{SuccessBuf}[0]);
 }
