@@ -56,7 +56,7 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
   detail::getSyclObjImpl(GlobalFlushBuf)->PerWI = true;
 }
 
-size_t stream::size() const noexcept { return impl->get_size(); }
+size_t stream::size() const noexcept { return impl->size(); }
 
 size_t stream::get_work_item_buffer_size() const {
   return impl->get_work_item_buffer_size();

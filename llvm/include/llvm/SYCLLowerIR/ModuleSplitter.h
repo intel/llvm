@@ -30,7 +30,13 @@ namespace llvm {
 class Function;
 class Module;
 
+namespace cl {
+class OptionCategory;
+}
+
 namespace module_split {
+
+extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -299,6 +305,8 @@ struct ModuleSplitterSettings {
 /// Splits the given module \p M according to the given \p Settings.
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
+
+bool canBeImportedFunction(const Function &F);
 
 } // namespace module_split
 
