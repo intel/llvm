@@ -219,7 +219,7 @@ that format.
 Applications must use overload (1) when the source language is text format and
 must use overload (2) when the source language is binary format.
 The `sycl` language is text format, so application must use overload (1) when
-when creating a kernel bundle from this language.
+creating a kernel bundle from this language.
 
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
