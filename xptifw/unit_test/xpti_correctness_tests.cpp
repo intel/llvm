@@ -61,6 +61,133 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
   EXPECT_EQ(Result->reserved.payload->line_no, 1u);
 }
 
+TEST_F(xptiCorrectnessTest, xptiUnregisterStream) {
+  xptiForceSetTraceEnabled(true);
+  auto ID = xptiRegisterStream("foo1");
+  EXPECT_NE(ID, xpti::invalid_id);
+  auto Result = xptiUnregisterStream("foo2");
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_NOTFOUND);
+  // Event though stream exists, no callbacks registered
+  auto NewResult = xptiUnregisterStream("foo1");
+  EXPECT_EQ(NewResult, xpti::result_t::XPTI_RESULT_NOTFOUND);
+  // Register again
+  ID = xptiRegisterStream("foo1");
+  EXPECT_NE(ID, xpti::invalid_id);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::node_create, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::edge_create, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::region_begin, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::region_end, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::task_begin, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::task_end, tpCallback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  bool Check = xptiCheckTraceEnabled(
+      ID, (uint16_t)xpti::trace_point_type_t::edge_create);
+  EXPECT_EQ(Check, true);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_begin);
+  EXPECT_EQ(Check, true);
+  auto Result2 = xptiUnregisterStream("foo1");
+  EXPECT_EQ(Result2, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_begin);
+  EXPECT_EQ(Check, false);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_end);
+  EXPECT_EQ(Check, false);
+  Check = xptiCheckTraceEnabled(
+      ID, (uint16_t)xpti::trace_point_type_t::edge_create);
+  EXPECT_EQ(Check, false);
+  Check = xptiCheckTraceEnabled(
+      ID, (uint16_t)xpti::trace_point_type_t::graph_create);
+  EXPECT_EQ(Check, false);
+  Check = xptiCheckTraceEnabled(
+      ID, (uint16_t)xpti::trace_point_type_t::node_create);
+  EXPECT_EQ(Check, false);
+  Check = xptiCheckTraceEnabled(
+      ID, (uint16_t)xpti::trace_point_type_t::region_begin);
+  EXPECT_EQ(Check, false);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::region_end);
+  EXPECT_EQ(Check, false);
+}
+
+TEST_F(xptiCorrectnessTest, xptiCreateEvent) {
+  uint64_t Instance = 0, Instance2 = 0;
+  xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
+  auto Result = xptiCreateEvent(&p, &Instance);
+  ASSERT_NE(Result, nullptr);
+  p = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
+  auto NewResult = xptiCreateEvent(&p, &Instance2);
+  ASSERT_NE(NewResult, nullptr);
+  EXPECT_NE(Instance2, Instance);
+  // Since we create a new trace event for each instance, the instance IDs will
+  // be different for each event
+  EXPECT_NE(Result, NewResult);
+  EXPECT_EQ(Result->universal_id.instance, Instance);
+  EXPECT_EQ(NewResult->universal_id.instance, Instance2);
+  EXPECT_NE(Result->universal_id.instance, NewResult->universal_id.instance);
+  EXPECT_GT(NewResult->universal_id.instance, Result->universal_id.instance);
+  EXPECT_EQ(Result->unique_id, xpti::invalid_uid);
+  EXPECT_EQ(NewResult->unique_id, xpti::invalid_uid);
+  EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);
+  EXPECT_STREQ(Result->reserved.payload->name, "foo");
+  EXPECT_STREQ(Result->reserved.payload->source_file, "foo.cpp");
+  EXPECT_EQ(Result->reserved.payload->line_no, 1u);
+  bool test = Result->flags &
+              static_cast<uint64_t>(xpti::trace_event_flag_t::UIDAvailable);
+  EXPECT_EQ(test, true);
+  test = Result->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
+  EXPECT_EQ(test, true);
+  test = Result->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::ActivityTypeAvailable);
+  EXPECT_EQ(test, true);
+  test = Result->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::EventTypeAvailable);
+  EXPECT_EQ(test, true);
+  test = Result->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
+  EXPECT_EQ(test, false);
+  test = NewResult->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::UIDAvailable);
+  EXPECT_EQ(test, true);
+  test = NewResult->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
+  EXPECT_EQ(test, true);
+  test = NewResult->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::ActivityTypeAvailable);
+  EXPECT_EQ(test, true);
+  test = NewResult->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::EventTypeAvailable);
+  EXPECT_EQ(test, true);
+  test = NewResult->flags &
+         static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
+  EXPECT_EQ(test, false);
+  EXPECT_EQ(xpti::is_valid_uid(Result->source_uid), false);
+  EXPECT_EQ(xpti::is_valid_uid(Result->target_uid), false);
+  EXPECT_EQ(xpti::is_valid_uid(NewResult->source_uid), false);
+  EXPECT_EQ(xpti::is_valid_uid(NewResult->target_uid), false);
+  EXPECT_EQ(Result->source_id, xpti::invalid_uid);
+  EXPECT_EQ(Result->target_id, xpti::invalid_uid);
+  EXPECT_EQ(NewResult->source_id, xpti::invalid_uid);
+  EXPECT_EQ(NewResult->target_id, xpti::invalid_uid);
+}
+
 TEST_F(xptiCorrectnessTest, xptiRegisterString) {
   char *TStr = nullptr;
   auto ID = xptiRegisterString("foo", &TStr);
@@ -71,6 +198,31 @@ TEST_F(xptiCorrectnessTest, xptiRegisterString) {
   const char *LUTStr = xptiLookupString(ID);
   EXPECT_EQ(TStr, LUTStr);
   EXPECT_STREQ(LUTStr, TStr);
+}
+
+TEST_F(xptiCorrectnessTest, xptiTracePointScopeDataTest) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::framework::tracepoint_scope_t t(&p, false);
+  auto ScopeData =
+      const_cast<xpti::tracepoint_data_t *>(xptiGetTracepointScopeData());
+  xpti::framework::uid_object_t SDUId = ScopeData->uid128;
+  xpti::framework::uid_object_t SDEUId = ScopeData->event->universal_id;
+  auto Tuid = t.uid128();
+  xpti::framework::uid_object_t TUId = *Tuid;
+  EXPECT_EQ(ScopeData->isValid(), true);
+  EXPECT_EQ(SDUId.isValid(), true);
+  EXPECT_EQ(SDUId, TUId);
+  EXPECT_EQ(xpti::is_valid_payload(ScopeData->payload), true);
+  EXPECT_NE(ScopeData->payload, nullptr);
+  EXPECT_EQ(ScopeData->payload, t.payload());
+  EXPECT_NE(ScopeData->event, nullptr);
+  EXPECT_EQ(ScopeData->event, t.traceEvent());
+
+  EXPECT_EQ(SDEUId, TUId);
+  EXPECT_EQ(SDEUId, SDUId);
+
+  xpti::framework::uid_object_t SDEPUId = *Tuid;
+  EXPECT_EQ(ScopeData->payload, ScopeData->event->reserved.payload);
 }
 
 void nestedTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
@@ -116,6 +268,136 @@ TEST_F(xptiCorrectnessTest, xptiTracePointTest) {
       id = e;
     }
   }
+}
+
+void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
+  xpti::framework::tracepoint_scope_t t(p, false);
+  xpti::hash_t Hash;
+
+  auto Tuid = t.uid128();
+  uint64_t hash = Hash.combine_short(*Tuid);
+  uids.push_back(hash);
+
+  if (uids.size() < 5) {
+    xpti::payload_t pp;
+    nestedScopeTest(&pp, uids);
+  }
+}
+
+TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
+  std::vector<uint64_t> uids;
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, nullptr);
+  xpti::uid128_t UID;
+  auto Result = xptiMakeKeyFromPayload(&p, &UID);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  uint64_t id = xpti::invalid_uid;
+  nestedScopeTest(&p, uids);
+  for (auto &e : uids) {
+    EXPECT_NE(e, xpti::invalid_uid);
+    if (id != xpti::invalid_uid) {
+      EXPECT_EQ(e, id);
+      id = e;
+    }
+  }
+  // UID should not be able to query the trace point data here as it would have
+  // been released when it went of out scope
+  auto Event = xptiLookupEvent(&UID);
+  EXPECT_EQ(Event, nullptr);
+  // UID should be able to query the payload data here as it is still valid
+  auto Payload = xptiLookupPayload(&UID);
+  EXPECT_NE(Payload, nullptr);
+
+  uids.clear();
+  xpti::payload_t p1("bar", "foo.cpp", 15, 0, nullptr);
+  {
+    xpti::uid128_t *uid;
+    {
+      xpti::framework::tracepoint_scope_t t(&p1, false);
+      uid = t.uid128();
+      EXPECT_NE(t.traceEvent(), nullptr);
+      auto ScopeData =
+          const_cast<xpti::tracepoint_data_t *>(xptiGetTracepointScopeData());
+      EXPECT_EQ(ScopeData->isValid(), true);
+      id = xpti::invalid_uid;
+      nestedScopeTest(&p1, uids);
+      for (auto &e : uids) {
+        EXPECT_NE(e, xpti::invalid_uid);
+        if (id != xpti::invalid_uid) {
+          EXPECT_EQ(e, id);
+          id = e;
+        }
+      }
+      EXPECT_NE(t.traceEvent(), nullptr);
+
+      // UID should be able to query both payload and event in this case
+      auto UID = t.uid128();
+      auto Event = xptiLookupEvent(UID);
+      EXPECT_NE(Event, nullptr);
+      auto Payload = xptiLookupPayload(UID);
+      EXPECT_NE(Payload, nullptr);
+    }
+    // The Event for the uid would have goine out of scope and deleted
+    auto Event = xptiLookupEvent(uid);
+    EXPECT_EQ(Event, nullptr);
+  }
+}
+
+TEST_F(xptiCorrectnessTest, xptiQueryMetadata) {
+  xpti::uid128_t Id0;
+  uint64_t instance;
+  /// Simulates the specialization of a Kernel as used by MKL where
+  /// the same kernel may be compiled multiple times
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
+  auto Result = xptiMakeEvent("foo", &Payload, 0,
+                              (xpti::trace_activity_type_t)1, &instance);
+  auto Result1 = xptiMakeEvent("foo", &Payload, 0,
+                               (xpti::trace_activity_type_t)1, &instance);
+  auto Metadata = xptiQueryMetadata(Result);
+  auto Metadata1 = xptiQueryMetadata(Result1);
+  EXPECT_NE(Metadata, Metadata1);
+  EXPECT_EQ(Metadata->size(), 0);
+  EXPECT_EQ(Metadata1->size(), 0);
+}
+
+template <typename T> inline T queryMetadata(const xpti::object_id_t &ID) {
+  xpti::object_data_t RawData = xptiLookupObject(ID);
+  assert(RawData.size == sizeof(T));
+  T Value = *reinterpret_cast<const T *>(RawData.data);
+  return Value;
+}
+
+template <typename T>
+T getMetadataByKey(xpti::metadata_t *Metadata, const char *key) {
+  char *RetString;
+  auto StringId = xptiRegisterString(key, &RetString);
+  auto Item = Metadata->find(StringId);
+  return queryMetadata<T>(Item->second);
+}
+
+TEST_F(xptiCorrectnessTest, xptiAddMetadata) {
+  xpti::uid128_t Id0;
+  uint64_t instance;
+  /// Simulates the specialization of a Kernel as used by MKL where
+  /// the same kernel may be compiled multiple times
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
+  auto Result = xptiMakeEvent("foo", &Payload, 0,
+                              (xpti::trace_activity_type_t)1, &instance);
+  auto Result1 = xptiMakeEvent("foo", &Payload, 0,
+                               (xpti::trace_activity_type_t)1, &instance);
+  auto Metadata = xptiQueryMetadata(Result);
+  auto Metadata1 = xptiQueryMetadata(Result1);
+  EXPECT_NE(Metadata, Metadata1);
+  EXPECT_EQ(Metadata->size(), 0);
+  EXPECT_EQ(Metadata1->size(), 0);
+  xpti::addMetadata(Result, "int_value", 1);
+  xpti::addMetadata(Result1, "int_value", 2);
+
+  auto Val = getMetadataByKey<int>(Metadata, "int_value");
+  auto Val1 = getMetadataByKey<int>(Metadata1, "int_value");
+  EXPECT_EQ(Val, 1);
+  EXPECT_EQ(Val1, 2);
+  EXPECT_NE(Val, Val1);
 }
 
 TEST_F(xptiCorrectnessTest, xptiInitializeForDefaultTracePointTypes) {
@@ -268,8 +550,10 @@ TEST_F(xptiCorrectnessTest, xptiCheckTraceEnabledForDefaultTracePointTypes) {
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
   xptiForceSetTraceEnabled(true);
 
-  uint8_t StreamID1 = xptiRegisterStream("test_foo");
-  uint8_t StreamID2 = xptiRegisterStream("foo");
+  // We are testing clean streams by creating new ones as previous tests may
+  // have polluted the streams
+  uint8_t StreamID1 = xptiRegisterStream("CheckDefault");
+  uint8_t StreamID2 = xptiRegisterStream("Check");
   auto Result = xptiRegisterCallback(
       StreamID1, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
   ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);

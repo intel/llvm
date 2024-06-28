@@ -339,21 +339,50 @@ struct object_data_t {
   uint8_t type;
 };
 
-/// @brief Payload data structure that is optional for trace point callback
-/// API
-/// @details The payload structure, if determined at compile time, can deliver
-/// the source association of various parallel constructs defined by the
-/// language. In the case it is defined, a lookup table will provide the
-/// association from a kernel/lambda (address) to a payload and the same
-/// address to a unique ID created at runtime.
+/// @struct payload_t
+/// @brief Represents the detailed information about a trace event.
 ///
-/// All instances of a kernel will be associated with the same unique ID
-/// through the lifetime of an object. The hash maps that will be maintained
-/// would be: # [unique_id]->[payload] # [kernel address]->[unique_id]
+/// This structure encapsulates all the necessary details about a trace event,
+/// including its name, stack trace, source file location, and more. It is
+/// designed to provide a comprehensive view of an event for tracing and
+/// debugging purposes.
 ///
-/// Unique_id MUST be propagated downstream to the OpenCL runtime to ensure
-/// the associations back to the sources. This requires elp from the compiler
-/// front-end.
+/// @var const char* payload_t::name
+/// The name of the trace point, which could represent a graph, algorithm, lock
+/// names, etc.
+///
+/// @var const char* payload_t::stack_trace
+/// Stack trace information in the format "caller->callee", providing a snapshot
+/// of the call stack.
+///
+/// @var const char* payload_t::source_file
+/// The absolute path of the source file. This may need to support unicode
+/// strings for full compatibility.
+///
+/// @var uint32_t payload_t::line_no
+/// Line number information to correlate the trace point within its source file.
+///
+/// @var uint32_t payload_t::column_no
+/// Column number information for a complex statement to precisely locate the
+/// trace point.
+///
+/// @var const void* payload_t::code_ptr_va
+/// The virtual address of the kernel/lambda/function, providing a direct
+/// reference to the code.
+///
+/// @var uint64_t payload_t::internal
+/// Reserved for internal bookkeeping; should not be modified externally and
+/// contains the 64-bit Universal ID for use with legacy API.
+///
+/// @var uint64_t payload_t::flags
+/// Flags indicating the availability of name, code pointer, source file, and
+/// hash values.
+///
+/// @var uid_t payload_t::uid
+/// Legacy universal ID associated with this payload that is used to generate a
+/// 64-bit hash. This is deprecated and no longer used to create the 64-bit UID.
+/// However, it may be used to generate a hash for std::unordered_map
+/// containers.
 ///
 struct payload_t {
   /// Name of the trace point; graph, algorithm, lock names, for example.
@@ -711,6 +740,23 @@ enum class metadata_type_t {
   boolean = 5
 };
 
+/// @struct reserved_data_t
+/// @brief Holds additional data associated with a trace event.
+///
+/// This structure is designed to extend a trace event with more detailed
+/// information, allowing for user-defined metadata and a direct reference to
+/// the event's payload.
+///
+/// @var payload_t* reserved_data_t::payload
+/// A pointer to the associated payload for an event. This links the reserved
+/// data directly to the detailed information about the trace event, such as its
+/// name, source file, and stack trace.
+///
+/// @var metadata_t reserved_data_t::metadata
+/// User-defined metadata for the event, stored as key-value pairs. This allows
+/// for the attachment of additional contextual information to an event, beyond
+/// what is captured in the standard payload structure.
+///
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
   payload_t *payload = nullptr;
@@ -719,37 +765,152 @@ struct reserved_data_t {
   metadata_t metadata;
 };
 
+/// @enum trace_event_flag_t
+/// @brief Enumerates the flags used to indicate the availability of specific
+/// types of information in a trace event.
+///
+/// This enumeration is used within the tracing system to specify what kinds of
+/// information are available for a particular trace event. Each flag represents
+/// a different type of information that can be attached to a trace event,
+/// allowing for flexible and detailed event descriptions.
+///
+enum class trace_event_flag_t {
+  /// @var trace_event_flag_t::UIDAvailable
+  /// Indicates that a unique identifier (UID) for the trace event is available.
+  /// This UID refers to the 128-bit key used for representing the Universal ID.
+  UIDAvailable = 1,
+
+  /// @var trace_event_flag_t::SourceUIDAvailable
+  /// Signifies that the unique identifier (UID) for the source of an edge trace
+  /// event is available. This could be used to identify the specific module,
+  /// function, or the associated source node for the event. Edges usually
+  /// represent dependencies.
+  SourceUIDAvailable = 1 << 1,
+
+  /// @var trace_event_flag_t::TargetUIDAvailable
+  /// Denotes that the unique identifier (UID) for the target of the edge trace
+  /// event is available. This is useful for events that represent dependencies
+  /// and allow for precise identification of the target.
+  TargetUIDAvailable = 1 << 2,
+
+  /// @var trace_event_flag_t::EventTypeAvailable
+  /// Indicates that information about the type of the event is available. This
+  /// can be used to categorize the type of event.
+  EventTypeAvailable = 1 << 3,
+
+  /// @var trace_event_flag_t::ActivityTypeAvailable
+  /// Signifies that information about the type of activity associated with the
+  /// event is available. This provides additional context about the nature of
+  /// the event, such as whether it is related to computation, data transfer, or
+  /// other activities.
+  ActivityTypeAvailable = 1 << 4,
+
+  /// @var trace_event_flag_t::PayloadAvailable
+  /// Indicates that a payload of additional data is available for the event.
+  /// This payload can contain code location data related to the event or
+  /// additional contextual information.
+  PayloadAvailable = 1 << 5,
+
+  /// @var trace_event_flag_t::HashAvailable
+  /// Denotes that a hash value is available for the event. This hash can be
+  /// is typically the 64-bit universal IDs used in legacy APIs that will be
+  /// deprecated after the 128-bit keys are fully adopted.
+  HashAvailable = 1 << 15
+};
+
+/// @struct trace_event_data_t
+/// @brief Represents the data associated with a trace event.
+///
+/// This structure encapsulates all the necessary information for a trace event,
+/// including unique identifiers, event types, and additional metadata. It
+/// serves as a comprehensive data packet for tracing and profiling systems.
+///
 struct trace_event_data_t {
-  /// Unique id that corresponds to an event type or event group type
+  /// @var trace_event_data_t::unique_id
+  /// Unique identifier for the trace event. This is used to distinguish between
+  /// different events in the tracing system and contains the legacy 64-bit
+  /// universal ID
   uint64_t unique_id = 0;
-  /// Data ID: ID that tracks the data elements streaming through the
-  /// algorithm (mostly graphs; will be the same as instance_id for
-  /// algorithms)
+
+  /// @var trace_event_data_t::data_id
+  /// An identifier for the data associated with this event. This can be used to
+  /// correlate this event with a data. This field is no longer used and will be
+  /// deprecated in future versions.
   uint64_t data_id = 0;
-  /// Instance id of an algorithm with id=unique_id
+
+  /// @var trace_event_data_t::instance_id
+  /// An identifier for the instance of the event. This is useful for events
+  /// that can occur multiple times in different contexts or locations. Will
+  /// always be equal to `trace_event_data_t::universal_id.instance`.
   uint64_t instance_id = 0;
-  /// The type of event
+
+  /// @var trace_event_data_t::event_type
+  /// A 16-bit code representing the type of event. This could be used to
+  /// categorize events into groups such as start, stop, pause, etc. The default
+  /// used is `algorithm`.
   uint16_t event_type;
-  /// How this event is classified: active, overhead, barrier etc
+
+  /// @var trace_event_data_t::activity_type
+  /// A 16-bit code representing the type of activity associated with the event.
+  /// This provides additional context about what the event is related to, such
+  /// as computation, data transfer, wait, scheduler, etc. This is usually an
+  /// optional field and the default is 'active' indicating useful compute time.
   uint16_t activity_type;
-  /// Unused 32-bit slot that could be used for any ids that need to be
-  /// propagated in the future
+
+  /// @var trace_event_data_t::unused
+  /// A 32-bit field reserved for fpadding to align the structure.
   uint32_t unused;
-  /// If event_type is "graph" and trace_type is "edge_create", then the
-  /// source ID is set
-  int64_t source_id = invalid_id;
-  /// If event_type is "graph" and trace_type is "edge_create", then the
-  /// target ID is set
-  int64_t target_id = invalid_id;
-  /// A reserved slot for memory growth, if required by the framework
+
+  /// @var trace_event_data_t::source_id
+  /// An identifier for the source node of the current edge event. This is
+  /// primarily used to represent relationships between entities in the trace
+  /// data. Initialized to `invalid_id` to indicate no source by default. Will
+  /// be deprecated when the 128-bit UID is fully adopted.
+  int64_t source_id = invalid_uid;
+
+  /// @var trace_event_data_t::target_id
+  /// An identifier for the target node of the current edge or relationship
+  /// event event. Similar to `source_id`, but represents the entity that is the
+  /// recipient or focus of the event. Initialized to `invalid_id` to indicate
+  /// no target by default.Will be deprecated when the 128-bit UID is fully
+  /// adopted.
+  int64_t target_id = invalid_uid;
+
+  /// @var trace_event_data_t::reserved
+  /// A `reserved_data_t` structure that holds a reference to an associated
+  /// payload and additional user-defined metadata. This allows for
+  /// extensibility and custom data to be attached to the event.
   reserved_data_t reserved;
-  /// User defined data, if required; owned by the user shared object and will
-  /// not be deleted when event data is destroyed
+
+  // @var trace_event_data_t::global_user_data
+  /// A pointer to user-defined data that is globally relevant to the event.
+  /// This could be used to attach arbitrary data that doesn't fit into the
+  /// standard fields.
   void *global_user_data = nullptr;
-  ///
+
+  //// @var trace_event_data_t::universal_id
+  /// A `universal_id_t` structure that provides a compact representation of
+  /// file and function identifiers, as well as precise location information.
+  /// This is useful for pinpointing the exact position of the tracepoint.
   xpti::universal_id_t universal_id;
+
+  /// @var trace_event_data_t::source_uid
+  /// A `universal_id_t` structure representing the universal identifier of the
+  /// source entity. This provides a detailed and compact way to identify the
+  /// source node of an edge event.
   xpti::universal_id_t source_uid;
+
+  /// @var trace_event_data_t::target_uid
+  /// A `universal_id_t` structure representing the universal identifier of the
+  /// target entity. Similar to `source_uid`, but for the target of the edge or
+  /// relationship event.
   xpti::universal_id_t target_uid;
+
+  /// @var trace_event_data_t::flags
+  /// A 64-bit field for flags or additional bitwise information related to the
+  /// event. This is primarily used to determine if the event is valid and the
+  /// pieces of information that are available.
+  uint64_t flags = 0;
 };
 
 /// @struct tracepoint_data_t
@@ -779,7 +940,7 @@ struct tracepoint_data_t {
   /// @brief This is a pointer to the event associated with the payload
   /// instance.
   ///
-  /// When a payload is provided to tracepoint_scope_t object, it will register
+  /// When a payload is provided to tracepoint_data_t object, it will register
   /// the payload to get the the new UID which has an updated instance. Using
   /// this UID, a new event is also created and stashed here so it can be
   /// updated to TLS.

@@ -330,7 +330,8 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
 /// created again, the instance ID give you an indication of how many times this
 /// section has been visited.
 /// @return The trace event representing the section's payload is returned.
-XPTI_EXPORT_API xpti::trace_event_data_t *
+XPTI_EXPORT_API
+xpti::trace_event_data_t *
 xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
               xpti::trace_activity_type_t activity, uint64_t *instance_no);
 
@@ -620,6 +621,90 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
 /// The framework does not implement this function, only proxy library.
 XPTI_EXPORT_API void xptiTraceTryToEnable();
 
+/// @brief Retrieves the trace point scope data.
+/// @details This function is used to get the trace point scope data that is
+/// currently set in the tracing framework's thread-local storage.
+///
+/// @return The trace point scope data pointer.
+XPTI_EXPORT_API const xpti::tracepoint_data_t *xptiGetTracepointScopeData();
+
+/// @brief Sets the trace point scope data.
+/// @details This function is used to set the trace point scope data in the
+/// tracing framework.
+///
+/// @param data The trace point data to be set.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetTracepointScopeData(xpti::tracepoint_data_t *data);
+
+/// @brief Unsets the trace point scope data.
+/// @details This function is used to unset the trace point scope data in the
+/// tracing framework.
+XPTI_EXPORT_API void xptiUnsetTracepointScopeData();
+
+/// @brief Registers a tracepoint using the payload and prepares trace point
+/// data for use.
+/// @details This function is used to register a payload and publish it in the
+/// tracing framework. The registration of the payload determines the instance
+/// ID fo the payload and the the data along with the computed universal ID is
+/// prepared for use in the current tracepoint scope. Returns all asscociated
+/// information for the registered tracepoint scope.
+///
+/// @param payload The payload to be registered and published.
+/// @return The trace point data associated with the registered payload.
+XPTI_EXPORT_API const xpti::tracepoint_data_t *
+xptiRegisterTracepointScope(xpti::payload_t *payload);
+
+/// @brief Retrieves the default stream ID.
+/// @details This function is used to get the default stream ID that is
+/// currently set in the tracing framework.
+/// @return The default stream ID.
+XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID();
+
+/// @brief Sets the default stream ID.
+/// @details This function is used to set the default stream ID in the tracing
+/// framework. All MACROs and other scoped notification objects will use the
+/// default stream to send the event data
+///
+/// @param defaultStreamID The stream ID to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t defaultStreamID);
+
+/// @brief Retrieves the default event type.
+/// @details This function is used to get the default event type that is
+/// currently set in the tracing framework. This is typically set to 'algorithm'
+/// as most default events are algorithmic events trying to capture a task,
+/// barrier/lock or function call.
+///
+/// @return The default event type.
+XPTI_EXPORT_API xpti::trace_event_type_t xptiGetDefaultEventType();
+
+/// @brief Sets the default event type.
+/// @details This function is used to set the default event type in the tracing
+/// framework.
+///
+/// @param defaultEventType The event type to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultEventType(xpti::trace_event_type_t defaultEventType);
+
+/// @brief Retrieves the default trace point type.
+/// @details This function is used to get the default trace point type that is
+/// currently set in the tracing framework. This is typically set to
+/// 'function_begin'
+///
+/// @return The default trace point type.
+XPTI_EXPORT_API xpti::trace_point_type_t xptiGetDefaultTraceType();
+
+/// @brief Sets the default trace point type.
+/// @details This function is used to set the default trace point type in the
+/// tracing framework.
+///
+/// @param defaultTraceType The trace point type to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultTraceType(xpti::trace_point_type_t defaultTraceType);
+
 /// @brief Enables the trace point scope object to self notify.
 /// @details This function is used to enable the tracepoint_scope_t object to
 /// self notify at all tracepoints
@@ -693,4 +778,18 @@ typedef const xpti::trace_event_data_t *(*xpti_lookup_event_t)(
 typedef xpti::trace_event_data_t *(*xpti_create_event_t)(
     xpti::payload_t *, uint64_t *, uint16_t eventType,
     xpti::trace_activity_type_t);
+typedef const xpti::tracepoint_data_t *(*xpti_get_trace_point_scope_data_t)();
+typedef const xpti::tracepoint_data_t *(*xpti_register_tracepoint_scope_t)(
+    xpti::payload_t *);
+typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
+    xpti::tracepoint_data_t *);
+typedef void (*xpti_unset_trace_point_scope_data_t)();
+typedef uint8_t (*xpti_get_default_stream_id_t)();
+typedef xpti::result_t (*xpti_set_default_stream_id_t)(uint8_t);
+typedef xpti::trace_event_type_t (*xpti_get_default_event_type_t)();
+typedef xpti::result_t (*xpti_set_default_event_type_t)(
+    xpti::trace_event_type_t);
+typedef xpti::trace_point_type_t (*xpti_get_default_trace_type_t)();
+typedef xpti::result_t (*xpti_set_default_trace_type_t)(
+    xpti::trace_point_type_t);
 }

@@ -212,7 +212,6 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                  : GSYCLGraphEvent;
   } else
     WaitEvent = GSYCLGraphEvent;
-  std::cerr << "InstrumentationProlog: " << Name << "\n";
   // Record the current instance ID for use by Epilog
   IId = InstanceID++;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,

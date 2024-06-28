@@ -7,7 +7,6 @@
 //
 #include "xpti/xpti_trace_framework.h"
 
-#include "emhash/hash_table8.hpp"
 #include "xpti_helpers.hpp"
 #include "xpti_timers.hpp"
 #include "xpti_writers.hpp"
@@ -36,8 +35,8 @@ xpti::utils::string::list_t GAllStreams;
 // Data structure to ha
 xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 
-using instance_records_t = emhash8::HashMap<uint64_t, xpti::record_t>;
-using event_instances_t = emhash8::HashMap<uint64_t, instance_records_t>;
+using instance_records_t = std::unordered_map<uint64_t, xpti::record_t>;
+using event_instances_t = std::unordered_map<uint64_t, instance_records_t>;
 event_instances_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
@@ -798,9 +797,14 @@ XPTI_CALLBACK_API void traceCallback(uint16_t TraceType,
   if (CalibrationRun)
     return;
 
-  const char *UD = (Event->reserved.payload->name)
-                       ? Event->reserved.payload->name
-                       : "Unknown";
+  const char *UD;
+  if (TraceType == (uint16_t)xpti::trace_point_type_t::wait_begin ||
+      TraceType == (uint16_t)xpti::trace_point_type_t::wait_end) {
+    UD = (UserData) ? (const char *)UserData : "unknown";
+  } else {
+    UD = (Event->reserved.payload->name) ? Event->reserved.payload->name
+                                         : "Unknown";
+  }
   record_and_save(GStreamBasic, (Event ? Event : Parent), TraceType, Instance,
                   UD);
 }

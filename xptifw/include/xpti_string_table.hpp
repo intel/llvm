@@ -5,7 +5,7 @@
 //
 #pragma once
 
-#include "emhash/hash_table8.hpp"
+#include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_data_types.h"
 
 #include <atomic>
@@ -17,16 +17,16 @@
 #endif
 
 namespace xpti {
-/// \brief A string table class to support the payload handling
-/// \details With each payload, a kernel/function name and the source file name
+/// @brief A string table class to support the payload handling
+/// @details With each payload, a kernel/function name and the source file name
 /// may be passed and we need to ensure that the incoming strings are copied and
 /// represented in a string table as the incoming strings are guaranteed to be
 /// valid only for the duration of the call that handles the payload. This
 /// implementation used STL containers protected with std::mutex.
 class StringTable {
 public:
-  using st_forward_t = emhash8::HashMap<std::string, int32_t>;
-  using st_reverse_t = emhash8::HashMap<int32_t, const char *>;
+  using st_forward_t = phmap::node_hash_map<std::string, int32_t>;
+  using st_reverse_t = phmap::flat_hash_map<int32_t, const char *>;
 
   StringTable(int size = 65536) : MStringToID(size), MIDToString(size) {
     MIds = 1;
@@ -34,6 +34,10 @@ public:
     MInsertions = 0;
     MRetrievals = 0;
 #endif
+  }
+  ~StringTable() {
+    MStringToID.clear();
+    MIDToString.clear();
   }
 
   //  Clear all the contents of this string table and get it ready for re-use
