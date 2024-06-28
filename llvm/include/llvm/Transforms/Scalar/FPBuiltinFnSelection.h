@@ -1,4 +1,4 @@
-//===- FPBuiltinFnSelection.h - Pre-ISel intrinsic lowering pass ----------===//
+//===- FPBuiltinFnSelection.h - fpbuiltin intrinsic lowering pass ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +10,8 @@
 // llvm.fpbuiltin.* intrinsics.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_CODEGEN_FPBUILTINFNSELECTION_H
-#define LLVM_CODEGEN_FPBUILTINFNSELECTION_H
+#ifndef LLVM_TRANSFORMS_SCALAR_FPBUILTINFNSELECTION_H
+#define LLVM_TRANSFORMS_SCALAR_FPBUILTINFNSELECTION_H
 
 #include "llvm/IR/PassManager.h"
 
@@ -25,4 +25,4 @@ struct FPBuiltinFnSelectionPass : PassInfoMixin<FPBuiltinFnSelectionPass> {
 
 } // end namespace llvm
 
-#endif // LLVM_CODEGEN_FPBUILTINFNSELECTION_H
+#endif // LLVM_TRANSFORMS_SCALAR_FPBUILTINFNSELECTION_H
