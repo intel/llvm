@@ -481,3 +481,8 @@ foreach(ftype IN ITEMS spv bc obj new_offload_obj)
           DESTINATION ${install_dest_${ftype}}
           COMPONENT libsycldevice)
 endforeach()
+
+install(FILES ${obj_binary_dir}/${devicelib_host_static}
+              ${obj_binary_dir}/${devicelib_host_static_new_offload}
+        DESTINATION ${install_dest_lib}
+        COMPONENT libsycldevice)
