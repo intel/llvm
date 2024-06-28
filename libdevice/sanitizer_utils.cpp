@@ -283,6 +283,9 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 /// ASAN Save Report
 ///
 
+static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
+    "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
+
 bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
@@ -300,8 +303,14 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
       Expected) {
     SanitizerReport.ErrorType = error_type;
+    SanitizerReport.IsRecover = false;
+
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
+                         SanitizerReport.IsRecover);
     return true;
   }
   return false;
@@ -380,6 +389,10 @@ bool __asan_internal_report_save(
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
+                         SanitizerReport.IsRecover);
     return true;
   }
   return false;
@@ -597,7 +610,7 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
     if (addr & AlignMask(size)) {                                              \
       __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
-                                   func);                                      \
+                                   func, true);                                \
     }                                                                          \
     if (__asan_address_is_poisoned(addr, as, size)) {                          \
       __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \

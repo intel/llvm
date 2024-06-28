@@ -66,8 +66,8 @@ struct LocalArgsInfo {
 constexpr std::size_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct LaunchInfo {
-  // Don't move this field, we use it in AddressSanitizerPass
   uintptr_t PrivateShadowOffset = 0;
+  uintptr_t PrivateShadowOffsetEnd = 0;
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
