@@ -7870,7 +7870,6 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
     else if (Kind == Action::OFK_SYCL) {
       // For SYCL offloading, we need to check the triple for NVPTX or AMDGPU
       // and set the default arch accordingly
-      // mtoguchi
       if (TC->getTriple().isNVPTX())
         Archs.insert(CudaArchToString(CudaArch::SM_50));
       else if (TC->getTriple().isAMDGPU())
