@@ -1,4 +1,3 @@
-// Fails with opencl non-cpu, enable when fixed.
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
