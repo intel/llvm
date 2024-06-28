@@ -572,6 +572,11 @@ public:
         MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
+  void load(size_t Offset, const DataT *Ptr) {
+    for (int I = 0; I < NumElements; ++I)
+      m_Data[I] = Ptr[Offset * NumElements + I];
+  }
+
   template <access::address_space Space, access::decorated DecorateAddress>
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
@@ -590,6 +595,10 @@ public:
     multi_ptr<DataT, detail::TargetToAS<Target>::AS, access::decorated::yes>
         MultiPtr(Acc);
     store(Offset, MultiPtr);
+  }
+  void store(size_t Offset, DataT *Ptr) const {
+    for (int I = 0; I < NumElements; ++I)
+      Ptr[Offset * NumElements + I] = m_Data[I];
   }
 
 private:
@@ -1363,7 +1372,11 @@ public:
   template <typename convertT, rounding_mode roundingMode>
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
-    vec_t Tmp = *this;
+    vec_t Tmp;
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    for (size_t I = 0; I < Idxs.size(); ++I) {
+      Tmp[I] = (*m_Vector)[Idxs[I]];
+    }
     return Tmp.template convert<convertT, roundingMode>();
   }
 
