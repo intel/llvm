@@ -1213,7 +1213,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 
   if (ExtractedDeviceLibFiles.empty()) {
     // TODO: Add NVPTX when ready
-    if (Triple.isSPIROrSPIRV() || Triple.isNVPTX())
+    if (Triple.isSPIROrSPIRV())
       return createStringError(
           inconvertibleErrorCode(),
           " SYCL device library file list cannot be empty.");
@@ -2061,18 +2061,18 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       sycl::Table LiveSYCLTable;
       if (Error Err = LiveSYCLTable.populateSYCLTable(*SYCLPostLinkFile))
         return std::move(Err);
-      auto LinkerInputFiles = LiveSYCLTable.getListOfIRFiles();
+      auto PostLinkedFiles = LiveSYCLTable.getListOfIRFiles();
       if (DryRun)
-        LinkerInputFiles.push_back("dummy");
-      for (unsigned I = 0; I < LinkerInputFiles.size(); ++I) {
+        PostLinkedFiles.push_back("dummy");
+      for (unsigned I = 0; I < PostLinkedFiles.size(); ++I) {
         SmallVector<StringRef> Files;
-        Files.emplace_back(LinkerInputFiles[I]);
-        auto LinkedFileOrErr =
+        Files.emplace_back(PostLinkedFiles[I]);
+        auto LinkedFileFinalOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
-        if (!LinkedFileOrErr)
-          return LinkedFileOrErr.takeError();
+        if (!LinkedFileFinalOrErr)
+          return LinkedFileFinalOrErr.takeError();
         if (!DryRun)
-          LiveSYCLTable.Entries[I].IRFile = *LinkedFileOrErr;
+          LiveSYCLTable.Entries[I].IRFile = *LinkedFileFinalOrErr;
       }
       auto WrapperInput = LiveSYCLTable.writeSYCLTableToFile();
       if (!WrapperInput)
