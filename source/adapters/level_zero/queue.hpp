@@ -168,10 +168,11 @@ struct ur_command_list_info_t {
                          bool IsClosed, ze_command_queue_handle_t ZeQueue,
                          ZeStruct<ze_command_queue_desc_t> ZeQueueDesc,
                          bool UseCompletionBatching, bool CanReuse = true,
-                         bool IsInOrderList = false)
+                         bool IsInOrderList = false, bool IsImmediate = false)
       : ZeFence(ZeFence), ZeFenceInUse(ZeFenceInUse), IsClosed(IsClosed),
         ZeQueue(ZeQueue), ZeQueueDesc(ZeQueueDesc),
-        IsInOrderList(IsInOrderList), CanReuse(CanReuse) {
+        IsInOrderList(IsInOrderList), CanReuse(CanReuse),
+        IsImmediate(IsImmediate) {
     if (UseCompletionBatching) {
       completions = ur_completion_batches();
     }
@@ -204,6 +205,7 @@ struct ur_command_list_info_t {
   // Indicates if this is an inorder list
   bool IsInOrderList;
   bool CanReuse;
+  bool IsImmediate;
 
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(ur_queue_handle_legacy_t Queue) const;

@@ -30,6 +30,7 @@
 struct l0_command_list_cache_info {
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   bool InOrderList = false;
+  bool IsImmediate = false;
 };
 
 struct ur_context_handle_t_ : _ur_object {
