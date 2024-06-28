@@ -1190,8 +1190,34 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       WithColor::warning(errs(), LinkerExecutable)
           << "Compatible SYCL device library binary not found\n";
   }
-  if (ExtractedDeviceLibFiles.empty())
+
+  // For NVPTX backend we need to also link libclc and CUDA libdevice.
+  if (Triple.isNVPTX()) {
+    if (Arg *A = Args.getLastArg(OPT_sycl_nvptx_device_lib_EQ)) {
+      if (A->getValues().size() == 0)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "Number of device library files cannot be zero.");
+      for (StringRef Val : A->getValues()) {
+        SmallString<128> LibName(Val);
+        if (llvm::sys::fs::exists(LibName))
+          ExtractedDeviceLibFiles.emplace_back(std::string(LibName));
+        else
+          return createStringError(
+              inconvertibleErrorCode(),
+              std::string(LibName) +
+                  " SYCL device library file for NVPTX is not found.");
+      }
+    }
+  }
+
+  if (ExtractedDeviceLibFiles.empty()) {
+    if ((Triple.isSPIROrSPIRV() || Triple.isNVPTX()))
+      return createStringError(
+          inconvertibleErrorCode(),
+          " SYCL device library file list cannot be empty.");
     return *LinkedFile;
+  }
 
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
