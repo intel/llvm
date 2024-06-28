@@ -188,7 +188,7 @@ jobs:
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-benchmark.yml
     with:
-      runner: ${{ matrix. runner }}
+      runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       sycl_toolchain_artifact: sycl_linux_default

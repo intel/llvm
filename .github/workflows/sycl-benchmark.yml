@@ -70,7 +70,7 @@ permissions:
 jobs:
   run:
     name: Run benchmarks using sycl-bench
-    runs-on: ${{ fromJSON(inputs.runner) }}
+    runs-on: ${{ fromJSON(inputs.runner || '["Linux", "gen12"]') }}
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
