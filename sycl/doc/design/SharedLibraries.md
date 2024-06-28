@@ -148,21 +148,6 @@ For this purpose DPC++ front-end generates `module-id` attribute on each
 
 ### sycl-post-link changes
 
-In order to support dynamic linking of device code, `sycl-post-link` has
-4 modifications:
-
-- Device images constructed to support dynamic libraries do not include all
-  dependencies
-- Dependencies that are not included in an image are recorded as imported symbols
-  in the device image
-- Exported symbols are recorded in a device image
-- All unexported function symbols are internalized
-
-When generating a compile image for a kernel, the SYCL Run-Time will find the device
-image that supplies the kernel by looking at the exported symbols.  The SYCL Run Time
-will recursively search for device images that supply needed imported symbols to
-construct a list of device images to be compiled together.
-
 In typical device code splitting, all dependent device code is brought into a split
 image in order to construct a complete image.  This is impossible with dynamic linking
 since the dynamic library may rely on functions that are not defined in the library.
@@ -175,6 +160,22 @@ A canBeImportedFunction is:
   2. Name does not start with "__"
   3. Demangled name does not start with "__"
   4. Must be a SYCL_EXTERNAL function
+
+In order to support dynamic linking of device code, `sycl-post-link` has
+4 modifications:
+
+- Device images constructed to support dynamic libraries do not include
+  dependencies to canBeImportedFunctions.
+- Dependencies to a canBeImportedFunction are recorded in the imported symbols
+  property list.
+- An image that provides a canBeImportedFunction has the symbol recorded in the exported
+  symbols property list.
+- All functions symbols that are not canBeImportedFunction are internalized
+
+When generating a compile image for a kernel, the SYCL Run-Time will find the device
+image that supplies the kernel by looking at the exported symbols.  The SYCL Run Time
+will recursively search for device images that supply needed imported symbols to
+construct a list of device images to be compiled together.
 
 In addition, `SYCL_EXTERNAL` functions as well as kernels are considered as entry
 points during device code split.
