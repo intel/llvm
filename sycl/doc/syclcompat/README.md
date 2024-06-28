@@ -91,11 +91,11 @@ namespace syclcompat {
 
 class dim3 {
 public:
-  size_t x, y, z;
+  unsigned int x, y, z;
   dim3(const sycl::range<3> &r);
   dim3(const sycl::range<2> &r);
   dim3(const sycl::range<1> &r);
-  constexpr dim3(size_t x = 1, size_t y = 1, size_t z = 1);
+  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1);
 
   constexpr size_t size();
 
