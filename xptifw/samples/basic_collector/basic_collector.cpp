@@ -82,6 +82,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         GStreamID, (uint16_t)xpti::trace_point_type_t::wait_begin, tpCallback);
     xptiRegisterCallback(
         GStreamID, (uint16_t)xpti::trace_point_type_t::wait_end, tpCallback);
+    xptiRegisterCallback(GStreamID,
+                         (uint16_t)xpti::trace_point_type_t::queue_create,
+                         tpCallback);
+    xptiRegisterCallback(GStreamID,
+                         (uint16_t)xpti::trace_point_type_t::queue_destroy,
+                         tpCallback);
     xptiRegisterCallback(GStreamID, (uint16_t)xpti::trace_point_type_t::signal,
                          tpCallback);
     printf("Registered all callbacks\n");

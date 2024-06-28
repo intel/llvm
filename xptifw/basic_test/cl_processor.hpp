@@ -544,9 +544,13 @@ private:
   void runDataStructureTests();
   void runDataStructureTestsThreads(int RunNo, int NThreads,
                                     xpti::utils::TableModel &Table);
+  void runNewDataStructureTestsThreads(int RunNo, int NThreads,
+                                       xpti::utils::TableModel &Table);
   void runInstrumentationTests();
   void runInstrumentationTestsThreads(int RunNo, int NThreads,
                                       xpti::utils::TableModel &Table);
+  void runNewInstrumentationTestsThreads(int RunNo, int NThreads,
+                                         xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
   xpti::utils::TableModel MTable;
