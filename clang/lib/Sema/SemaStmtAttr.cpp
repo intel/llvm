@@ -1027,7 +1027,6 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
     }
   }
-  return;
 }
 
 static void CheckForIncompatibleSYCLLoopAttributes(
