@@ -4390,8 +4390,8 @@ HLSLCompareFloatingRank(QualType LHS, QualType RHS) {
   if (const auto *VT = RHS->getAs<VectorType>())
     RHS = VT->getElementType();
 
-  const auto L = LHS->getAs<BuiltinType>()->getKind();
-  const auto R = RHS->getAs<BuiltinType>()->getKind();
+  const auto L = LHS->castAs<BuiltinType>()->getKind();
+  const auto R = RHS->castAs<BuiltinType>()->getKind();
   if (L == R)
     return ImplicitConversionSequence::Indistinguishable;
   return L < R ? ImplicitConversionSequence::Better

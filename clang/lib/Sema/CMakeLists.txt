@@ -24,6 +24,7 @@ clang_tablegen(SPIRVBuiltins.inc -gen-clang-spirv-builtins
 
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
+  CheckExprLifetime.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp
