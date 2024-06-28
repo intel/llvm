@@ -137,7 +137,7 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
-#include <sycl/info/ext_kernel_queue_specific_traits.def>
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \

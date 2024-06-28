@@ -130,7 +130,7 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
       const queue &, const range<3> &, size_t) const;
 
-#include <sycl/info/ext_kernel_queue_specific_traits.def>
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
