@@ -1212,7 +1212,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   }
 
   if (ExtractedDeviceLibFiles.empty()) {
-    if ((Triple.isSPIROrSPIRV() || Triple.isNVPTX()))
+    // TODO: Add NVPTX when ready
+    if (Triple.isSPIROrSPIRV() || Triple.isNVPTX())
       return createStringError(
           inconvertibleErrorCode(),
           " SYCL device library file list cannot be empty.");
@@ -2054,7 +2055,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
-      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, LinkerArgs);
+      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFilesSYCL, LinkerArgs);
       if (!SYCLPostLinkFile)
         return SYCLPostLinkFile.takeError();
       sycl::Table LiveSYCLTable;

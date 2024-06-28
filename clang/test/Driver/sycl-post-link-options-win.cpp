@@ -6,7 +6,7 @@
 // OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "-properties" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 
 // RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t.elf.o
-// RUN: clang-offload-packager -o %t.out --image=file=%t.elf.o,kind=sycl,triple=spir64
+// RUN: clang-offload-packager -o %t.out --image=file=%t.elf.o,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.out
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-pc-windows-msvc \

@@ -5,8 +5,8 @@
 // RUN: clang-offload-packager -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
-// RUN:                      -sycl-device-library-location=%S/Inputs -sycl-post-link-options="-split=auto -symbols -properties" \
-// RUN:                      %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
+// RUN:                      -sycl-device-library-location=%S/Inputs -sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o \
+// RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
 
 template <typename t, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &func) {
