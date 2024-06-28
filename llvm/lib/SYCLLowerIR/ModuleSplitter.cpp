@@ -647,7 +647,7 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
 // Predicate for Internalize pass.
 bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
-    if (!llvm::sycl::utils::isSYCLExternalFunction(F))
+    if (!canBeImportedFunction(*F))
       return false;
   return true;
 }
