@@ -461,26 +461,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
-  /// Constructs SYCL handler from queue.
-  ///
-  /// \param Queue is a SYCL queue.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
-  /// TODO: Unused. Remove with ABI break.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
-
-  /// Constructs SYCL handler from the associated queue and the submission's
-  /// primary and secondary queue.
-  ///
-  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
-  ///        SecondaryQueue.
-  /// \param PrimaryQueue is the primary SYCL queue of the submission.
-  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
-  ///        is null if no secondary queue is associated with the submission.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
-  /// TODO: Unused. Remove with ABI break.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
 
   /// Constructs SYCL handler from queue.
   ///
