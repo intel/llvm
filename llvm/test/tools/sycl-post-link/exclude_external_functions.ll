@@ -2,7 +2,7 @@
 ; dependencies to a function that can be imported do not cause the function
 ; to be added to a device image.
 
-; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
 
 
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0

@@ -137,10 +137,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   return false;
 }
 
-bool isESIMDFunction(const Function &F) {
-  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
 // Represents "dependency" or "use" graph of global objects (functions and
 // global variables) in a module. It is used during device code split to
 // understand which global variables and functions (other than entry points)
@@ -445,6 +441,10 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+bool isESIMDFunction(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
 
 cl::OptionCategory &getModuleSplitCategory() {
   static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
