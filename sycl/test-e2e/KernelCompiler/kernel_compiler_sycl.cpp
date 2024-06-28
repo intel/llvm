@@ -105,21 +105,21 @@ void test_build_and_run() {
     return;
   }
 
-  // create from source
+  // Create from source.
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{syclex::include_files{"AddEm.h", AddEmH}});
 
-  // double check kernel_bundle.get_source() / get_backend()
+  // Double check kernel_bundle.get_source() / get_backend().
   sycl::context ctxRes = kbSrc.get_context();
   assert(ctxRes == ctx);
   sycl::backend beRes = kbSrc.get_backend();
   assert(beRes == ctx.get_backend());
 
-  // compilation of empty prop list, no devices
+  // Compilation of empty prop list, no devices.
   exe_kb kbExe1 = syclex::build(kbSrc);
 
-  // compilation with props and devices
+  // Compilation with props and devices
   std::string log;
   std::vector<std::string> flags{"-g", "-fno-fast-math"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
@@ -131,16 +131,23 @@ void test_build_and_run() {
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
-  // extern "C" was used, so the name "ff_cp" is not mangled and can be used
-  // directly.
-  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
-  // The templated function name will have been mangled. Mapping from original
-  // name to mangled is not yet supported.
-  sycl::kernel k2 =
-      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_");
+  // clang-format off
 
-  // test the kernels
-  test_1(q, k, 37 + 5); // AddEm will add 5 more
+  // extern "C" was used, so the name "ff_cp" is not mangled and can be used directly.
+  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
+
+  // The templated function name will have been mangled. Mapping from original
+  // name to mangled is not yet supported. So we cannot yet do this:
+  // sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
+
+  // Instead, we can TEMPORARILY use the mangled name. Once demangling is supported
+  // this might no longer work.
+  sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_");
+
+  // clang-format on
+
+  // Test the kernels.
+  test_1(q, k, 37 + 5); // AddEm will add 5 more.
   test_1(q, k2, 39);
 }
 
@@ -166,6 +173,9 @@ void test_error() {
   } catch (sycl::exception &e) {
     // yas!
     assert(e.code() == sycl::errc::build);
+    assert(std::string(e.what()).find(
+               "error: expected ';' at end of declaration") !=
+           std::string::npos);
   }
 }
 

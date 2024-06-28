@@ -739,7 +739,7 @@ private:
   bundle_state MState;
 
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames, IncludePairs
-  // Language is for both state::source and state::executable
+  // Language is for both state::source and state::executable.
   syclex::source_language Language = syclex::source_language::opencl;
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.

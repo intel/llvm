@@ -874,9 +874,11 @@ struct is_property_key_of<save_log_key, detail::build_source_bundle_props>
 struct registered_kernel_names
     : detail::run_time_property_key<detail::PropKind::RegisteredKernelNames> {
   std::vector<std::string> kernel_names;
+  registered_kernel_names() {}
   registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}
   registered_kernel_names(const std::vector<std::string> &knsArg)
       : kernel_names(knsArg) {}
+  void add(const std::string &name) { kernel_names.push_back(name); }
 };
 using registered_kernel_names_key = registered_kernel_names;
 

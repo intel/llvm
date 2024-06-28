@@ -29,7 +29,7 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
               const std::vector<std::string> &UserArgs, std::string *LogPtr,
               const std::vector<std::string> &RegisteredKernelNames) {
   throw sycl::exception(sycl::errc::build,
-                        "kernel_compiler does not supprot GCC<8");
+                        "kernel_compiler does not support GCC<8");
 }
 } // namespace detail
 } // namespace ext::oneapi::experimental
@@ -50,89 +50,90 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-std::string generate_semi_unique_id() {
-  // Get the current time as a time_t object
-  std::time_t now = std::time(nullptr);
+std::string generateSemiUniqueId() {
+  // Get the current time as a time_t object.
+  std::time_t CurrentTime = std::time(nullptr);
 
-  // Convert time_t to a string with format YYYYMMDD_HHMMSS
-  std::tm *local_time = std::localtime(&now);
-  std::stringstream ss;
-  ss << std::put_time(local_time, "%Y%m%d_%H%M%S");
+  // Convert time_t to a string with format YYYYMMDD_HHMMSS.
+  std::tm *LocalTime = std::localtime(&CurrentTime);
+  std::stringstream Ss;
+  Ss << std::put_time(LocalTime, "%Y%m%d_%H%M%S");
 
-  // amend with random number
-  std::random_device rd;
-  int random_number = rd() % 900 + 100;
-  ss << "_" << std::setfill('0') << std::setw(3)
-     << random_number; // Pad with leading zeros
+  // Amend with random number.
+  std::random_device Rd;
+  int RandomNumber = Rd() % 900 + 100;
+  Ss << "_" << std::setfill('0') << std::setw(3) << RandomNumber;
 
-  return ss.str();
+  return Ss.str();
 }
 
-std::filesystem::path prepare_ws(const std::string &id) {
-  const std::filesystem::path tmp = std::filesystem::temp_directory_path();
-
-  std::filesystem::path new_directory_path = tmp / id;
+std::filesystem::path prepareWS(const std::string &Id) {
+  const std::filesystem::path TmpDirectoryPath =
+      std::filesystem::temp_directory_path();
+  std::filesystem::path NewDirectoryPath = TmpDirectoryPath / Id;
 
   try {
-    std::filesystem::create_directories(new_directory_path);
-  } catch (std::filesystem::filesystem_error const &e) {
-    throw sycl::exception(sycl::errc::build, e.what());
+    std::filesystem::create_directories(NewDirectoryPath);
+  } catch (const std::filesystem::filesystem_error &E) {
+    throw sycl::exception(sycl::errc::build, E.what());
   }
 
-  return new_directory_path;
+  return NewDirectoryPath;
 }
 
-std::string user_args_as_string(const std::vector<std::string> &UserArgs) {
-  return std::accumulate(UserArgs.begin(), UserArgs.end(), std::string(""),
-                         [](const std::string &a, const std::string &b) {
-                           return a.empty() ? b : a + " " + b;
+std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
+  return std::accumulate(UserArguments.begin(), UserArguments.end(),
+                         std::string(""),
+                         [](const std::string &A, const std::string &B) {
+                           return A.empty() ? B : A + " " + B;
                          });
 }
 
-void output_preamble(std::ofstream &os, const std::filesystem::path &file_path,
-                     const std::string &id,
-                     const std::vector<std::string> &UserArgs) {
+void outputPreamble(std::ofstream &Os, const std::filesystem::path &FilePath,
+                    const std::string &Id,
+                    const std::vector<std::string> &UserArgs) {
 
-  os << "/*\n  clang++ -fsycl -o " << id << ".bin "
-     << user_args_as_string(UserArgs)
-     << "-fno-sycl-dead-args-optimization -fsycl-dump-device-code=./ " << id
-     << ".cpp \n */" << std::endl;
+  Os << "/*\n";
+  Os << "  clang++ -fsycl -o " << Id << ".bin ";
+  Os << userArgsAsString(UserArgs);
+  Os << " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=./ " << Id;
+  Os << ".cpp \n */" << std::endl;
 }
 
 std::filesystem::path
-output_cpp(const std::filesystem::path &parent_dir, const std::string &id,
-           std::string raw_code_string,
-           const std::vector<std::string> &UserArgs,
-           const std::vector<std::string> &RegisteredKernelNames) {
-  std::filesystem::path file_path = parent_dir / (id + ".cpp");
-  std::ofstream outfile(file_path, std::ios::out | std::ios::trunc);
+outputCpp(const std::filesystem::path &ParentDir, const std::string &Id,
+          std::string RawCodeString, const std::vector<std::string> &UserArgs,
+          const std::vector<std::string> &RegisteredKernelNames) {
+  std::filesystem::path FilePath = ParentDir / (Id + ".cpp");
+  std::ofstream Outfile(FilePath, std::ios::out | std::ios::trunc);
 
-  if (outfile.is_open()) {
-    output_preamble(outfile, file_path, id, UserArgs);
-    outfile << raw_code_string << std::endl;
+  if (Outfile.is_open()) {
+    outputPreamble(Outfile, FilePath, Id, UserArgs);
+    Outfile << RawCodeString << std::endl;
 
-    // temporarily needed until -c works with -fsycl-dump-spirv
-    outfile << "int main(){\n";
-    for (std::string nm : RegisteredKernelNames) {
-      outfile << "  " << nm << ";\n";
+    // Temporarily needed until -c works with -fsycl-dump-spirv.
+    Outfile << "int main() {\n";
+    for (const std::string &KernelName : RegisteredKernelNames) {
+      Outfile << "  " << KernelName << ";\n";
     }
-    outfile << " return 0;\n}" << std::endl;
+    Outfile << "  return 0;\n}\n" << std::endl;
 
-    outfile.close(); // Close the file when finished
+    Outfile.close();
   } else {
     throw sycl::exception(sycl::errc::build,
                           "Failed to open .cpp file for write: " +
-                              file_path.string());
+                              FilePath.string());
   }
-  return file_path;
+
+  return FilePath;
 }
 
-void output_include_files(const std::filesystem::path &dpath,
-                          include_pairs_t IncludePairs) {
+void outputIncludeFiles(const std::filesystem::path &Dirpath,
+                        include_pairs_t IncludePairs) {
   using pairStrings = std::pair<std::string, std::string>;
   for (pairStrings p : IncludePairs) {
-    std::filesystem::path file_path = dpath / p.first;
-    std::ofstream outfile(file_path, std::ios::out | std::ios::trunc);
+    std::filesystem::path FilePath = Dirpath / p.first;
+    std::ofstream outfile(FilePath, std::ios::out | std::ios::trunc);
     if (outfile.is_open()) {
       outfile << p.second << std::endl;
 
@@ -140,92 +141,93 @@ void output_include_files(const std::filesystem::path &dpath,
     } else {
       throw sycl::exception(sycl::errc::build,
                             "Failed to open include file for write: " +
-                                file_path.string());
+                                FilePath.string());
     }
   }
 }
 
-std::string get_compiler_name() {
+std::string getCompilerName() {
 #ifdef __WIN32
-  std::string compiler = "clang++.exe";
+  std::string Compiler = "clang++.exe";
 #else
-  std::string compiler = "clang++";
+  std::string Compiler = "clang++";
 #endif
-  return compiler;
+  return Compiler;
 }
 
-void invoke_compiler(const std::filesystem::path &fpath,
-                     const std::filesystem::path &dpath, const std::string &id,
-                     const std::vector<std::string> &UserArgs,
-                     std::string *LogPtr) {
+void invokeCompiler(const std::filesystem::path &FPath,
+                    const std::filesystem::path &DPath, const std::string &Id,
+                    const std::vector<std::string> &UserArgs,
+                    std::string *LogPtr) {
 
-  std::filesystem::path file_path(fpath);
-  std::filesystem::path parent_dir(dpath);
-  std::filesystem::path target_path = parent_dir / (id + ".bin");
-  std::filesystem::path log_path = parent_dir / "compilation_log.txt";
-  std::string compiler = get_compiler_name();
+  std::filesystem::path FilePath(FPath);
+  std::filesystem::path ParentDir(DPath);
+  std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
+  std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
+  std::string Compiler = getCompilerName();
 
-  std::string command =
-      compiler + " -fsycl -o " + target_path.make_preferred().string() + " " +
-      user_args_as_string(UserArgs) +
+  std::string Command =
+      Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
+      userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
-      parent_dir.make_preferred().string() + " " +
-      file_path.make_preferred().string() + " 2> " +
-      log_path.make_preferred().string();
+      ParentDir.make_preferred().string() + " " +
+      FilePath.make_preferred().string() + " 2> " +
+      LogPath.make_preferred().string();
 
-  int result = std::system(command.c_str());
+  int Result = std::system(Command.c_str());
 
-  // Read the log file contents into the log variable
+  // Read the log file contents into the log variable.
   std::string CompileLog;
-  std::ifstream log_stream;
-  log_stream.open(log_path);
-  if (log_stream.is_open()) {
-    std::stringstream log_buffer;
-    log_buffer << log_stream.rdbuf();
-    CompileLog.append(log_buffer.str());
+  std::ifstream LogStream;
+  LogStream.open(LogPath);
+  if (LogStream.is_open()) {
+    std::stringstream LogBuffer;
+    LogBuffer << LogStream.rdbuf();
+    CompileLog.append(LogBuffer.str());
     if (LogPtr != nullptr)
-      LogPtr->append(log_buffer.str());
+      LogPtr->append(LogBuffer.str());
 
-  } else if (result == 0 && LogPtr != nullptr) {
-    // if there was a compilation problem, we want to report that (below)
+  } else if (Result == 0 && LogPtr != nullptr) {
+    // If there was a compilation problem, we want to report that (below),
     // not a mere "missing log" error.
     throw sycl::exception(sycl::errc::build,
                           "failure retrieving compilation log");
   }
 
-  if (result != 0) {
+  if (Result != 0) {
     throw sycl::exception(sycl::errc::build,
-                          "Compile failure: " + std::to_string(result) + " " +
+                          "Compile failure: " + std::to_string(Result) + " " +
                               CompileLog);
   }
 }
 
-std::filesystem::path find_spv(const std::filesystem::path &parent_dir,
-                               const std::string &id) {
-  std::regex pattern_regex(id + R"(.*\.spv)");
+std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
+                              const std::string &Id) {
+  std::regex PatternRegex(Id + R"(.*\.spv)");
 
-  // Iterate through all files in the directory matching the pattern
-  for (const auto &entry : std::filesystem::directory_iterator(parent_dir)) {
-    if (entry.is_regular_file() &&
-        std::regex_match(entry.path().filename().string(), pattern_regex)) {
-      return entry.path();
+  // Iterate through all files in the directory matching the pattern.
+  for (const auto &Entry : std::filesystem::directory_iterator(ParentDir)) {
+    if (Entry.is_regular_file() &&
+        std::regex_match(Entry.path().filename().string(), PatternRegex)) {
+      return Entry.path(); // Return the path if it matches the SPV pattern.
     }
   }
-  // File not found, throw
-  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + id +
+
+  // File not found, throw.
+  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + Id +
                                                " missing from " +
-                                               parent_dir.filename().string());
+                                               ParentDir.filename().string());
 }
 
-spirv_vec_t load_spv_from_file(std::filesystem::path file_name) {
-  std::ifstream spv_stream(file_name, std::ios::binary);
-  spv_stream.seekg(0, std::ios::end);
-  size_t sz = spv_stream.tellg();
-  spv_stream.seekg(0);
-  spirv_vec_t spv(sz);
-  spv_stream.read(reinterpret_cast<char *>(spv.data()), sz);
+spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
+  std::ifstream SpvStream(FileName, std::ios::binary);
+  SpvStream.seekg(0, std::ios::end);
+  size_t Size = SpvStream.tellg();
+  SpvStream.seekg(0);
+  spirv_vec_t Spv(Size);
+  SpvStream.read(reinterpret_cast<char *>(Spv.data()), Size);
 
-  return spv;
+  return Spv;
 }
 
 spirv_vec_t
@@ -233,25 +235,25 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
               const std::vector<std::string> &UserArgs, std::string *LogPtr,
               const std::vector<std::string> &RegisteredKernelNames) {
   // clang-format off
-  const std::string id                    = generate_semi_unique_id();
-  const std::filesystem::path parent_dir  = prepare_ws(id);
-  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource, UserArgs, RegisteredKernelNames);
-                                            output_include_files(parent_dir, IncludePairs);
-                                            invoke_compiler(file_path, parent_dir, id, UserArgs, LogPtr);
-  std::filesystem::path spv_path          = find_spv(parent_dir, id);
-                                     return load_spv_from_file(spv_path);
+  const std::string id                   = generateSemiUniqueId();
+  const std::filesystem::path ParentDir  = prepareWS(id);
+  std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
+                                           outputIncludeFiles(ParentDir, IncludePairs);
+                                           invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+  std::filesystem::path SpvPath          = findSpv(ParentDir, id);
+                                    return loadSpvFromFile(SpvPath);
   // clang-format on
 }
 
 bool SYCL_Compilation_Available() {
-  // is compiler on $PATH ? We try to invoke it.
-  std::string id = generate_semi_unique_id();
+  // Is compiler on $PATH ? We try to invoke it.
+  std::string id = generateSemiUniqueId();
   const std::filesystem::path tmp = std::filesystem::temp_directory_path();
-  std::filesystem::path dump_path = tmp / (id + "_version.txt");
-  std::string compiler = get_compiler_name();
-  std::string test_command =
-      compiler + " --version &> " + dump_path.make_preferred().string();
-  int result = std::system(test_command.c_str());
+  std::filesystem::path DumpPath = tmp / (id + "_version.txt");
+  std::string Compiler = getCompilerName();
+  std::string TestCommand =
+      Compiler + " --version &> " + DumpPath.make_preferred().string();
+  int result = std::system(TestCommand.c_str());
 
   return (result == 0);
 }
