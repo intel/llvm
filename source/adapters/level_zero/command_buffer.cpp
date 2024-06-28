@@ -330,7 +330,6 @@ ur_result_t enqueueCommandBufferMemCopyHelper(
   ze_command_list_handle_t ZeCommandList =
       CommandBuffer->chooseCommandList(PreferCopyEngine);
 
-  logger::debug("calling zeCommandListAppendMemoryCopy()");
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (ZeCommandList, Dst, Src, Size, ZeLaunchEvent, ZeEventList.size(),
               getPointerFromVector(ZeEventList)));
@@ -389,7 +388,6 @@ ur_result_t enqueueCommandBufferMemCopyRectHelper(
   ze_command_list_handle_t ZeCommandList =
       CommandBuffer->chooseCommandList(PreferCopyEngine);
 
-  logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
               &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeLaunchEvent,
@@ -422,7 +420,6 @@ ur_result_t enqueueCommandBufferFillHelper(
   ze_command_list_handle_t ZeCommandList =
       CommandBuffer->chooseCommandList(PreferCopyEngine);
 
-  logger::debug("calling zeCommandListAppendMemoryFill()");
   ZE2UR_CALL(zeCommandListAppendMemoryFill,
              (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeLaunchEvent,
               ZeEventList.size(), getPointerFromVector(ZeEventList)));
@@ -933,7 +930,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       UR_COMMAND_KERNEL_LAUNCH, CommandBuffer, NumSyncPointsInWaitList,
       SyncPointWaitList, false, RetSyncPoint, ZeEventList, ZeLaunchEvent));
 
-  logger::debug("calling zeCommandListAppendLaunchKernel()");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
               &ZeThreadGroupDimensions, ZeLaunchEvent, ZeEventList.size(),
