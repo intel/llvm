@@ -60,7 +60,8 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
   assert(sycl::host_accessor{SuccessBuf}[0]);
 }
 
-template <typename FuncTy, typename ExpectedTy, typename... ArgTys>
+template <typename FuncTy, typename ExpectedTy,
+          typename... ArgTys>
 void test(FuncTy F, ExpectedTy Expected, ArgTys... Args) {
   test(true /*CheckDevice*/, 0.0 /*delta*/, F, Expected, Args...);
 }
