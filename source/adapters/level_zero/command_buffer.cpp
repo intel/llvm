@@ -56,12 +56,14 @@ bool PreferCopyEngineForFill = [] {
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ze_command_list_handle_t CommandList,
+    ze_command_list_handle_t CommandListTranslated,
     ze_command_list_handle_t CommandListResetEvents,
     ze_command_list_handle_t CopyCommandList,
     ZeStruct<ze_command_list_desc_t> ZeDesc,
     ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
     const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
     : Context(Context), Device(Device), ZeComputeCommandList(CommandList),
+      ZeComputeCommandListTranslated(CommandListTranslated),
       ZeCommandListResetEvents(CommandListResetEvents),
       ZeCommandListDesc(ZeDesc), ZeCopyCommandList(CopyCommandList),
       ZeCopyCommandListDesc(ZeCopyDesc), ZeFencesMap(), ZeActiveFence(nullptr),
@@ -605,11 +607,16 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                 &ZeCopyCommandList));
   }
 
+  ze_command_list_handle_t ZeComputeCommandListTranslated = nullptr;
+  ZE2UR_CALL(zelLoaderTranslateHandle,
+             (ZEL_HANDLE_COMMAND_LIST, ZeComputeCommandList,
+              (void **)&ZeComputeCommandListTranslated));
+
   try {
     *CommandBuffer = new ur_exp_command_buffer_handle_t_(
-        Context, Device, ZeComputeCommandList, ZeCommandListResetEvents,
-        ZeCopyCommandList, ZeCommandListDesc, ZeCopyCommandListDesc,
-        CommandBufferDesc, IsInOrder);
+        Context, Device, ZeComputeCommandList, ZeComputeCommandListTranslated,
+        ZeCommandListResetEvents, ZeCopyCommandList, ZeCommandListDesc,
+        ZeCopyCommandListDesc, CommandBufferDesc, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -791,8 +798,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
               UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
     ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
-               (CommandBuffer->ZeComputeCommandList, &ZeMutableCommandDesc,
-                &CommandId));
+               (CommandBuffer->ZeComputeCommandListTranslated,
+                &ZeMutableCommandDesc, &CommandId));
     DEBUG_LOG(CommandId);
   }
   try {
@@ -1619,8 +1626,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   auto Plt = CommandBuffer->Context->getPlatform();
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
-  ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
-             (CommandBuffer->ZeComputeCommandList, &MutableCommandDesc));
+  ZE2UR_CALL(
+      Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
+      (CommandBuffer->ZeComputeCommandListTranslated, &MutableCommandDesc));
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
 
   return UR_RESULT_SUCCESS;
