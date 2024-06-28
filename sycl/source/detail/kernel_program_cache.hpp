@@ -184,6 +184,7 @@ public:
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
     }
+    std::cout << "\tcached program state = " << (int)It->second->State.load() << std::endl;
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -252,6 +253,7 @@ public:
   /// nullptr.
   template <typename ExceptionT, typename GetCachedBuildFT, typename BuildFT>
   auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build) {
+    std::cout << "Cache::getOrBuild" << std::endl;
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
@@ -260,6 +262,7 @@ public:
       BuildState Expected = BuildState::BS_Initial;
       BuildState Desired = BuildState::BS_InProgress;
       if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
+        std::cout << "need to wait for build to complete" << std::endl;
         // no insertion took place, thus some other thread has already inserted
         // smth in the cache
         BuildState NewState = BuildResult->waitUntilTransition();
@@ -290,6 +293,7 @@ public:
 
       // only the building thread will run this
       try {
+        std::cout << "performing program build" << std::endl;
         BuildResult->Val = Build();
         if constexpr (std::is_same<decltype(BuildResult->Val), sycl::detail::pi::PiProgram>::value) {
           std::cout << "Cache::getOrBuild. Result of BuildF() = " << BuildResult->Val << std::endl;
@@ -314,6 +318,8 @@ public:
         std::rethrow_exception(std::current_exception());
       }
     }
+
+    assert(false && "Cache::getOrbuild ends without returning anything");
   }
 
 private:

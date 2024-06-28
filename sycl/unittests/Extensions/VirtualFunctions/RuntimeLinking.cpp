@@ -163,7 +163,7 @@ TEST(VirtualFunctions, A) {
 
   // No new programs shoud be created, we must re-use an existing one (linked)
   // from in-memory cache
-  // EXPECT_EQ(NumOfPiProgramCreateCalls, 0u);
-  // EXPECT_EQ(NumOfPiProgramLinkCalls, 0u);
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 0u);
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_LINKED);
 }
