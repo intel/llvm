@@ -10750,6 +10750,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (!IsUsingLTO || LTOMode != LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10804,9 +10809,12 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
-    // Symbol file and specialization constant info generation is mandatory -
+    bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (!IsUsingLTO || LTOMode != LTOK_Thin)
+      addArgs(PostLinkArgs, TCArgs, {"-symbols"});
+    // Specialization constant info generation is mandatory -
     // add options unconditionally
-    addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-imported-symbols"});
     if (SplitEsimd)
