@@ -2061,6 +2061,28 @@ static void fixFunctionReadWriteAttributes(Module &M) {
   }
 }
 
+static void AddFPControlMetadataForWidth(Function &F, int32_t SPIRVFPControl,
+                                         int32_t Width) {
+  Module &M = *F.getParent();
+  LLVMContext &Ctx = M.getContext();
+  auto NamedMD = M.getOrInsertNamedMetadata("spirv.ExecutionMode");
+  SmallVector<Metadata *, 4> ValueVec;
+  ValueVec.push_back(ConstantAsMetadata::get(&F));
+  ValueVec.push_back(ConstantAsMetadata::get(
+      ConstantInt::get(Type::getInt32Ty(Ctx), SPIRVFPControl)));
+  ValueVec.push_back(
+      ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), Width)));
+  NamedMD->addOperand(MDNode::get(Ctx, ValueVec));
+};
+
+static void SetFPControl(Function &F) {
+  if (llvm::esimd::isESIMDKernel(F)) {
+    AddFPControlMetadataForWidth(F, 4459, 16);
+    AddFPControlMetadataForWidth(F, 4459, 32);
+    AddFPControlMetadataForWidth(F, 4459, 64);
+  }
+}
+
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
 
@@ -2086,6 +2108,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   // generateKernelMetadata, as it uses the generated metadata.
   translateNBarrierAllocations(M);
   for (auto &F : M.functions()) {
+    SetFPControl(F);
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
 
