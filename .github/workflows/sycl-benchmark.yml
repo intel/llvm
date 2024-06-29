@@ -123,12 +123,76 @@ jobs:
         tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
         rm -f ${{ inputs.sycl_toolchain_archive }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+        echo SYCL_ARTIFACT_PATH="$PWD/toolchain/"
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - uses: actions/checkout@v4
       with:
         repository: 'ianayl/sycl-bench'
-        clean: false
+        clean: false   # Prevents actions/checkout@v4 from deleting the extracted artifact
         path: './sycl-bench/'
-    - run: ls
-    - run: sycl-ls --verbose
-    - run: SYCL_PI_TRACE=-1 sycl-ls
+    - name: Build sycl-bench
+      run: |
+        cd ./sycl-bench
+        cmake -DSYCL_IMPL=dpcpp -DCMAKE_CXX_COMPILER=$SYCL_ARTIFACT_PATH/bin/clang++ -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=./bin -S . -B ./build &&
+        cmake --build ./build
+        cd -
+        echo LD_LIBRARY_PATH=$SYCL_ARTIFACT_PATH/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: Run sycl-bench tests
+      run: |
+        # Determine the index of a column in a CSV given its title
+        # Usage: get_csv_col_index <benchmark output .csv file> <column name>
+        get_csv_col_index() {
+            tmp_csv_col_i="$(cat "$1" | head -n 1 | grep -o "^.*$2," | grep -o ',' | wc -l)"
+        }
+
+        # Usage: print_bench_res <benchmark output .csv file> <benchmark status code> <summary file>
+        print_bench_res() {
+            if [ ! -s $1 ]; then
+                printf "NO OUTPUT! (Status $2)\n" | tee -a $3
+                return  # Do not proceed if file is empty
+            fi
+
+            get_csv_col_index $1 run-time-mean
+            tmp_run_time_mean_i=$tmp_csv_col_i
+            get_csv_col_index $1 run-time-median
+            tmp_run_time_median_i=$tmp_csv_col_i
+            get_csv_col_index $1 run-time-throughput
+            tmp_run_time_throughput_i=$tmp_csv_col_i
+
+            # Columns of interest used in `cut`:
+            tmp_columns="1,$tmp_run_time_mean_i,$tmp_run_time_median_i,$tmp_run_time_throughput_i"
+
+            # `sycl-bench` output seems to like inserting the header multiple times.
+            # This caches the header and prints it only once:
+            tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
+
+            { echo $tmp_header_title; cat $1; } |
+                grep "^[^#]"                    |   # Discard extraneous headers
+                cut -d',' -f$tmp_columns        |   # Cut out columns of interest
+                tr ',' '\t' | column -t         |   # Display as a table
+                tee -a $3                           # Print to summary file
+        }
+
+        # run sycl bench step
+        run() {
+            tmp_timestamp="$(date '+%Y%m%d_%H%M%S')"
+            mkdir "./sycl-bench/build/bench-$tmp_timestamp/"
+            tmp_summary_file="./sycl-bench/build/bench-$tmp_timestamp/summary.txt" 
+
+            for file in ./sycl-bench/build/bin/*; do
+                # TODO -size should not be always 256, caution
+                tmp_bench_output="./sycl-bench/build/bench-$tmp_timestamp/$(basename $file).csv"
+                tmp_bench_log="./sycl-bench/build/bench-$tmp_timestamp/$(basename $file).log"
+
+                printf "\n### Results for $(basename $file) ###\n" | tee -a $tmp_summary_file
+                $file --output=$tmp_bench_output --no-verification --size=256 2> "$tmp_bench_log"
+                print_bench_res $tmp_bench_output $? $tmp_summary_file
+                # Remove log if nothing logged
+                [ ! -s "$tmp_bench_log" ] && rm "$tmp_bench_log" || cat "$tmp_bench_log" | tee -a $tmp_summary_file
+            done
+        }
+
+        run
+    - name: Check results
+      run: |
+        cat ./sycl-bench/build/bench-*/summary.txt
