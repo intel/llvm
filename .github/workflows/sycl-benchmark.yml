@@ -127,7 +127,8 @@ jobs:
     - uses: actions/checkout@v4
       with:
         repository: 'ianayl/sycl-bench'
+        clean: false
+        path: './sycl-bench/'
     - run: ls
-    - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_PI_TRACE=-1 sycl-ls
