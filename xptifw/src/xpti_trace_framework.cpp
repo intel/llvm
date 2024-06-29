@@ -33,6 +33,7 @@
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #define XPTI_USER_DEFINED_TRACE_TYPE16(value)                                  \
@@ -134,6 +135,60 @@ bool g_tracepoint_self_notify = false;
 /// multi-threaded environments. It is primarily used to hold intermediate
 /// information about a tracepoint's state.
 static thread_local xpti::tracepoint_data_t g_tls_temp_scope_data;
+
+struct TracepointInstance {
+  xpti::uid128_t MUId;
+  xpti::payload_t MPayload;
+  xpti::trace_event_data_t MEvent;
+
+  /// @brief Constructs a new TracepointInstance instance.
+  ///
+  /// This constructor initializes the TracepointInstance instance with the
+  /// provided tracepoint data
+  ///
+  /// @param Data The tracepoint data for the new instance.
+  /// @param StreamID The stream ID for the new instance.
+  void Update(xpti::uid128_t &UID, xpti::payload_t *Payload) {
+    MUId = UID;
+    MPayload.name = Payload->name;
+    MPayload.source_file = Payload->source_file;
+    MPayload.line_no = Payload->line_no;
+    MPayload.column_no = Payload->column_no;
+    MPayload.flags = Payload->flags;
+
+    xpti::framework::uid_object_t UidHelper(MUId);
+    MPayload.uid.p1 = Payload->uid.p1 =
+        XPTI_PACK32_RET64(UidHelper.fileId(), UidHelper.lineNo());
+    MPayload.uid.p2 = Payload->uid.p2 =
+        XPTI_PACK32_RET64(0, UidHelper.functionId());
+    MEvent.universal_id = MUId;
+    MEvent.reserved.payload = &MPayload;
+    MEvent.instance_id = MEvent.data_id = MUId.instance;
+    MEvent.event_type = (uint16_t)xpti::trace_event_type_t::algorithm;
+    MEvent.activity_type = (uint16_t)xpti::trace_activity_type_t::active;
+    MEvent.source_id = xpti::invalid_uid;
+    MEvent.target_id = xpti::invalid_uid;
+    MEvent.flags |=
+        static_cast<uint64_t>(xpti::trace_event_flag_t::UIDAvailable);
+    MEvent.flags |=
+        static_cast<uint64_t>(xpti::trace_event_flag_t::EventTypeAvailable);
+    MEvent.flags |=
+        static_cast<uint64_t>(xpti::trace_event_flag_t::ActivityTypeAvailable);
+    MEvent.flags |=
+        static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
+  }
+
+  /// @brief Destructs the TracepointInstance instance.
+  ///
+  /// This destructor is responsible for cleaning up the TracepointInstance
+  /// instance and releasing any resources it holds. It does not perform any
+  /// specific cleanup operations at present.
+  ~TracepointInstance() {}
+
+  xpti::uid128_t *UID() { return &MUId; }
+  xpti::payload_t *Payload() { return &MPayload; }
+  xpti::trace_event_data_t *Event() { return &MEvent; }
+};
 
 /// @class Subscribers
 /// @brief Manages the lifecycle of trace framework subscriber plugins.
@@ -367,243 +422,6 @@ private:
   std::mutex MLoader;
 };
 
-/// @class uid_64bit_128bit_lut
-/// @brief Manages the mapping between 64-bit and 128-bit unique identifiers
-/// (UIDs) and associated payloads.
-///
-/// This class provides functionality to manage and map 64-bit UIDs to 128-bit
-/// UIDs and vice versa. It also supports mapping 64-bit UIDs to specific
-/// payload data. The class is designed to be thread-safe, ensuring that
-/// concurrent access to the UID and payload mappings is correctly synchronized.
-///
-/// @details The class uses several hash maps to store the mappings:
-/// - A map from 64-bit UIDs to 128-bit UIDs.
-/// - A map from 128-bit UIDs to a map of instance IDs to 64-bit UIDs, allowing
-/// multiple instances of a 128-bit UID.
-/// - A map from 64-bit UIDs to payload data, facilitating the association of
-/// data with UIDs.
-///
-/// The class provides methods to find and manipulate these mappings, including
-/// finding UIDs, erasing UIDs, and finding or creating payload instances
-/// associated with UIDs.
-
-class uid_64bit_128bit_lut {
-public:
-  using uid64_128_t = phmap::flat_hash_map<uint64_t, uid128_t>;
-  using instance2uid64_t = phmap::flat_hash_map<uint64_t, uint64_t>;
-  using uid128_64_t = phmap::flat_hash_map<uid128_t, instance2uid64_t>;
-  using uid64_to_payload_t =
-      phmap::parallel_node_hash_map<uint64_t, xpti::payload_t>;
-
-  /// @brief Constructs a new UID lookup table instance.
-  ///
-  /// Initializes the starting value for 64-bit UIDs and sets up the internal
-  /// data structures for managing UID and payload mappings. The constructor
-  /// ensures that the first 64-bit UID starts from 1, avoiding the use of 0
-  /// which is reserved or signify an invalid UID.
-
-  uid_64bit_128bit_lut() : M64bitUIDs(1) {}
-  ~uid_64bit_128bit_lut() {
-    M64to128.clear();
-    M128to64.clear();
-    M64bitUIDs = 1;
-  }
-
-  /// @brief Finds or creates a 64-bit unique identifier (UID) for a given
-  /// 128-bit UID.
-  ///
-  /// This function searches for a 64-bit UID corresponding to the provided
-  /// 128-bit UID. If the 128-bit UID already has an associated 64-bit UID, it
-  /// is returned immediately. If not, a new 64-bit UID is generated, associated
-  /// with the 128-bit UID, and stored for future lookups. This process involves
-  /// updating both the mapping from 128-bit to 64-bit UIDs and the reverse
-  /// mapping from 64-bit to 128-bit UIDs.
-  ///
-  /// @param UId A pointer to the 128-bit UID structure. This structure must
-  ///            contain the 128-bit UID and an instance identifier. The
-  ///            function updates this structure's 64-bit UID field if a new UID
-  ///            is generated or an existing one is found.
-  /// @return The 64-bit UID associated with the given 128-bit UID. If the
-  ///         function generates a new 64-bit UID, this UID is returned and also
-  ///         stored in the input structure.
-  ///
-  /// @note This function is thread-safe. It uses a mutex to ensure exclusive
-  ///       access to the internal data structures when modifying them.
-
-  uint64_t findUID64(uid128_t *UId) {
-    // If the UId already has a 64-bit ID, return it
-    if (UId->uid64 != xpti::invalid_uid)
-      return UId->uid64;
-
-    // This is a read-only operation, so we can use a shared lock
-    {
-      std::unique_lock Lock(MMutex);
-      auto &UIDInstanceMap = M128to64[*UId];
-      if (UIDInstanceMap.count(UId->instance)) {
-        // Update the UId->uid64 to contain the right 64-bit ID and return it
-        UId->uid64 = UIDInstanceMap[UId->instance];
-        return UId->uid64;
-      }
-      // If we are here, then UID instance not found. We have to create the
-      // 64-bit ID and add it to the map and update reverse lookup
-      uint64_t New64BitUID = M64bitUIDs++;
-      UIDInstanceMap[UId->instance] = New64BitUID;
-      // Update the UId to have the right 64-bit ID
-      UId->uid64 = New64BitUID;
-      M64to128[New64BitUID] = *UId;
-      return New64BitUID;
-    }
-  }
-
-  /// @brief Erases a 128-bit unique identifier (UID) from the mapping.
-  ///
-  /// This function attempts to remove a 128-bit UID and its associated 64-bit
-  /// UID from the internal mapping. It locates the 128-bit UID in the mapping,
-  /// and if found, erases it. However, it does not delete any associated
-  /// payload data (referred to as the proxy payload) to avoid invalidating
-  /// pointers that may still be in use elsewhere.
-  ///
-  /// @param UId A pointer to the 128-bit UID structure that is to be erased
-  ///            from the mapping.
-  /// @return    True if the 128-bit UID was successfully found and erased from
-  ///            the mapping; false otherwise.
-  ///
-  /// @note This function is thread-safe. It acquires a unique lock on the
-  ///       internal mutex to ensure exclusive access to the mapping during the
-  ///       erase operation.
-
-  bool eraseUID128(uid128_t *UId) {
-    std::unique_lock Lock(MMutex);
-    auto Loc = M128to64.find(*UId);
-    if (Loc != M128to64.end()) {
-      M128to64.erase(Loc);
-      // We will not delete the proxy payload as it may be in use and we do not
-      // want to invalidate the pointer
-      return true;
-    }
-    return false;
-  }
-
-  /// @brief Finds or creates a payload instance associated with a given 64-bit
-  /// unique identifier (UID) for a tracepoint instance.
-  ///
-  /// This function searches for a payload instance associated with the
-  /// specified 64-bit UID. If a payload instance already exists for the UID, it
-  /// is returned directly. Otherwise, a new payload instance is created using
-  /// the provided payload data, associated with the UID, and then returned.
-  /// This ensures that each unique 64-bit UID has a corresponding payload
-  /// instance.
-  ///
-  /// The function uses a mutex to ensure thread-safe access to the internal
-  /// mapping of UIDs to payload instances.
-  ///
-  /// @param UId The 64-bit unique identifier for which to find or create a
-  ///            payload instance.
-  /// @param Payload A pointer to the payload data to use for creating a new
-  ///                payload instance if one does not already exist for the
-  ///                specified UID. This parameter is ignored if a payload
-  ///                instance already exists for the UID.
-  /// @return A pointer to the payload instance associated with the specified
-  ///         UID. If a new payload instance is created, it is initialized with
-  ///         the provided payload data.
-
-  xpti::payload_t *findPayloadInstance(uint64_t UId, xpti::payload_t *Payload) {
-    std::unique_lock Lock(MPayloadMutex);
-    if (M64ToPayload.count(UId)) {
-      // Someone has already queried this payload, so we have a proxy payload
-      // that we can return
-      return &M64ToPayload[UId];
-    } else {
-      // Since we do not have a proxy payload, we will create one and return it
-      auto &PayloadEntry = M64ToPayload[UId];
-      PayloadEntry = *Payload;
-      PayloadEntry.internal = UId;
-      PayloadEntry.flags |=
-          static_cast<uint64_t>(payload_flag_t::HashAvailable);
-      return &PayloadEntry;
-    }
-  }
-
-  /// @brief Finds the 128-bit unique identifier (UID) associated with a given
-  /// 64-bit UID.
-  ///
-  /// This function searches for a 128-bit UID that is associated with the
-  /// specified 64-bit UID. It first acquires a shared lock to ensure
-  /// thread-safe read access to the internal mapping from 64-bit UIDs to
-  /// 128-bit UIDs. If the 64-bit UID is found in the mapping, the corresponding
-  /// 128-bit UID is returned. If the 64-bit UID is not found, an invalid
-  /// 128-bit UID (default constructed) is returned, indicating that no
-  /// association exists for the given 64-bit UID.
-  ///
-  /// @param UId The 64-bit unique identifier for which the associated 128-bit
-  ///            UID is to be found.
-  /// @return The 128-bit UID associated with the specified 64-bit UID. If no
-  ///         association exists, an invalid 128-bit UID (default constructed)
-  ///         is returned.
-
-  xpti::uid128_t findUID128(uint64_t UId) {
-    {
-      std::shared_lock Lock(MMutex);
-      auto Loc = M64to128.find(UId);
-      if (Loc != M64to128.end()) {
-        return Loc->second;
-      }
-    }
-    xpti::uid128_t invalid_uid128;
-    return invalid_uid128;
-  }
-
-private:
-  /// @var M64bitUIDs
-  /// @brief Counter for generating unique 64-bit identifiers (UIDs).
-  ///
-  /// This variable is used to generate unique 64-bit UIDs for new entries. It
-  /// ensures that each UID is unique by monotonically increasing the value for
-  /// each new UID generated.
-  uint64_t M64bitUIDs;
-
-  /// @var M64to128
-  /// @brief Mapping from 64-bit UIDs to 128-bit UIDs.
-  ///
-  /// This map is used to associate 64-bit UIDs with their corresponding 128-bit
-  /// UIDs. It allows for efficient lookup of 128-bit UIDs based on 64-bit UIDs.
-  uid64_128_t M64to128;
-
-  /// @var M128to64
-  /// @brief Mapping from 128-bit UIDs to 64-bit UIDs.
-  ///
-  /// This map is used to associate 128-bit UIDs with their corresponding 64-bit
-  /// UIDs. It allows for efficient lookup of 64-bit UIDs based on 128-bit UIDs.
-  uid128_64_t M128to64;
-
-  /// @var M64ToPayload
-  /// @brief Mapping from 64-bit UIDs to payload data.
-  ///
-  /// This map associates 64-bit UIDs with their corresponding payload data. It
-  /// enables the storage and retrieval of payload information based on 64-bit
-  /// UIDs. The payload information stored in this map is mutable and has
-  /// information about the instance of the payload.
-  uid64_to_payload_t M64ToPayload;
-
-  /// @var MMutex
-  /// @brief Shared mutex for thread-safe operations on UID mappings.
-  ///
-  /// This mutex is used to synchronize access to the UID mappings (M64to128 and
-  /// M128to64), ensuring thread-safe read and write operations. It is a shared
-  /// mutex, allowing multiple concurrent read accesses while still ensuring
-  /// exclusive access for write operations.
-  mutable std::shared_mutex MMutex;
-
-  /// @var MPayloadMutex
-  /// @brief Shared mutex for thread-safe operations on the payload mapping.
-  ///
-  /// This mutex is used to synchronize access to the payload mapping
-  /// (M64ToPayload), ensuring thread-safe read and write operations. Similar to
-  /// MMutex, it is a shared mutex that allows multiple concurrent read accesses
-  /// while ensuring exclusive access for write operations.
-  mutable std::shared_mutex MPayloadMutex;
-};
-
 /// @brief Helper class to create and  manage tracepoints
 /// @details The class uses the global string table to register the strings it
 /// encounters in various payloads and builds internal hash maps to manage them.
@@ -627,24 +445,46 @@ public:
   /// to use the references.
   using uid_payload_lut = std::unordered_map<xpti::uid128_t, uid_entry_t>;
 
-  /// @typedef trace_instance_t
-  /// @brief A type alias for an unordered map from uint64_t to
-  /// xpti::trace_event_data_t. This type is used to map unique identifiers to
-  /// their corresponding trace event data vectors that records instance data.
-  using trace_instance_t =
-      std::unordered_map<uint64_t, xpti::trace_event_data_t>;
+  /// @typedef uid_instances_t
+  /// @brief Defines a hash map for managing tracepoint instances by their
+  /// unique identifiers.
+  ///
+  /// This type alias represents a hash map where the key is a 64-bit unsigned
+  /// integer representing the unique instance of a tracepoint, and the value is
+  /// an instance of `xpti::TracepointInstance`. The `phmap::node_hash_map` is
+  /// chosen for its efficiency in managing hash collisions and overall
+  /// performance in insertions and lookups. This map is used within the trace
+  /// framework to efficiently manage and access tracepoint instances by their
+  /// UIDs, allowing for quick updates and retrievals of tracepoint data.
+  using uid_instances_t =
+      phmap::node_hash_map<uint64_t, xpti::TracepointInstance>;
 
-  /// @typedef uid_event_lut
-  /// @brief A type alias for an unordered map from uid_t to trace_instance_t.
-  /// This type is used to create a lookup table (lut) that maps unique
-  /// identifiers (uids) to their corresponding trace instances.
-  using uid_event_lut = std::unordered_map<uid128_t, trace_instance_t>;
+  /// @typedef uid_tracepoints_lut
+  /// @brief Maps 128-bit unique identifiers to their corresponding tracepoint
+  /// instances.
+  ///
+  /// This type alias represents a hash map designed to efficiently associate
+  /// 128-bit unique identifiers (UIDs) with their corresponding tracepoint
+  /// instances. The `phmap::node_hash_map` is utilized for its performance
+  /// characteristics, including efficient handling of hash collisions and
+  /// optimized insertions and lookups. This mapping is crucial within the trace
+  /// framework for organizing and accessing tracepoint instances by their UIDs,
+  /// facilitating quick updates, retrievals, and management of tracepoint data
+  /// across the system.
+  using uid_tracepoints_lut = phmap::node_hash_map<uid128_t, uid_instances_t>;
 
-  /// @typedef uid_payload_t
-  /// @brief A type alias for a pair containing a uid_t and a pointer to an
-  /// xpti::payload_t. This type is used to store a unique identifier and a
-  /// pointer to its corresponding payload together.
-  using uid_payload_t = std::pair<uid128_t, xpti::payload_t *>;
+  /// @typedef uid64_validity_lut
+  /// @brief Represents a set for tracking the validity of 64-bit unique
+  /// identifiers (UIDs).
+  ///
+  /// This type alias defines a flat hash set optimized for fast lookup,
+  /// insertion, and deletion operations. It is used within the trace framework
+  /// to maintain a collection of 64-bit UIDs that have been validated or are
+  /// known to be in use. The `phmap::flat_hash_set` is chosen for its
+  /// performance efficiency, particularly in scenarios where the set size is
+  /// large and performance is critical. This set acts as a registry to quickly
+  /// verify the validity of UIDs encountered during trace operations.
+  using uid64_validity_lut = phmap::flat_hash_set<uint64_t>;
 
   /// @struct PayloadInstance
   /// @brief Represents an instance of a payload associated with its unique
@@ -715,7 +555,7 @@ public:
     MUId = 1;
     MInsertions = MRetrievals = 0;
     MPayloads.clear();
-    MEvents.clear();
+    MTracepoints.clear();
   }
 
   /// @brief Generates a unique 64-bit identifier for use in the framwork.
@@ -840,9 +680,15 @@ public:
       return nullptr;
     // Scoped lock until the information is retrieved from the map
     {
-      std::shared_lock Lock(MPayloadMutex);
-      auto &PayloadEntry = MPayloads[*UId];
-      return &PayloadEntry.first;
+      xpti::TracepointInstance *TP =
+          reinterpret_cast<xpti::TracepointInstance *>(UId->uid64);
+      if (xpti::is_valid_payload(&TP->MPayload))
+        return &TP->MPayload;
+      else
+        return nullptr;
+      // std::shared_lock Lock(MPayloadMutex);
+      // auto &PayloadEntry = MPayloads[*UId];
+      // return &PayloadEntry.first;
     }
   }
 
@@ -861,7 +707,8 @@ public:
   ///    `nullptr` or if the universal ID is considered invalid according to the
   ///    `xpti::is_valid_uid` function. If either condition is true, the
   ///    function immediately returns `nullptr`.
-  /// 2. A shared lock on the global event map (`MEventMutex`) is acquired to
+  /// 2. A shared lock on the global event map (`MTracepointMutex`) is acquired
+  /// to
   ///    ensure thread-safe read access.
   /// 3. The function then checks if the global event map contains an entry for
   ///    the high and low parts of the universal ID. If an entry exists, it
@@ -880,14 +727,11 @@ public:
     if (!UId || !xpti::is_valid_uid(*UId))
       return nullptr;
 
-    std::shared_lock Lock(MEventMutex);
-    if (MEvents.count(*UId)) {
-      auto &EventEntry = MEvents[*UId];
-      if (EventEntry.count(UId->instance))
-        return &EventEntry[UId->instance];
-      else
-        return nullptr;
-    } else
+    xpti::TracepointInstance *TP =
+        reinterpret_cast<xpti::TracepointInstance *>(UId->uid64);
+    if (xpti::is_valid_event(&TP->MEvent))
+      return &TP->MEvent;
+    else
       return nullptr;
   }
 
@@ -903,7 +747,8 @@ public:
   ///    condition is true, the function returns immediately without performing
   ///    any cleanup.
   ///
-  /// 2. It acquires a unique lock on the global event map mutex (`MEventMutex`)
+  /// 2. It acquires a unique lock on the global event map mutex
+  /// (`MTracepointMutex`)
   ///    to ensure thread-safe access to the `MEvents` map, which stores the
   ///    events indexed by their universal IDs.
   ///
@@ -932,23 +777,18 @@ public:
     if (!Event || !xpti::is_valid_uid(Event->universal_id))
       return;
 
-    bool EventReleased = false;
     xpti::uid128_t UId = Event->universal_id;
     {
-      std::unique_lock Lock(MEventMutex);
+      std::unique_lock Lock(MTracepointMutex);
       // Find the event list for a given UID
-      auto EvLoc = MEvents.find(UId);
-      if (EvLoc != MEvents.end() && EvLoc->second.count(UId.instance)) {
-        // Now release the event associated with the UID instance
-        EvLoc->second.erase(UId.instance);
-        // If there are no more events associated with the UID, we can release
-        // the Payload as well, but we will not as the same payload may be
-        // revisited and we need to keep the instance count going
-        EventReleased = true;
-      }
+      auto &Instances = MTracepoints[UId];
+      MUID64Check.erase(UId.uid64);
+      // Now release the event associated with the UID instance
+      Instances.erase(UId.instance);
+      // If there are no more events associated with the UID, we can release
+      // the Payload as well, but we will not as the same payload may be
+      // revisited and we need to keep the instance count going
     }
-    if (EventReleased)
-      MUidLut64x128.eraseUID128(&UId);
   }
 
   /// @brief Adds metadata to a trace event.
@@ -1070,7 +910,7 @@ public:
       return PayloadInstance{Key, nullptr};
 
     // If not, we will use the name, source file, line number and column number
-    // to create the key
+    // to create the key without the instance number
     Key = makeUniversalId(Payload);
     // Check is Key is valid; If the payload is fully populated, then we will
     // have both Key.p1 and Key.p2 set. However, if only a function name is
@@ -1078,21 +918,77 @@ public:
     std::unique_lock Lock(MPayloadMutex);
     auto &PayloadEntry = MPayloads[Key];
     if (PayloadEntry.first.flags == 0) {
-      // We are seeing this UID for the first time, so we can update the Payload
-      // information and set the instance to 1
+#ifdef XPTI_STATISTICS
+      MInsertions++;
+#endif
+      // We are seeing this UID for the first time, so we can update the
+      // Payload information and set the instance to 1
       PayloadEntry.first = *Payload;
       PayloadEntry.first.uid.p3 = 1;
       PayloadEntry.first.internal = xpti::invalid_uid;
       Key.instance = PayloadEntry.second = 1;
       PayloadEntry.first.flags |=
-          static_cast<uint64_t>(payload_flag_t::PayloadRegistered);
+          static_cast<uint64_t>(xpti::payload_flag_t::PayloadRegistered);
       Payload->flags |=
-          static_cast<uint64_t>(payload_flag_t::PayloadRegistered);
+          static_cast<uint64_t>(xpti::payload_flag_t::PayloadRegistered);
     } else {
       // Since we have seen this Payload before, let's increment the instance
       Key.instance = ++PayloadEntry.second;
     }
+    // Now, we need to create the actually payload for this instance that we
+    // will be passing back to the caller
     return PayloadInstance{Key, &PayloadEntry.first};
+  }
+
+  /// @brief Registers a new tracepoint with the given payload.
+  ///
+  /// This function is responsible for registering a new tracepoint based on the
+  /// provided payload. It generates a unique identifier for the tracepoint,
+  /// checks its validity, and then updates the tracepoint instance with the
+  /// payload information. Additionally, it sets various flags and inserts the
+  /// 64-bit ID for validation purposes when legacy APIs are used.
+  ///
+  /// @param Payload Pointer to the payload that needs to be registered as a
+  ///                tracepoint instance.
+  /// @return Pointer to the newly created TracepointInstance; returns nullptr
+  ///         if the universal ID computed from the Payload is invalid.
+  ///
+  xpti::TracepointInstance *registerTracepoint(xpti::payload_t *Payload) {
+    // Generate a unique key from the payload which includes a universal ID and
+    // invariant payload; If the payload has been visited multiple times, the ID
+    // will have the same information for id.p1 and id.p2, but the instance
+    // value will be different
+    auto [UniversalId, InvarPayload] = makeKeyFromPayload(Payload);
+    // Check if the generated universal ID is valid
+    if (!xpti::is_valid_uid(UniversalId))
+      return nullptr;
+
+    // Lock the mutex to ensure thread-safe access to the tracepoints map
+    std::unique_lock Lock(MTracepointMutex);
+    // Access or create the tracepoint instance associated with the universal ID
+    auto &Tracepoint = MTracepoints[UniversalId];
+    // Access or create the specific instance of the tracepoint based on the
+    // universal ID instance
+    auto &TP = Tracepoint[UniversalId.instance];
+#ifdef XPTI_STATISTICS
+    MInsertions++;
+#endif
+    // Update the tracepoint instance with the universal ID and payload
+    TP.Update(UniversalId, InvarPayload);
+    // Set various internal IDs and flags for the tracepoint and payload
+    Payload->internal = TP.MEvent.unique_id = TP.MPayload.internal =
+        TP.MUId.uid64 = TP.MEvent.universal_id.uid64 = (uint64_t)&TP;
+    TP.MPayload.flags |=
+        static_cast<uint64_t>(xpti::payload_flag_t::HashAvailable);
+    TP.MEvent.flags |=
+        static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
+
+    // Add the 64-bit ID for validation purposes when legacy API are used
+    MUID64Check.insert(TP.MUId.uid64);
+    // Return a pointer to the updated tracepoint instance which contains the
+    // UID with the correct instance number, the payload with updated flags and
+    // fields and the event that represents the tracepoint
+    return &TP;
   }
 
   /// @brief Generates the universal unique identifier (UID) for a given
@@ -1100,9 +996,9 @@ public:
   ///
   /// This function is responsible for generating a 128-bit universal unique
   /// identifier (UID) for a given payload. The UID is generated based on the
-  /// payload's properties such as the function name, source file, line number,
-  /// and column number. If the payload is valid and has not already been
-  /// assigned a UID, this function computes and assigns a new UID to the
+  /// payload's properties such as the function name, source file, line
+  /// number, and column number. If the payload is valid and has not already
+  /// been assigned a UID, this function computes and assigns a new UID to the
   /// payload.
   ///
   /// The process involves the following steps:
@@ -1115,20 +1011,23 @@ public:
   ///   `NameAvailable` flag), the function name is added to a global string
   ///   table, and its unique identifier is obtained.
   /// - Similarly, if the payload's source file is available (indicated by the
-  ///   `SourceFileAvailable` flag), the source file information is added to the
-  ///   global string table, and its unique identifier is obtained. The line
-  ///   number and column number are also retrieved from the payload.
-  /// - Using the identifiers for the function name and source file, along with
+  ///   `SourceFileAvailable` flag), the source file information is added to
+  ///   the global string table, and its unique identifier is obtained. The
+  ///   line number and column number are also retrieved from the payload.
+  /// - Using the identifiers for the function name and source file, along
+  /// with
   ///   the line number and column number, a 128-bit UID is generated.
   /// - The sting ids and line number is then used to update the payload's UID
   ///   fields (`uid.p1` and `uid.p2`), which will remain invariant and is for
   ///   use by legacy API.
-  /// - The instance number and `uid64` part of the UID remain unset and invalid
+  /// - The instance number and `uid64` part of the UID remain unset and
+  /// invalid
   ///   at this point.
   ///
   /// @param Payload A pointer to the payload for which the UID is to be
   ///                generated.
-  /// @return A 128-bit UID uniquely identifying the given payload based on its
+  /// @return A 128-bit UID uniquely identifying the given payload based on
+  /// its
   ///         properties. If the payload is invalid, an empty UID is returned.
   ///
 
@@ -1138,8 +1037,10 @@ public:
       return UId;
 
     if (Payload->internal == xpti::invalid_uid) {
-      // If the uid has not been generated and cached, update the flag to say so
-      Payload->flags &= (~static_cast<uint64_t>(payload_flag_t::HashAvailable));
+      // If the uid has not been generated and cached, update the flag to say
+      // so
+      Payload->flags &=
+          (~static_cast<uint64_t>(xpti::payload_flag_t::HashAvailable));
     }
     uint64_t FileId = 0, FuncId = 0;
     int LineNo = 0, ColNo = 0;
@@ -1147,15 +1048,16 @@ public:
     // If the payload's function name is available, add it to the string table
     // and get its id
     if ((Payload->flags &
-         static_cast<uint64_t>(payload_flag_t::NameAvailable))) {
+         static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable))) {
       // Add the kernel name/function name to the string table
       FuncId = MStringTableRef.add(Payload->name, &Payload->name);
     }
 
-    // If the payload's source file is available, add it to the string table and
-    // get its id Also, get the line number and column number from the payload
+    // If the payload's source file is available, add it to the string table
+    // and get its id Also, get the line number and column number from the
+    // payload
     if ((Payload->flags &
-         static_cast<uint64_t>(payload_flag_t::SourceFileAvailable))) {
+         static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
       // Add source file information ot string table
       FileId = MStringTableRef.add(Payload->source_file, &Payload->source_file);
       LineNo = Payload->line_no;
@@ -1163,8 +1065,8 @@ public:
     }
 
     UId = xpti::make_uid128(FileId, FuncId, LineNo, ColNo);
-    // Update the fields of Payload that will remain invariant and is for use by
-    // legacy API that deals with 64-bit universal IDs
+    // Update the fields of Payload that will remain invariant and is for use
+    // by legacy API that deals with 64-bit universal IDs
     Payload->uid.p1 = XPTI_PACK32_RET64(FileId, LineNo);
     Payload->uid.p2 = XPTI_PACK32_RET64(0, FuncId);
     // UId.instance and UId.uid64 are still set to 0 and invalid
@@ -1172,105 +1074,30 @@ public:
     return UId;
   }
 
-  /// @brief Finds or generates a 64-bit UID for a given 128-bit UID.
+  /// @brief Checks the validity of a 64-bit unique identifier (UID).
   ///
-  /// This function is designed to either retrieve an existing 64-bit UID
-  /// (uid64) for a given 128-bit UID (UId) or generate a new one if it doesn't
-  /// exist. The 64-bit UID serves as a more compact identifier for use with
-  /// legacy APIs. This function plays a crucial role in providing backward
-  /// compatibility.
+  /// This function determines if the provided 64-bit UID exists within a
+  /// maintained set of UIDs. The presence of the UID in the set indicates its
+  /// validity. This is typically used to verify if a given UID has been
+  /// previously registered or is known to the system.
   ///
-  /// The process involves the following steps:
-  /// 1. The function first checks if the `UId` pointer is `nullptr` or if the
-  ///    128-bit UID is not valid by calling `xpti::is_valid_uid`. If either
-  ///    check fails, the function returns an invalid UID constant
-  ///    (`xpti::invalid_uid`).
-  /// 2. If the `UId` is valid, the function then checks if a 64-bit UID has
-  ///    already been generated and associated with this 128-bit UID. If so, the
-  ///    existing 64-bit UID is returned immediately.
-  /// 3. If a 64-bit UID has not been generated for this 128-bit UID, the
-  ///    function proceeds to register a new instance by calling
-  ///    `MUidLut64x128.findUID64(UId)`. This call generates a new 64-bit UID,
-  ///    associates it with the 128-bit UID, and updates the `UId` structure to
-  ///    include the new 64-bit value.
+  /// @param UId The 64-bit unique identifier to be checked for validity.
+  /// @return Returns true if the UID exists in the set, indicating it is valid;
+  ///         otherwise, returns false.
   ///
-  /// @param UId A pointer to the 128-bit UID for which a 64-bit UID is to be
-  ///            found or generated.
-  /// @return The 64-bit UID associated with the given 128-bit UID. If the input
-  ///         UID is invalid, returns `xpti::invalid_uid`.
-
-  inline uint64_t findUID64(xpti::uid128_t *UId) {
-    if (!UId || !xpti::is_valid_uid(*UId))
-      return xpti::invalid_uid;
-
-    // UId is deemed valid if we are here; check to see if it has a 64-bit ID
-    // generated for it
-    if (UId->uid64)
-      return UId->uid64;
-
-    // If not, register the new instance and return the new 64-bit ID; this will
-    // also update the UId to have the right 64-bit value
-    return MUidLut64x128.findUID64(UId);
-  }
-
-  /// @brief Retrieves the 128-bit UID associated with a given 64-bit UID.
-  ///
-  /// This function is a wrapper around the `findUID128` method of the
-  /// `MUidLut64x128` lookup table. It is designed to retrieve the 128-bit
-  /// universal unique identifier (UID) that corresponds to a specific 64-bit
-  /// UID provided as input. This functionality is essential for scenarios where
-  /// the compact 64-bit UID needs to be reverse mapped back to its original,
-  /// more descriptive 128-bit UID.
-  ///
-  /// @param UId The 64-bit UID for which the corresponding 128-bit UID is to be
-  ///            retrieved.
-  /// @return The 128-bit UID associated with the given 64-bit UID. If the
-  ///         64-bit UID does not have an associated 128-bit UID in the lookup
-  ///         table, an invalid or default 128-bit UID may be returned,
-  ///         depending on the implementation of the `MUidLut64x128` lookup
-  ///         table.
-  ///
-  inline xpti::uid128_t findUID128(uint64_t UId) {
-    return MUidLut64x128.findUID128(UId);
-  }
-
-  /// @brief Retrieves the payload instance associated with a given 64-bit UID.
-  ///
-  /// This function serves as a wrapper around the `findPayloadInstance` method
-  /// of the `MUidLut64x128` lookup table. It is designed to retrieve the
-  /// payload instance that corresponds to a specific 64-bit universal unique
-  /// identifier (UID) provided as input. This is crucial for scenarios where
-  /// the payload associated with a compact 64-bit UID needs to be accessed. The
-  /// payload pointer returned is not the same as the one returned by the
-  /// 128-bit key as the associated `uid` field in the payload structure tries
-  /// to track the instance information as well. Keeping the same payload
-  /// structure and updating the instance value will create a data race between
-  /// multiple instances.
-  ///
-  /// @param UId The 64-bit UID for which the corresponding payload instance is
-  ///            to be retrieved.
-  /// @param Payload A pointer to a payload structure where the retrieved
-  ///                payload instance will be stored.
-  /// @return A pointer to the payload instance associated with the given 64-bit
-  ///         UID. If the 64-bit UID does not have an associated payload
-  ///         instance in the lookup table, `nullptr` may be returned.
-
-  inline xpti::payload_t *findPayloadInstance(uint64_t UId,
-                                              xpti::payload_t *Payload) {
-    return MUidLut64x128.findPayloadInstance(UId, Payload);
-  }
+  bool isValidUID64(uint64_t UId) { return (MUID64Check.count(UId) > 0); }
 
 private:
-  /// @brief Registers an event with a given payload and returns the event data
-  /// structure with its instance number.
+  /// @brief Registers an event with a given payload and returns the event
+  /// data structure with its instance number.
   ///
   /// This function is responsible for registering an event based on the
-  /// provided payload. It generates a universal unique identifier (UID) for the
-  /// payload, creates a new trace event data structure, associates it with the
-  /// generated UID and its instance, and then returns the event data structure.
-  /// The function ensures thread safety by using a mutex lock during the event
-  /// registration process to handle concurrent registrations of the same
-  /// payload from multiple threads.
+  /// provided payload. It generates a universal unique identifier (UID) for
+  /// the payload, creates a new trace event data structure, associates it
+  /// with the generated UID and its instance, and then returns the event data
+  /// structure. The function ensures thread safety by using a mutex lock
+  /// during the event registration process to handle concurrent registrations
+  /// of the same payload from multiple threads.
   ///
   /// The process involves the following steps:
   /// 1. A temporary copy of the payload is created to avoid modifying the
@@ -1286,7 +1113,8 @@ private:
   ///    generated UID and its instance number.
   /// 6. The event's `universal_id` is set to the generated UID, and the
   ///    `UIDAvailable` flag is set.
-  /// 7. The instance number of the event is updated, and the `PayloadAvailable`
+  /// 7. The instance number of the event is updated, and the
+  /// `PayloadAvailable`
   ///    flag is set.
   /// 8. The payload associated with the UID is stored in the event's
   ///    `reserved.payload`.
@@ -1310,47 +1138,22 @@ private:
     /// payload could be registered from multiple-threads.
     ///
     /// 1. Create a Universal ID based on the payload information
-    /// 2. Using the generated UID, create a new trace event data structure and
+    /// 2. Using the generated UID, create a new trace event data structure
+    /// and
     ///    associate it with the new UID and it's instance.
     /// 3. Return the event
 
-    auto [UniversalId, InvarPayload] = makeKeyFromPayload(&TempPayload);
-    if (!xpti::is_valid_uid(UniversalId))
-      return nullptr;
-
-    // Universal ID returned will have the right instance id for the payload
-    {
-#ifdef XPTI_STATISTICS
-      MInsertions++;
-#endif
-      std::unique_lock Lock(MEventMutex);
-      auto &EventSlot = MEvents[UniversalId];
-      xpti::trace_event_data_t *Event = &EventSlot[UniversalId.instance];
-      Event->universal_id = UniversalId;
-      Event->flags |=
-          static_cast<uint64_t>(xpti::trace_event_flag_t::UIDAvailable);
-      *InstanceNo = Event->instance_id = UniversalId.instance;
-      Event->unique_id = xpti::invalid_uid;
-      Event->unused = 0;
-      // The Payload in here will point to the actual payload associated with a
-      // UID. Since we are not going to have a UID instance associated with the
-      // Payload, the instance ID for the UID associated with the Payload will
-      // always be 1 - that is, when it was first registered. For legacy API
-      // behavior, we will create a Proxy Payload instance that will contain the
-      // right hash/64-bit UID.
-      Event->reserved.payload = InvarPayload;
-      Event->flags |=
-          static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
-      return Event;
-    }
+    auto TracepointInstance = registerTracepoint(&TempPayload);
+    *InstanceNo = TracepointInstance->MUId.instance;
+    return TracepointInstance->Event();
   }
 
   /// @var xpti::safe_int64_t MUId
   /// @brief Monotonically increasing unique identifier for trace events.
   ///
-  /// This variable is used to generate unique identifiers for trace events in a
-  /// thread-safe manner. The `safe_int64_t` type ensures atomic operations on
-  /// the identifier, preventing race conditions in a multi-threaded
+  /// This variable is used to generate unique identifiers for trace events in
+  /// a thread-safe manner. The `safe_int64_t` type ensures atomic operations
+  /// on the identifier, preventing race conditions in a multi-threaded
   /// environment.
   xpti::safe_int64_t MUId;
 
@@ -1358,9 +1161,9 @@ private:
   /// @brief Reference to a global string table used for string internment.
   ///
   /// This reference is used to access a global string table where all strings
-  /// (e.g., function names, file names) are stored. String internment helps in
-  /// reducing memory usage and improving comparison efficiency by ensuring that
-  /// each unique string is stored only once.
+  /// (e.g., function names, file names) are stored. String internment helps
+  /// in reducing memory usage and improving comparison efficiency by ensuring
+  /// that each unique string is stored only once.
   xpti::StringTable &MStringTableRef;
 
   /// @var xpti::safe_uint64_t MInsertions, MRetrievals
@@ -1372,50 +1175,55 @@ private:
   /// @var uid_payload_lut MPayloads
   /// @brief Lookup table mapping unique identifiers to payload instances.
   ///
-  /// This lookup table stores the association between unique identifiers (UIDs)
-  /// and their corresponding payload instances. It enables efficient retrieval
-  /// of payload information based on UIDs.
+  /// This lookup table stores the association between unique identifiers
+  /// (UIDs) and their corresponding payload instances. It enables efficient
+  /// retrieval of payload information based on UIDs.
   uid_payload_lut MPayloads;
 
-  /// @var uid_event_lut MEvents
-  /// @brief Lookup table mapping unique identifiers to event instances.
+  /// @var uid_tracepoints_lut MTracepoints
+  /// @brief Lookup table for managing tracepoints.
   ///
-  /// Similar to `MPayloads`, this lookup table stores the association between
-  /// unique identifiers (UIDs) and their corresponding event instances. It
-  /// facilitates efficient event tracking and retrieval.
-  uid_event_lut MEvents;
+  /// This table maps unique identifiers (UIDs) to their corresponding
+  /// tracepoint instances. It is used to efficiently find and manage
+  /// tracepoints based on their UIDs throughout the trace framework. The exact
+  /// structure of the UID to tracepoint mapping is defined by the
+  /// `uid_tracepoints_lut` type.
+  uid_tracepoints_lut MTracepoints;
+
+  /// @var uid64_validity_lut MUID64Check
+  /// @brief Set for validating 64-bit unique identifiers (UIDs).
+  ///
+  /// This set contains 64-bit UIDs that have been registered or are known to be
+  /// valid within the trace framework. It is used to quickly check the validity
+  /// of a 64-bit UID by seeing if it exists within this set. The
+  /// `uid64_validity_lut` type defines the structure of this validation set.
+  uid64_validity_lut MUID64Check;
 
   /// @var std::mutex MMetadataMutex
   /// @brief Mutex for protecting access to metadata.
   ///
-  /// This mutex is used to synchronize access to metadata, ensuring thread-safe
-  /// operations when modifying or accessing shared metadata information.
+  /// This mutex is used to synchronize access to metadata, ensuring
+  /// thread-safe operations when modifying or accessing shared metadata
+  /// information.
   std::mutex MMetadataMutex;
 
-  /// @var mutable std::shared_mutex MEventMutex
+  /// @var mutable std::shared_mutex MTracepointMutex
   /// @brief Shared mutex for protecting access to the event lookup table.
   ///
-  /// This shared mutex allows multiple readers or a single writer to access the
-  /// `MEvents` lookup table, ensuring thread-safe operations. The `mutable`
-  /// keyword allows the mutex to be locked even in const member functions.
-  mutable std::shared_mutex MEventMutex;
+  /// This shared mutex allows multiple readers or a single writer to access
+  /// the `MEvents` lookup table, ensuring thread-safe operations. The
+  /// `mutable` keyword allows the mutex to be locked even in const member
+  /// functions.
+  mutable std::shared_mutex MTracepointMutex;
 
   /// @var mutable std::shared_mutex MPayloadMutex
   /// @brief Reader/Writer mutex for protecting access to the payload lookup
   /// table.
   ///
-  /// Similar to `MEventMutex`, this shared mutex ensures thread-safe access to
-  /// the `MPayloads` lookup table, allowing multiple readers or a single
-  /// writer.
+  /// Similar to `MTracepointMutex`, this shared mutex ensures thread-safe
+  /// access to the `MPayloads` lookup table, allowing multiple readers or a
+  /// single writer.
   mutable std::shared_mutex MPayloadMutex;
-
-  /// @var uid_64bit_128bit_lut MUidLut64x128
-  /// @brief Lookup table mapping 64-bit UIDs to 128-bit UIDs.
-  ///
-  /// This lookup table is used to maintain the association between 64-bit and
-  /// 128-bit unique identifiers (UIDs). It supports efficient conversion and
-  /// retrieval operations between the two UID formats.
-  uid_64bit_128bit_lut MUidLut64x128;
 };
 
 /// @brief Helper class to manage subscriber callbacks for a given tracepoint
@@ -1479,6 +1287,33 @@ public:
   /// stream.
   using stream_flags_t = std::unordered_map<uint8_t, trace_flags_t>;
 
+  /// @brief Registers a callback function for a specific trace type and stream
+  /// ID.
+  ///
+  /// This function is responsible for registering a callback function that will
+  /// be invoked for a specified trace type and stream ID. It ensures that the
+  /// callback is not already registered to prevent duplicates. If the callback
+  /// has been previously unregistered, it will be re-enabled.
+  ///
+  /// @param StreamID The unique identifier of the stream for which the callback
+  ///                 is being registered.
+  /// @param TraceType The trace type for which the callback is being
+  ///                  registered. This corresponds to specific events or
+  ///                  actions that the callback is interested in.
+  /// @param cbFunc The callback function to be registered. This is a pointer to
+  ///               the function that will be called for the given trace type
+  ///               and stream ID.
+  ///
+  /// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the callback is
+  ///         successfully registered.
+  ///         Returns `xpti::result_t::XPTI_RESULT_INVALIDARG` if the callback
+  ///         function pointer is null.
+  ///         Returns `xpti::result_t::XPTI_RESULT_DUPLICATE` if the callback is
+  ///         already registered and active.
+  ///         Returns `xpti::result_t::XPTI_RESULT_UNDELETE` if the callback was
+  ///         previously unregistered and is now re-enabled.
+  ///
+
   xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
@@ -1538,6 +1373,32 @@ public:
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
+  /// @brief Unregisters a callback function for a specific trace type and
+  /// stream ID.
+  ///
+  /// This function is designed to unregister (disable) a callback function that
+  /// was previously registered for a specific trace type and stream ID. It does
+  /// not physically remove the callback function from the internal storage but
+  /// marks it as inactive. This approach is chosen to avoid deletion and
+  /// simultaneous iterations by other threads, which could be unsafe.
+  ///
+  /// @param StreamID The unique identifier of the stream for which the callback
+  ///                 is registered.
+  /// @param TraceType The trace type for which the callback is registered. This
+  ///                  corresponds to specific events or actions that the
+  ///                  callback is interested in.
+  /// @param cbFunc The callback function to be unregistered. This is a pointer
+  ///               to the function that was previously registered for the given
+  ///               trace type and stream ID.
+  ///
+  /// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the callback is
+  ///         successfully unregistered. Returns
+  ///         `xpti::result_t::XPTI_RESULT_INVALIDARG` if the callback function
+  ///         pointer is null. Returns `xpti::result_t::XPTI_RESULT_DUPLICATE`
+  ///         if the callback is already marked as inactive. Returns
+  ///         `xpti::result_t::XPTI_RESULT_NOTFOUND` if the callback is not
+  ///         found for the specified trace type and stream ID.
+
   xpti::result_t unregisterCallback(uint8_t StreamID, uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
@@ -1577,6 +1438,24 @@ public:
     //  Not here, so nothing to unregister
     return xpti::result_t::XPTI_RESULT_NOTFOUND;
   }
+
+  /// @brief Unregisters all callbacks associated with a given stream ID.
+  ///
+  /// This function is responsible for disabling all callbacks that have been
+  /// registered for a specific stream, identified by its StreamID. It first
+  /// checks if there are any callbacks registered for the given StreamID. If
+  /// none are found, it returns a 'not found' result. Otherwise, it proceeds to
+  /// erase the stream's trace flags and disable all its callbacks.
+  ///
+  /// @param StreamID The unique identifier of the stream whose callbacks are to
+  ///                 be unregistered.
+  /// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the operation is
+  ///         successful. Returns `xpti::result_t::XPTI_RESULT_NOTFOUND` if no
+  ///         callbacks are registered for the specified StreamID.
+  ///
+  /// @note This function uses a `std::unique_lock` to ensure thread safety when
+  /// modifying the callbacks and stream flags. If the implementation evolves to
+  /// use reader-writer locks, a reader lock should be used where appropriate.
 
   xpti::result_t unregisterStream(uint8_t StreamID) {
     // If there are no callbacks registered for the requested stream ID, we
@@ -1625,9 +1504,9 @@ public:
     // this against a shadow data structure that sets a boolean flag equals
     // TRUE if a callback is registered for a Stream/Trace Type combination
     // and false if the callback has been unregistered or if one is not
-    // present. This will be a lock-free operation and if trace type is not set
-    // or is going to be set simultaneously, we may miss an event if we access
-    // it earlier than the the write operation.
+    // present. This will be a lock-free operation and if trace type is not
+    // set or is going to be set simultaneously, we may miss an event if we
+    // access it earlier than the the write operation.
     auto &StreamFlags = MStreamFlags[StreamID];
     // When it is required that a particular stream has at least one active
     // subscriber, the TraceType will be set to 0. In this case we scan the
@@ -1647,6 +1526,39 @@ public:
       return StreamFlags[TraceType];
     }
   }
+
+  /// @brief Notifies all subscribers about an event occurrence.
+  ///
+  /// This function is responsible for notifying all registered subscribers
+  /// (callback functions) about an event occurrence. It does this by iterating
+  /// through all callbacks registered for the specified stream ID and trace
+  /// type, and invoking them with the provided event data. The function ensures
+  /// thread safety by copying the callbacks to a local vector under a lock, and
+  /// then invoking these callbacks without holding the lock to avoid deadlocks
+  /// and reduce lock contention.
+  ///
+  /// @param StreamID The unique identifier of the stream for which the event
+  ///                 occurred.
+  /// @param TraceType The type of the trace event that occurred.
+  /// @param Parent Pointer to the parent event data structure, if any; nullptr
+  ///               otherwise.
+  /// @param Object Pointer to the event data structure that describes the
+  ///               event.
+  /// @param InstanceNo An instance number that can be used to identify the
+  ///                   specific occurrence of the event.
+  /// @param UserData A pointer to user-defined data that can be passed to the
+  ///                 callback.
+  ///
+  /// @return Always returns `xpti::result_t::XPTI_RESULT_SUCCESS`.
+  ///
+  /// @note This function uses a `std::shared_lock` (when compiled with C++14 or
+  /// later) to allow
+  ///       multiple readers for the callback registration data, improving
+  ///       concurrency. The lock is released before invoking the callbacks to
+  ///       prevent deadlocks and reduce lock contention. In environments where
+  ///       statistics gathering is enabled (via `XPTI_STATISTICS`), this
+  ///       function also updates the event occurrence count in a thread-safe
+  ///       manner.
 
   xpti::result_t notifySubscribers(uint16_t StreamID, uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
@@ -1782,9 +1694,10 @@ public:
   /// - MUniversalIDs to 1, which is used as a starting point for generating
   ///   unique IDs for tracepoints.
   /// - MTracepoints with a reference to MStringTableRef, which manages a
-  ///   collection of string entries used in tracepoints, payloads that define a
-  ///   tracepoint and events associated with a tracepoint instance.
-  /// - MTraceEnabled to false, indicating that tracing is disabled by default.
+  ///   collection of string entries used in tracepoints, payloads that define
+  ///   a tracepoint and events associated with a tracepoint instance.
+  /// - MTraceEnabled to false, indicating that tracing is disabled by
+  /// default.
   ///   If the environment variable XPTI_TRACE_ENABLE=1,
   ///   XPTI_FRAMEWORK_DISPATCHER is set to the framework shared object and
   ///   XPTI_SUBSRIBERS is ste to at least one valid subscriber, MTraceEnabled
@@ -1800,8 +1713,8 @@ public:
   ///
   /// @note The actual environment variable name and the mechanism for loading
   ///       subscribers are implemented in the `loadFromEnvironmentVariable`
-  ///       method of the MSubscribers object and the `checkTraceEnv` method of
-  ///       the global helper object `g_helper`.
+  ///       method of the MSubscribers object and the `checkTraceEnv` method
+  ///       of the global helper object `g_helper`.
   ///
 
   Framework()
@@ -1818,9 +1731,9 @@ public:
   /// @brief Resets the trace framework to its initial state.
   ///
   /// This method is responsible for resetting the internal state of the trace
-  /// framework. It is typically called when the framework is being shut down or
-  /// when a clear state is required without destroying the framework instance.
-  /// The following actions are performed:
+  /// framework. It is typically called when the framework is being shut down
+  /// or when a clear state is required without destroying the framework
+  /// instance. The following actions are performed:
   ///
   /// After calling this method, the trace framework will be in a clean state,
   /// similar to its state immediately after initialization, but without
@@ -1914,10 +1827,17 @@ public:
     if (UniversalID == xpti::invalid_uid)
       return nullptr;
 
-    // UId should be populated with the right instance information
-    xpti::uid128_t UId = findUID128(UniversalID);
-
-    return lookupEvent(&UId);
+    if (MTracepoints.isValidUID64(UniversalID)) {
+      xpti::TracepointInstance *TP =
+          reinterpret_cast<xpti::TracepointInstance *>(UniversalID);
+      if (TP && xpti::is_valid_event(&TP->MEvent))
+        return &TP->MEvent;
+      else
+        return nullptr;
+    }
+    // // UId should be populated with the right instance information
+    // xpti::uid128_t UId = findUID128(UniversalID);
+    return nullptr;
   }
 
   inline const xpti::trace_event_data_t *lookupEvent(xpti::uid128_t *UId) {
@@ -1990,22 +1910,32 @@ public:
     if (!payload || !xpti::is_valid_payload(payload))
       return xpti::invalid_uid;
 
-    xpti::uid128_t UId;
+    auto TP = MTracepoints.registerTracepoint(payload);
+    if (xpti::is_valid_uid(TP->MUId) && xpti::is_valid_payload(&TP->MPayload) &&
+        xpti::is_valid_event(&TP->MEvent)) {
+      xpti::framework::uid_object_t UidHelper(TP->MUId);
+      return TP->MUId.uid64;
+    }
 
-    if (makeKeyFromPayload(payload, &UId) !=
-        xpti::result_t::XPTI_RESULT_SUCCESS)
-      return xpti::invalid_uid;
+    return xpti::invalid_uid;
 
-    // UId should be populated with the right instance information
-    xpti::uid64_t Id = findUID64(&UId);
-    payload->internal = Id;
-    payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
+    // xpti::uid128_t UId;
 
-    xpti::framework::uid_object_t UidHelper(UId);
-    payload->uid.p1 = XPTI_PACK32_RET64(UidHelper.fileId(), UidHelper.lineNo());
-    payload->uid.p2 = XPTI_PACK32_RET64(0, UidHelper.functionId());
+    // if (makeKeyFromPayload(payload, &UId) !=
+    //     xpti::result_t::XPTI_RESULT_SUCCESS)
+    //   return xpti::invalid_uid;
 
-    return Id;
+    // // UId should be populated with the right instance information
+    // xpti::uid64_t Id = findUID64(&UId);
+    // payload->internal = Id;
+    // payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
+
+    // xpti::framework::uid_object_t UidHelper(UId);
+    // payload->uid.p1 = XPTI_PACK32_RET64(UidHelper.fileId(),
+    // UidHelper.lineNo()); payload->uid.p2 = XPTI_PACK32_RET64(0,
+    // UidHelper.functionId());
+
+    // return Id;
   }
 
   xpti::result_t makeKeyFromPayload(xpti::payload_t *payload,
@@ -2013,14 +1943,14 @@ public:
     if (!payload || !uid || !xpti::is_valid_payload(payload))
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
-    auto [UId, InvarPayload] = MTracepoints.makeKeyFromPayload(payload);
-    if (!xpti::is_valid_uid(UId) || !InvarPayload)
-      return xpti::result_t::XPTI_RESULT_FAIL;
-
-    *uid = UId;
-    *payload = *InvarPayload;
-
-    return xpti::result_t::XPTI_RESULT_SUCCESS;
+    auto TP = MTracepoints.registerTracepoint(payload);
+    if (xpti::is_valid_uid(TP->MUId) && xpti::is_valid_payload(&TP->MPayload) &&
+        xpti::is_valid_event(&TP->MEvent)) {
+      *uid = TP->MUId;
+      *payload = TP->MPayload;
+      return xpti::result_t::XPTI_RESULT_SUCCESS;
+    }
+    return xpti::result_t::XPTI_RESULT_FAIL;
   }
 
   const xpti::tracepoint_data_t *
@@ -2035,8 +1965,8 @@ public:
     // populate all attributes for it to be valid
     //
     // We will set the unique_id in the trace event as the UID64 for the
-    // tracepoint, but this may not be set if we are using the new API. In this
-    // case, it will be set to xpti::invalid_uid
+    // tracepoint, but this may not be set if we are using the new API. In
+    // this case, it will be set to xpti::invalid_uid
     if (!event)
       return &g_tls_temp_scope_data;
 
@@ -2125,15 +2055,12 @@ public:
     if (uid == xpti::invalid_uid)
       return nullptr;
 
-    auto UId = findUID128(uid);
-    auto Payload = lookupPayload(&UId);
-    // Since payload does not have the attribute `internal` set, we may have
-    // to create a copy of the payload for this instance and set it top be
-    // comaptible with legacy API. This adds extra cost when legacy APIs are
-    // used
-    auto LegacyPayload =
-        findPayloadInstance(uid, const_cast<xpti::payload_t *>(Payload));
-    return LegacyPayload;
+    xpti::TracepointInstance *TP =
+        reinterpret_cast<xpti::TracepointInstance *>(uid);
+    if (xpti::is_valid_payload(&TP->MPayload))
+      return &TP->MPayload;
+
+    return nullptr;
   }
 
   inline const xpti::payload_t *lookupPayload(xpti::uid128_t *uid) {
@@ -2144,19 +2071,6 @@ public:
     MNotifier.printStatistics();
     MStringTableRef.printStatistics();
     MTracepoints.printStatistics();
-  }
-
-  inline uint64_t findUID64(xpti::uid128_t *UId128) {
-    return MTracepoints.findUID64(UId128);
-  }
-
-  inline xpti::uid128_t findUID128(uint64_t UId64) {
-    return MTracepoints.findUID128(UId64);
-  }
-
-  inline xpti::payload_t *findPayloadInstance(uint64_t UId64,
-                                              xpti::payload_t *Payload) {
-    return MTracepoints.findPayloadInstance(UId64, Payload);
   }
 
   static Framework &instance() {
@@ -2213,19 +2127,20 @@ private:
 ///
 /// This static variable is used to keep track of the number of active
 /// references to the XPTI Trace Framework instance. It is incremented when a
-/// new instance is created and decremented when an instance is destroyed. This
-/// mechanism ensures proper initialization and teardown of the framework's
-/// resources.
+/// new instance is created and decremented when an instance is destroyed.
+/// This mechanism ensures proper initialization and teardown of the
+/// framework's resources.
 static int GFrameworkReferenceCounter = 0;
 
 /// @var std::atomic<Framework *> Framework::MInstance
-/// @brief Atomic pointer to the singleton instance of the XPTI Trace Framework.
+/// @brief Atomic pointer to the singleton instance of the XPTI Trace
+/// Framework.
 ///
 /// This variable holds a pointer to the singleton instance of the XPTI Trace
-/// Framework. The use of `std::atomic` ensures that operations on this pointer
-/// are thread-safe, allowing for safe access and modification in a concurrent
-/// environment. This is crucial for maintaining a single instance of the
-/// framework across multiple threads.
+/// Framework. The use of `std::atomic` ensures that operations on this
+/// pointer are thread-safe, allowing for safe access and modification in a
+/// concurrent environment. This is crucial for maintaining a single instance
+/// of the framework across multiple threads.
 std::atomic<Framework *> Framework::MInstance;
 
 /// @var utils::SpinLock Framework::MSingletonMutex
@@ -2234,9 +2149,9 @@ std::atomic<Framework *> Framework::MInstance;
 ///
 /// This spinlock mutex is used to control access to the singleton instance of
 /// the XPTI Trace Framework during its creation and destruction. The use of a
-/// spinlock provides a lightweight synchronization mechanism that is efficient
-/// in scenarios where lock contention is expected to be low and lock hold times
-/// are short.
+/// spinlock provides a lightweight synchronization mechanism that is
+/// efficient in scenarios where lock contention is expected to be low and
+/// lock hold times are short.
 utils::SpinLock Framework::MSingletonMutex;
 
 } // namespace xpti
@@ -2299,8 +2214,8 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *Stream, uint32_t maj,
                                               uint32_t min,
                                               const char *version) {
   auto &FW = xpti::Framework::instance();
-  // Before any stream gets initialized, we should initialize the framework for
-  // the default stream
+  // Before any stream gets initialized, we should initialize the framework
+  // for the default stream
   std::call_once(g_initialize_default_stream_flag, [&]() {
     FW.initializeStream(g_default_stream, 1, 0, "1.0.0");
   });
@@ -2359,12 +2274,15 @@ xptiMakeEvent(const char * /*Name*/, xpti::payload_t *Payload, uint16_t Event,
               xpti::trace_activity_type_t Activity, uint64_t *InstanceNo) {
   auto &FW = xpti::Framework::instance();
   auto RetEv = FW.newEvent(Payload, InstanceNo, Event, Activity);
-  if (RetEv) {
-    RetEv->unique_id = FW.findUID64(&RetEv->universal_id);
-    RetEv->flags |=
-        static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
-    RetEv->universal_id.uid64 = RetEv->unique_id;
-  }
+  // if (RetEv && xpti::is_valid_event(RetEv)) {
+
+  //   xpti::TracepointInstance *TP =
+  //       reinterpret_cast<xpti::TracepointInstance *>(RetEv->unique_id);
+  //   // RetEv->unique_id = FW.findUID64(&RetEv->universal_id);
+  //   // RetEv->flags |=
+  //   //     static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
+  //   // RetEv->universal_id.uid64 = RetEv->unique_id;
+  // }
   return RetEv;
 }
 

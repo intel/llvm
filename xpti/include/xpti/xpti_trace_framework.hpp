@@ -1386,6 +1386,19 @@ public:
     return *this;
   }
 
+  bool isTraceTypeScoped() {
+    if (MTraceType != (uint16_t)xpti::trace_point_type_t::signal &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::graph_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::node_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::edge_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_destroy &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::diagnostics)
+      return true;
+    else
+      return false;
+  }
+
 private:
   void selfNotifyEnd() {
     // selfNotify() is supposed to capture the scope of all the tracepoints we
@@ -1416,19 +1429,6 @@ private:
       xptiNotifySubscribers(MDefaultStreamId, traceType, nullptr, MTraceEvent,
                             MCorrelationId, UserData);
     }
-  }
-
-  bool isTraceTypeScoped() {
-    if (MTraceType != (uint16_t)xpti::trace_point_type_t::signal &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::graph_create &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::node_create &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::edge_create &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_create &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_destroy &&
-        MTraceType != (uint16_t)xpti::trace_point_type_t::diagnostics)
-      return true;
-    else
-      return false;
   }
 
   /// Indicates if this is the top-level tracepoint

@@ -54,8 +54,9 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
   EXPECT_NE(Result->universal_id.instance, NewResult->universal_id.instance);
   EXPECT_GT(NewResult->universal_id.instance, Result->universal_id.instance);
   EXPECT_NE(Result->unique_id, NewResult->unique_id);
-  EXPECT_GT(NewResult->unique_id, Result->unique_id);
-  EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);
+  EXPECT_GT(NewResult->universal_id.instance, Result->universal_id.instance);
+  // We create a new payload instance for each tracepoint instance
+  EXPECT_NE(Result->reserved.payload, NewResult->reserved.payload);
   EXPECT_STREQ(Result->reserved.payload->name, "foo");
   EXPECT_STREQ(Result->reserved.payload->source_file, "foo.cpp");
   EXPECT_EQ(Result->reserved.payload->line_no, 1u);
@@ -142,9 +143,11 @@ TEST_F(xptiCorrectnessTest, xptiCreateEvent) {
   EXPECT_EQ(NewResult->universal_id.instance, Instance2);
   EXPECT_NE(Result->universal_id.instance, NewResult->universal_id.instance);
   EXPECT_GT(NewResult->universal_id.instance, Result->universal_id.instance);
-  EXPECT_EQ(Result->unique_id, xpti::invalid_uid);
-  EXPECT_EQ(NewResult->unique_id, xpti::invalid_uid);
-  EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);
+  EXPECT_NE(Result->unique_id, xpti::invalid_uid);
+  EXPECT_NE(NewResult->unique_id, xpti::invalid_uid);
+  EXPECT_NE(NewResult->unique_id, Result->unique_id);
+  // We have a new instance of Payload associated with each Event
+  EXPECT_NE(Result->reserved.payload, NewResult->reserved.payload);
   EXPECT_STREQ(Result->reserved.payload->name, "foo");
   EXPECT_STREQ(Result->reserved.payload->source_file, "foo.cpp");
   EXPECT_EQ(Result->reserved.payload->line_no, 1u);
@@ -162,7 +165,7 @@ TEST_F(xptiCorrectnessTest, xptiCreateEvent) {
   EXPECT_EQ(test, true);
   test = Result->flags &
          static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
-  EXPECT_EQ(test, false);
+  EXPECT_EQ(test, true);
   test = NewResult->flags &
          static_cast<uint64_t>(xpti::trace_event_flag_t::UIDAvailable);
   EXPECT_EQ(test, true);
@@ -177,7 +180,7 @@ TEST_F(xptiCorrectnessTest, xptiCreateEvent) {
   EXPECT_EQ(test, true);
   test = NewResult->flags &
          static_cast<uint64_t>(xpti::trace_event_flag_t::HashAvailable);
-  EXPECT_EQ(test, false);
+  EXPECT_EQ(test, true);
   EXPECT_EQ(xpti::is_valid_uid(Result->source_uid), false);
   EXPECT_EQ(xpti::is_valid_uid(Result->target_uid), false);
   EXPECT_EQ(xpti::is_valid_uid(NewResult->source_uid), false);
@@ -275,7 +278,7 @@ void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
   xpti::hash_t Hash;
 
   auto Tuid = t.uid128();
-  uint64_t hash = Hash.combine_short(*Tuid);
+  uint64_t hash = Tuid->uid64;
   uids.push_back(hash);
 
   if (uids.size() < 5) {
@@ -286,7 +289,7 @@ void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
 
 TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
   std::vector<uint64_t> uids;
-  xpti::payload_t p("foo", "foo.cpp", 10, 0, nullptr);
+  xpti::payload_t p("mickey", "mouse.cpp", 10, 0, nullptr);
   xpti::uid128_t UID;
   auto Result = xptiMakeKeyFromPayload(&p, &UID);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
@@ -297,13 +300,14 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
     EXPECT_NE(e, xpti::invalid_uid);
     if (id != xpti::invalid_uid) {
       EXPECT_EQ(e, id);
-      id = e;
     }
+    id = e;
   }
-  // UID should not be able to query the trace point data here as it would have
-  // been released when it went of out scope
+  // UID should be able top query an event as it was created for the first
+  // instance of seeing the payload; nestedScopeTest() creates its own event
+  // that is released when tracepoint_scope_t goes out of scope.
   auto Event = xptiLookupEvent(&UID);
-  EXPECT_EQ(Event, nullptr);
+  EXPECT_NE(Event, nullptr);
   // UID should be able to query the payload data here as it is still valid
   auto Payload = xptiLookupPayload(&UID);
   EXPECT_NE(Payload, nullptr);
@@ -325,8 +329,8 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
         EXPECT_NE(e, xpti::invalid_uid);
         if (id != xpti::invalid_uid) {
           EXPECT_EQ(e, id);
-          id = e;
         }
+        id = e;
       }
       EXPECT_NE(t.traceEvent(), nullptr);
 
@@ -339,7 +343,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
     }
     // The Event for the uid would have goine out of scope and deleted
     auto Event = xptiLookupEvent(uid);
-    EXPECT_EQ(Event, nullptr);
+    EXPECT_NE(Event, nullptr);
   }
 }
 

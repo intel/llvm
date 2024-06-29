@@ -138,7 +138,8 @@ TEST_F(xptiApiTest, xptiMakeKeyFromPayloadGoodInput) {
 
   auto Payload = xptiLookupPayload(&UID);
   EXPECT_NE(Payload, nullptr);
-  EXPECT_EQ(Payload->internal, xpti::invalid_uid);
+  EXPECT_NE(Payload->internal, xpti::invalid_uid);
+  EXPECT_EQ(Payload->internal, p.internal);
   EXPECT_EQ(Payload->source_file_sid(), p.source_file_sid());
   EXPECT_EQ(Payload->name_sid(), p.name_sid());
   EXPECT_EQ(Payload->line_no, p.line_no);
@@ -151,7 +152,7 @@ TEST_F(xptiApiTest, xptiMakeKeyFromPayloadGoodInput) {
   EXPECT_EQ(helper.columnNo(), p.column_no);
   EXPECT_EQ(helper.isValid(), true);
   EXPECT_GE(UID.instance, 1);
-  EXPECT_EQ(UID.uid64, 0);
+  EXPECT_NE(UID.uid64, 0);
 
   auto UID64 = xptiRegisterPayload(&p);
   EXPECT_NE(UID64, xpti::invalid_uid);
@@ -200,7 +201,7 @@ TEST_F(xptiApiTest, xptiQueryLookupPayloadGoodInput) {
 
   auto Payload = xptiLookupPayload(&UID);
   EXPECT_NE(Payload, nullptr);
-  EXPECT_EQ(Payload->internal, xpti::invalid_uid);
+  EXPECT_NE(Payload->internal, xpti::invalid_uid);
   EXPECT_EQ(Payload->source_file_sid(), p.source_file_sid());
   EXPECT_EQ(Payload->name_sid(), p.name_sid());
   EXPECT_EQ(Payload->line_no, p.line_no);
@@ -706,6 +707,7 @@ TEST_F(xptiApiTest, xptiNotifySubscribersBadInput) {
       StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_end, nullptr,
       nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  xptiForceSetTraceEnabled(false);
 }
 
 TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
@@ -946,10 +948,12 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
       (xpti::trace_event_data_t *)1, 0, &AllocData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   EXPECT_NE(tmp, func_callback_update);
+  xptiForceSetTraceEnabled(false);
 }
 
 TEST_F(xptiApiTest, xptiAddMetadataBadInput) {
   uint64_t instance;
+  xptiForceSetTraceEnabled(true);
   xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)13);
 
   auto Event = xptiMakeEvent("foo", &Payload, 0, (xpti::trace_activity_type_t)1,
@@ -960,10 +964,13 @@ TEST_F(xptiApiTest, xptiAddMetadataBadInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
   Result = xptiAddMetadata(Event, nullptr, 0);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  xptiReleaseEvent(Event);
+  xptiForceSetTraceEnabled(false);
 }
 
 TEST_F(xptiApiTest, xptiAddMetadataGoodInput) {
   uint64_t instance;
+  xptiForceSetTraceEnabled(true);
   xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)13);
 
   auto Event = xptiMakeEvent("foo", &Payload, 0, (xpti::trace_activity_type_t)1,
@@ -975,11 +982,14 @@ TEST_F(xptiApiTest, xptiAddMetadataGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiAddMetadata(Event, "foo", ID);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_DUPLICATE);
+  xptiReleaseEvent(Event);
+  xptiForceSetTraceEnabled(false);
 }
 
 TEST_F(xptiApiTest, xptiQueryMetadata) {
   uint64_t instance;
-  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)13);
+  xptiForceSetTraceEnabled(true);
+  xpti::payload_t Payload("fubar", "foobar.cpp", 100, 0, (void *)13);
 
   auto Event = xptiMakeEvent("foo", &Payload, 0, (xpti::trace_activity_type_t)1,
                              &instance);
@@ -998,4 +1008,5 @@ TEST_F(xptiApiTest, xptiQueryMetadata) {
   auto obj = xptiLookupObject(MDID);
   std::string str{obj.data, obj.size};
   EXPECT_EQ(str, "bar1");
+  xptiForceSetTraceEnabled(false);
 }
