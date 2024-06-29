@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out
 //
 // On nvidia a reduction appears to be unexpectedly executed via the host.
-// XFAIL: hip_nvidia
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

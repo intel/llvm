@@ -30,20 +30,20 @@ void test(bool CheckDevice, double delta, FuncTy F, ExpectedTy Expected,
 
   if (!CheckDevice)
     return;
+  
+    sycl::buffer<bool, 1> SuccessBuf{1};
 
-  sycl::buffer<bool, 1> SuccessBuf{1};
-
-  // Make sure we don't use fp64 on devices that don't support it.
-  sycl::detail::get_elem_type_t<ExpectedTy> d(delta);
-
-  sycl::queue{}.submit([&](sycl::handler &cgh) {
-    sycl::accessor Success{SuccessBuf, cgh};
-    cgh.single_task([=]() {
-      auto R = F(Args...);
-      static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
-      Success[0] = equal(R, Expected, d);
+    // Make sure we don't use fp64 on devices that don't support it.
+    sycl::detail::get_elem_type_t<ExpectedTy> d(delta);
+  
+    sycl::queue{}.submit([&](sycl::handler &cgh) {
+      sycl::accessor Success{SuccessBuf, cgh};
+      cgh.single_task([=]() {
+        auto R = F(Args...);
+        static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
+        Success[0] = equal(R, Expected, d);
+      });
     });
-  });
   assert(sycl::host_accessor{SuccessBuf}[0]);
 }
 

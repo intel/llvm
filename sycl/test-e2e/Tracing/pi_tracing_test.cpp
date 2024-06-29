@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
 //
-// XFAIL: hip_nvidia
 
 // Test tracing of the Plugin Interface
 

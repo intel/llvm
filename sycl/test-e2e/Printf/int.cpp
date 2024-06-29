@@ -6,7 +6,6 @@
 //
 // UNSUPPORTED: hip_amd
 // FIXME: The 'short' type gets overflown with sporadic values on CUDA.
-// XFAIL: cuda
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

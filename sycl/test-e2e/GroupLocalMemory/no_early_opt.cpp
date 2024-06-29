@@ -1,7 +1,6 @@
 // RUN: %{build} -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: hip_nvidia
 
 // The test checks that multiple calls to the same template instantiation of a
 // group local memory function result in separate allocations, even with device

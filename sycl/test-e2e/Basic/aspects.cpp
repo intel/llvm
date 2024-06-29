@@ -2,7 +2,6 @@
 // RUN: %{run-unfiltered-devices} %t.out
 //
 // Hip is missing some of the parameters tested here so it fails with NVIDIA
-// XFAIL: hip_nvidia
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //

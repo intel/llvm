@@ -4,7 +4,6 @@
 // Error message `The implementation handling
 // parallel_for with reduction requires work group size not bigger than 1` on
 // Nvidia.
-// XFAIL: hip_nvidia
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

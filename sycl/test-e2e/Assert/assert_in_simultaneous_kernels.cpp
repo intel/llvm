@@ -4,7 +4,6 @@
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
-// XFAIL: (opencl && gpu)
 //
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero plugin to avoid releasing memory
