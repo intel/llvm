@@ -123,7 +123,7 @@ jobs:
         tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
         rm -f ${{ inputs.sycl_toolchain_archive }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
-        echo SYCL_ARTIFACT_PATH="$PWD/toolchain/"
+        echo SYCL_ARTIFACT_PATH="$PWD/toolchain/" >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - uses: actions/checkout@v4
       with:
