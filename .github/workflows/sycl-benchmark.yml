@@ -195,6 +195,7 @@ jobs:
         # For some reason, ubuntu has an issue with the `column` command not included in standard util-linux.
         # So, to use `column`, the BSD utils is used. Either wait until this fixed on Ubuntu's side, or
         # I can write another script to accomplish this.
+        sudo apt update
         sudo apt install -y bsdmainutils
 
         run
