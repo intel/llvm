@@ -1717,11 +1717,11 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
-void handler::setKernelUsesClusterLaunch(bool KernelUsesClusterLaunch) {
+void handler::setKernelUsesClusterLaunch() {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  MImpl->MKernelUsesClusterLaunch = KernelUsesClusterLaunch;
+  MImpl->MKernelUsesClusterLaunch = true;
 }
 
 void handler::ext_oneapi_graph(
