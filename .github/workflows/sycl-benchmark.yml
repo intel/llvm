@@ -75,8 +75,6 @@ jobs:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
     steps:
-    - run: pwd
-    - run: ls
     - name: Download SYCL toolchain
       if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v4
@@ -191,6 +189,13 @@ jobs:
                 [ ! -s "$tmp_bench_log" ] && rm "$tmp_bench_log" || cat "$tmp_bench_log" | tee -a $tmp_summary_file
             done
         }
+
+        # Install pretty-printing utilities
+        #
+        # For some reason, ubuntu has an issue with the `column` command not included in standard util-linux.
+        # So, to use `column`, the BSD utils is used. Either wait until this fixed on Ubuntu's side, or
+        # I can write another script to accomplish this.
+        sudo apt install -y bsdmainutils
 
         run
     - name: Check results
