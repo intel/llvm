@@ -133,6 +133,9 @@ piextMemGetNativeHandle
 piextMemImageAllocate
 piextMemImageCopy
 piextMemImageCreateWithNativeHandle
+piextPhysicalMemCreate
+piextPhysicalMemRelease
+piextPhysicalMemRetain
 piextMemImageFree
 piextMemImageGetInfo
 piextMemImportOpaqueFD
@@ -170,4 +173,11 @@ piextUSMImport
 piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
+piextVirtualMemFree
+piextVirtualMemGetInfo
+piextVirtualMemGranularityGetInfo
+piextVirtualMemMap
+piextVirtualMemReserve
+piextVirtualMemSetAccess
+piextVirtualMemUnmap
 piextWaitExternalSemaphore
