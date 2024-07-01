@@ -248,6 +248,7 @@ set(SYCL_COMMON_SOURCES
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
+    "enqueue_functions.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
