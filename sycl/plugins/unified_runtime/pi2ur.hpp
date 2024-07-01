@@ -1325,6 +1325,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
         UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+        UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
                              UR_DEVICE_INFO_ESIMD_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES,
@@ -5722,7 +5725,6 @@ piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
   HANDLE_ERRORS(urVirtualMemGranularityGetInfo(UrContext, UrDevice, InfoType,
                                                ParamValueSize, ParamValue,
                                                ParamValueSizeRet));
-
   return PI_SUCCESS;
 }
 
@@ -5880,6 +5882,32 @@ inline pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
 }
 
 // Virtual Memory
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Enqueue Native Command Extension
+inline pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *MemList,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto UrFn = reinterpret_cast<void (*)(ur_queue_handle_t, void *)>(Fn);
+  const ur_mem_handle_t *UrMemList =
+      reinterpret_cast<const ur_mem_handle_t *>(MemList);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urEnqueueNativeCommandExp(
+      UrQueue, UrFn, Data, NumMems, UrMemList, nullptr /*pProperties*/,
+      NumEventsInWaitList, UrEventWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+// Enqueue Native Command Extension
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace pi2ur

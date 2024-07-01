@@ -114,6 +114,7 @@ piextDisablePeerAccess
 piextEnablePeerAccess
 piextEnqueueCommandBuffer
 piextEnqueueCooperativeKernelLaunch
+piextEnqueueNativeCommand
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
