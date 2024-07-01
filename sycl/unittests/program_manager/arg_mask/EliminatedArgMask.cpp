@@ -111,7 +111,7 @@ class MockHandler : public sycl::handler {
 
 public:
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
-      : sycl::handler(Queue, /* IsHost */ false) {}
+      : sycl::handler(Queue, /* IsHost */ false, /*CallerNeedsEvent*/ true) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);

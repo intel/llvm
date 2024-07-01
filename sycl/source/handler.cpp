@@ -80,15 +80,29 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-    : handler(Queue, Queue, nullptr, IsHost) {}
+    : handler(Queue, IsHost, /*CallerNeedsEvent=*/true) {}
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool IsHost)
+    : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
+              /*CallerNeedsEvent=*/true) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                 bool CallerNeedsEvent)
+    : handler(Queue, Queue, nullptr, IsHost, CallerNeedsEvent) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool IsHost, bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                   std::move(SecondaryQueue))),
+                                                   std::move(SecondaryQueue),
+                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
 handler::handler(
@@ -298,8 +312,9 @@ event handler::finalize() {
         return Result;
       };
 
-      bool DiscardEvent = false;
-      if (MQueue->supportsDiscardingPiEvents()) {
+      bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
+                          MQueue->supportsDiscardingPiEvents();
+      if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
@@ -312,6 +327,9 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
+        auto EventImpl = std::make_shared<detail::event_impl>(
+            detail::event_impl::HES_Discarded);
+        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -578,7 +596,7 @@ event handler::finalize() {
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue));
+      std::move(CommandGroup), std::move(MQueue), MImpl->MEventNeeded);
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
@@ -1790,5 +1808,7 @@ void handler::registerDynamicParameter(
   }
   MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
 }
+
+bool handler::eventNeeded() const { return MImpl->MEventNeeded; }
 } // namespace _V1
 } // namespace sycl

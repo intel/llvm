@@ -381,8 +381,13 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_queue_profiling_tag__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 74)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_cluster_group__
-// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 74)
+// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 75)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_cluster_group__ 0
 
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
@@ -755,8 +760,12 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_queue_profiling_tag__ 0
 #endif
 
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 74)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__ 0
+
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cuda_cluster_group__
-// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 74)
+// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 75)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cuda_cluster_group__ 0
 #endif
 
