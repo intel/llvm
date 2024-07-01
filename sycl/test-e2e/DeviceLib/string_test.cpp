@@ -5,8 +5,7 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 
-// FIXME: enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu || accelerator
+// UNSUPPORTED: accelerator
 
 #include <cassert>
 #include <cstdint>
