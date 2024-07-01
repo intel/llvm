@@ -363,7 +363,7 @@ bool device_impl::has(aspect Aspect) const {
     return is_accelerator();
   case aspect::custom:
     return false;
-  // TODO: Implement this for FPGA and ESIMD emulators.
+  // TODO: Implement this for FPGA emulator.
   case aspect::emulated:
     return false;
   case aspect::host_debuggable:
@@ -702,9 +702,6 @@ bool device_impl::has(aspect Aspect) const {
     return components.size() >= 2;
   }
   case aspect::ext_oneapi_is_component: {
-    if (getBackend() != backend::ext_oneapi_level_zero)
-      return false;
-
     typename sycl_to_pi<device>::type Result = nullptr;
     bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
                               getHandleRef(),

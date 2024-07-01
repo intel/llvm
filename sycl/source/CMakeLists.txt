@@ -248,6 +248,7 @@ set(SYCL_COMMON_SOURCES
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
+    "enqueue_functions.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
@@ -261,7 +262,6 @@ set(SYCL_COMMON_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
-    "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )

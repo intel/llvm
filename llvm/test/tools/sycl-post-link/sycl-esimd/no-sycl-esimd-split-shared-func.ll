@@ -5,7 +5,7 @@
 ;   making sure no functions are shared by the callgraphs (currently required by
 ;   IGC)
 
-; RUN: sycl-post-link -lower-esimd -symbols -split=auto -S < %s -o %t.table
+; RUN: sycl-post-link -properties -lower-esimd -symbols -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-HELPERS-SYM-1
 ; RUN: FileCheck %s -input-file=%t_esimd_1.sym --check-prefixes CHECK-HELPERS-SYM-2
