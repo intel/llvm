@@ -207,7 +207,7 @@ public:
 
   const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
     if (!Reqs.has_value())
-      Reqs = computeDeviceRequirements(*this);
+      Reqs = computeDeviceRequirements(getModule(), entries());
     return *Reqs;
   }
 
@@ -306,6 +306,7 @@ struct ModuleSplitterSettings {
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
+bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F);
 
 } // namespace module_split

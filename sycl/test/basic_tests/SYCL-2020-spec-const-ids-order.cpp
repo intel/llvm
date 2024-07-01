@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: sycl-post-link %t.bc -spec-const=emulation -S -o %t-split1.txt
+// RUN: sycl-post-link -properties %t.bc -spec-const=emulation -S -o %t-split1.txt
 // RUN: cat %t-split1_0.ll | FileCheck %s -check-prefixes=CHECK-IR
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK-PROP
 //
