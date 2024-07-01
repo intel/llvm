@@ -85,6 +85,26 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
+
+inline __SYCL_ALWAYS_INLINE uint32_t nvvm_get_smem_pointer(void *ptr) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return (intptr_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+#else
+  throw sycl::runtime_error(
+      "nvvm_get_smem_pointer is only supported on Nvidia devices.",
+      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
+inline __SYCL_ALWAYS_INLINE size_t cvta_generic_to_shared(void *ptr) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return (size_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+#else
+  throw sycl::runtime_error(
+      "cvta_generic_to_shared is only supported on Nvidia devices.",
+      PI_ERROR_INVALID_DEVICE);
+#endif
+}
 }
 
 enum class memory_region {
