@@ -12,6 +12,7 @@
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 
@@ -220,7 +221,7 @@ cl_program program_impl::get() const {
   getPlugin()->call(urProgramRetain, MProgram);
   ur_native_handle_t nativeHandle = nullptr;
   getPlugin()->call(urProgramGetNativeHandle, MProgram, &nativeHandle);
-  return pi::cast<cl_program>(nativeHandle);
+  return ur::cast<cl_program>(nativeHandle);
 }
 
 void program_impl::compile_with_kernel_name(std::string KernelName,

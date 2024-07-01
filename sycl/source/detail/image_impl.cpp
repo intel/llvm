@@ -10,6 +10,7 @@
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -272,7 +273,7 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
-  ur_mem_handle_t Mem = pi::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
+  ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call(urMemGetInfo, Mem, UR_MEM_INFO_SIZE, sizeof(size_t),

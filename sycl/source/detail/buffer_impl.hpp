@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
+#include <sycl/detail/ur.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/types.hpp>
 
@@ -118,7 +119,7 @@ public:
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
-      : buffer_impl(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
+      : buffer_impl(ur::cast<ur_native_handle_t>(MemObject), SyclContext,
                     std::move(Allocator), /*OwnNativeHandle*/ true,
                     std::move(AvailableEvent)) {}
 
@@ -133,7 +134,7 @@ public:
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
-      : buffer_impl(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
+      : buffer_impl(ur::cast<ur_native_handle_t>(MemObject), SyclContext,
                     SizeInBytes, std::move(Allocator),
                     std::move(AvailableEvent)) {}
 

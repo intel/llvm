@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -105,7 +106,7 @@ cl_device_id device_impl::get() const {
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urDeviceRetain, MUrDevice);
-  return pi::cast<cl_device_id>(getNative());
+  return ur::cast<cl_device_id>(getNative());
 }
 
 platform device_impl::get_platform() const {
