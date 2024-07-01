@@ -56,9 +56,13 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
 }
 
 kernel_impl::~kernel_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host()) {
-    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    if (!is_host()) {
+      getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
 }
 

@@ -12,6 +12,7 @@
 #include <adapters/native_cpu/device.hpp>
 #include <adapters/native_cpu/kernel.hpp>
 #include <adapters/native_cpu/memory.hpp>
+#include <adapters/native_cpu/physical_mem.hpp>
 #include <adapters/native_cpu/platform.hpp>
 #include <adapters/native_cpu/program.hpp>
 #include <adapters/native_cpu/queue.hpp>
@@ -42,4 +43,8 @@ struct _pi_program : ur_program_handle_t_ {
 
 struct _pi_queue : ur_queue_handle_t_ {
   using ur_queue_handle_t_::ur_queue_handle_t_;
+};
+
+struct _pi_physical_mem : ur_physical_mem_handle_t_ {
+  using ur_physical_mem_handle_t_::ur_physical_mem_handle_t_;
 };
