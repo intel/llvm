@@ -20,8 +20,9 @@ inline constexpr auto DisableCleanupName =
 
 class MockHandlerStreamInit : public MockHandler {
 public:
-  MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-      : MockHandler(Queue, IsHost) {}
+  MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                        bool CallerNeedsEvent)
+      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
   std::unique_ptr<detail::CG> finalize() {
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
@@ -85,7 +86,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       /*PropList=*/{}));
 
   // Emulating processing of command group function
-  MockHandlerStreamInit MockCGH(HQueueImpl, true);
+  MockHandlerStreamInit MockCGH(HQueueImpl, true, /*CallerNeedsEvent=*/true);
   MockCGH.setType(detail::CG::Kernel);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
@@ -97,7 +98,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
 
   // Emulating construction of stream object inside command group
   detail::StreamImplPtr StreamImpl =
-      std::make_shared<detail::stream_impl>(1024, 200, MockCGH);
+      std::make_shared<detail::stream_impl>(1024, 200, property_list{});
   detail::GlobalBufAccessorT FlushBufAcc =
       StreamImpl->accessGlobalFlushBuf(MockCGH);
   MockCGH.addStream(StreamImpl);
@@ -118,7 +119,8 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
 
   MockScheduler MS;
   std::vector<detail::Command *> AuxCmds;
-  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl, AuxCmds);
+  detail::Command *NewCmd =
+      MS.addCG(std::move(MainCG), HQueueImpl, AuxCmds, /*EventNeeded=*/true);
   ASSERT_TRUE(!!NewCmd) << "Failed to add command group into scheduler";
   ASSERT_GT(NewCmd->MDeps.size(), 0u)
       << "No deps appeared in the new exec kernel command";

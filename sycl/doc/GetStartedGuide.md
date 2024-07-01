@@ -12,7 +12,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
     * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
@@ -301,32 +300,6 @@ as well as the CUDA Runtime API to be installed, see
 
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
 CUDA 11, and using a GeForce 1060 device.
-
-### Build DPC++ toolchain with support for ESIMD CPU Emulation
-
-There is experimental support for DPC++ for using ESIMD CPU Emulation.
-
-This feature supports ESIMD CPU Emulation using CM_EMU library
-[CM Emulation project](https://github.com/intel/cm-cpu-emulation). The library
-package will be generated from source codes downloaded from its open source
-project and installed in your deploy directory during toolchain build.
-
-To enable support for ESIMD CPU emulation, follow the instructions for the Linux
-DPC++ toolchain, but add the `--enable-esimd-emulator`.
-
-Enabling this flag requires following packages installed.
-
-* Ubuntu 22.04
-  * libva-dev / 2.7.0-2
-  * libffi-dev / 3.3-4
-  * libtool
-* RHEL 8.\*
-  * libffi
-  * libffi-devel
-  * libva
-  * libva-devel
-
-Currently, this feature was tested and verified on Ubuntu 22.04 environment.
 
 ### Build DPC++ toolchain with support for runtime kernel fusion
 
