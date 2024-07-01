@@ -104,7 +104,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Author: Yang Zhao <yang2.zhao@intel.com>
   # Date:   Thu Jun 27 20:26:17 2024 +0800
   #     [DeviceSanitizer] Support out-of-bounds on private memory (#1676)
-  set(UNIFIED_RUNTIME_TAG 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94)
+  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
