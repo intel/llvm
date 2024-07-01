@@ -513,6 +513,8 @@ typedef enum {
 
   // Virtual memory support
   PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x2011E,
+  // Native enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT = 0x2011F,
 } _pi_device_info;
 
 typedef enum {

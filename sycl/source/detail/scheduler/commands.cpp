@@ -420,8 +420,13 @@ public:
                           HostTask.MQueue->getContextImplPtr()};
         // TODO: should all the backends that support this entry point use this
         // for host task?
-        if (IH.get_backend() == backend::ext_oneapi_cuda ||
-            IH.get_backend() == backend::ext_oneapi_hip) {
+        auto &Queue = HostTask.MQueue;
+        bool NativeCommandSupport = false;
+        Queue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+            PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+            sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
+        if (NativeCommandSupport) {
           EnqueueNativeCommandData CustomOpData{
               IH, HostTask.MHostTask->MInteropTask};
 
@@ -432,11 +437,9 @@ public:
           //
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
-          HostTask.MQueue->getPlugin()
-              ->call<PiApiKind::piextEnqueueNativeCommand>(
-                  HostTask.MQueue->getHandleRef(), InteropFreeFunc,
-                  &CustomOpData, MReqPiMem.size(), MReqPiMem.data(), 0, nullptr,
-                  nullptr);
+          Queue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
+              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              MReqPiMem.size(), MReqPiMem.data(), 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
