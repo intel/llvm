@@ -678,7 +678,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
-      return false;
+      return Ctx == nullptr;
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }
@@ -768,7 +768,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // new one. There could be situations when we could setup link with
           // "not" current allocation, but it will require memory copy.
           // Can setup link between cl and host allocations only
-          if ((Context != nullptr) != (Record->MCurContext != nullptr)) {
+          if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
             // plugin runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the

@@ -26,7 +26,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// Treat 0 as reserved for "host" queue
+// Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
 thread_local bool NestedCallsDetector = false;
@@ -498,17 +498,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
                     xpti_at::active, &QWaitInstanceNo);
   IId = QWaitInstanceNo;
   if (WaitEvent) {
-    device D = get_device();
-    std::string DevStr;
-    if (D.is_cpu())
-      DevStr = "CPU";
-    else if (D.is_gpu())
-      DevStr = "GPU";
-    else if (D.is_accelerator())
-      DevStr = "ACCELERATOR";
-    else
-      DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device_type", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
