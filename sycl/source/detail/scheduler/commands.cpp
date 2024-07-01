@@ -327,7 +327,7 @@ struct EnqueueNativeCommandData {
 void InteropFreeFunc(pi_queue InteropQueue, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
-};
+}
 } // namespace
 
 class DispatchHostTask {
