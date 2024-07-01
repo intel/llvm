@@ -1446,7 +1446,13 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         result = replaceCallback(&params);
     } else {
 
-        *phBuffer = mock::createDummyHandle<ur_mem_handle_t>();
+        if (pProperties && (pProperties)->pHost &&
+            flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+            *phBuffer = mock::createDummyHandleWithData<ur_mem_handle_t>(
+                reinterpret_cast<unsigned char *>((pProperties)->pHost), size);
+        } else {
+            *phBuffer = mock::createDummyHandle<ur_mem_handle_t>(size);
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -2187,6 +2193,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         result = replaceCallback(&params);
     } else {
 
+        *ppMem = mock::createDummyHandle<void *>(size);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -2238,6 +2245,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         result = replaceCallback(&params);
     } else {
 
+        *ppMem = mock::createDummyHandle<void *>(size);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -2289,6 +2297,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         result = replaceCallback(&params);
     } else {
 
+        *ppMem = mock::createDummyHandle<void *>(size);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -6285,10 +6294,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         result = replaceCallback(&params);
     } else {
 
-        // optional output handle
         if (phEvent) {
             *phEvent = mock::createDummyHandle<ur_event_handle_t>();
         }
+
+        auto parentDummyHandle =
+            reinterpret_cast<mock::dummy_handle_t>(hBuffer);
+        *ppRetMap = (void *)(parentDummyHandle->MData);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -7073,6 +7085,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
         result = replaceCallback(&params);
     } else {
 
+        *ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
         result = UR_RESULT_SUCCESS;
     }
 
