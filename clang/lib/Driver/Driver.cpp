@@ -1225,9 +1225,34 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
+          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
+          if (!isValidSYCLTriple(DeviceTriple)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
+          }
+
+          // For any -fsycl-targets=spir64_gen additions, we will scan the
+          // additional -X* options for potential -device settings.  These
+          // need to be added as a known Arch to the packager.
+          if (DeviceTriple.isSPIRAOT() && Arch.empty() &&
+              DeviceTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+            const ToolChain *HostTC =
+                C.getSingleOffloadToolChain<Action::OFK_Host>();
+            auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
+                *this, DeviceTriple, *HostTC, C.getInputArgs());
+            assert(DeviceTC && "Device toolchain not defined.");
+            ArgStringList TargetArgs;
+            DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
+                                                 C.getInputArgs(), TargetArgs);
+            // Look for -device <string> and use that as the known arch to
+            // be associated with the current spir64_gen entry.  Grab the
+            // right most entry.
+            for (int i = TargetArgs.size() - 2; i >= 0; --i) {
+              if (StringRef(TargetArgs[i]) == "-device") {
+                Arch = TargetArgs[i + 1];
+                break;
+              }
+            }
           }
 
           // Make sure we don't have a duplicate triple.
@@ -1242,7 +1267,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
           SYCLTriples.insert(DeviceTriple.normalize());
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
@@ -3114,22 +3138,13 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       Diag(clang::diag::note_drv_t_option_is_global);
   }
 
-  // CUDA/HIP and their preprocessor expansions can be accepted by CL mode.
   // Warn -x after last input file has no effect
-  auto LastXArg = Args.getLastArgValue(options::OPT_x);
-  const llvm::StringSet<> ValidXArgs = {"cuda", "hip", "cui", "hipi"};
-  if (!IsCLMode() || ValidXArgs.contains(LastXArg)) {
+  {
     Arg *LastXArg = Args.getLastArgNoClaim(options::OPT_x);
     Arg *LastInputArg = Args.getLastArgNoClaim(options::OPT_INPUT);
     if (LastXArg && LastInputArg &&
         LastInputArg->getIndex() < LastXArg->getIndex())
       Diag(clang::diag::warn_drv_unused_x) << LastXArg->getValue();
-  } else {
-    // In CL mode suggest /TC or /TP since -x doesn't make sense if passed via
-    // /clang:.
-    if (auto *A = Args.getLastArg(options::OPT_x))
-      Diag(diag::err_drv_unsupported_opt_with_suggestion)
-          << A->getAsString(Args) << "/TC' or '/TP";
   }
 
   for (Arg *A : Args) {
@@ -8166,6 +8181,37 @@ Action *Driver::ConstructPhaseAction(
         TargetDeviceOffloadKind != Action::OFK_None) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
+      if (getUseNewOffloadingDriver() &&
+          getLTOMode(/*IsDeviceOffloadAction=*/true) == LTOK_Thin &&
+          TargetDeviceOffloadKind == Action::OFK_SYCL) {
+        // For SYCL with thinLTO, run sycl-post-link, extract the BC files from
+        // the output table, run the backend on each output table.
+        llvm::Triple OffloadTriple =
+            Input->getOffloadingToolChain()->getTriple();
+        SYCLPostLinkJobAction *TypedPostLinkAction =
+            C.MakeAction<SYCLPostLinkJobAction>(Input, types::TY_Tempfiletable,
+                                                types::TY_Tempfiletable);
+        TypedPostLinkAction->setRTSetsSpecConstants(
+            OffloadTriple.isSPIROrSPIRV() && !OffloadTriple.isSPIRAOT());
+        auto *TypedExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+            TypedPostLinkAction, types::TY_Tempfilelist,
+            types::TY_Tempfilelist);
+
+        TypedExtractIRFilesAction->addExtractColumnTform(
+            FileTableTformJobAction::COL_CODE, false /*drop titles*/);
+        auto *OutputAction =
+            C.MakeAction<BackendJobAction>(TypedExtractIRFilesAction, Output);
+
+        auto *ForEach = C.MakeAction<ForEachWrappingAction>(
+            TypedExtractIRFilesAction, OutputAction);
+        // This final job is mostly a no-op, but we need it to set the Action
+        // type to Tempfilelist which is expected by clang-offload-packager.
+        auto *ExtractBCFiles = C.MakeAction<FileTableTformJobAction>(
+            ForEach, types::TY_Tempfilelist, types::TY_Tempfilelist);
+        ExtractBCFiles->addExtractColumnTform(FileTableTformJobAction::COL_ZERO,
+                                              false /*drop titles*/);
+        return ExtractBCFiles;
+      }
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
@@ -9619,7 +9665,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       bool IsHIPNoRDC = JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
                         !C.getArgs().hasFlag(options::OPT_fgpu_rdc,
                                              options::OPT_fno_gpu_rdc, false);
-      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA);
+      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA) ||
+                             isa<BackendCompileJobAction>(JA);
       if (UseOutExtension) {
         Output = BaseName;
         llvm::sys::path::replace_extension(Output, "");
