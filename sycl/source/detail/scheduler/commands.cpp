@@ -2334,17 +2334,8 @@ void SetArgBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {
-    pi_result Err = Plugin->call_nocheck<PiApiKind::piKernelSetArg>(
-        Kernel, NextTrueIndex, Arg.MSize, Arg.MPtr);
-    // For raw_kernel_arg we cannot determine if a kernel argument is a pointer
-    // ahead of this, so for targets that do not support setting pointers
-    // through piKernelSetArg (primarily OpenCL) we fall back to attempting to
-    // set the argument using the piextKernelSetArgPointer call.
-    if (Err == PI_ERROR_INVALID_MEM_OBJECT)
-      Plugin->call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                        Arg.MSize, Arg.MPtr);
-    else
-      Plugin->checkPiResult(Err);
+    Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
+                                            Arg.MPtr);
     break;
   }
   case kernel_param_kind_t::kind_sampler: {
