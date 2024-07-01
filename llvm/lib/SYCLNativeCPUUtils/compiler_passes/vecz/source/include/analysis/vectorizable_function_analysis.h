@@ -24,6 +24,10 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/PassManager.h>
 
+namespace llvm {
+class Value;
+}
+
 namespace vecz {
 
 /// @brief Determines whether vectorization of a function is possible.

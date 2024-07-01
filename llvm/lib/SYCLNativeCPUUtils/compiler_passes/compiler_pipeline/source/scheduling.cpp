@@ -20,6 +20,7 @@
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
 #include <sys/types.h>
 
 using namespace llvm;

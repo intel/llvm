@@ -16,6 +16,7 @@
 
 #include <compiler/utils/builtin_info.h>
 #include <compiler/utils/define_mux_builtins_pass.h>
+#include <llvm/IR/Module.h>
 
 #define DEBUG_TYPE "define-mux-builtins"
 

@@ -24,6 +24,7 @@
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Error.h>

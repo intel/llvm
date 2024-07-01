@@ -25,6 +25,7 @@
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <multi_llvm/vector_type_helper.h>
 

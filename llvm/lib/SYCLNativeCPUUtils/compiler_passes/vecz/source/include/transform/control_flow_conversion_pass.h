@@ -27,7 +27,9 @@
 #include <memory>
 
 namespace llvm {
+class BasicBlock;
 class Function;
+class Instruction;
 class Value;
 class DominatorTree;
 class PostDominatorTree;

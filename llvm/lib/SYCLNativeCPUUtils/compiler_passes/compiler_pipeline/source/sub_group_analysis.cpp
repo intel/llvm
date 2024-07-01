@@ -19,6 +19,7 @@
 #include <compiler/utils/sub_group_analysis.h>
 #include <llvm/ADT/PriorityWorklist.h>
 #include <llvm/ADT/SetOperations.h>
+#include <llvm/IR/Module.h>
 
 using namespace llvm;
 

@@ -22,6 +22,7 @@
 #define VECZ_PASS_H
 
 #include <compiler/utils/vectorization_factor.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
 
 #include <cstdint>
