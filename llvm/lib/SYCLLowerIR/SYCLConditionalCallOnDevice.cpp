@@ -65,7 +65,7 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
   }
 
   int FCallerIndex = 1;
-  for (const auto& FCallerToFAction : FCallersToFActions) {
+  for (const auto &FCallerToFAction : FCallersToFActions) {
     Function *FCaller = FCallerToFAction.first;
     Function *FAction = FCallerToFAction.second;
 
