@@ -418,6 +418,8 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
+        // TODO: should all the backends that support this entry point use this
+        // for host task?
         if (IH.get_backend() == backend::ext_oneapi_cuda ||
             IH.get_backend() == backend::ext_oneapi_hip) {
           EnqueueNativeCommandData CustomOpData{
