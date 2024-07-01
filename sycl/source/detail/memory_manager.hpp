@@ -33,7 +33,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // The class contains methods that work with memory. All operations with
 // device memory should go through MemoryManager.
 
-class __SYCL_EXPORT MemoryManager {
+class MemoryManager {
 public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
