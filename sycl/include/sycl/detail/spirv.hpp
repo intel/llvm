@@ -1183,7 +1183,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 }
 
 // TODO: Refactor to avoid duplication after design settles
-#define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \
+#define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction, GroupExt)                \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<                                            \
       ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
@@ -1198,8 +1198,8 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
                                std::is_same<ConvertedT, opencl::cl_ushort>(),  \
                            opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
-    OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
-                                          static_cast<unsigned int>(Op), Arg); \
+    OCLT Ret = __spirv_Group##Instruction##GroupExt(                           \
+        group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
     return Ret;                                                                \
   }                                                                            \
                                                                                \
@@ -1283,27 +1283,27 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     return Ret;                                                                \
   }
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin,)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin,)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin,)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax,)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax,)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax,)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd,)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd,)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMulKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMulKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMul, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMul, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL,)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOrKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXorKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAndKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOr, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXor, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAnd, KHR)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAndKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAnd, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOr, KHR)
 
 template <access::address_space Space, typename T>
 auto GenericCastToPtr(T *Ptr) ->
