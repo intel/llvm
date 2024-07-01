@@ -13,6 +13,8 @@ class KernelB;
 class KernelC;
 class KernelD;
 class KernelE;
+class KernelF;
+class KernelG;
 
 } // namespace VirtualFunctionsTest
 
@@ -32,6 +34,8 @@ KERNEL_INFO(KernelB)
 KERNEL_INFO(KernelC)
 KERNEL_INFO(KernelD)
 KERNEL_INFO(KernelE)
+KERNEL_INFO(KernelF)
+KERNEL_INFO(KernelG)
 
 #undef KERNEL_INFO
 
@@ -89,6 +93,9 @@ static constexpr unsigned PROGRAM_D = 27;
 static constexpr unsigned PROGRAM_D0 = 29;
 static constexpr unsigned PROGRAM_E = 31;
 static constexpr unsigned PROGRAM_E0 = 37;
+static constexpr unsigned PROGRAM_F = 41;
+static constexpr unsigned PROGRAM_F0 = 47;
+static constexpr unsigned PROGRAM_F1 = 53;
 
 static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
@@ -102,10 +109,13 @@ static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelD"}, "set-d", /* uses vf set */ true, PROGRAM_D),
     generateImage({}, "set-d", /* provides vf set */ false, PROGRAM_D0),
     generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true, PROGRAM_E),
-    generateImage({}, "set-e", /* provides vf set */ false, PROGRAM_E0)};
+    generateImage({}, "set-e", /* provides vf set */ false, PROGRAM_E0),
+    generateImage({"KernelF"}, "set-f", /* uses vf set */ true, PROGRAM_F),
+    generateImage({}, "set-f", /* provides vf set */ false, PROGRAM_F0),
+    generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::PiImageArray<12> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<15> ImgArray{Imgs};
 
 static unsigned NumOfPiProgramCreateCalls = 0;
 static unsigned NumOfPiProgramLinkCalls = 0;
@@ -267,7 +277,7 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
 }
 
-TEST(VirtualFunctions, SingleKernelUsesTheSameVFSetAsOtherKernel) {
+TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
   sycl::unittest::PiMock Mock;
 
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
@@ -308,6 +318,56 @@ TEST(VirtualFunctions, SingleKernelUsesTheSameVFSetAsOtherKernel) {
                   [=](unsigned char program) { return program == PROGRAM_E0; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_D * PROGRAM_D0 * PROGRAM_E * PROGRAM_E0);
+}
+
+TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+      redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
+  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
+      redefined_piKernelCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // KernelF uses set "set-f" that is also used by KernelG
+  Q.single_task<VirtualFunctionsTest::KernelF>([=]() {});
+  // When we submit this kernel, we expect that three programs were created (one
+  // for KernelF, another providing "set-f" and one more for KernelG)
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 3u);
+  // Both programs should be linked together.
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_F; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_F0; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_F1; }));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // When we submit a second kernel, we expect that no new programs will be
+  // created and we will simply use previously linked program for that kernel.
+  Q.single_task<VirtualFunctionsTest::KernelF>([=]() {});
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 0u);
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 }
 
 // TODO: Test case similar to A, but with kernel bundles
