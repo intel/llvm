@@ -562,17 +562,36 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   // objects are valid between different kernels (which could be in different
   // device images).
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
+  // KernelA may use some set-a, which is also used by KernelB that is in turn
+  // uses set-b, meaning that this search should be recursive. The set below
+  // is used to stop that recursion, i.e. to avoid looking at sets we have
+  // already seen.
+  std::set<std::string> HandledSets;
   for (const pi_device_binary_property &VFProp : Img.getVirtualFunctions()) {
     DeviceBinaryProperty Value(VFProp);
     std::string StrValue = Value.asCString();
     if (std::string(VFProp->Name).find("uses") != std::string::npos) {
       assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
              "Unexpected virtual function property");
+      std::queue<std::string> WorkList;
       // Device image may use more than one set of virtual functions
       size_t Start = 0;
       size_t Stop = StrValue.find_first_of(',');
       while (true) {
         auto SetName = StrValue.substr(Start, Stop - Start);
+        HandledSets.insert(SetName);
+        WorkList.push(std::move(SetName));
+
+        if (Stop == std::string::npos)
+          break;
+
+        Start = Stop + 1;
+        Stop = StrValue.find_first_of(',', Start);
+      }
+
+      while (!WorkList.empty()) {
+        std::string SetName = WorkList.front();
+        WorkList.pop();
 
         // There could be more than one device image that uses the same set
         // of virtual functions, or provides virtual funtions from the same
@@ -580,6 +599,35 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         // TODO: Dependent device image could have its own dependencies. This
         // should be a recursive search.
         for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
+          for (const pi_device_binary_property &NestedVFProp : BinImage->getVirtualFunctions()) {
+            DeviceBinaryProperty NValue(NestedVFProp);
+            std::string NStrValue = NValue.asCString();
+            if (std::string(NestedVFProp->Name).find("uses") != std::string::npos) {
+              assert(std::string(NestedVFProp->Name) == "uses-virtual-functions-set" &&
+                     "Unexpected virtual function property");
+              // Device image may use more than one set of virtual functions
+              size_t Start = 0;
+              size_t Stop = NStrValue.find_first_of(',');
+              while (true) {
+                auto NSetName = NStrValue.substr(Start, Stop - Start);
+                if (HandledSets.insert(NSetName).second)
+                  WorkList.push(std::move(NSetName));
+
+                if (Stop == std::string::npos)
+                  break;
+
+                Start = Stop + 1;
+                Stop = NStrValue.find_first_of(',', Start);
+              }
+
+            } else {
+              assert(std::string(NestedVFProp->Name) == "virtual-functions-set" &&
+                     "Unexpected virtual function property");
+              if (HandledSets.insert(NStrValue).second)
+                WorkList.push(std::move(NStrValue));
+            }
+          }
+
           try {
             // TODO: compatibleWithDevice uses some PI API, but we should have
             // another helper that checks used aspects and optional features.
@@ -592,12 +640,6 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
             // FIXME: is the assumption above correct?
           }
         }
-
-        if (Stop == std::string::npos)
-          break;
-
-        Start = Stop + 1;
-        Stop = StrValue.find_first_of(',', Start);
       }
 
     } else {

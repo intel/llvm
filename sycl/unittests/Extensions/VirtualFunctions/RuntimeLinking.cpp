@@ -11,27 +11,29 @@ namespace VirtualFunctionsTest {
 class KernelA;
 class KernelB;
 class KernelC;
+class KernelD;
+class KernelE;
 
 } // namespace VirtualFunctionsTest
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <>
-struct KernelInfo<VirtualFunctionsTest::KernelA>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelA"; }
+
+#define KERNEL_INFO(KernelName) \
+template <>\
+struct KernelInfo<VirtualFunctionsTest::KernelName>\
+    : public unittest::MockKernelInfoBase {\
+  static constexpr const char *getName() { return #KernelName; }\
 };
-template <>
-struct KernelInfo<VirtualFunctionsTest::KernelB>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelB"; }
-};
-template <>
-struct KernelInfo<VirtualFunctionsTest::KernelC>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelC"; }
-};
+
+KERNEL_INFO(KernelA)
+KERNEL_INFO(KernelB)
+KERNEL_INFO(KernelC)
+KERNEL_INFO(KernelD)
+KERNEL_INFO(KernelE)
+
+#undef KERNEL_INFO
 
 } // namespace detail
 } // namespace _V1
@@ -83,6 +85,10 @@ static constexpr unsigned PROGRAM_B1 = 13;
 static constexpr unsigned PROGRAM_C = 17;
 static constexpr unsigned PROGRAM_C0 = 19;
 static constexpr unsigned PROGRAM_C1 = 23;
+static constexpr unsigned PROGRAM_D = 27;
+static constexpr unsigned PROGRAM_D0 = 29;
+static constexpr unsigned PROGRAM_E = 31;
+static constexpr unsigned PROGRAM_E0 = 37;
 
 static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
@@ -92,10 +98,14 @@ static sycl::unittest::PiImage Imgs[] = {
     generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B1),
     generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true, PROGRAM_C),
     generateImage({}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
-    generateImage({}, "set-c2", /* provides vf set */ false, PROGRAM_C1)};
+    generateImage({}, "set-c2", /* provides vf set */ false, PROGRAM_C1),
+    generateImage({"KernelD"}, "set-d", /* uses vf set */ true, PROGRAM_D),
+    generateImage({}, "set-d", /* provides vf set */ false, PROGRAM_D0),
+    generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true, PROGRAM_E),
+    generateImage({}, "set-e", /* provides vf set */ false, PROGRAM_E0)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::PiImageArray<8> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<12> ImgArray{Imgs};
 
 static unsigned NumOfPiProgramCreateCalls = 0;
 static unsigned NumOfPiProgramLinkCalls = 0;
@@ -236,8 +246,8 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   ProgramUsedToCreateKernel = 0;
   LinkedPrograms.clear();
 
-  // KernelC uses set "set-c" of virtual functions that is provided by two
-  // device images.
+  // KernelC uses set "set-c1" and "set-c2" of virtual functions which are
+  // provided by two device images.
   Q.single_task<VirtualFunctionsTest::KernelC>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for a kernel and another two providing virtual functions set for it).
@@ -255,6 +265,49 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
                   [=](unsigned char program) { return program == PROGRAM_C1; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
+}
+
+TEST(VirtualFunctions, SingleKernelUsesTheSameVFSetAsOtherKernel) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+      redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
+  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
+      redefined_piKernelCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // KernelD uses set "set-e" and "set-d" of virtual functions that is provided
+  // by two device images. Additionally, "set-e" is also used by "KernelE"
+  Q.single_task<VirtualFunctionsTest::KernelD>([=]() {});
+  // When we submit this kernel, we expect that four programs were created (one
+  // for KernelD  and another providing "set-d", as well as one for KernelE and
+  // another providing "set-e").
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 4u);
+  // Both programs should be linked together.
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_D; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_D0; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_E; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_E0; }));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_D * PROGRAM_D0 * PROGRAM_E * PROGRAM_E0);
 }
 
 // TODO: Test case similar to A, but with kernel bundles
