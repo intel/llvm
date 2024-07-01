@@ -3712,7 +3712,7 @@ private:
   // Set value of the kernel is cooperative flag
   void setKernelIsCooperative(bool);
 
-  // Set value of kernel uses cuda' thread block cluster flag
+  // Set using cuda thread block cluster launch flag true
   void setKernelUsesClusterLaunch();
 
   template <

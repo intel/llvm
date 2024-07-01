@@ -50,8 +50,8 @@ public:
   int MIndex;
 };
 
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions and the cluster dimensions if applicable
+// The structure represents NDRange - global, local sizes, global offset,
+// number of dimensions, and the cluster dimensions if applicable.
 class NDRDescT {
   // The method initializes all sizes for dimensions greater than the passed one
   // to the default values, so they will not affect execution.

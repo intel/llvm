@@ -576,22 +576,18 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
   namespace syclex = sycl::ext::oneapi::experimental;
 
   syclex::properties cluster_launch_property{
-      syclex::cuda::cluster_size(sycl::range{4})};
+      syclex::cuda::cluster_size(sycl::range<1>{4})};
 
-  Graph.begin_recording(Queue);
-  auto Event1 = Queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
-                                   cluster_launch_property,
-                                   [&](sycl::nd_item<1> it) {});
-  });
-  Graph.end_recording(Queue);
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
+    Graph.begin_recording(Queue);
     auto Event1 = Queue.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
                                      cluster_launch_property,
                                      [&](sycl::nd_item<1> it) {});
     });
+    Queue.wait_and_throw();
+    Graph.end_recording(Queue);
   } catch (exception &Exception) {
     ExceptionCode = Exception.code();
   }
