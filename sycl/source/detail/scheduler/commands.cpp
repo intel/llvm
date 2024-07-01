@@ -81,6 +81,7 @@ struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
 
+  DemangleHandle(const DemangleHandle &) = delete;
   DemangleHandle &operator=(const DemangleHandle &) = delete;
 
   ~DemangleHandle() { std::free(p); }
@@ -269,7 +270,7 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
       continue;
     // In this path nullptr native event means that the command has not been
     // enqueued. It may happen if async enqueue in a host task is involved.
-    if (EventImpl->getHandleRef() == nullptr) {
+    if (!EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
           !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
         continue;
@@ -320,7 +321,7 @@ class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
-  pi_result waitForEvents() const {
+  bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -337,17 +338,19 @@ class DispatchHostTask {
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<sycl::detail::pi::PiEvent> RawEvents =
           MThisCmd->getPiEvents(PluginWithEvents.second);
+      if (RawEvents.size() == 0)
+        continue;
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
-      } catch (const sycl::exception &E) {
+      } catch (const sycl::exception &) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
+        return false;
       } catch (...) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
+        return false;
       }
     }
 
@@ -357,7 +360,7 @@ class DispatchHostTask {
       Event->waitInternal();
     }
 
-    return PI_SUCCESS;
+    return true;
   }
 
 public:
@@ -382,11 +385,10 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+    if (!waitForEvents()) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
+          make_error_code(errc::runtime),
+          std::string("Couldn't wait for host-task's dependencies")));
       HostTask.MQueue->reportAsyncException(EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
@@ -882,6 +884,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
+    MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible &&
         (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
       MEvent->setComplete();
@@ -1783,8 +1786,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1924,15 +1926,17 @@ static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
-      MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
   }
+  if (MCommandGroup->getType() == detail::CG::ProfilingTag)
+    MEvent->markAsProfilingTagEvent();
 
   emitInstrumentationDataProxy();
 }
@@ -2298,7 +2302,18 @@ void SetArgBasedOnType(
         getMemAllocationFunc
             ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
             : nullptr;
-    if (Context.get_backend() == backend::opencl) {
+    // Only call piKernelSetArg for opencl plugin. Although for now opencl
+    // plugin is a thin wrapper for UR plugin, but they still produce different
+    // MemArg. For opencl plugin, the MemArg is a straight-forward cl_mem, so it
+    // will be fine using piKernelSetArg, which will call urKernelSetArgValue to
+    // pass the cl_mem object directly to clSetKernelArg. But when in
+    // SYCL_PREFER_UR=1, the MemArg is a cl_mem wrapped by ur_mem_object_t,
+    // which will need to unpack by calling piextKernelSetArgMemObj, which calls
+    // urKernelSetArgMemObj. If we call piKernelSetArg in such case, the
+    // clSetKernelArg will report CL_INVALID_MEM_OBJECT since the arg_value is
+    // not a valid cl_mem object but a ur_mem_object_t object.
+    if (Context.get_backend() == backend::opencl &&
+        !Plugin->hasBackend(backend::all)) {
       // clSetKernelArg (corresponding to piKernelSetArg) returns an error
       // when MemArg is null, which is the case when zero-sized buffers are
       // handled. Below assignment provides later call to clSetKernelArg with
@@ -2743,11 +2758,15 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
   }
 
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->supportsDiscardingPiEvents() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
   sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2894,8 +2913,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
-                         MCommandGroup->getRequirements().size() == 0);
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
       DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
@@ -2976,8 +3000,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getDeviceImplPtr()->getBackend() ==
-                              backend::ext_intel_esimd_emulator)) {
+    if (MQueue->is_host()) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2990,20 +3013,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      if (MQueue->is_host()) {
-        ExecKernel->MHostKernel->call(NDRDesc,
-                                      getEvent()->getHostProfilingInfo());
-      } else {
-        assert(MQueue->getDeviceImplPtr()->getBackend() ==
-               backend::ext_intel_esimd_emulator);
-        if (MEvent != nullptr)
-          MEvent->setHostEnqueueTime();
-        MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      }
+      ExecKernel->MHostKernel->call(NDRDesc,
+                                    getEvent()->getHostProfilingInfo());
       return PI_SUCCESS;
     }
 
@@ -3184,6 +3195,22 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return PI_SUCCESS;
   }
+  case CG::CGTYPE::ProfilingTag: {
+    const PluginPtr &Plugin = MQueue->getPlugin();
+    // If the queue is not in-order, we need to insert a barrier. This barrier
+    // does not need output events as it will implicitly enforce the following
+    // enqueue is blocked until it finishes.
+    if (!MQueue->isInOrder())
+      Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+          MQueue->getHandleRef(), /*num_events_in_wait_list=*/0,
+          /*event_wait_list=*/nullptr, /*event=*/nullptr);
+
+    Plugin->call<PiApiKind::piEnqueueTimestampRecordingExp>(
+        MQueue->getHandleRef(), /*blocking=*/false,
+        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
+
+    return PI_SUCCESS;
+  }
   case CG::CGTYPE::CopyToDeviceGlobal: {
     CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
     MemoryManager::copy_to_device_global(
@@ -3249,9 +3276,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    auto OptWaitValue = SemWait->getWaitValue();
+    uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
-        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(), 0,
-        nullptr, nullptr);
+        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+        OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;
   }
@@ -3263,9 +3292,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    auto OptSignalValue = SemSignal->getSignalValue();
+    uint64_t SignalValue =
+        OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
-        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(), 0,
-        nullptr, nullptr);
+        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+        OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;
   }
@@ -3438,8 +3470,8 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 pi_int32 UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  Command::waitForEvents(MQueue, EventImpls, Event);
 
   for (auto &Node : MNodes) {
     auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
@@ -3471,8 +3503,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update"
-         << "\\n";
+  Stream << "CommandBuffer Command Update" << "\\n";
 
   Stream << "\"];" << std::endl;
 

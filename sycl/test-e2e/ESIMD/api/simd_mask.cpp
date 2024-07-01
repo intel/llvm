@@ -5,18 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Smoke test for simd_mask API functionality.
 
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
 #include <limits>
 #include <memory>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;

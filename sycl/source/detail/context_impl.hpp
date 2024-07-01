@@ -179,15 +179,24 @@ public:
   /// it returns true if the device is either a member of the context or a
   /// descendant of a member.
   bool isDeviceValid(DeviceImplPtr Device) {
-    // OpenCL does not support using descendants of context members within that
-    // context yet.
-    // TODO remove once this limitation is lifted
-    if (!is_host() && Device->getBackend() == backend::opencl)
-      return hasDevice(Device);
-
     while (!hasDevice(Device)) {
-      if (Device->isRootDevice())
+      if (Device->isRootDevice()) {
+        if (Device->has(aspect::ext_oneapi_is_component)) {
+          // Component devices should be implicitly usable in context created
+          // for a composite device they belong to.
+          auto CompositeDevice = Device->get_info<
+              ext::oneapi::experimental::info::device::composite_device>();
+          return hasDevice(detail::getSyclObjImpl(CompositeDevice));
+        }
+
         return false;
+      } else if (!is_host() && Device->getBackend() == backend::opencl) {
+        // OpenCL does not support using descendants of context members within
+        // that context yet. We make the exception in case it supports
+        // component/composite devices.
+        // TODO remove once this limitation is lifted
+        return false;
+      }
       Device = detail::getSyclObjImpl(
           Device->get_info<info::device::parent_device>());
     }

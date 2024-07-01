@@ -251,7 +251,7 @@ getSyclDeviceTypeMap() {
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support

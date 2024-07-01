@@ -9,6 +9,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -20,32 +21,6 @@ device getDeviceFromHandler(handler &cgh) {
     return cgh.MQueue->get_device();
 
   return cgh.MGraph->getDevice();
-}
-
-// TODO: the following function to be removed during next ABI break window
-AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
-                                   range<3> MemoryRange,
-                                   access::mode AccessMode, void *SYCLMemObject,
-                                   int Dims, int ElemSize, int OffsetInBytes,
-                                   bool IsSubBuffer,
-                                   const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           false, OffsetInBytes, IsSubBuffer, PropertyList));
-}
-
-// TODO: the following function to be removed during next ABI break window
-AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
-                                   range<3> MemoryRange,
-                                   access::mode AccessMode, void *SYCLMemObject,
-                                   int Dims, int ElemSize, bool IsPlaceH,
-                                   int OffsetInBytes, bool IsSubBuffer,
-                                   const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           IsPlaceH, OffsetInBytes, IsSubBuffer, PropertyList));
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,

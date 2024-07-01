@@ -1,17 +1,16 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: vulkan
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %link-vulkan %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{run} %t.out
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -21,14 +20,22 @@ struct handles_t {
   syclexp::interop_mem_handle inputInteropMemHandle;
 };
 
+template <typename InteropHandleT>
 handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
                               const syclexp::bindless_image_sampler &samp,
-                              int input_image_fd,
+                              InteropHandleT interopHandle,
                               syclexp::image_descriptor desc,
                               const size_t imgSize) {
   // Extension: external memory descriptor
+#ifdef _WIN32
+  syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
+      inputExtMemDesc{interopHandle,
+                      syclexp::external_mem_handle_type::win32_nt_handle,
+                      imgSize};
+#else
   syclexp::external_mem_descriptor<syclexp::resource_fd> inputExtMemDesc{
-      input_image_fd, imgSize};
+      interopHandle, syclexp::external_mem_handle_type::opaque_fd, imgSize};
+#endif
 
   // Extension: interop mem handle imported from file descriptor
   syclexp::interop_mem_handle inputInteropMemHandle =
@@ -46,17 +53,16 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
   return {imgInput, inputMappedMemHandle, inputInteropMemHandle};
 }
 
-template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
-bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
-              int input_image_fd) {
+template <typename InteropHandleT, int NDims, typename DType, int NChannels,
+          sycl::image_channel_type CType, typename KernelName>
+bool run_sycl(InteropHandleT inputInteropMemHandle,
+              sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType);
+  syclexp::image_descriptor desc(globalSize, NChannels, CType);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
@@ -81,12 +87,11 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
 
   using VecType = sycl::vec<DType, NChannels>;
 
-  auto handles =
-      create_test_handles(ctxt, dev, samp, input_image_fd, desc, img_size);
+  auto handles = create_test_handles(ctxt, dev, samp, inputInteropMemHandle,
+                                     desc, img_size);
 
   std::vector<VecType> out(numElems);
   try {
-
     sycl::buffer<VecType, NDims> buf((VecType *)out.data(), outBufferRange);
     q.submit([&](sycl::handler &cgh) {
       auto outAcc = buf.template get_access<sycl::access_mode::write>(
@@ -292,11 +297,20 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
   }
 
-  printString("Getting memory file descriptors and calling into SYCL\n");
+  printString("Getting memory file descriptors\n");
   // Pass memory to SYCL for modification
-  auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
-      dims, localSize, input_fd);
+
+#ifdef _WIN32
+  auto input_mem_handle = vkutil::getMemoryWin32Handle(inputMemory);
+#else
+  auto input_mem_handle = vkutil::getMemoryOpaqueFD(inputMemory);
+#endif
+
+  printString("Calling into SYCL with interop memory handle\n");
+
+  bool validated =
+      run_sycl<decltype(input_mem_handle), NDims, DType, NChannels, CType,
+               KernelName>(input_mem_handle, dims, localSize);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
@@ -304,7 +318,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   vkFreeMemory(vk_device, inputStagingMemory, nullptr);
   vkFreeMemory(vk_device, inputMemory, nullptr);
 
-  return result;
+  return validated;
 }
 
 bool run_tests() {
@@ -350,7 +364,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  if (vkutil::setupDevice("NVIDIA") != VK_SUCCESS) {
+  const char *devices[] = {"Intel", "NVIDIA"};
+  if (std::none_of(std::begin(devices), std::end(devices),
+                   [](const char *device) {
+                     return vkutil::setupDevice(device) == VK_SUCCESS;
+                   })) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/group_algorithm.hpp>
 
 namespace sycl {

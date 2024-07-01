@@ -32,7 +32,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   // Get read only access to the buffer on the host.
   // This introduces an implicit barrier which blocks execution until the
   // command group above completes.
-  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
+  const sycl::host_accessor HostAccessor(Buffer, sycl::read_only);
 
   // Check the results.
   for (size_t I = 0; I < Buffer.size(); ++I) {

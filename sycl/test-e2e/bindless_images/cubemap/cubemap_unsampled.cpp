@@ -1,20 +1,20 @@
-// REQUIRES: linux,cuda,aspect-ext_oneapi_cubemap
+// REQUIRES: cuda,aspect-ext_oneapi_cubemap
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <type_traits>
+
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 static sycl::device dev;
 
 // Uncomment to print additional test information.
 // #define VERBOSE_PRINT
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Helpers and utilities.
 struct util {
@@ -67,7 +67,7 @@ struct util {
 };
 
 template <typename DType, int NChannels, sycl::image_channel_type CType,
-          sycl::image_channel_order COrder, typename KernelName>
+          typename KernelName>
 bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
               unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
@@ -97,7 +97,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
   bindless_helpers::add_host(input_0, input_1, expected);
 
   try {
-    syclexp::image_descriptor desc(dims, COrder, CType,
+    syclexp::image_descriptor desc(dims, NChannels, CType,
                                    syclexp::image_type::cubemap, 1, 6);
 
     // Extension: allocate memory on device and create the handle.
@@ -178,110 +178,92 @@ int main() {
 
   printTestName("Running cube int\n");
   failed |= run_test<int32_t, 1, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::r, class int_cube>(
-      {32, 32}, {16, 16, 2}, seed);
+                     class int_cube>({32, 32}, {16, 16, 2}, seed);
   printTestName("Running cube int2\n");
   failed |= run_test<int32_t, 2, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rg, class int2_cube>(
-      {128, 128}, {16, 16, 3}, seed);
+                     class int2_cube>({128, 128}, {16, 16, 3}, seed);
   printTestName("Running cube int4\n");
   failed |= run_test<int32_t, 4, sycl::image_channel_type::signed_int32,
-                     sycl::image_channel_order::rgba, class int4_cube>(
-      {64, 64}, {32, 16, 1}, seed);
+                     class int4_cube>({64, 64}, {32, 16, 1}, seed);
 
   printTestName("Running cube unsigned int\n");
   failed |= run_test<uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::r, class uint_cube>(
-      {15, 15}, {5, 3, 1}, seed);
+                     class uint_cube>({15, 15}, {5, 3, 1}, seed);
   printTestName("Running cube unsigned int2\n");
   failed |= run_test<uint32_t, 2, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rg, class uint2_cube>(
-      {90, 90}, {10, 9, 3}, seed);
+                     class uint2_cube>({90, 90}, {10, 9, 3}, seed);
   printTestName("Running cube unsigned int4\n");
   failed |= run_test<uint32_t, 4, sycl::image_channel_type::unsigned_int32,
-                     sycl::image_channel_order::rgba, class uint4_cube>(
-      {1024, 1024}, {16, 16, 2}, seed);
+                     class uint4_cube>({1024, 1024}, {16, 16, 2}, seed);
 
   printTestName("Running cube short\n");
   failed |= run_test<short, 1, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::r, class short_cube>(
-      {8, 8}, {2, 2, 1}, seed);
+                     class short_cube>({8, 8}, {2, 2, 1}, seed);
   printTestName("Running cube short2\n");
   failed |= run_test<short, 2, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rg, class short2_cube>(
-      {8, 8}, {4, 4, 2}, seed);
+                     class short2_cube>({8, 8}, {4, 4, 2}, seed);
   printTestName("Running cube short4\n");
   failed |= run_test<short, 4, sycl::image_channel_type::signed_int16,
-                     sycl::image_channel_order::rgba, class short4_cube>(
-      {8, 8}, {8, 8, 3}, seed);
+                     class short4_cube>({8, 8}, {8, 8, 3}, seed);
 
   printTestName("Running cube unsigned short\n");
   failed |=
       run_test<unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::r, class ushort_cube>(
-          {75, 75}, {25, 5, 1}, seed);
+               class ushort_cube>({75, 75}, {25, 5, 1}, seed);
   printTestName("Running cube unsigned short2\n");
   failed |=
       run_test<unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rg, class ushort2_cube>(
-          {75, 75}, {15, 3, 2}, seed);
+               class ushort2_cube>({75, 75}, {15, 3, 2}, seed);
   printTestName("Running cube unsigned short4\n");
   failed |=
       run_test<unsigned short, 4, sycl::image_channel_type::unsigned_int16,
-               sycl::image_channel_order::rgba, class ushort4_cube>(
-          {75, 75}, {5, 25, 3}, seed);
+               class ushort4_cube>({75, 75}, {5, 25, 3}, seed);
 
   printTestName("Running cube char\n");
   failed |= run_test<signed char, 1, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::r, class char_cube>(
-      {60, 60}, {10, 6, 1}, seed);
+                     class char_cube>({60, 60}, {10, 6, 1}, seed);
   printTestName("Running cube char2\n");
   failed |= run_test<signed char, 2, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rg, class char2_cube>(
-      {60, 60}, {5, 3, 2}, seed);
+                     class char2_cube>({60, 60}, {5, 3, 2}, seed);
   printTestName("Running cube char4\n");
   failed |= run_test<signed char, 4, sycl::image_channel_type::signed_int8,
-                     sycl::image_channel_order::rgba, class char4_cube>(
-      {60, 60}, {6, 10, 3}, seed);
+                     class char4_cube>({60, 60}, {6, 10, 3}, seed);
 
   printTestName("Running cube unsigned char\n");
   failed |= run_test<unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-                     sycl::image_channel_order::r, class uchar_cube>(
-      {128, 128}, {16, 16, 3}, seed);
+                     class uchar_cube>({128, 128}, {16, 16, 3}, seed);
   printTestName("Running cube unsigned char2\n");
   failed |= run_test<unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-                     sycl::image_channel_order::rg, class uchar2_cube>(
-      {128, 128}, {16, 16, 3}, seed);
+                     class uchar2_cube>({128, 128}, {16, 16, 3}, seed);
   printTestName("Running cube unsigned char4\n");
   failed |= run_test<unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-                     sycl::image_channel_order::rgba, class uchar4_cube>(
-      {128, 128}, {16, 16, 3}, seed);
+                     class uchar4_cube>({128, 128}, {16, 16, 3}, seed);
 
   printTestName("Running cube float\n");
-  failed |= run_test<float, 1, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::r, class float_cube>(
-      {1024, 1024}, {16, 16, 1}, seed);
+  failed |=
+      run_test<float, 1, sycl::image_channel_type::fp32, class float_cube>(
+          {1024, 1024}, {16, 16, 1}, seed);
   printTestName("Running cube float2\n");
-  failed |= run_test<float, 2, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rg, class float2_cube>(
-      {1024, 1024}, {16, 16, 3}, seed);
+  failed |=
+      run_test<float, 2, sycl::image_channel_type::fp32, class float2_cube>(
+          {1024, 1024}, {16, 16, 3}, seed);
   printTestName("Running cube float4\n");
-  failed |= run_test<float, 4, sycl::image_channel_type::fp32,
-                     sycl::image_channel_order::rgba, class float4_cube>(
-      {1024, 1024}, {16, 16, 2}, seed);
+  failed |=
+      run_test<float, 4, sycl::image_channel_type::fp32, class float4_cube>(
+          {1024, 1024}, {16, 16, 2}, seed);
 
   printTestName("Running cube half\n");
-  failed |= run_test<sycl::half, 1, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::r, class half_cube>(
-      {48, 48}, {8, 8, 1}, seed);
+  failed |=
+      run_test<sycl::half, 1, sycl::image_channel_type::fp16, class half_cube>(
+          {48, 48}, {8, 8, 1}, seed);
   printTestName("Running cube half2\n");
-  failed |= run_test<sycl::half, 2, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rg, class half2_cube>(
-      {48, 48}, {8, 8, 3}, seed);
+  failed |=
+      run_test<sycl::half, 2, sycl::image_channel_type::fp16, class half2_cube>(
+          {48, 48}, {8, 8, 3}, seed);
   printTestName("Running cube half4\n");
-  failed |= run_test<sycl::half, 4, sycl::image_channel_type::fp16,
-                     sycl::image_channel_order::rgba, class half4_cube>(
-      {48, 48}, {8, 8, 2}, seed);
+  failed |=
+      run_test<sycl::half, 4, sycl::image_channel_type::fp16, class half4_cube>(
+          {48, 48}, {8, 8, 2}, seed);
 
   if (failed) {
     std::cerr << "An error has occured!\n";

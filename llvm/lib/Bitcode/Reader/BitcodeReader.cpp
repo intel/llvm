@@ -108,6 +108,9 @@ cl::opt<cl::boolOrDefault> LoadBitcodeIntoNewDbgInfoFormat(
     "load-bitcode-into-experimental-debuginfo-iterators", cl::Hidden,
     cl::desc("Load bitcode directly into the new debug info format (regardless "
              "of input format)"));
+extern cl::opt<cl::boolOrDefault> PreserveInputDbgFormat;
+extern bool WriteNewDbgInfoFormatToBitcode;
+extern cl::opt<bool> WriteNewDbgInfoFormat;
 
 namespace {
 
@@ -303,7 +306,8 @@ static Expected<bool> hasObjCCategoryInModule(BitstreamCursor &Stream) {
         return error("Invalid section name record");
       // Check for the i386 and other (x86_64, ARM) conventions
       if (S.find("__DATA,__objc_catlist") != std::string::npos ||
-          S.find("__OBJC,__category") != std::string::npos)
+          S.find("__OBJC,__category") != std::string::npos ||
+          S.find("__TEXT,__swift") != std::string::npos)
         return true;
       break;
     }
@@ -681,6 +685,11 @@ class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
   /// True if all functions will be materialized, negating the need to process
   /// (e.g.) blockaddress forward references.
   bool WillMaterializeAllForwardRefs = false;
+
+  /// Tracks whether we have seen debug intrinsics or records in this bitcode;
+  /// seeing both in a single module is currently a fatal error.
+  bool SeenDebugIntrinsic = false;
+  bool SeenDebugRecord = false;
 
   bool StripDebugInfo = false;
   TBAAVerifier TBAAVerifyHelper;
@@ -1133,6 +1142,7 @@ static GlobalValueSummary::GVFlags getDecodedGVSummaryFlags(uint64_t RawFlags,
   // to getDecodedLinkage() will need to be taken into account here as above.
   auto Linkage = GlobalValue::LinkageTypes(RawFlags & 0xF); // 4 bits
   auto Visibility = GlobalValue::VisibilityTypes((RawFlags >> 8) & 3); // 2 bits
+  auto IK = GlobalValueSummary::ImportKind((RawFlags >> 10) & 1);      // 1 bit
   RawFlags = RawFlags >> 4;
   bool NotEligibleToImport = (RawFlags & 0x1) || Version < 3;
   // The Live flag wasn't introduced until version 3. For dead stripping
@@ -1143,7 +1153,7 @@ static GlobalValueSummary::GVFlags getDecodedGVSummaryFlags(uint64_t RawFlags,
   bool AutoHide = (RawFlags & 0x8);
 
   return GlobalValueSummary::GVFlags(Linkage, Visibility, NotEligibleToImport,
-                                     Live, Local, AutoHide);
+                                     Live, Local, AutoHide, IK);
 }
 
 // Decode the flags for GlobalVariable in the summary
@@ -1449,6 +1459,17 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
   return TypeID;
 }
 
+static GEPNoWrapFlags toGEPNoWrapFlags(uint64_t Flags) {
+  GEPNoWrapFlags NW;
+  if (Flags & (1 << bitc::GEP_INBOUNDS))
+    NW |= GEPNoWrapFlags::inBounds();
+  if (Flags & (1 << bitc::GEP_NUSW))
+    NW |= GEPNoWrapFlags::noUnsignedSignedWrap();
+  if (Flags & (1 << bitc::GEP_NUW))
+    NW |= GEPNoWrapFlags::noUnsignedWrap();
+  return NW;
+}
+
 static bool isConstExprSupported(const BitcodeConstant *BC) {
   uint8_t Opcode = BC->Opcode;
 
@@ -1604,9 +1625,9 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
           C = ConstantExpr::getCompare(BC->Flags, ConstOps[0], ConstOps[1]);
           break;
         case Instruction::GetElementPtr:
-          C = ConstantExpr::getGetElementPtr(BC->SrcElemTy, ConstOps[0],
-                                             ArrayRef(ConstOps).drop_front(),
-                                             BC->Flags, BC->getInRange());
+          C = ConstantExpr::getGetElementPtr(
+              BC->SrcElemTy, ConstOps[0], ArrayRef(ConstOps).drop_front(),
+              toGEPNoWrapFlags(BC->Flags), BC->getInRange());
           break;
         case Instruction::ExtractElement:
           C = ConstantExpr::getExtractElement(ConstOps[0], ConstOps[1]);
@@ -1690,8 +1711,7 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         I = GetElementPtrInst::Create(BC->SrcElemTy, Ops[0],
                                       ArrayRef(Ops).drop_front(), "constexpr",
                                       InsertBB);
-        if (BC->Flags)
-          cast<GetElementPtrInst>(I)->setIsInBounds();
+        cast<GetElementPtrInst>(I)->setNoWrapFlags(toGEPNoWrapFlags(BC->Flags));
         break;
       case Instruction::Select:
         I = SelectInst::Create(Ops[0], Ops[1], Ops[2], "constexpr", InsertBB);
@@ -2930,7 +2950,7 @@ Error BitcodeReader::parseValueSymbolTable(uint64_t Offset) {
       if (!BB)
         return error("Invalid bbentry record");
 
-      BB->setName(StringRef(ValueName.data(), ValueName.size()));
+      BB->setName(ValueName.str());
       ValueName.clear();
       break;
     }
@@ -3311,9 +3331,10 @@ Error BitcodeReader::parseConstants() {
       break;
     }
     case bitc::CST_CODE_CE_INBOUNDS_GEP: // [ty, n x operands]
-    case bitc::CST_CODE_CE_GEP: // [ty, n x operands]
+    case bitc::CST_CODE_CE_GEP_OLD:      // [ty, n x operands]
     case bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX_OLD: // [ty, flags, n x
                                                        // operands]
+    case bitc::CST_CODE_CE_GEP:                // [ty, flags, n x operands]
     case bitc::CST_CODE_CE_GEP_WITH_INRANGE: { // [ty, flags, start, end, n x
                                                // operands]
       if (Record.size() < 2)
@@ -3321,27 +3342,29 @@ Error BitcodeReader::parseConstants() {
       unsigned OpNum = 0;
       Type *PointeeType = nullptr;
       if (BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX_OLD ||
-          BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE || Record.size() % 2)
+          BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE ||
+          BitCode == bitc::CST_CODE_CE_GEP || Record.size() % 2)
         PointeeType = getTypeByID(Record[OpNum++]);
 
-      bool InBounds = false;
+      uint64_t Flags = 0;
       std::optional<ConstantRange> InRange;
       if (BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX_OLD) {
         uint64_t Op = Record[OpNum++];
-        InBounds = Op & 1;
+        Flags = Op & 1; // inbounds
         unsigned InRangeIndex = Op >> 1;
         // "Upgrade" inrange by dropping it. The feature is too niche to
         // bother.
         (void)InRangeIndex;
       } else if (BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE) {
-        uint64_t Op = Record[OpNum++];
-        InBounds = Op & 1;
+        Flags = Record[OpNum++];
         Expected<ConstantRange> MaybeInRange = readConstantRange(Record, OpNum);
         if (!MaybeInRange)
           return MaybeInRange.takeError();
         InRange = MaybeInRange.get();
+      } else if (BitCode == bitc::CST_CODE_CE_GEP) {
+        Flags = Record[OpNum++];
       } else if (BitCode == bitc::CST_CODE_CE_INBOUNDS_GEP)
-        InBounds = true;
+        Flags = (1 << bitc::GEP_INBOUNDS);
 
       SmallVector<unsigned, 16> Elts;
       unsigned BaseTypeID = Record[OpNum];
@@ -3374,7 +3397,8 @@ Error BitcodeReader::parseConstants() {
 
       V = BitcodeConstant::create(
           Alloc, CurTy,
-          {Instruction::GetElementPtr, InBounds, PointeeType, InRange}, Elts);
+          {Instruction::GetElementPtr, uint8_t(Flags), PointeeType, InRange},
+          Elts);
       break;
     }
     case bitc::CST_CODE_CE_SELECT: {  // CE_SELECT: [opval#, opval#, opval#]
@@ -3774,7 +3798,11 @@ Error BitcodeReader::globalCleanup() {
   for (Function &F : *TheModule) {
     MDLoader->upgradeDebugIntrinsics(F);
     Function *NewFn;
-    if (UpgradeIntrinsicFunction(&F, NewFn))
+    // If PreserveInputDbgFormat=true, then we don't know whether we want
+    // intrinsics or records, and we won't perform any conversions in either
+    // case, so don't upgrade intrinsics to records.
+    if (UpgradeIntrinsicFunction(
+            &F, NewFn, PreserveInputDbgFormat != cl::boolOrDefault::BOU_TRUE))
       UpgradedIntrinsics[&F] = NewFn;
     // Look for functions that rely on old function attribute behavior.
     UpgradeFunctionAttributes(F);
@@ -4301,10 +4329,13 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  bool ShouldLazyLoadMetadata,
                                  ParserCallbacks Callbacks) {
   // Load directly into RemoveDIs format if LoadBitcodeIntoNewDbgInfoFormat
-  // has been set to true (default action: load into the old debug format).
-  TheModule->IsNewDbgInfoFormat =
-      UseNewDbgInfoFormat &&
-      LoadBitcodeIntoNewDbgInfoFormat == cl::boolOrDefault::BOU_TRUE;
+  // has been set to true and we aren't attempting to preserve the existing
+  // format in the bitcode (default action: load into the old debug format).
+  if (PreserveInputDbgFormat != cl::boolOrDefault::BOU_TRUE) {
+    TheModule->IsNewDbgInfoFormat =
+        UseNewDbgInfoFormat &&
+        LoadBitcodeIntoNewDbgInfoFormat == cl::boolOrDefault::BOU_TRUE;
+  }
 
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {
@@ -5024,7 +5055,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       }
 
       if (OpNum < Record.size()) {
-        if (Opc == Instruction::ZExt) {
+        if (Opc == Instruction::ZExt || Opc == Instruction::UIToFP) {
           if (Record[OpNum] & (1 << bitc::PNNI_NON_NEG))
             cast<PossiblyNonNegInst>(I)->setNonNeg(true);
         } else if (Opc == Instruction::Trunc) {
@@ -5045,14 +5076,15 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       unsigned TyID;
       Type *Ty;
-      bool InBounds;
+      GEPNoWrapFlags NW;
 
       if (BitCode == bitc::FUNC_CODE_INST_GEP) {
-        InBounds = Record[OpNum++];
+        NW = toGEPNoWrapFlags(Record[OpNum++]);
         TyID = Record[OpNum++];
         Ty = getTypeByID(TyID);
       } else {
-        InBounds = BitCode == bitc::FUNC_CODE_INST_INBOUNDS_GEP_OLD;
+        if (BitCode == bitc::FUNC_CODE_INST_INBOUNDS_GEP_OLD)
+          NW = GEPNoWrapFlags::inBounds();
         TyID = InvalidTypeID;
         Ty = nullptr;
       }
@@ -5079,7 +5111,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         GEPIdx.push_back(Op);
       }
 
-      I = GetElementPtrInst::Create(Ty, BasePtr, GEPIdx);
+      auto *GEP = GetElementPtrInst::Create(Ty, BasePtr, GEPIdx);
+      I = GEP;
 
       ResTypeID = TyID;
       if (cast<GEPOperator>(I)->getNumIndices() != 0) {
@@ -5105,8 +5138,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         ResTypeID = getVirtualTypeID(I->getType(), ResTypeID);
 
       InstructionList.push_back(I);
-      if (InBounds)
-        cast<GetElementPtrInst>(I)->setIsInBounds(true);
+      GEP->setNoWrapFlags(NW);
       break;
     }
 
@@ -6438,6 +6470,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
     case bitc::FUNC_CODE_DEBUG_RECORD_LABEL: {
       // DbgLabelRecords are placed after the Instructions that they are
       // attached to.
+      SeenDebugRecord = true;
       Instruction *Inst = getLastInstruction();
       if (!Inst)
         return error("Invalid dbg record: missing instruction");
@@ -6453,6 +6486,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
     case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
       // DbgVariableRecords are placed after the Instructions that they are
       // attached to.
+      SeenDebugRecord = true;
       Instruction *Inst = getLastInstruction();
       if (!Inst)
         return error("Invalid dbg record: missing instruction");
@@ -6613,6 +6647,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         TCK = CallInst::TCK_NoTail;
       cast<CallInst>(I)->setTailCallKind(TCK);
       cast<CallInst>(I)->setAttributes(PAL);
+      if (isa<DbgInfoIntrinsic>(I))
+        SeenDebugIntrinsic = true;
       if (Error Err = propagateAttributeTypes(cast<CallBase>(I), ArgTyIDs)) {
         I->deleteValue();
         return Err;
@@ -6801,20 +6837,48 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   if (Error JumpFailed = Stream.JumpToBit(DFII->second))
     return JumpFailed;
 
-  // Set the debug info mode to "new", possibly creating a mismatch between
-  // module and function debug modes. This is okay because we'll convert
-  // everything back to the old mode after parsing if needed.
-  // FIXME: Remove this once all tools support RemoveDIs.
+  // Regardless of the debug info format we want to end up in, we need
+  // IsNewDbgInfoFormat=true to construct any debug records seen in the bitcode.
   F->IsNewDbgInfoFormat = true;
 
   if (Error Err = parseFunctionBody(F))
     return Err;
   F->setIsMaterializable(false);
 
-  // Convert new debug info records into intrinsics.
-  // FIXME: Remove this once all tools support RemoveDIs.
-  if (!F->getParent()->IsNewDbgInfoFormat)
-    F->convertFromNewDbgValues();
+  // All parsed Functions should load into the debug info format dictated by the
+  // Module, unless we're attempting to preserve the input debug info format.
+  if (SeenDebugIntrinsic && SeenDebugRecord)
+    return error("Mixed debug intrinsics and debug records in bitcode module!");
+  if (PreserveInputDbgFormat == cl::boolOrDefault::BOU_TRUE) {
+    bool SeenAnyDebugInfo = SeenDebugIntrinsic || SeenDebugRecord;
+    bool NewDbgInfoFormatDesired =
+        SeenAnyDebugInfo ? SeenDebugRecord : F->getParent()->IsNewDbgInfoFormat;
+    if (SeenAnyDebugInfo) {
+      UseNewDbgInfoFormat = SeenDebugRecord;
+      WriteNewDbgInfoFormatToBitcode = SeenDebugRecord;
+      WriteNewDbgInfoFormat = SeenDebugRecord;
+    }
+    // If the module's debug info format doesn't match the observed input
+    // format, then set its format now; we don't need to call the conversion
+    // function because there must be no existing intrinsics to convert.
+    // Otherwise, just set the format on this function now.
+    if (NewDbgInfoFormatDesired != F->getParent()->IsNewDbgInfoFormat)
+      F->getParent()->setNewDbgInfoFormatFlag(NewDbgInfoFormatDesired);
+    else
+      F->setNewDbgInfoFormatFlag(NewDbgInfoFormatDesired);
+  } else {
+    // If we aren't preserving formats, we use the Module flag to get our
+    // desired format instead of reading flags, in case we are lazy-loading and
+    // the format of the module has been changed since it was set by the flags.
+    // We only need to convert debug info here if we have debug records but
+    // desire the intrinsic format; everything else is a no-op or handled by the
+    // autoupgrader.
+    bool ModuleIsNewDbgInfoFormat = F->getParent()->IsNewDbgInfoFormat;
+    if (ModuleIsNewDbgInfoFormat || !SeenDebugRecord)
+      F->setNewDbgInfoFormatFlag(ModuleIsNewDbgInfoFormat);
+    else
+      F->setIsNewDbgInfoFormat(ModuleIsNewDbgInfoFormat);
+  }
 
   if (StripDebugInfo)
     stripDebugInfo(*F);
@@ -6848,7 +6912,7 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
         MDString *MDS = cast<MDString>(MD->getOperand(0));
         StringRef ProfName = MDS->getString();
         // Check consistency of !prof branch_weights metadata.
-        if (!ProfName.equals("branch_weights"))
+        if (ProfName != "branch_weights")
           continue;
         unsigned ExpectedNumOperands = 0;
         if (BranchInst *BI = dyn_cast<BranchInst>(&I))

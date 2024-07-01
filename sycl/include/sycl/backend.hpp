@@ -59,10 +59,6 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-// TODO each backend can have its own custom errc enumeration
-// but the details for this are not fully specified yet
-enum class backend_errc : unsigned int {};
-
 // Convert from PI backend to SYCL backend enum
 backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
@@ -74,8 +70,6 @@ public:
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
-
-  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>
@@ -269,7 +263,8 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
                                  backend Backend);
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
-                                   backend Backend);
+                                   backend Backend, bool KeepOwnership,
+                                   const std::vector<device> &DeviceList = {});
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                int32_t nativeHandleDesc,
                                const context &TargetContext,
@@ -312,6 +307,16 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeDevice == true,
                  device>
 make_device(const typename backend_traits<Backend>::template input_type<device>
                 &BackendObject) {
+  for (auto p : platform::get_platforms()) {
+    if (p.get_backend() != Backend)
+      continue;
+
+    for (auto d : p.get_devices()) {
+      if (get_native<Backend>(d) == BackendObject)
+        return d;
+    }
+  }
+
   return detail::make_device(detail::pi::cast<pi_native_handle>(BackendObject),
                              Backend);
 }
@@ -324,7 +329,7 @@ make_context(
         &BackendObject,
     const async_handler &Handler = {}) {
   return detail::make_context(detail::pi::cast<pi_native_handle>(BackendObject),
-                              Handler, Backend);
+                              Handler, Backend, false /* KeepOwnership */);
 }
 
 template <backend Backend>

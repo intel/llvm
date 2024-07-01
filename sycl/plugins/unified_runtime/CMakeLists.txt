@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
-  # Merge: f85e2e96 e548dc1e
-  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-  # Date:   Mon Apr 8 15:58:32 2024 +0100
-  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
-  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
-  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
+  # commit aaf08109f2a05adb61f50478824ae2739526daee
+  # Author: Ben Tracy <ben.tracy@codeplay.com>
+  # Date:   Mon Jun 17 14:49:53 2024 +0100
+  #     [CMDBUF] Fix coverity issue in command buffers
+  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
+  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,13 +114,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
-    # Merge: a7c202b4 5c300799
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 9 14:06:49 2024 +0100
-    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
-    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
-    85b7559033e329389452cb87615ad42fbb644d59
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda

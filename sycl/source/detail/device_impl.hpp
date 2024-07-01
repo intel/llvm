@@ -13,6 +13,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 #include <memory>
@@ -258,6 +259,44 @@ public:
   }
 
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
+
+  // Returns all guarantees that are either equal to guarantee or weaker than
+  // it. E.g if guarantee == parallel, it returns the vector {weakly_parallel,
+  // parallel}.
+  template <typename ReturnT>
+  static ReturnT getProgressGuaranteesUpTo(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee) {
+    const int forwardProgressGuaranteeSize = 3;
+    int guaranteeVal = static_cast<int>(guarantee);
+    ReturnT res;
+    res.reserve(forwardProgressGuaranteeSize - guaranteeVal);
+    for (int currentGuarantee = forwardProgressGuaranteeSize - 1;
+         currentGuarantee >= guaranteeVal; --currentGuarantee) {
+      res.emplace_back(
+          static_cast<ext::oneapi::experimental::forward_progress_guarantee>(
+              currentGuarantee));
+    }
+    return res;
+  }
+
+  static sycl::ext::oneapi::experimental::forward_progress_guarantee
+  getHostProgressGuarantee(
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
+  sycl::ext::oneapi::experimental::forward_progress_guarantee
+  getProgressGuarantee(
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
+
+  bool supportsForwardProgress(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
+
+  ext::oneapi::experimental::forward_progress_guarantee
+  getImmediateProgressGuarantee(
+      ext::oneapi::experimental::execution_scope coordination_scope) const;
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device

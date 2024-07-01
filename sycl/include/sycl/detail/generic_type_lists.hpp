@@ -10,9 +10,6 @@
 
 #include <sycl/access/access.hpp>    // for address_space
 #include <sycl/detail/type_list.hpp> // for type_list, address_space_list
-#include <sycl/half_type.hpp>        // for half
-
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #include <cstddef>     // for byte, size_t
 #include <type_traits> // for conditional_t, is_signed_v, is_...
@@ -26,6 +23,16 @@ inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
 
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
+
+namespace ext::oneapi {
+class bfloat16;
+}
 namespace detail {
 namespace gtl {
 // floating point types
