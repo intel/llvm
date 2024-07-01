@@ -23,6 +23,7 @@
 #include <compiler/utils/scheduling.h>
 #include <compiler/utils/target_extension_types.h>
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Support/ModRef.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>

@@ -29,6 +29,7 @@
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Bitcode/BitcodeWriterPass.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IRPrinter/IRPrintingPasses.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/InitializePasses.h>
