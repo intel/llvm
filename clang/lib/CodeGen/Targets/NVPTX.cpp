@@ -238,7 +238,9 @@ static CudaArch getCudaArch(CodeGenModule &CGM) {
 }
 
 static bool supportsGridConstant(CudaArch Arch) {
-  assert(IsNVIDIAGpuArch(Arch) && "Unexpected architecture");
+  assert((Arch == CudaArch::UNKNOWN || IsNVIDIAGpuArch(Arch)) &&
+         "Unexpected architecture");
+  static_assert(CudaArch::UNKNOWN < CudaArch::SM_70);
   return Arch >= CudaArch::SM_70;
 }
 
