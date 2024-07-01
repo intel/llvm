@@ -2108,7 +2108,6 @@ public:
     host_task_impl(Func);
   }
 
-#ifdef SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION
   /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -2116,7 +2115,6 @@ public:
   AdaptiveCpp_enqueue_custom_operation(FuncT &&Func) {
     AdaptiveCpp_enqueue_custom_operation_impl(Func);
   }
-#endif // SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
