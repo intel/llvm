@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/Scalar/FPBuiltinFnSelection.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -19,7 +20,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Transforms/Scalar/FPBuiltinFnSelection.h"
 
 using namespace llvm;
 
