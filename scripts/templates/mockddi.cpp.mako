@@ -71,6 +71,31 @@ namespace driver
                 %else:
                     *phNative${func_class} = reinterpret_cast<ur_native_handle_t>(h${func_class});
                 %endif
+            ## These special cases handle memory stuff. Use verbose regex matching
+            ## to limit the possibility of unintentional stuff getting generated for
+            ## future entry points with similar names.
+            %elif re.search(r"MemBufferCreate$", fname):
+                if (pProperties && (pProperties)->pHost &&
+                    flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+                    *phBuffer = mock::createDummyHandleWithData<ur_mem_handle_t>(
+                        reinterpret_cast<unsigned char *>((pProperties)->pHost),
+                        size);
+                } else {
+                    *phBuffer =
+                        mock::createDummyHandle<ur_mem_handle_t>(size);
+                }
+            %elif re.search(r"EnqueueMemBufferMap$", fname):
+                if(phEvent) {
+                    *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+                }
+
+                auto parentDummyHandle =
+                    reinterpret_cast<mock::dummy_handle_t>(hBuffer);
+                *ppRetMap = (void *)(parentDummyHandle->MData);
+            %elif re.search(r"USM(Host|Device|Shared)Alloc$", fname):
+                *ppMem = mock::createDummyHandle<void *>(size);
+            %elif re.search(r"USMPitchedAllocExp$", fname):
+                *ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
             %else:
                 %if fname == 'urAdapterGet' or fname == 'urDeviceGet' or fname == 'urPlatformGet':
                     <%
