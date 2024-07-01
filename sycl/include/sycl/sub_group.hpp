@@ -19,10 +19,6 @@
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/ext/oneapi/functional.hpp>
-#endif
-
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for _Swallow_assign, ignore
 #include <type_traits> // for enable_if_t, remove_cv_t
@@ -239,7 +235,7 @@ struct sub_group {
     if (g)
       return load(g);
 
-    assert(!"Sub-group load() is supported for local or global pointers only.");
+    // Sub-group load() is supported for local or global pointers only.
     return {};
 #endif // __NVPTX__ || __AMDGCN__
   }
@@ -421,8 +417,7 @@ struct sub_group {
       return;
     }
 
-    assert(
-        !"Sub-group store() is supported for local or global pointers only.");
+    // Sub-group store() is supported for local or global pointers only.
     return;
 #endif // __NVPTX__ || __AMDGCN__
   }

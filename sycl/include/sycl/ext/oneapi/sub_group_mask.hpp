@@ -10,6 +10,7 @@
 #include <sycl/builtins.hpp>       // for assert
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
+#include <sycl/detail/spirv.hpp>
 #include <sycl/exception.hpp>      // for errc, exception
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id

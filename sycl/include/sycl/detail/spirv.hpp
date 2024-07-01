@@ -10,7 +10,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+#include <sycl/id.hpp>
+#include <sycl/types.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
@@ -51,6 +52,9 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
         typename multi_ptr<ToT, Space, access::decorated::yes>::pointer>(
         MPtr.get_decorated());
 }
+
+template <typename NonUniformGroup>
+inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
 
 namespace spirv {
 
