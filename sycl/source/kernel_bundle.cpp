@@ -312,11 +312,6 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
                                        const detail::RTDeviceBinaryImage &Img) {
     const char *Target = Img.getRawData().DeviceTargetSpec;
     auto BE = Dev.get_backend();
-    // ESIMD emulator backend is only compatible with esimd kernels.
-    if (BE == sycl::backend::ext_intel_esimd_emulator) {
-      pi_device_binary_property Prop = Img.getProperty("isEsimdImage");
-      return (Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0));
-    }
     if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);

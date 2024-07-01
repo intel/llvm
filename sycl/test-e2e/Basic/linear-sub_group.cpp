@@ -9,7 +9,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../SubGroup/helper.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -20,10 +19,6 @@ using namespace sycl;
 
 int main(int argc, char *argv[]) {
   queue q;
-  if (!core_sg_supported(q.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   // Fill output array with sub-group IDs
   const uint32_t outer = 2;
