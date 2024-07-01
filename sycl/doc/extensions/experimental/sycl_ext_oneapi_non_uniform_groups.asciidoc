@@ -255,9 +255,9 @@ The following group algorithms support `ballot_group`, `fixed_size_group`,
 
 A ballot-group is a non-contiguous subset of a group, representing a collection
 of all work-items in the group that share the same value of some predicate.
-Ballot-groups are always created in a range of two: the first ballot-group
-contains all work-items where the predicate is true, and the second
-ballot-group contains all work-items where the predicate is false.
+Ballot-groups are always created in a range of two: the one ballot-group
+contains all work-items where the predicate is true, and another ballot-group
+contains all work-items where the predicate is false.
 
 
 ==== Creation
@@ -304,7 +304,7 @@ public:
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-  
+
   id_type get_group_id() const;
 
   id_type get_local_id() const;
@@ -335,7 +335,7 @@ than only sub-groups.
 ----
 id_type get_group_id() const;
 ----
-_Returns_: An `id` representing the index of the ballot-group.
+_Returns_: An `id` representing the index of the ballot-group in a parent group.
 
 NOTE: This will always be either 1 (representing the group of work-items where
 the predicate was true) or 0 (representing the group of work-items where the
@@ -352,7 +352,7 @@ the ballot-group.
 ----
 range_type get_group_range() const;
 ----
-_Returns_: A `range` representing the number of ballot-groups.
+_Returns_: A `range` representing the number of ballot-groups in a parent group.
 
 NOTE: This will always return a `range` of 2, as there will always be two groups;
 one representing the group of work-items where the predicate was true and
@@ -376,19 +376,19 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
@@ -477,7 +477,7 @@ public:
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-    
+
   id_type get_group_id() const;
 
   id_type get_local_id() const;
@@ -521,7 +521,8 @@ the fixed-size-group.
 ----
 range_type get_group_range() const;
 ----
-_Returns_: A `range` representing the number of fixed-size-groups.
+_Returns_: A `range` representing the number of fixed-size-groups in a parent
+group.
 
 [source,c++]
 ----
@@ -540,28 +541,28 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
 bool leader() const;
 ----
-_Returns_: `true` for exactly one work-item in the fixed-size-group, if the calling
-work-item is the leader of the fixed-size-group, and `false` for all other
-work-items in the fixed-size-group. The leader of the fixed-size-group is guaranteed
-to be the work-item for which `get_local_id()` returns 0.
+_Returns_: `true` for exactly one work-item in the fixed-size-group, if the
+calling work-item is the leader of the fixed-size-group, and `false` for all
+other work-items in the fixed-size-group. The leader of the fixed-size-group is
+guaranteed to be the work-item for which `get_local_id()` returns 0.
 
 
 ==== Usage Examples
@@ -641,7 +642,7 @@ public:
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-    
+
   id_type get_group_id() const;
 
   id_type get_local_id() const;
@@ -668,7 +669,7 @@ public:
 ----
 id_type get_group_id() const;
 ----
-_Returns_: An `id` representing the index of the tangle-group.
+_Returns_: An `id` representing the index of the tangle-group in a parent group.
 
 NOTE: This will always be an `id` with all values set to 0, since there can
 only be one tangle-group.
@@ -705,19 +706,19 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
@@ -746,9 +747,8 @@ auto sg = it.get_sub_group();
 auto will_branch = sg.get_local_linear_id() % 2 == 0;
 if (will_branch)
 {
-  // wait for all work-items that took the branch to hit the barrier
+  // no explicit barrier is needed, get_tangle_group behaves like a barrier
   auto inner = sycl::ext::oneapi::experimental::get_tangle_group(sg);
-  sycl::group_barrier(inner);
 
   // reduce across subset of outer work-items that took the branch
   float ix = sycl::reduce_over_group(inner, x, plus<>());
@@ -837,7 +837,8 @@ public:
 ----
 id_type get_group_id() const;
 ----
-_Returns_: An `id` representing the index of the opportunistic-group.
+_Returns_: An `id` representing the index of the opportunistic-group in a parent
+group.
 
 NOTE: This will always be an `id` with all values set to 0, since there can
 only be one opportunistic-group.
@@ -875,19 +876,19 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
@@ -964,4 +965,15 @@ is unclear how to identify which work-items in different sub-groups are
 executing the same control flow (without introducing significant overhead). If
 we decide at a later date that `tangle_group` should support only sub-groups,
 we should revisit the name to avoid creating confusion.
+--
+
+. Inconsistencies in `fixed_size_group`
++
+--
+`fixed_size_group` accepts template argument `PartitionSize` of type
+`std::size_t`, which can be an unsigned 64-bit integer. However,
+`linear_id_type` is defined as `uint32_t` for this group. Even though with the
+current restrictions it is impossible to encounter such situation, there is
+still a mismatch allowing to create a group so big that linear IDs won't be
+correct for some of its work-items.
 --
