@@ -31,20 +31,22 @@ struct KernelInfo<VirtualFunctionsTest::KernelB>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateImage(const std::string &KernelName,
-                                             unsigned char Magic) {
-
+static sycl::unittest::PiImage
+generateImage(std::initializer_list<std::string> KernelNames,
+              const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
   sycl::unittest::PiPropertySet PropSet;
   sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
-  std::string VFSet = "set-a";
-  uint64_t PropSize = VFSet.size();
+  uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize);
   std::uninitialized_copy(&PropSize, &PropSize + sizeof(uint64_t),
                           Storage.data());
-  std::uninitialized_copy(VFSet.data(), VFSet.data() + PropSize,
+  std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
                           Storage.data() + /* bytes for size */ 8);
-  sycl::unittest::PiProperty Prop("uses-virtual-functions-set", Storage,
+  const std::string PropName = UsesVFSets ? "uses-virtual-functions-set"
+                                          : "virtual-functions-set";
+  sycl::unittest::PiProperty Prop(PropName, Storage,
                                   PI_PROPERTY_TYPE_BYTE_ARRAY);
+
   Props.push_back(Prop);
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  std::move(Props));
@@ -52,7 +54,7 @@ static sycl::unittest::PiImage generateImage(const std::string &KernelName,
   std::vector<unsigned char> Bin{Magic};
 
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
-      sycl::unittest::makeEmptyKernels({KernelName});
+      sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::PiImage Img{
       PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
@@ -66,14 +68,14 @@ static sycl::unittest::PiImage generateImage(const std::string &KernelName,
   return Img;
 }
 
-static unsigned GlobalNumOfProgramCreateCalls = 0;
-static unsigned GlobalNumOfProgramLinkCalls = 0;
-static constexpr unsigned char PROGRAM_A = 42;
-static constexpr unsigned char PROGRAM_B = 84;
-static constexpr unsigned char PROGRAM_LINKED = 128;
+static constexpr unsigned char PROGRAM_A = 3;
+static constexpr unsigned char PROGRAM_B = 5;
+static constexpr unsigned char PROGRAM_C = 7;
 
-static sycl::unittest::PiImage Imgs[] = {generateImage("KernelA", PROGRAM_A),
-                                         generateImage("KernelB", PROGRAM_B)};
+static sycl::unittest::PiImage Imgs[] = {
+    generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
+    generateImage({}, "set-a", /* provides vf set */ false, PROGRAM_B),
+    generateImage({"KernelB"}, "set-a", /* uses vf set */ true, PROGRAM_C)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
@@ -86,8 +88,7 @@ static pi_result redefined_piProgramCreate(pi_context, const void *il,
                                            size_t length, pi_program *res) {
   auto *Magic = reinterpret_cast<const unsigned char *>(il);
   *res = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(
-      *Magic * ++GlobalNumOfProgramCreateCalls);
+  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(*Magic);
   ++NumOfPiProgramCreateCalls;
   return PI_SUCCESS;
 }
@@ -99,16 +100,19 @@ redefined_piProgramLink(pi_context context, pi_uint32 num_devices,
                         const pi_program *input_programs,
                         void (*pfn_notify)(pi_program program, void *user_data),
                         void *user_data, pi_program *ret_program) {
-  for (pi_uint32 I = 0; I < num_input_programs; ++I)
-    LinkedPrograms.push_back(
-        reinterpret_cast<DummyHandlePtrT>(input_programs[I])
-            ->getDataAs<unsigned>());
+  unsigned ResProgram = 1;
+  for (pi_uint32 I = 0; I < num_input_programs; ++I) {
+    auto Val = reinterpret_cast<DummyHandlePtrT>(input_programs[I])
+                   ->getDataAs<unsigned>();
+    ResProgram *= Val;
+    LinkedPrograms.push_back(Val);
+  }
 
   ++NumOfPiProgramLinkCalls;
 
   *ret_program = createDummyHandle<pi_program>(sizeof(unsigned));
   reinterpret_cast<DummyHandlePtrT>(*ret_program)
-      ->setDataAs<unsigned>(PROGRAM_LINKED * ++GlobalNumOfProgramLinkCalls);
+      ->setDataAs<unsigned>(ResProgram);
   return PI_SUCCESS;
 }
 
@@ -148,13 +152,13 @@ TEST(VirtualFunctions, A) {
   ASSERT_EQ(NumOfPiProgramCreateCalls, 2u);
   // Both programs should be linked together
   ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(std::any_of(
-      LinkedPrograms.begin(), LinkedPrograms.end(),
-      [=](unsigned char program) { return program == PROGRAM_A * 1; }));
-  ASSERT_TRUE(std::any_of(
-      LinkedPrograms.begin(), LinkedPrograms.end(),
-      [=](unsigned char program) { return program == PROGRAM_B * 2; }));
-  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_LINKED);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_A; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_B; }));
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_A * PROGRAM_B);
 
   NumOfPiProgramCreateCalls = 0;
   NumOfPiProgramLinkCalls = 0;
@@ -168,7 +172,7 @@ TEST(VirtualFunctions, A) {
   // from in-memory cache
   ASSERT_EQ(NumOfPiProgramCreateCalls, 0u);
   ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
-  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_LINKED);
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_A * PROGRAM_B);
 }
 
 // TODO: Test case similar to A, but with kernel bundles
