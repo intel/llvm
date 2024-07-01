@@ -86,7 +86,8 @@ static pi_result redefined_piProgramCreate(pi_context, const void *il,
                                            size_t length, pi_program *res) {
   auto *Magic = reinterpret_cast<const unsigned char *>(il);
   *res = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(*Magic * ++GlobalNumOfProgramCreateCalls);
+  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(
+      *Magic * ++GlobalNumOfProgramCreateCalls);
   ++NumOfPiProgramCreateCalls;
   return PI_SUCCESS;
 }
@@ -100,22 +101,24 @@ redefined_piProgramLink(pi_context context, pi_uint32 num_devices,
                         void *user_data, pi_program *ret_program) {
   for (pi_uint32 I = 0; I < num_input_programs; ++I)
     LinkedPrograms.push_back(
-        reinterpret_cast<DummyHandlePtrT>(input_programs[I])->getDataAs<unsigned>());
+        reinterpret_cast<DummyHandlePtrT>(input_programs[I])
+            ->getDataAs<unsigned>());
 
   ++NumOfPiProgramLinkCalls;
 
   *ret_program = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*ret_program)->setDataAs<unsigned>(PROGRAM_LINKED * ++GlobalNumOfProgramLinkCalls);
+  reinterpret_cast<DummyHandlePtrT>(*ret_program)
+      ->setDataAs<unsigned>(PROGRAM_LINKED * ++GlobalNumOfProgramLinkCalls);
   return PI_SUCCESS;
 }
 
 static unsigned ProgramUsedToCreateKernel = 0;
 
 static pi_result redefined_piKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
+                                          const char *kernel_name,
+                                          pi_kernel *ret_kernel) {
   ProgramUsedToCreateKernel =
-        reinterpret_cast<DummyHandlePtrT>(program)->getDataAs<unsigned>();
+      reinterpret_cast<DummyHandlePtrT>(program)->getDataAs<unsigned>();
   *ret_kernel = createDummyHandle<pi_kernel>();
   return PI_SUCCESS;
 }
@@ -145,12 +148,12 @@ TEST(VirtualFunctions, A) {
   ASSERT_EQ(NumOfPiProgramCreateCalls, 2u);
   // Both programs should be linked together
   ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_A * 1; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_B * 2; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_A * 1; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_B * 2; }));
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_LINKED);
 
   NumOfPiProgramCreateCalls = 0;
