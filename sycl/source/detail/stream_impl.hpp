@@ -22,7 +22,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-class __SYCL_EXPORT stream_impl {
+class stream_impl {
 public:
   stream_impl(size_t BufferSize, size_t MaxStatementSize,
               const property_list &PropList);

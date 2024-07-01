@@ -12,6 +12,8 @@
 // attached to kernel functions in a module.
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
