@@ -80,15 +80,29 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue)
-    : handler(Queue, Queue, nullptr) {}
+    : handler(Queue, /*CallerNeedsEvent=*/true) {}
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue)
+    : handler(Queue, PrimaryQueue, SecondaryQueue,
+              /*CallerNeedsEvent=*/true) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 bool CallerNeedsEvent)
+    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                   std::move(SecondaryQueue))),
-      MQueue(std::move(Queue)) {}
+                                                   std::move(SecondaryQueue),
+                                                   CallerNeedsEvent)),
+      MQueue(std::move(Queue)), MIsHost(false) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -272,40 +286,10 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-          if (MQueue->getDeviceImplPtr()->getBackend() ==
-              backend::ext_intel_esimd_emulator) {
-            // Capture the host timestamp for profiling (queue time)
-            if (NewEvent != nullptr)
-              NewEvent->setHostEnqueueTime();
-            [&](auto... Args) {
-              if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
-              } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
-              }
-            }(/* queue */
-              nullptr,
-              /* kernel */
-              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-              /* work_dim */
-              MNDRDesc.Dims,
-              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
-              /* global_work_size */ &MNDRDesc.GlobalSize[0],
-              /* local_work_size */ &MNDRDesc.LocalSize[0],
-              /* num_events_in_wait_list */ 0,
-              /* event_wait_list */ nullptr,
-              /* event */ nullptr);
-            Result = PI_SUCCESS;
-          } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-          }
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -319,8 +303,9 @@ event handler::finalize() {
         return Result;
       };
 
-      bool DiscardEvent = false;
-      if (MQueue->supportsDiscardingPiEvents()) {
+      bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
+                          MQueue->supportsDiscardingPiEvents();
+      if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
@@ -333,6 +318,9 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
+        auto EventImpl = std::make_shared<detail::event_impl>(
+            detail::event_impl::HES_Discarded);
+        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -598,7 +586,7 @@ event handler::finalize() {
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue));
+      std::move(CommandGroup), std::move(MQueue), MImpl->MEventNeeded);
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
@@ -1803,5 +1791,7 @@ void handler::registerDynamicParameter(
   }
   MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
 }
+
+bool handler::eventNeeded() const { return MImpl->MEventNeeded; }
 } // namespace _V1
 } // namespace sycl

@@ -56,7 +56,8 @@ protected:
     std::vector<detail::Command *> ToEnqueue;
 
     // Emulating processing of command group function
-    MockHandlerCustomFinalize MockCGH(QueueDevImpl);
+    MockHandlerCustomFinalize MockCGH(QueueDevImpl,
+                                      /*CallerNeedsEvent=*/true);
 
     for (auto EventImpl : Events)
       MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
@@ -77,9 +78,10 @@ protected:
 
     std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-    detail::Command *NewCmd = MS.addCG(
-        std::move(CmdGroup),
-        Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl, ToEnqueue);
+    detail::Command *NewCmd =
+        MS.addCG(std::move(CmdGroup),
+                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
+                 ToEnqueue, /*EventNeeded=*/true);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
   }

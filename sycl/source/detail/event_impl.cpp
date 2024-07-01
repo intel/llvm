@@ -33,7 +33,7 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
 // If we do not yet have a context, use the default one.
-void event_impl::tryToInitContext() {
+void event_impl::initContextIfNeeded() {
   if (MContext || !MIsDefaultConstructed)
     return;
 
@@ -114,12 +114,12 @@ const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
 sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
-  tryToInitContext();
+  initContextIfNeeded();
   return MContext;
 }
 
 const PluginPtr &event_impl::getPlugin() {
-  tryToInitContext();
+  initContextIfNeeded();
   return MContext->getPlugin();
 }
 
@@ -456,7 +456,7 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 pi_native_handle event_impl::getNative() {
   if (isHost())
     return {};
-  tryToInitContext();
+  initContextIfNeeded();
 
   auto Plugin = getPlugin();
   if (MIsDefaultConstructed && !MEvent) {

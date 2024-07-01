@@ -79,22 +79,9 @@ static size_t deviceToID(const device &Device) {
   return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 
-static std::string queueDeviceToString(const QueueImplPtr &Queue) {
-  if (!Queue)
-    return "host";
-  auto Device = Queue->get_device();
-  if (Device.is_cpu())
-    return "CPU";
-  else if (Device.is_gpu())
-    return "GPU";
-  else if (Device.is_accelerator())
-    return "ACCELERATOR";
-  else
-    return "UNKNOWN";
-}
-
 static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
-  xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue));
+  xpti::addMetadata(TraceEvent, "sycl_device_type",
+                    queueDeviceToString(Queue.get()));
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));
@@ -331,7 +318,7 @@ class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
-  pi_result waitForEvents() const {
+  bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -353,14 +340,14 @@ class DispatchHostTask {
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
-      } catch (const sycl::exception &E) {
+      } catch (const sycl::exception &) {
         MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
             std::current_exception());
-        return (pi_result)E.get_cl_code();
+        return false;
       } catch (...) {
         MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
             std::current_exception());
-        return PI_ERROR_UNKNOWN;
+        return false;
       }
     }
 
@@ -370,7 +357,7 @@ class DispatchHostTask {
       Event->waitInternal();
     }
 
-    return PI_SUCCESS;
+    return true;
   }
 
 public:
@@ -395,11 +382,11 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+    if (!waitForEvents()) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
+          make_error_code(errc::runtime),
+          std::string("Couldn't wait for host-task's dependencies")));
+
       MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
@@ -411,7 +398,7 @@ public:
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
-               "Submitted queue for host task must be device queue");
+               "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
@@ -1088,7 +1075,7 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "ALLOCA ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "ALLOCA ON " << queueDeviceToString(MQueue.get()) << "\\n";
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
@@ -1174,7 +1161,7 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "ALLOCA SUB BUF ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "ALLOCA SUB BUF ON " << queueDeviceToString(MQueue.get()) << "\\n";
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
   Stream << " Offset : " << this->MRequirement.MOffsetInBytes << "\\n";
   Stream << " Access range : " << this->MRequirement.MAccessRange[0] << "\\n";
@@ -1287,7 +1274,7 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FF827A\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "RELEASE ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "RELEASE ON " << queueDeviceToString(MQueue.get()) << "\\n";
   Stream << " Alloca : " << MAllocaCmd << "\\n";
   Stream << " MemObj : " << MAllocaCmd->getSYCLMemObj() << "\\n";
   Stream << "\"];" << std::endl;
@@ -1357,7 +1344,7 @@ void MapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#77AFFF\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "MAP ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "MAP ON " << queueDeviceToString(MQueue.get()) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1438,7 +1425,7 @@ void UnMapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#EBC40F\", label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "UNMAP ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "UNMAP ON " << queueDeviceToString(MQueue.get()) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1548,7 +1535,7 @@ void MemCpyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#C7EB15\" label=\"";
 
   Stream << "ID = " << this << " ; ";
-  Stream << "MEMCPY ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "MEMCPY ON " << queueDeviceToString(MQueue.get()) << "\\n";
   Stream << "From: " << MSrcAllocaCmd << " is host: " << !MSrcQueue << "\\n";
   Stream << "To: " << MDstAllocaCmd << " is host: " << !MQueue << "\\n";
 
@@ -1604,7 +1591,7 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "UPDATE REQ ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "UPDATE REQ ON " << queueDeviceToString(MQueue.get()) << "\\n";
   bool IsReqOnBuffer =
       MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer;
   Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
@@ -1780,7 +1767,7 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "MEMCPY HOST ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "MEMCPY HOST ON " << queueDeviceToString(MQueue.get()) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1896,11 +1883,11 @@ static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
-      MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
@@ -1971,7 +1958,7 @@ void instrumentationAddExtraKernelMetadata(
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else {
-    assert(Queue && "Queue with submitted kernel could not be on host");
+    assert(Queue && "Kernel submissions should have an associated queue");
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
@@ -2154,7 +2141,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EXEC CG ON " << queueDeviceToString(MQueue) << "\\n";
+  Stream << "EXEC CG ON " << queueDeviceToString(MQueue.get()) << "\\n";
 
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
@@ -2345,7 +2332,7 @@ static pi_result SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative) {
-  assert(Queue && "Queue with submitted kernel could not be on host");
+  assert(Queue && "Kernel submissions should have an associated queue");
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2536,7 +2523,7 @@ pi_int32 enqueueImpKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
     const bool KernelIsCooperative) {
-  assert(Queue && "Queue with submitted kernel could not be on host");
+  assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
@@ -2652,7 +2639,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          const detail::EventImplPtr &OutEventImpl, bool read) {
   assert(Queue &&
-         "Queue with submitted read write host pipe could not be on host");
+         "ReadWrite host pipe submissions should have an associated queue");
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2702,7 +2689,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
-  assert(MQueue && "Device queue is required for command buffer enqueue");
+  assert(MQueue && "Command buffer enqueue should have an associated queue");
   // Wait on host command dependencies
   waitForPreparedHostEvents();
 
@@ -2717,11 +2704,15 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
   }
 
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->supportsDiscardingPiEvents() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
   sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2868,8 +2859,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  bool DiscardPiEvent = MQueue && MQueue->supportsDiscardingPiEvents() &&
-                        (MCommandGroup->getRequirements().size() == 0);
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
       DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
@@ -2941,35 +2937,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Kernel: {
-    assert(MQueue && "Device queue must be present for kernel command");
+    assert(MQueue && "Kernel submissions should have an associated queue");
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
-
-    if (MQueue->getDeviceImplPtr()->getBackend() ==
-        backend::ext_intel_esimd_emulator) {
-      for (ArgDesc &Arg : Args)
-        if (kernel_param_kind_t::kind_accessor == Arg.MType) {
-          Requirement *Req = (Requirement *)(Arg.MPtr);
-          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-          Req->MData = AllocaCmd->getMemAllocation();
-        }
-      if (!RawEvents.empty()) {
-        // Assuming that the events are for devices to the same Plugin.
-        const PluginPtr &Plugin = EventImpls[0]->getPlugin();
-        Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
-      }
-
-      if (MEvent != nullptr)
-        MEvent->setHostEnqueueTime();
-      MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-          nullptr,
-          reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-          NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-          &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      return PI_SUCCESS;
-    }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -3118,7 +3090,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    assert(MQueue && "Device queue must be present for barrier command");
+    assert(MQueue && "Barrier submission should have an associated queue");
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
@@ -3128,8 +3100,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::BarrierWaitlist: {
-    assert(MQueue &&
-           "Device queue must be present for barrier with wait list command");
+    assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
@@ -3197,7 +3168,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                     typeSize, RawEvents, EventImpl, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
-    assert(MQueue && "Device queue must be present for command buffer enqueue");
+    assert(MQueue &&
+           "Command buffer submissions should have an associated queue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
@@ -3221,7 +3193,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreWait: {
-    assert(MQueue && "Device queue must be present for semaphore wait command");
+    assert(MQueue &&
+           "Semaphore wait submissions should have an associated queue");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
@@ -3235,7 +3208,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   }
   case CG::CGTYPE::SemaphoreSignal: {
     assert(MQueue &&
-           "Device queue must be present for semaphore signal command");
+           "Semaphore signal submissions should have an associated queue");
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
@@ -3373,7 +3346,7 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "KERNEL FUSION on " << queueDeviceToString(MQueue) << "\\n"
+  Stream << "KERNEL FUSION on " << queueDeviceToString(MQueue.get()) << "\\n"
          << "FUSION LIST: {";
   bool Initial = true;
   for (auto *Cmd : MFusionList) {

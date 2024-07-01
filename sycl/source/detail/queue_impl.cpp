@@ -26,7 +26,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// Treat 0 as reserved for "host" queue
+// Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
 thread_local bool NestedCallsDetector = false;
@@ -147,7 +147,8 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
 
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
-                         const std::vector<event> &DepEvents) {
+                         const std::vector<event> &DepEvents,
+                         bool CallerNeedsEvent) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we use the object ptr; if code location
   // information is available, we will have function name and source file
@@ -173,7 +174,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
 
   return submitMemOpHelper(
-      Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
       Count, Value);
 }
@@ -194,7 +196,7 @@ void report(const code_location &CodeLoc) {
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents,
-                         const code_location &CodeLoc) {
+                         bool CallerNeedsEvent, const code_location &CodeLoc) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
@@ -224,7 +226,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                         PI_ERROR_INVALID_VALUE);
   }
   return submitMemOpHelper(
-      Self, DepEvents, [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
       [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
       Count, Dest);
 }
@@ -232,9 +235,10 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
-                             const std::vector<event> &DepEvents) {
+                             const std::vector<event> &DepEvents,
+                             bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents,
+      Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
       Self, Length, Advice);
@@ -243,9 +247,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents) {
+    const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents,
+      Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) {
         CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
                                  NumBytes, Offset);
@@ -259,9 +263,9 @@ event queue_impl::memcpyToDeviceGlobal(
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
-    size_t Offset, const std::vector<event> &DepEvents) {
+    size_t Offset, const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents,
+      Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) {
         CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
                                    NumBytes, Offset);
@@ -347,9 +351,10 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
+                              bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               const SubmitPostProcessF *PostProcess) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue);
+  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   Handler.saveCodeLoc(Loc);
 
   {
@@ -391,7 +396,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     // finishes execution.
     event FlushEvent = submit_impl(
         [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
-        Self, PrimaryQueue, SecondaryQueue, Loc, {});
+        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, {});
     EventImpl->attachEventToComplete(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -414,6 +419,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
 event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc,
                                     MemOpFuncT MemOpFunc,
                                     MemOpArgTs... MemOpArgs) {
@@ -430,7 +436,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if (MSupportsDiscardingPiEvents) {
+      if ((MDiscardEvents || !CallerNeedsEvent) &&
+          supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
@@ -498,17 +505,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
                     xpti_at::active, &QWaitInstanceNo);
   IId = QWaitInstanceNo;
   if (WaitEvent) {
-    device D = get_device();
-    std::string DevStr;
-    if (D.is_cpu())
-      DevStr = "CPU";
-    else if (D.is_gpu())
-      DevStr = "GPU";
-    else if (D.is_accelerator())
-      DevStr = "ACCELERATOR";
-    else
-      DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device_type", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
@@ -656,10 +653,17 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MDefaultGraphDeps.LastEventPtr ||
-           MDefaultGraphDeps.LastEventPtr
-                   ->get_info<info::event::command_execution_status>() ==
-               info::event_command_status::complete;
+    // If there is no last event we know that no work has been submitted, so it
+    // must be trivially empty.
+    if (!MDefaultGraphDeps.LastEventPtr)
+      return true;
+    // Otherwise, check if the last event is finished.
+    // Note that we fall back to the backend query if the event was discarded,
+    // which may happend despite the queue not being a discard event queue.
+    if (!MDefaultGraphDeps.LastEventPtr->isDiscarded())
+      return MDefaultGraphDeps.LastEventPtr
+                 ->get_info<info::event::command_execution_status>() ==
+             info::event_command_status::complete;
   }
 
   // Check the status of the backend queue.
