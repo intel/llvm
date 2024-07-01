@@ -913,18 +913,10 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Triple.isSPIRAOT()) {
-    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-      auto GPUOutputFile = runAOTCompileIntelGPU(InputFile, Args);
-      if (!GPUOutputFile)
-        return GPUOutputFile.takeError();
-      return *GPUOutputFile;
-    }
-    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64) {
-      auto CPUOutputFile = runAOTCompileIntelCPU(InputFile, Args);
-      if (!CPUOutputFile)
-        return CPUOutputFile.takeError();
-      return *CPUOutputFile;
-    }
+    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      return runAOTCompileIntelGPU(InputFile, Args);
+    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      return runAOTCompileIntelCPU(InputFile, Args);
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");
