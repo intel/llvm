@@ -78,10 +78,10 @@ protected:
 
     std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-    detail::Command *NewCmd = MS.addCG(
-        std::move(CmdGroup),
-        Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
-        ToEnqueue, /*EventNeeded=*/true);
+    detail::Command *NewCmd =
+        MS.addCG(std::move(CmdGroup),
+                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
+                 ToEnqueue, /*EventNeeded=*/true);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
   }

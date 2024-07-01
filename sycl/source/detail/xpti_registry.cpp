@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/global_handler.hpp>
-#include <detail/xpti_registry.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti/xpti_trace_framework.hpp"
@@ -363,7 +363,7 @@ void XPTIRegistry::sampledImageHostAccessorNotification(
 #endif
 }
 
-std::string queueDeviceToString(const queue_impl* const &Queue) {
+std::string queueDeviceToString(const queue_impl *const &Queue) {
   if (!Queue)
     return "HOST";
   auto Device = Queue->get_device();

@@ -320,7 +320,7 @@ private:
 #endif
 
 class queue_impl;
-std::string queueDeviceToString(const detail::queue_impl* const &Queue);
+std::string queueDeviceToString(const detail::queue_impl *const &Queue);
 
 } // namespace detail
 } // namespace _V1

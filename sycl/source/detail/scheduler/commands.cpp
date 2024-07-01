@@ -80,7 +80,8 @@ static size_t deviceToID(const device &Device) {
 }
 
 static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
-  xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue.get()));
+  xpti::addMetadata(TraceEvent, "sycl_device_type",
+                    queueDeviceToString(Queue.get()));
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));
@@ -3099,8 +3100,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::BarrierWaitlist: {
-    assert(MQueue &&
-           "Barrier submission should have an associated queue");
+    assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
@@ -3168,7 +3168,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                     typeSize, RawEvents, EventImpl, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
-    assert(MQueue && "Command buffer submissions should have an associated queue");
+    assert(MQueue &&
+           "Command buffer submissions should have an associated queue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
@@ -3192,7 +3193,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreWait: {
-    assert(MQueue && "Semaphore wait submissions should have an associated queue");
+    assert(MQueue &&
+           "Semaphore wait submissions should have an associated queue");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();

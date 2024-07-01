@@ -488,8 +488,8 @@ private:
   /// \param IsHost indicates if this handler is created for SYCL host device.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool /* ABI break: remove */,
-          bool CallerNeedsEvent);
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          bool /* ABI break: remove */, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -504,8 +504,8 @@ private:
   ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool /* ABI break: remove */,
-          bool CallerNeedsEvent);
+          std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          bool /* ABI break: remove */, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///

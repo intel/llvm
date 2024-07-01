@@ -87,8 +87,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool)
 /// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool)
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool)
     : handler(Queue, PrimaryQueue, SecondaryQueue, false,
               /*CallerNeedsEvent=*/true) {}
 
@@ -98,8 +97,8 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool, bool CallerNeedsEvent)
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool,
+                 bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue),
                                                    CallerNeedsEvent)),
@@ -287,10 +286,10 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        Result = enqueueImpKernel(
-            MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-            MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-            MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {

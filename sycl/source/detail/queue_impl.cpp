@@ -354,8 +354,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               const SubmitPostProcessF *PostProcess) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, false,
-                  CallerNeedsEvent);
+  handler Handler(Self, PrimaryQueue, SecondaryQueue, false, CallerNeedsEvent);
   Handler.saveCodeLoc(Loc);
 
   {
