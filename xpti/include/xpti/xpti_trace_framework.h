@@ -30,10 +30,280 @@
 #endif
 #endif
 
+/// @brief Extracts the user-defined ID from a given value.
+///
+/// This macro is designed to extract the lowest 7 bits from the provided value,
+/// which are reserved for a user-defined ID. The user-defined ID is expected to
+/// be encoded in these bits for easy extraction.
+///
+/// @param val The input value from which the user-defined ID is to be
+///            extracted. It is cast to `uint16_t` before extraction.
+///
+/// @return The extracted user-defined ID as a `uint16_t`.
+
 #define XPTI_EXTRACT_USER_DEFINED_ID(val) ((uint16_t)val & 0x007f)
+
+/// @brief Extracts the tool ID from a given value.
+///
+/// This macro extracts 8 bits starting from the 9th bit position of the
+/// provided value, which are reserved for the tool ID. The tool ID is expected
+/// to be encoded in these bits, allowing for identification of the tool or
+/// component that generated the value.
+///
+/// @param val The input value from which the tool ID is to be extracted.
+///            It is cast to `uint16_t` before extraction.
+///
+/// @return The extracted tool ID as a `uint16_t`.
+
 #define XPTI_TOOL_ID(val) (((uint16_t)val >> 8) & 0x00ff)
 
 extern "C" {
+
+/// @struct xpti_payload_t
+/// @brief Defines the interface for payload information in the tracing
+/// framework.
+///
+/// This structure provides a virtual interface for accessing payload
+/// information associated with trace points in the tracing framework. Payloads
+/// typically contain metadata about the code region being traced, such as
+/// function names, source file locations, and unique identifiers.
+/// Implementations of this interface are expected to provide concrete details
+/// for these metadata elements.
+struct xpti_payload_t {
+  /// @brief Destructor.
+  virtual ~xpti_payload_t() {}
+
+  /// @brief Gets the name associated with the payload.
+  /// @return A pointer to a null-terminated string containing the name.
+  virtual const char *name() const = 0;
+
+  /// @brief Gets the source file path associated with the payload.
+  /// @return A pointer to a null-terminated string containing the source file
+  /// path.
+  virtual const char *source_file() const = 0;
+
+  /// @brief Gets the line number in the source file associated with the
+  /// payload.
+  /// @return The line number.
+  virtual uint32_t line_no() const = 0;
+
+  /// @brief Gets the column number in the source file associated with the
+  /// payload.
+  /// @return The column number.
+  virtual uint32_t column_no() const = 0;
+
+  /// @brief Gets the flags associated with the payload.
+  /// @return A 64-bit integer representing the payload flags.
+  virtual uint64_t payload_flags() const = 0;
+
+  /// @brief Gets the string ID for the name.
+  /// @return An integer representing the string ID for the name.
+  virtual int32_t name_string_id() const = 0;
+
+  /// @brief Gets the string ID for the source file path.
+  /// @return An integer representing the string ID for the source file path.
+  virtual int32_t file_string_id() const = 0;
+
+  /// @brief Gets a unique identifier for the payload.
+  /// @return A 64-bit integer representing the unique identifier.
+  virtual uint64_t uid64() const = 0;
+
+  /// @brief Checks if the payload is valid.
+  /// @return True if the payload is valid, false otherwise.
+  virtual bool is_valid() const = 0;
+
+  /// @brief Gets a reference to the payload object.
+  /// @return A pointer to the payload object.
+  virtual xpti::payload_t *payload_ref() = 0;
+};
+
+/// @struct xpti_metadata_t
+/// @brief Defines the interface for managing metadata in the tracing framework.
+///
+/// This structure provides a virtual interface for managing key-value pair
+/// metadata associated with trace points or other objects in the tracing
+/// framework. The metadata is used to store additional information that can be
+/// queried and used by tools for analysis or visualization purposes.
+/// Implementations of this interface are expected to provide concrete
+/// mechanisms for storing, retrieving, and iterating over metadata items.
+
+struct xpti_metadata_t {
+  /// @brief Destructor.
+  ///
+  /// Virtual destructor to ensure derived classes are correctly cleaned up.
+  virtual ~xpti_metadata_t() {}
+
+  /// @brief Retrieves the first metadata item.
+  ///
+  /// Sets the provided key and value to the first metadata item's key and
+  /// value. This function is typically used to start iterating over all
+  /// metadata items.
+  ///
+  /// @param[out] key Pointer to a character pointer that will be set to the key
+  ///                 of the first item.
+  /// @param[out] value Reference to an object_id_t that will be set to the
+  ///                 value of the first item.
+  /// @return Result of the operation, indicating success or failure. Returns
+  ///                 xpti::result_t::XPTI_RESULT_FALSE if the metadata is
+  ///                 empty.
+  virtual xpti::result_t first_item(char **key, xpti::object_id_t &value) = 0;
+
+  /// @brief Retrieves the next metadata item.
+  ///
+  /// After calling first_item, this function can be called repeatedly to
+  /// iterate through all metadata items. Each call sets the provided key and
+  /// value to the next item's key and value.
+  ///
+  /// @param[out] key Pointer to a character pointer that will be set to the key
+  /// of the next item.
+  /// @param[out] value Reference to an object_id_t that will be set to the
+  /// value of the next item.
+  /// @return Result of the operation, indicating success or failure. Returns
+  ///                 xpti::result_t::XPTI_RESULT_FALSE if the metadata is
+  ///                 at the end. Returns xpti::result_t::XPTI_RESULT_SUCCESS
+  ///                 if the next item is successfully retrieved.
+  virtual xpti::result_t next_item(char **key, xpti::object_id_t &value) = 0;
+
+  ///@brief Adds a metadata item.
+  ///
+  /// Adds a new key-value pair to the metadata. If the key already exists, its
+  /// value is updated with the new value provided.
+  ///
+  ///@param[in] key Pointer to a null-terminated string representing the key.
+  ///@param[in] value The value associated with the key.
+  ///@return Result of the operation, indicating success or failure. Returns
+  ///        xpti::result_t::XPTI_RESULT_SUCCESS if the item is successfully
+  ///        added.
+  virtual xpti::result_t add_item(const char *key, xpti::object_id_t value) = 0;
+
+  /// @brief Counts the number of metadata items.
+  ///
+  /// Returns the total number of key-value pairs stored in the metadata.
+  ///
+  /// @return The number of metadata items.
+  virtual size_t count() = 0;
+};
+
+/// @struct xpti_trace_event_t
+/// @brief Represents a trace event in the instrumentation framework.
+///
+/// This structure defines the interface for a trace event, which is a key
+/// component in the tracing system. Trace events are generated at various
+/// points in the execution of a program to collect performance data or other
+/// forms of diagnostic information.
+
+struct xpti_trace_event_t {
+
+  /// @brief Destructor.
+  ///
+  /// Virtual destructor to ensure proper cleanup of derived classes.
+  virtual ~xpti_trace_event_t() {}
+
+  /// @brief Gets the payload associated with the trace event.
+  /// @return A pointer to the xpti_payload_t structure containing the payload.
+  virtual xpti_payload_t *payload() = 0;
+
+  /// @brief Gets the metadata associated with the trace event.
+  /// @return A pointer to the xpti_metadata_t structure containing the
+  /// metadata.
+  virtual xpti_metadata_t *metadata() = 0;
+
+  /// @brief Gets the unique identifier for the trace event.
+  /// @return A 64-bit unsigned integer representing the unique identifier.
+  virtual uint64_t uid64() const = 0;
+
+  /// @brief Gets the instance number of the trace event.
+  /// @return A 64-bit unsigned integer representing the instance number.
+  virtual uint64_t instance() const = 0;
+
+  /// @brief Gets the event type.
+  /// @return A 16-bit unsigned integer representing the event type.
+  virtual uint16_t event_type() const = 0;
+
+  /// @brief Gets the activity type.
+  /// @return A 16-bit unsigned integer representing the activity type.
+  virtual uint16_t activity_type() const = 0;
+
+  /// @brief Gets the unique identifier of the source of the event.
+  /// @return A 64-bit unsigned integer representing the source's unique
+  /// identifier. Used only for "edge" events that represent a relationship
+  virtual uint64_t source_uid64() const = 0;
+
+  /// @brief Gets the unique identifier of the target of the event.
+  /// @return A 64-bit unsigned integer representing the target's unique
+  /// identifier.
+  virtual uint64_t target_uid64() const = 0;
+
+  /// @brief Gets the flags associated with the event.
+  /// @return A 64-bit unsigned integer representing the event flags.
+  virtual uint64_t event_flags() const = 0;
+
+  /// @brief Sets the activity type of the event.
+  /// @param type The activity type to set.
+  virtual void set_activity_type(xpti::trace_activity_type_t type) = 0;
+
+  /// @brief Sets the event type.
+  /// @param type The event type to set.
+  virtual void set_event_type(uint16_t type) = 0;
+
+  /// @brief Gets a reference to the payload object.
+  /// @return A pointer to the payload object.
+  virtual xpti::payload_t *payload_ref() = 0;
+
+  /// @brief Gets a reference to the trace event data.
+  /// @return A pointer to the xpti::trace_event_data_t structure containing the
+  /// trace event data.
+  virtual xpti::trace_event_data_t *event_ref() = 0;
+};
+
+/// @struct xpti_tracepoint_t
+/// @brief Represents a trace point in the tracing framework.
+///
+/// A trace point is a specific location in the execution of a program where
+/// information can be collected for tracing purposes. This structure provides
+/// an interface for accessing the payload, metadata, and event associated with
+/// a trace point, as well as unique identifiers for the trace point and its
+/// instance.
+
+struct xpti_tracepoint_t {
+
+  /// @brief Destructor.
+  ///
+  /// Virtual destructor to ensure proper cleanup of derived classes.
+  virtual ~xpti_tracepoint_t() {}
+
+  /// @brief Gets the payload associated with the trace point.
+  /// @return A pointer to the xpti_payload_t structure containing the payload.
+  virtual xpti_payload_t *payload() = 0;
+
+  /// @brief Gets the metadata associated with the trace point.
+  /// @return A pointer to the xpti_metadata_t structure containing the
+  /// metadata.
+  virtual xpti_metadata_t *metadata() = 0;
+
+  /// @brief Gets the event associated with the trace point.
+  /// @return A pointer to the xpti_trace_event_t structure containing the
+  /// event.
+  virtual xpti_trace_event_t *event() = 0;
+
+  /// @brief Gets the unique identifier for the trace point.
+  /// @return A 64-bit unsigned integer representing the unique identifier.
+  virtual uint64_t uid64() const = 0;
+
+  /// @brief Gets the instance number of the trace point.
+  /// @return A 64-bit unsigned integer representing the instance number.
+  virtual uint64_t instance() const = 0;
+
+  /// @brief Gets a reference to the trace event data.
+  /// @return A pointer to the xpti::trace_event_data_t structure containing the
+  /// trace event data.
+  virtual xpti::trace_event_data_t *event_ref() = 0;
+
+  /// @brief Gets a reference to the payload data.
+  /// @return A pointer to the xpti::payload_t structure containing the payload
+  /// data.
+  virtual xpti::payload_t *payload_ref() = 0;
+};
 
 /// @brief Initializes XPTI framework.
 /// @details Initialize XPTI framework resources. Each user of XPTI must call
@@ -363,35 +633,11 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object);
 /// @return The payload data structure pointer for the event.
 XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid);
 
-/// @brief Generates a unique 128-bit key (UID) from the given payload.
-///
-/// This function is responsible for creating a unique identifier (UID) based on
-/// the metadata contained within the provided payload. The payload typically
-/// includes essential information such as the source file name, function name,
-/// and line number, which are used to generate a unique 128-bit key. This UID
-/// can then be utilized to uniquely identify trace events or other entities
-/// within the tracing framework, facilitating efficient data management and
-/// retrieval.
-///
-/// @param payload A pointer to a `xpti::payload_t` structure that contains the
-/// metadata from which the UID is to be generated. The structure must be
-/// properly initialized with valid data for accurate UID generation.
-/// @param uid A pointer to a `xpti::uid128_t` structure where the generated UID
-/// will be stored. This UID represents the unique key generated from the
-/// payload.
-/// @return A `xpti::result_t` enumeration value indicating the success or
-/// failure of the UID generation process. Possible return values include
-/// `XPTI_RESULT_SUCCESS` if the UID was successfully generated, or an
-/// appropriate error code indicating the reason for failure.
-///
-XPTI_EXPORT_API xpti::result_t xptiMakeKeyFromPayload(xpti::payload_t *payload,
-                                                      xpti::uid128_t *uid);
-
 /// @brief Looks up the payload associated with a given 128-bit unique
 /// identifier (UID).
 ///
 /// This function searches for and retrieves the payload information associated
-/// with a specific 128-bit UID. The payload contains metadata such as the
+/// with a 64-bit universal ID. The payload contains metadata such as the
 /// source file name, function name, and line number from which the UID was
 /// generated. This function is typically used to retrieve contextual
 /// information for tracing or profiling purposes, allowing for a more detailed
@@ -404,7 +650,7 @@ XPTI_EXPORT_API xpti::result_t xptiMakeKeyFromPayload(xpti::payload_t *payload,
 ///           payload information. If the UID does not have an associated
 ///           payload, a nullptr is returned.
 ///
-XPTI_EXPORT_API const xpti::payload_t *xptiLookupPayload(xpti::uid128_t *uid);
+XPTI_EXPORT_API const xpti_payload_t *xptiLookupPayload(uint64_t uid);
 
 /// @brief Retrieves the trace event data associated with a given unique
 /// identifier (UID).
@@ -416,7 +662,7 @@ XPTI_EXPORT_API const xpti::payload_t *xptiLookupPayload(xpti::uid128_t *uid);
 /// unique identifiers, enabling detailed analysis and debugging of performance
 /// issues.
 ///
-/// @param uid A reference to the unique identifier (`uid128_t`) for which the
+/// @param uid A reference to the 64-bit unique identifier for which the
 ///            trace event data is being requested. The UID should have been
 ///            previously generated and associated with a specific trace event.
 /// @return    A pointer to the `xpti::trace_event_data_t` structure containing
@@ -424,43 +670,67 @@ XPTI_EXPORT_API const xpti::payload_t *xptiLookupPayload(xpti::uid128_t *uid);
 ///            trace event, a nullptr is returned. This allows for easy checking
 ///            of whether a given UID corresponds to a valid trace event.
 ///
-XPTI_EXPORT_API const xpti::trace_event_data_t *
-xptiLookupEvent(xpti::uid128_t *uid);
+XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid);
 
-/// @brief Creates a trace event and associates it with the given payload.
+/// @brief Creates a tracepoint in the XPTI framework.
 ///
-/// This function is used to create a trace event in the system, which can then
-/// be used for performance analysis or debugging. Each event is associated with
-/// a payload that contains metadata such as the source file name, function
-/// name, and line number. The function also assigns an instance number to the
-/// event, which can be used to differentiate between multiple instances of the
-/// same event.
+/// This function is used to create a tracepoint in the XPTI framework. A
+/// tracepoint is a specific location in the code, identified by function name,
+/// file name, line number, and column number, where trace data can be generated
+/// and collected. This function allocates and initializes a tracepoint object,
+/// which can then be used to emit trace events at runtime. This tracepoint
+/// interface object packages a payload, a trace event data structure and a
+/// 128-bit universal ID and provides an interface to retrieve all of this
+/// information. The interface pointer uniquely identifies a specific instance
+/// of a tracepoint.
 ///
-/// @param payload     A pointer to a `xpti::payload_t` structure that contains
-///                    the metadata for the event. The payload includes
-///                    information such as the source file, function name, and
-///                    line number.
-/// @param instance_no A pointer to a uint64_t variable where the instance
-///                    number of the event will be stored. This number is unique
-///                    for each event and can be used to identify specific
-///                    instances of the event.
-/// @param event       The type of the event, represented by a value from the
-///                    `xpti::trace_event_type_t` enumeration. The default value
-///                    is `xpti::trace_event_type_t::algorithm`, indicating that
-///                    the event is related to an algorithmic operation.
-/// @param activity    The activity type of the event, represented by a value
-///                    from the `xpti::trace_activity_type_t` enumeration. The
-///                    default value is `xpti::trace_activity_type_t::active`,
-///                    indicating that the event is currently active.
+/// @param func_name A constant character pointer representing the name of the
+/// function where the tracepoint is located. This provides context for the
+/// tracepoint, aiding in identification and analysis of trace data.
+/// @param file_name A constant character pointer representing the name of the
+/// source file where the tracepoint is located. This helps in pinpointing the
+/// exact location of the tracepoint in the codebase.
+/// @param line_no A uint32_t value representing the line number in the source
+/// file where the tracepoint is located. This further refines the location of
+/// the tracepoint within the file.
+/// @param column_no A uint32_t value representing the column number on the
+/// specified line where the tracepoint is located. This provides the most
+/// precise location of the tracepoint.
 ///
-/// @return A pointer to the created `xpti::trace_event_data_t` structure, which
-/// contains information about the trace event. If the event cannot be created,
-/// a nullptr is returned.
+/// @return A pointer to the created `xpti_tracepoint_t` structure, which
+/// represents the tracepoint. If the tracepoint cannot be created, the function
+/// returns nullptr.
 ///
-XPTI_EXPORT_API xpti::trace_event_data_t *xptiCreateEvent(
-    xpti::payload_t *payload, uint64_t *instance_no,
-    uint16_t event = (uint16_t)xpti::trace_event_type_t::algorithm,
-    xpti::trace_activity_type_t activity = xpti::trace_activity_type_t::active);
+/// @note In order to preserve ABI compatibility, an interface pointer to
+/// `xpti_tracepoint_t` is returned.
+
+XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *func_name,
+                                                        const char *file_name,
+                                                        uint32_t line_no,
+                                                        uint32_t column_no);
+
+/// @brief Deletes a tracepoint object.
+///
+/// This function is responsible for safely deleting a tracepoint object created
+/// by the XPTI framework. It ensures that any resources associated with the
+/// tracepoint, such as memory allocations for payloads or metadata, are
+/// properly released. This function is typically called when a tracepoint is no
+/// longer needed, such as at the end of its scope or during application
+/// shutdown, to prevent memory leaks.
+///
+/// @param tp A pointer to the `xpti_tracepoint_t` structure representing the
+/// tracepoint to be deleted. If the pointer is null, the function has no
+/// effect.
+///
+/// @return A result code of type `xpti::result_t` indicating the success or
+/// failure of the deletion process. Possible return values include
+/// `XPTI_RESULT_SUCCESS` if the tracepoint was successfully deleted, or an
+/// error code indicating the reason for failure.
+///
+/// @note It is important to ensure that the tracepoint object is not accessed
+/// after calling this function, as it will result in undefined behavior.
+
+XPTI_EXPORT_API xpti::result_t xptiDeleteTracepoint(xpti_tracepoint_t *tp);
 
 /// @brief Registers a callback for a trace point type
 /// @details Subscribers receive notifications to the trace point types they
@@ -562,22 +832,6 @@ XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
 /// @brief Query the metadata table for a given event
 /// @details In order to retrieve metadata information for a given event, you
 /// must get the metadata tables and perform your queries on this table.
-/// @code
-///    auto m = xptiQueryMetadata(event);
-///    // Example of printing all the metadata contents
-///    for( auto &md : m ) {
-///        printf("++ %20s:%s\n", xptiLookupString(md.first),
-///                               xptiLookupString(md.second));
-///    }
-///    // Here's an example of a query on the table
-///    char *table_string;
-///    xpti::string_id_t key_id = xptiRegisterString("myKey", &table_string);
-///    auto index = m.find(key_id);
-///    if(index != m.end()) {
-///       // Retrieve the value
-///       const char *value = xptiLookupString((*index).second);
-///    }
-/// @endcode
 ///
 /// @param e The event for which the metadata is being requested
 /// @return The metadata table of type xpti::metadata_t *
@@ -625,35 +879,49 @@ XPTI_EXPORT_API void xptiTraceTryToEnable();
 /// @details This function is used to get the trace point scope data that is
 /// currently set in the tracing framework's thread-local storage.
 ///
-/// @return The trace point scope data pointer.
-XPTI_EXPORT_API const xpti::tracepoint_data_t *xptiGetTracepointScopeData();
+/// @return The trace point interface pointer.
+XPTI_EXPORT_API const xpti_tracepoint_t *xptiGetTracepointScopeData();
 
 /// @brief Sets the trace point scope data.
 /// @details This function is used to set the trace point scope data in the
 /// tracing framework.
 ///
-/// @param data The trace point data to be set.
+/// @param tp The trace point interface pointer.
 /// @return Result of the operation, success or failure.
 XPTI_EXPORT_API xpti::result_t
-xptiSetTracepointScopeData(xpti::tracepoint_data_t *data);
+xptiSetTracepointScopeData(xpti_tracepoint_t *tp);
 
 /// @brief Unsets the trace point scope data.
 /// @details This function is used to unset the trace point scope data in the
 /// tracing framework.
 XPTI_EXPORT_API void xptiUnsetTracepointScopeData();
 
-/// @brief Registers a tracepoint using the payload and prepares trace point
-/// data for use.
-/// @details This function is used to register a payload and publish it in the
-/// tracing framework. The registration of the payload determines the instance
-/// ID fo the payload and the the data along with the computed universal ID is
-/// prepared for use in the current tracepoint scope. Returns all asscociated
-/// information for the registered tracepoint scope.
+/// @brief Registers a trace point scope with the tracing framework.
 ///
-/// @param payload The payload to be registered and published.
-/// @return The trace point data associated with the registered payload.
-XPTI_EXPORT_API const xpti::tracepoint_data_t *
-xptiRegisterTracepointScope(xpti::payload_t *payload);
+/// This function is used to register a new trace point scope based on the
+/// function name, file name, line number, and column number where the trace
+/// point is defined. It is typically called at the entry of a function or a
+/// specific scope within a function to mark the beginning of a traceable
+/// region. The function returns a pointer to a `xpti_tracepoint_t` structure
+/// that contains information about the registered trace point, including a
+/// unique identifier that can be used to reference the trace point in
+/// subsequent tracing calls.
+///
+/// @param funcName The name of the function or scope being registered. This
+///                 parameter should not be NULL.
+/// @param fileName The name of the source file where the trace point is
+///                 defined. This parameter is optional and can be nullptr
+/// @param lineNo   The line number in the source file where the trace point is
+///                 defined. This parameter is optional and can be set to 0.
+/// @param columnNo The column number in the source file where the trace point
+///                 is defined. If column information is not available, this can
+///                 be set to 0.
+/// @return Returns a pointer to the registered `xpti_tracepoint_t` structure if
+///                 the registration is successful; otherwise, returns NULL. The
+///                 returned pointer should not be freed by the caller.
+XPTI_EXPORT_API const xpti_tracepoint_t *
+xptiRegisterTracepointScope(const char *funcName, const char *fileName,
+                            uint32_t lineNo, uint32_t columnNo);
 
 /// @brief Retrieves the default stream ID.
 /// @details This function is used to get the default stream ID that is
@@ -772,17 +1040,11 @@ typedef void (*xpti_enable_tracepoint_scope_notification_t)(bool);
 typedef bool (*xpti_check_tracepoint_scope_notification_t)();
 typedef xpti::result_t (*xpti_make_key_from_payload_t)(xpti::payload_t *,
                                                        xpti::uid128_t *);
-typedef const xpti::payload_t *(*xpti_lookup_payload_t)(xpti::uid128_t *);
-typedef const xpti::trace_event_data_t *(*xpti_lookup_event_t)(
-    xpti::uid128_t *);
-typedef xpti::trace_event_data_t *(*xpti_create_event_t)(
-    xpti::payload_t *, uint64_t *, uint16_t eventType,
-    xpti::trace_activity_type_t);
-typedef const xpti::tracepoint_data_t *(*xpti_get_trace_point_scope_data_t)();
-typedef const xpti::tracepoint_data_t *(*xpti_register_tracepoint_scope_t)(
-    xpti::payload_t *);
+typedef const xpti_tracepoint_t *(*xpti_get_trace_point_scope_data_t)();
+typedef const xpti_tracepoint_t *(*xpti_register_tracepoint_scope_t)(
+    const char *func, const char *file, uint32_t line, uint32_t col);
 typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
-    xpti::tracepoint_data_t *);
+    xpti_tracepoint_t *);
 typedef void (*xpti_unset_trace_point_scope_data_t)();
 typedef uint8_t (*xpti_get_default_stream_id_t)();
 typedef xpti::result_t (*xpti_set_default_stream_id_t)(uint8_t);
@@ -792,4 +1054,11 @@ typedef xpti::result_t (*xpti_set_default_event_type_t)(
 typedef xpti::trace_point_type_t (*xpti_get_default_trace_type_t)();
 typedef xpti::result_t (*xpti_set_default_trace_type_t)(
     xpti::trace_point_type_t);
+
+typedef const xpti_payload_t *(*xpti_lookup_payload_t)(uint64_t);
+typedef const xpti_trace_event_t *(*xpti_lookup_event_t)(uint64_t);
+typedef xpti_tracepoint_t *(*xpti_create_tracepoint_t)(const char *,
+                                                       const char *, uint32_t,
+                                                       uint32_t);
+typedef xpti::result_t (*xpti_delete_tracepoint_t)(xpti_tracepoint_t *);
 }

@@ -476,7 +476,7 @@ struct payload_t {
   //  also have the function name and source file name along with the line and
   //  column number of the trace point that forms the payload.
   payload_t(const char *kname, const char *sf, int line, int col,
-            const void *codeptr) {
+            const void *codeptr = nullptr) {
     code_ptr_va = codeptr;
     /// Capture the rest of the parameters
     name = kname;
@@ -522,7 +522,7 @@ struct function_with_args_t {
 ///  that are necessary for modeling parallel runtimes. A helper macro
 ///  provided to create the enum values as the LSB is reserved for
 ///  determining if the trace point is a 'begin' trace or an 'end'
-///  trace. This reserved bit is used by the scoped_notify() class
+///  trace. This reserved bit is used by the scoped notify classes
 ///  to automatically send the closing enum trace type for a given
 ///  trace point type.
 ///
@@ -811,11 +811,6 @@ enum class trace_event_flag_t {
   /// additional contextual information.
   PayloadAvailable = 1 << 5,
 
-  /// @var trace_event_flag_t::HashAvailable
-  /// Denotes that a hash value is available for the event. This hash can be
-  /// is typically the 64-bit universal IDs used in legacy APIs that will be
-  /// deprecated after the 128-bit keys are fully adopted.
-  HashAvailable = 1 << 15
 };
 
 /// @struct trace_event_data_t
@@ -866,7 +861,7 @@ struct trace_event_data_t {
   /// primarily used to represent relationships between entities in the trace
   /// data. Initialized to `invalid_id` to indicate no source by default. Will
   /// be deprecated when the 128-bit UID is fully adopted.
-  int64_t source_id = invalid_uid;
+  uint64_t source_id = invalid_uid;
 
   /// @var trace_event_data_t::target_id
   /// An identifier for the target node of the current edge or relationship
@@ -874,7 +869,7 @@ struct trace_event_data_t {
   /// recipient or focus of the event. Initialized to `invalid_id` to indicate
   /// no target by default.Will be deprecated when the 128-bit UID is fully
   /// adopted.
-  int64_t target_id = invalid_uid;
+  uint64_t target_id = invalid_uid;
 
   /// @var trace_event_data_t::reserved
   /// A `reserved_data_t` structure that holds a reference to an associated
@@ -887,24 +882,6 @@ struct trace_event_data_t {
   /// This could be used to attach arbitrary data that doesn't fit into the
   /// standard fields.
   void *global_user_data = nullptr;
-
-  //// @var trace_event_data_t::universal_id
-  /// A `universal_id_t` structure that provides a compact representation of
-  /// file and function identifiers, as well as precise location information.
-  /// This is useful for pinpointing the exact position of the tracepoint.
-  xpti::universal_id_t universal_id;
-
-  /// @var trace_event_data_t::source_uid
-  /// A `universal_id_t` structure representing the universal identifier of the
-  /// source entity. This provides a detailed and compact way to identify the
-  /// source node of an edge event.
-  xpti::universal_id_t source_uid;
-
-  /// @var trace_event_data_t::target_uid
-  /// A `universal_id_t` structure representing the universal identifier of the
-  /// target entity. Similar to `source_uid`, but for the target of the edge or
-  /// relationship event.
-  xpti::universal_id_t target_uid;
 
   /// @var trace_event_data_t::flags
   /// A 64-bit field for flags or additional bitwise information related to the
@@ -1211,9 +1188,9 @@ constexpr uint16_t trace_diagnostics =
 namespace std {
 // Specializations for std::unordered_map
 
-// Specialization of std::hash for xpti::uid_t
+// Specialization of std::hash for xpti::uid128_t
 template <> struct hash<xpti::uid128_t> {
-  // Overload of operator() to calculate hash of xpti::uid_t
+  // Overload of operator() to calculate hash of xpti::uid128_t
   size_t operator()(const xpti::uid128_t &UID) const {
     xpti::hash_t Hash;
     // The hash is calculated by combining the file ID, function ID, and line
@@ -1222,9 +1199,9 @@ template <> struct hash<xpti::uid128_t> {
   }
 };
 
-// Specialization of std::equal_to for xpti::uid_t
+// Specialization of std::equal_to for xpti::uid128_t
 template <> struct equal_to<xpti::uid128_t> {
-  // Overload of operator() to compare two xpti::uid_t objects
+  // Overload of operator() to compare two xpti::uid128_t objects
   bool operator()(const xpti::uid128_t &lhs, const xpti::uid128_t &rhs) const {
     // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
     // p1 contains the combined file ID and function ID, p2 contains the
@@ -1234,7 +1211,7 @@ template <> struct equal_to<xpti::uid128_t> {
 };
 
 template <> struct less<xpti::uid128_t> {
-  // Overload of operator() to compare two xpti::uid_t objects
+  // Overload of operator() to compare two xpti::uid128_t objects
   bool operator()(const xpti::uid128_t &lhs, const xpti::uid128_t &rhs) const {
     // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
     // p1 contains the combined file ID and function ID, p2 contains the

@@ -616,6 +616,26 @@ inline bool is_valid_payload(const xpti::payload_t *Payload) {
               static_cast<uint64_t>(payload_flag_t::NameAvailable))));
 }
 
+/// @brief Generates a default payload object with unknown details.
+///
+/// This function creates and returns a `xpti::payload_t` object initialized
+/// with default values indicating unknown or unspecified details. This can be
+/// useful in situations where the actual details of a payload are not available
+/// or relevant. The function sets the function name and file name to "unknown",
+/// line and column numbers to 0, and the module handle to nullptr. Also, it
+/// guarantees a unique universal ID for all sictuations where the actual
+/// payload information is not available.
+///
+/// @return A `xpti::payload_t` object with its members set to represent an
+/// unknown or unspecified payload. This includes setting the function name and
+/// file name to "unknown", line and column numbers to 0, and the module handle
+/// to nullptr.
+///
+inline xpti::payload_t unknown_payload() {
+  xpti::payload_t Payload("unknown", "unknown-file", 0, 0, nullptr);
+  return Payload;
+}
+
 /// @brief Checks if a given trace event data is valid.
 ///
 /// A trace event data is considered valid if it is not a null pointer, its
@@ -639,67 +659,6 @@ inline bool is_valid_event(const xpti::trace_event_data_t *Event) {
 }
 
 namespace framework {
-constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
-constexpr uint16_t graph_create =
-    (uint16_t)xpti::trace_point_type_t::graph_create;
-constexpr uint16_t node_create =
-    (uint16_t)xpti::trace_point_type_t::node_create;
-constexpr uint16_t edge_create =
-    (uint16_t)xpti::trace_point_type_t::edge_create;
-
-class scoped_notify {
-public:
-  scoped_notify(const char *stream, uint16_t trace_type,
-                xpti::trace_event_data_t *parent,
-                xpti::trace_event_data_t *object, uint64_t instance,
-                const void *user_data = nullptr)
-      : m_object(object), m_parent(parent), m_stream_id(0),
-        m_trace_type(trace_type), m_user_data(user_data), m_instance(instance) {
-    if (xptiTraceEnabled()) {
-      uint16_t open = m_trace_type & 0xfffe;
-      m_stream_id = xptiRegisterStream(stream);
-      xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
-                            m_user_data);
-    }
-  }
-  scoped_notify(uint8_t stream_id, uint16_t trace_type,
-                xpti::trace_event_data_t *parent,
-                xpti::trace_event_data_t *object, uint64_t instance,
-                const void *user_data = nullptr)
-      : m_object(object), m_parent(parent), m_stream_id(stream_id),
-        m_trace_type(trace_type), m_user_data(user_data), m_instance(instance) {
-    if (!xptiTraceEnabled())
-      return;
-    uint16_t open = m_trace_type & 0xfffe;
-    xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
-                          m_user_data);
-  }
-
-  ~scoped_notify() {
-    if (xptiTraceEnabled())
-      return;
-    switch (m_trace_type) {
-    case signal:
-    case graph_create:
-    case node_create:
-    case edge_create:
-      break;
-    default: {
-      uint16_t close = m_trace_type | 1;
-      xptiNotifySubscribers(m_stream_id, close, m_parent, m_object, m_instance,
-                            m_user_data);
-    } break;
-    }
-  }
-
-private:
-  xpti::trace_event_data_t *m_object, *m_parent;
-  uint8_t m_stream_id;
-  uint16_t m_trace_type;
-  const void *m_user_data;
-  uint64_t m_instance;
-};
-
 //// @class stash_tuple
 /// @brief Manages the lifecycle of a key-value pair stashing operation.
 ///
@@ -1025,54 +984,14 @@ public:
       return;
 
     MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
-    MData = const_cast<xpti::tracepoint_data_t *>(xptiGetTracepointScopeData());
-    if (!MData->isValid()) {
-      // No scope data has been set, so we will initiate the scope here by
-      // registering the payload
-      payload_t tpPayload(funcName, fileName, line, column, nullptr);
-      // If the incomming information to create the payload is invalid, we
-      // will create a payload with the caller function name
-      if (!xpti::is_valid_payload(&tpPayload)) {
-        tpPayload = payload_t(callerFuncName, nullptr, 0, 0, nullptr);
-      }
-      init(&tpPayload);
+    MData = const_cast<xpti_tracepoint_t *>(xptiGetTracepointScopeData());
+    if (!MData) {
+      if (funcName && fileName)
+        init(funcName, fileName, line, column);
+      else
+        init(callerFuncName, nullptr, 0, 0);
     } else {
-      MTraceEvent = MData->event;
-    }
-    selfNotifyBegin();
-  }
-
-  /// @brief Constructor that initializes a tracepoint with a payload_t object
-  ///
-  /// @param tpPayload The payload that results in a UID and trace event.
-  /// @param selfNotify A boolean indicating whether the tracepoint should
-  /// notify its scope.
-  /// @param callerFuncName The name of the function that is calling this
-  /// constructor.
-  ///
-  tracepoint_scope_t(payload_t *tpPayload, bool selfNotify = false,
-                     const char *callerFuncName = __builtin_FUNCTION())
-      : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
-    if (!xptiTraceEnabled())
-      return;
-
-    MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
-    MData = const_cast<xpti::tracepoint_data_t *>(xptiGetTracepointScopeData());
-    if (!MData->isValid()) {
-      // No scope data has been set, so we will initiate the scope here by using
-      // the payload object. If the object has already been registered, the
-      // return value will have the same UID for the payload, but with an
-      // updated instance ID
-      // If the incomming payload  is invalid, create a new one with the caller
-      // function name
-      if (!xpti::is_valid_payload(tpPayload)) {
-        payload_t payload = payload_t(callerFuncName, nullptr, 0, 0, nullptr);
-        init(&payload);
-      } else {
-        init(tpPayload);
-      }
-    } else {
-      MTraceEvent = MData->event;
+      MTraceEvent = MData->event_ref();
     }
     selfNotifyBegin();
   }
@@ -1097,7 +1016,7 @@ public:
       return;
 
     MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
-    MData = const_cast<xpti::tracepoint_data_t *>(xptiGetTracepointScopeData());
+    MData = const_cast<xpti_tracepoint_t *>(xptiGetTracepointScopeData());
     selfNotifyBegin();
   }
 
@@ -1117,11 +1036,12 @@ public:
   /// @param tpPayload The payload to be registered and used for preparing the
   /// tracepoint data.
   ///
-  void init(payload_t *tpPayload) {
+  void init(const char *FuncName, const char *FileName, uint32_t LineNo,
+            uint32_t ColumnNo) {
     // Register the payload and prepare the tracepoint data. The function
     // returns a UID, associated payload and trace event
-    MData = const_cast<xpti::tracepoint_data_t *>(
-        xptiRegisterTracepointScope(tpPayload));
+    MData = const_cast<xpti_tracepoint_t *>(
+        xptiRegisterTracepointScope(FuncName, FileName, LineNo, ColumnNo));
     if (MData) {
       // Set the tracepoint scope with the prepared data so all nested functions
       // will have access to it; this call also sets the Universal ID separately
@@ -1129,7 +1049,7 @@ public:
       xptiSetTracepointScopeData(MData);
       // Set the trace event for this tracepoint; all notifications will use
       // this
-      MTraceEvent = MData->event;
+      MTraceEvent = MData->event_ref();
       // Set the top flag to true, indicating that this is the top-level
       // tracepoint.
       MTop = true;
@@ -1162,9 +1082,9 @@ public:
     selfNotifyEnd();
     // If this is the top-level tracepoint, perform additional cleanup.
     if (MTop) {
-      // Release the event created since this instance of the payload is going
-      // out of scope
-      xptiReleaseEvent(MData->event);
+      // Release the tracepoint created since this instance of the payload is
+      // going out of scope
+      xptiDeleteTracepoint(MData);
       // Reset TLS data to invalid
       xptiUnsetTracepointScopeData();
       // Clear internal state
@@ -1181,17 +1101,7 @@ public:
   ///
   /// @return A reference to the UID of the tracepoint.
   ///
-  uint64_t uid64() { return MData->uid64; }
-
-  /// @brief Returns the 128-bit unique identifier (UID) of the tracepoint.
-  ///
-  /// This function returns a reference to the UID of the tracepoint, which is
-  /// stored in the tracepoint's data. This is created when the tracepoint is
-  /// created using the payload or inherited through the TLS
-  ///
-  /// @return A reference to the UID of the tracepoint.
-  ///
-  xpti::uid128_t *uid128() { return &MData->uid128; }
+  uint64_t uid64() { return MData->event()->uid64(); }
 
   /// @brief Returns the payload of the tracepoint.
   ///
@@ -1200,7 +1110,7 @@ public:
   ///
   /// @return A pointer to the payload of the tracepoint.
   ///
-  xpti::payload_t *payload() { return MData->payload; }
+  xpti::payload_t *payload() { return MData->payload_ref(); }
 
   /// @brief Returns the trace event data of the tracepoint.
   ///
@@ -1354,7 +1264,7 @@ public:
   ///
   void scopedNotify(uint16_t traceType, const void *userData) {
     // If tracing is not enabled, don't notify
-    if (!xptiTraceEnabled() || !MData->isValid())
+    if (!xptiTraceEnabled() || !MData)
       return;
 
     MTraceType = traceType & 0xfffe;
@@ -1439,7 +1349,7 @@ private:
   bool MScopedNotify = false;
   /// Stores the tracepoint data from creating the tracepoint or from
   /// inheritance
-  tracepoint_data_t *MData;
+  xpti_tracepoint_t *MData;
   /// Stores the name of the function that contains the tracepoint and self
   /// notification will use this information during notification.
   const char *MCallerFuncName;

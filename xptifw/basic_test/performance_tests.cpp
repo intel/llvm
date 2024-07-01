@@ -198,7 +198,7 @@ void TestPerformance::runDataStructureTestsThreads(
         record &r = MRecords[i % MTracepoints];
         uint64_t LookupIndex = r.lookup;
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
+        test::utils::ScopedNotify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
             Ev, MInstanceID, nullptr);
       }
@@ -383,7 +383,7 @@ void TestPerformance::runDataStructureTestsThreads(
             record &r = MRecords[i % MTracepoints];
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev = Events[LookupIndex];
-            xpti::framework::scoped_notify ev(
+            test::utils::ScopedNotify ev(
                 "xpti", (uint16_t)xpti::trace_point_type_t::region_begin,
                 nullptr, Ev, MInstanceID, nullptr);
           }
@@ -467,7 +467,7 @@ void TestPerformance::runNewDataStructureTestsThreads(
     }
     ModelRow[(int)DSColumns::STInsertLookup] = ElapsedTime;
 
-    std::vector<xpti::uid128_t> UIds;
+    std::vector<uint64_t> UIds;
     std::vector<xpti::payload_t *> Payloads;
     std::vector<xpti::trace_event_data_t *> Events;
     UIds.resize(MTracepoints);
@@ -482,12 +482,12 @@ void TestPerformance::runNewDataStructureTestsThreads(
         record &r = MRecords[i];
         int LookupIndex = r.lookup;
         std::string &fn = r.fn;
-        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, LookupIndex,
-                                            LookupIndex % 80, (void *)r.lookup);
-        xpti::trace_event_data_t *Ev = xptiCreateEvent(&P, &MInstanceID);
+        auto TP = xptiCreateTracepoint(fn.c_str(), MSource, LookupIndex,
+                                       LookupIndex % 80);
+        xpti::trace_event_data_t *Ev = TP->event_ref();
         if (Ev) {
           Payloads[LookupIndex] = Ev->reserved.payload;
-          UIds[LookupIndex] = Ev->universal_id;
+          UIds[LookupIndex] = Ev->unique_id;
           Events[LookupIndex] = Ev;
         }
       }
@@ -503,7 +503,9 @@ void TestPerformance::runNewDataStructureTestsThreads(
         record &r = MRecords[i];
         uint64_t LookupIndex = r.lookup;
         xpti::payload_t *P = Payloads[LookupIndex];
-        xpti::trace_event_data_t *Ev = xptiCreateEvent(P, &MInstanceID);
+        auto TP = xptiCreateTracepoint(P->name, P->source_file, P->line_no,
+                                       P->column_no);
+        xpti::trace_event_data_t *Ev = TP->event_ref();
       }
     }
     ModelRow[(int)DSColumns::TPUncachedLookup] = ElapsedTime;
@@ -516,7 +518,7 @@ void TestPerformance::runNewDataStructureTestsThreads(
         record &r = MRecords[i];
         uint64_t LookupIndex = r.lookup;
         xpti::trace_event_data_t *Ev = const_cast<xpti::trace_event_data_t *>(
-            xptiLookupEvent(&UIds[LookupIndex]));
+            xptiFindEvent(UIds[LookupIndex]));
       }
     }
     ModelRow[(int)DSColumns::TPFWCache] = ElapsedTime;
@@ -541,7 +543,7 @@ void TestPerformance::runNewDataStructureTestsThreads(
         record &r = MRecords[i % MTracepoints];
         uint64_t LookupIndex = r.lookup;
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
+        test::utils::ScopedNotify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
             Ev, MInstanceID, nullptr);
       }
@@ -559,7 +561,7 @@ void TestPerformance::runNewDataStructureTestsThreads(
 
     {
       std::vector<xpti::payload_t *> Payloads;
-      std::vector<xpti::uid128_t> UIds;
+      std::vector<uint64_t> UIds;
       std::vector<xpti::trace_event_data_t *> Events;
       UIds.resize(MTracepoints);
       Payloads.resize(MTracepoints);
@@ -640,15 +642,12 @@ void TestPerformance::runNewDataStructureTestsThreads(
             record &r = MRecords[i];
             int LookupIndex = r.lookup;
             std::string &fn = r.fn;
-            xpti::payload_t P =
-                xpti::payload_t(fn.c_str(), MSource, LookupIndex,
-                                LookupIndex % 80, (void *)r.lookup);
-            xpti::trace_event_data_t *Ev = xptiMakeEvent(
-                fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
-                xpti::trace_activity_type_t::active, &MInstanceID);
+            auto TP = xptiCreateTracepoint(fn.c_str(), MSource, LookupIndex,
+                                           LookupIndex % 80);
+            xpti::trace_event_data_t *Ev = TP->event_ref();
             if (Ev) {
               Payloads[LookupIndex] = Ev->reserved.payload;
-              UIds[LookupIndex] = Ev->universal_id;
+              UIds[LookupIndex] = Ev->unique_id;
               Events[LookupIndex] = Ev;
             }
           }
@@ -668,10 +667,10 @@ void TestPerformance::runNewDataStructureTestsThreads(
             int LookupIndex = r.lookup;
             std::string &fn = r.fn;
             xpti::payload_t *P = Payloads[LookupIndex];
-            xpti::trace_event_data_t *Ev = xptiCreateEvent(P, &MInstanceID);
-          }
+            auto TP = xptiCreateTracepoint(fn.c_str(), P->source_file,
+                                           P->line_no, P->column_no);
+          };
         };
-
         {
           test::utils::ScopedTimer Timer(TimeInNS, ElapsedTime, MTracepoints);
           PARALLEL_FOR(tp, ParTracepointLookupTask, 0, MTracepoints);
@@ -688,8 +687,9 @@ void TestPerformance::runNewDataStructureTestsThreads(
             record &r = MRecords[i];
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev =
-                const_cast<xpti::trace_event_data_t *>(
-                    xptiLookupEvent(&UIds[LookupIndex]));
+                (const_cast<xpti_trace_event_t *>(
+                     xptiLookupEvent(UIds[LookupIndex])))
+                    ->event_ref();
           }
         };
 
@@ -725,7 +725,7 @@ void TestPerformance::runNewDataStructureTestsThreads(
             record &r = MRecords[i % MTracepoints];
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev = Events[LookupIndex];
-            xpti::framework::scoped_notify ev(
+            test::utils::ScopedNotify ev(
                 "xpti", (uint16_t)xpti::trace_point_type_t::region_begin,
                 nullptr, Ev, MInstanceID, nullptr);
           }
@@ -811,7 +811,7 @@ void TestPerformance::runInstrumentationTestsThreads(
       for (int i = 0; i < MTracepointInstances; ++i) {
         int LookupIndex = MRndmTPIndex[i % MStringTableEntries];
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
+        test::utils::ScopedNotify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
             Ev, MInstanceID, nullptr);
       }
@@ -850,7 +850,7 @@ void TestPerformance::runInstrumentationTestsThreads(
           record &r = MRecords[i % MTracepoints];
           uint64_t LookupIndex = r.lookup;
           xpti::trace_event_data_t *Ev = Events[LookupIndex];
-          xpti::framework::scoped_notify ev(
+          test::utils::ScopedNotify ev(
               "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
               Ev, MInstanceID, nullptr);
         }
@@ -868,8 +868,8 @@ void TestPerformance::runInstrumentationTestsThreads(
       }
       ModelRow[(int)FWColumns::TPLookupAndNotify] = ElapsedTime;
       for (auto cost : cb_handler_cost) {
-        // Amount of non-instrumentation based work that needs to be present for
-        // it to meet the overhead constraints requested
+        // Amount of non-instrumentation based work that needs to be present
+        // for it to meet the overhead constraints requested
         overhead_based_cost = (ElapsedTime + cost.second) * (100.0 / MOverhead);
         ModelRow[(int)cost.first] = 1000000000 / overhead_based_cost;
       }
@@ -905,7 +905,11 @@ void TestPerformance::runNewInstrumentationTestsThreads(
         for (size_t i = 0; i < MTracepoints; ++i) {
           std::string &fn = MFunctions[i];
           xpti::payload_t P(fn.c_str(), MSource, i, i % 80, (void *)i);
-          xpti::trace_event_data_t *Ev = xptiCreateEvent(&P, &MInstanceID);
+          auto TP = xptiCreateTracepoint(fn.c_str(), MSource, i, i % 80);
+          // xpti::trace_event_data_t *Ev = xptiMakeEvent(
+          //     fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+          //     xpti::trace_activity_type_t::active, &MInstanceID);
+          xpti::trace_event_data_t *Ev = TP->event_ref();
           if (Ev) {
             Events[i] = Ev;
           }
@@ -915,7 +919,7 @@ void TestPerformance::runNewInstrumentationTestsThreads(
       for (int i = 0; i < MTracepointInstances; ++i) {
         int LookupIndex = MRndmTPIndex[i % MStringTableEntries];
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
+        test::utils::ScopedNotify ev(
             "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
             Ev, MInstanceID, nullptr);
       }
@@ -938,8 +942,8 @@ void TestPerformance::runNewInstrumentationTestsThreads(
       auto ParMakeTraceEventTask = [&](int min, int max) {
         for (size_t i = min; i < max; ++i) {
           std::string &fn = MFunctions[i];
-          xpti::payload_t P(fn.c_str(), MSource, i, i % 80, (void *)i);
-          xpti::trace_event_data_t *Ev = xptiCreateEvent(&P, &MInstanceID);
+          auto TP = xptiCreateTracepoint(fn.c_str(), MSource, i, i % 80);
+          xpti::trace_event_data_t *Ev = TP->event_ref();
           if (Ev) {
             Events[i] = Ev;
           }
@@ -951,7 +955,7 @@ void TestPerformance::runNewInstrumentationTestsThreads(
           record &r = MRecords[i % MTracepoints];
           uint64_t LookupIndex = r.lookup;
           xpti::trace_event_data_t *Ev = Events[LookupIndex];
-          xpti::framework::scoped_notify ev(
+          test::utils::ScopedNotify ev(
               "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
               Ev, MInstanceID, nullptr);
         }
@@ -969,8 +973,8 @@ void TestPerformance::runNewInstrumentationTestsThreads(
       }
       ModelRow[(int)FWColumns::TPLookupAndNotify] = ElapsedTime;
       for (auto cost : cb_handler_cost) {
-        // Amount of non-instrumentation based work that needs to be present for
-        // it to meet the overhead constraints requested
+        // Amount of non-instrumentation based work that needs to be present
+        // for it to meet the overhead constraints requested
         overhead_based_cost = (ElapsedTime + cost.second) * (100.0 / MOverhead);
         ModelRow[(int)cost.first] = 1000000000 / overhead_based_cost;
       }
