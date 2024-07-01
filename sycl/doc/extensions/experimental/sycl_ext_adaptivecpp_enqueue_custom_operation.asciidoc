@@ -1,4 +1,4 @@
-# sycl_ext_adaptivecpp_enqueue_custom_operation
+# sycl_ext_oneapi_enqueue_custom_operation
 
 ## Notice
 
@@ -35,7 +35,7 @@ q.submit([&](sycl::handler &cgh) {
                       hipMemcpyDeviceToHost, stream);
     });
   });
-q.wait()
+q.wait();
 ```
 
 Provided that the correct dependencies are handled in the SYCL runtime, there
@@ -47,14 +47,13 @@ submitted lambda.
 The goal of `sycl_ext_oneapi_enqueue_custom_operation` is to integrate interop
 work within the asynchronous SYCL DAG. As such, the user defined lambda must
 only enqueue asynchronous work within the user lambda. Asynchronous work must
-only be submitted  to the native queue obtained from
+only be submitted to the native queue obtained from
 `interop_handle::get_native_queue`.
 
-A lambda submitted to sycl_ext_oneapi_enqueue_custom_operation will be executed
-in the host thread, without waiting for any dependent events to complete. This
-is necessary in order for asynchronous interop work to be composed with
-asynchronous SYCL commands. This gives different sychronization guarantees from
-normal SYCL `host_task`s.
+A lambda submitted to sycl_ext_oneapi_enqueue_custom_operation may choose to
+not wait on dependent events to complete, in order for asynchronous interop
+work to be composed with asynchronous SYCL commands. This gives different
+sychronization guarantees from normal SYCL `host_task`s.
 
 In this example:
 
@@ -71,8 +70,8 @@ q.submit([&](sycl::handler &cgh) {
 q.wait()
 ```
 
-The print statement will likely print before `dep_event` has completed. However,
-the asynchronous memcpy submitted to the native queue obtained by
+The print statement may print before `dep_event` has completed. However, the
+asynchronous memcpy submitted to the native queue obtained by
 `interop_handle::get_native_queue` is guaranteed to have the correct
 dependencies, and therefore will only start once its dependent events have
 completed.
