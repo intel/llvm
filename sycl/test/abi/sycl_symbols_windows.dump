@@ -4587,6 +4587,7 @@
 ?select_device@filter_selector@ONEAPI@_V1@sycl@@UEBA?AVdevice@34@XZ
 ?select_device@filter_selector@oneapi@ext@_V1@sycl@@UEBA?AVdevice@45@XZ
 ?setAlign@SYCLMemObjT@detail@_V1@sycl@@QEAAX_K@Z
+?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVraw_kernel_arg@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVsampler@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
@@ -4601,6 +4602,7 @@
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
 ?setType@handler@_V1@sycl@@AEAAXW4CGTYPE@CG@detail@23@@Z
 ?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
+?set_arg@handler@_V1@sycl@@QEAAXH$$QEAVraw_kernel_arg@oneapi@ext@23@@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAX$$T@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
 ?set_final_data_from_storage@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
@@ -4626,6 +4628,7 @@
 ?size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
 ?start@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
 ?start_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
+?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@oneapi@ext@23@@Z
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
