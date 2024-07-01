@@ -3,7 +3,7 @@
 
 // 1. Accuracy is specified for particular math functions.
 // RUN: %clangxx %s -o %test_func.bc -ffp-accuracy=high:sin,sqrt -ffp-accuracy=medium:cos -ffp-accuracy=low:tan -ffp-accuracy=cuda:exp,acos -ffp-accuracy=sycl:log,asin  -fno-math-errno  -fsycl -fsycl-device-only
-// RUN: sycl-post-link -split=auto -symbols %test_func.bc -o %test_func.table
+// RUN: sycl-post-link -properties -split=auto -symbols %test_func.bc -o %test_func.table
 // RUN: FileCheck %s -input-file=%test_func.table --check-prefixes CHECK-FUNC-TABLE
 // RUN: FileCheck %s -input-file=%test_func_0.sym --check-prefixes CHECK-FUNC-M0-SYMS
 // RUN: FileCheck %s -input-file=%test_func_1.sym --check-prefixes CHECK-FUNC-M1-SYMS
@@ -14,14 +14,14 @@
 
 // 2. Accuracy is specified for TU.
 // RUN: %clangxx %s -o %test_tu.bc -ffp-accuracy=high -fno-math-errno -fsycl -fsycl-device-only
-// RUN: sycl-post-link -split=auto -symbols %test_tu.bc -o %test_tu.table
+// RUN: sycl-post-link -properties -split=auto -symbols %test_tu.bc -o %test_tu.table
 // RUN: FileCheck %s -input-file=%test_tu.table --check-prefixes CHECK-TU-TABLE
 // RUN: FileCheck %s -input-file=%test_tu_0.sym --check-prefixes CHECK-TU-M0-SYMS
 // RUN: FileCheck %s -input-file=%test_tu_1.sym --check-prefixes CHECK-TU-M1-SYMS
 
 // 3. Mixed case.
 // RUN: %clangxx %s -o %test_mix.bc -ffp-accuracy=medium -ffp-accuracy=high:sin,sqrt -ffp-accuracy=medium:cos -ffp-accuracy=cuda:exp -ffp-accuracy=sycl:log  -fno-math-errno  -fsycl -fsycl-device-only
-// RUN: sycl-post-link -split=auto -symbols %test_mix.bc -o %test_mix.table
+// RUN: sycl-post-link -properties -split=auto -symbols %test_mix.bc -o %test_mix.table
 // RUN: FileCheck %s -input-file=%test_mix.table --check-prefixes CHECK-MIX-TABLE
 // RUN: FileCheck %s -input-file=%test_mix_0.sym --check-prefixes CHECK-MIX-M0-SYMS
 // RUN: FileCheck %s -input-file=%test_mix_1.sym --check-prefixes CHECK-MIX-M1-SYMS

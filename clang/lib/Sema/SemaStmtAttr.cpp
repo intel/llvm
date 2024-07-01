@@ -700,7 +700,7 @@ bool Sema::CheckAlwaysInlineAttr(const Stmt *OrigSt, const Stmt *CurSt,
 static Attr *handleNoInlineAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange Range) {
   NoInlineAttr NIA(S.Context, A);
-  if (!NIA.isClangNoInline()) {
+  if (!NIA.isStmtNoInline()) {
     S.Diag(St->getBeginLoc(), diag::warn_function_attribute_ignored_in_stmt)
         << "[[clang::noinline]]";
     return nullptr;
@@ -1025,7 +1025,6 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
       S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
           << *FirstItr;
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
-      return;
     }
   }
 }
@@ -1263,10 +1262,8 @@ ExprResult Sema::ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
   }
 
   if (!getLangOpts().CPlusPlus23 &&
-      A.getSyntax() == AttributeCommonInfo::AS_CXX11) {
-    llvm::dbgs() << "Syntax: " << int(A.getSyntax()) << "\n";
+      A.getSyntax() == AttributeCommonInfo::AS_CXX11)
     Diag(A.getLoc(), diag::ext_cxx23_attr) << A << Range;
-  }
 
   return Assumption;
 }

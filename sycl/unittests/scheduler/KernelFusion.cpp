@@ -22,7 +22,8 @@ template <typename T, int Dim>
 detail::Command *CreateTaskCommand(MockScheduler &MS,
                                    detail::QueueImplPtr DevQueue,
                                    buffer<T, Dim> &buf) {
-  MockHandlerCustomFinalize MockCGH(DevQueue, false);
+  MockHandlerCustomFinalize MockCGH(DevQueue, false,
+                                    /*CallerNeedsEvent=*/true);
 
   auto acc = buf.get_access(static_cast<sycl::handler &>(MockCGH));
 
@@ -36,7 +37,8 @@ detail::Command *CreateTaskCommand(MockScheduler &MS,
   auto CmdGrp = MockCGH.finalize();
 
   std::vector<detail::Command *> ToEnqueue;
-  detail::Command *NewCmd = MS.addCG(std::move(CmdGrp), DevQueue, ToEnqueue);
+  detail::Command *NewCmd =
+      MS.addCG(std::move(CmdGrp), DevQueue, ToEnqueue, /*EventNeeded=*/true);
   EXPECT_EQ(ToEnqueue.size(), 0u);
   return NewCmd;
 }

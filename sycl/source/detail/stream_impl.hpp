@@ -22,12 +22,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-class __SYCL_EXPORT stream_impl {
+class stream_impl {
 public:
-  // TODO: This constructor is unused.
-  // To be removed when API/ABI changes are allowed.
-  stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
-
   stream_impl(size_t BufferSize, size_t MaxStatementSize,
               const property_list &PropList);
 
@@ -49,19 +45,9 @@ public:
   // LeadEvent as well as in queue LeadEvent associated with.
   void flush(const EventImplPtr &LeadEvent);
 
-  // Enqueue task to copy stream buffer to the host and print the contents
-  // Remove during next ABI breaking window
-  void flush();
-
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
-
-  // TODO: Unusued. Remove when ABI-break is allowed.
-  size_t get_size() const;
-
-  // TODO: Unusued. Remove when ABI-break is allowed.
-  size_t get_max_statement_size() const;
 
   template <typename propertyT> bool has_property() const noexcept {
     return PropList_.has_property<propertyT>();
