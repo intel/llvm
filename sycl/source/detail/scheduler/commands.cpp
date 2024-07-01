@@ -321,7 +321,7 @@ class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
-  pi_result waitForEvents() const {
+  bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -343,14 +343,14 @@ class DispatchHostTask {
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
-      } catch (const sycl::exception &E) {
+      } catch (const sycl::exception &) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
+        return false;
       } catch (...) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
+        return false;
       }
     }
 
@@ -360,7 +360,7 @@ class DispatchHostTask {
       Event->waitInternal();
     }
 
-    return PI_SUCCESS;
+    return true;
   }
 
 public:
@@ -385,11 +385,10 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+    if (!waitForEvents()) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
+          make_error_code(errc::runtime),
+          std::string("Couldn't wait for host-task's dependencies")));
       HostTask.MQueue->reportAsyncException(EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
@@ -3001,8 +3000,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getDeviceImplPtr()->getBackend() ==
-                              backend::ext_intel_esimd_emulator)) {
+    if (MQueue->is_host()) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -3015,20 +3013,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      if (MQueue->is_host()) {
-        ExecKernel->MHostKernel->call(NDRDesc,
-                                      getEvent()->getHostProfilingInfo());
-      } else {
-        assert(MQueue->getDeviceImplPtr()->getBackend() ==
-               backend::ext_intel_esimd_emulator);
-        if (MEvent != nullptr)
-          MEvent->setHostEnqueueTime();
-        MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      }
+      ExecKernel->MHostKernel->call(NDRDesc,
+                                    getEvent()->getHostProfilingInfo());
       return PI_SUCCESS;
     }
 

@@ -516,12 +516,10 @@ private:
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 
   /// Stores copy of Arg passed to the CGData.MArgsStorage.
-  template <typename T, typename F = typename std::remove_const_t<
-                            typename std::remove_reference_t<T>>>
-  F *storePlainArg(T &&Arg) {
+  template <typename T> void *storePlainArg(T &&Arg) {
     CGData.MArgsStorage.emplace_back(sizeof(T));
-    auto Storage = reinterpret_cast<F *>(CGData.MArgsStorage.back().data());
-    *Storage = Arg;
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, &Arg, sizeof(T));
     return Storage;
   }
 
@@ -728,7 +726,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -740,7 +738,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
