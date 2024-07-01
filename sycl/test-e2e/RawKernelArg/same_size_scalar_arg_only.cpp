@@ -1,6 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// REQUIRES: ocloc && (opencl || level_zero)
-// UNSUPPORTED: accelerator
+// REQUIRES: ocloc && level_zero
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
