@@ -17,6 +17,7 @@
 #include <compiler/utils/attributes.h>
 #include <compiler/utils/encode_kernel_metadata_pass.h>
 #include <compiler/utils/metadata.h>
+#include <llvm/IR/Module.h>
 
 using namespace llvm;
 
