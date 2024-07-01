@@ -27,3 +27,16 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma(double x) {
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_lgamma, double)
 
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_lgamma(half x) {
+  int s;
+  return __spirv_ocl_lgamma_r(x, &s);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_lgamma, half)
+
+#endif

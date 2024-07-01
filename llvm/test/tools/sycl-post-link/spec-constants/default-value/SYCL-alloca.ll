@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t_1.ll --implicit-check-not="SpecConst"
 
 ; This test checks that the post link tool is able to correctly transform

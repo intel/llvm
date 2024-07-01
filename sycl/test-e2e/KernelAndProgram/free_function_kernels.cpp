@@ -46,10 +46,10 @@ bool checkUSM(int *usmPtr, int size, int *Result) {
   return false;
 }
 
-SYCL_EXTERNAL
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel))
-void ff_0(int *ptr, int start, int end) {
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel)) void ff_0(int *ptr,
+                                                               int start,
+                                                               int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start + end;
 }
@@ -73,9 +73,11 @@ bool test_0(queue Queue) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = get_kernel_id<ff_0>();
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<ff_0>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
@@ -85,10 +87,11 @@ bool test_0(queue Queue) {
     Handler.single_task(Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -120,9 +123,12 @@ bool test_1(queue Queue) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = get_kernel_id<(void (*)(int *, int, int))ff_1>();
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(int *, int, int))ff_1>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
@@ -132,10 +138,11 @@ bool test_1(queue Queue) {
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -172,9 +179,12 @@ bool test_2(queue Queue) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = get_kernel_id<(void (*)(int *, int))ff_1>();
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(int *, int))ff_1>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
@@ -183,10 +193,11 @@ bool test_2(queue Queue) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -225,9 +236,12 @@ bool test_3(queue Queue) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = get_kernel_id<(void (*)(int *, int))ff_3>();
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(int *, int))ff_3<int>>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
@@ -236,10 +250,11 @@ bool test_3(queue Queue) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 

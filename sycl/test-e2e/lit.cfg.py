@@ -689,6 +689,7 @@ for sycl_device in config.sycl_devices:
 
     dev_aspects = []
     dev_sg_sizes = []
+    architectures = set()
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
@@ -713,6 +714,9 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
+        if re.match(r" *Architecture:", line):
+            _, architecture = line.strip().split(":", 1)
+            architectures.add(architecture.strip())
 
     if dev_aspects == []:
         lit_config.error(
@@ -738,11 +742,32 @@ for sycl_device in config.sycl_devices:
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
+    # Currently, for fpga, the architecture reported by sycl-ls will always
+    # be unknown, as there are currently no architectures specified for fpga
+    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
+    # in this case.
+    if sycl_device == "opencl:fpga":
+        architectures = set()
+    else:
+        lit_config.note(
+            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+        )
+        if len(architectures) != 1 or "unknown" in architectures:
+            if not config.allow_unknown_arch:
+                lit_config.error(
+                    "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                        sycl_device, sp.stdout, sp.stderr
+                    )
+                )
+            architectures = set()
+
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
+    architecture_feature = set("architecture-" + s for s in architectures)
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
+    features.update(architecture_feature)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
