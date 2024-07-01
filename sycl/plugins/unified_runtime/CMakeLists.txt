@@ -110,11 +110,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 72c8aa173551f6b4b570baa87c3fb43decc67933
+    # commit 51cbcea6e8ffd4ca6e2be918335be509ae6f401c
     # Author: Duncan Brawley <duncan.brawley@codeplay.com>
     # Date:   Mon, 10 Jun 2024 17:27:17 +0100
     #     [Bindless][Exp] Create mapping of host and device handle
-    72c8aa173551f6b4b570baa87c3fb43decc67933
+    51cbcea6e8ffd4ca6e2be918335be509ae6f401c
   )
 
   fetch_adapter_source(opencl
