@@ -147,7 +147,7 @@ public:
                        const detail::EventImplPtr &OutEventImpl);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                       int Pattern,
+                       const std::vector<char> &Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
                        const detail::EventImplPtr &OutEventImpl);
@@ -242,7 +242,7 @@ public:
   static void ext_oneapi_fill_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-      size_t Len, int Pattern,
+      size_t Len, const std::vector<char> &Pattern,
       std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 

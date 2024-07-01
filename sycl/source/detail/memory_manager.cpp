@@ -918,7 +918,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
   assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
+         "Host queue not supported in copy_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -945,7 +945,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -968,9 +968,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  Plugin->call<PiApiKind::piextUSMEnqueueFill>(
+      Queue->getHandleRef(), Mem, Pattern.data(), Pattern.size(), Length,
+      DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(
@@ -1569,7 +1569,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    size_t Len, const std::vector<char> &Pattern,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
 
   if (!DstMem)
@@ -1577,10 +1578,9 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  // Pattern is interpreted as an unsigned char so pattern size is always 1.
-  size_t PatternSize = 1;
+
   Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
-      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
       Deps.data(), OutSyncPoint);
 }
 

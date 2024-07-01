@@ -171,11 +171,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-
+  const std::vector<char> Pattern{static_cast<char>(Value)};
   return submitMemOpHelper(
       Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count, Value);
+      Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
@@ -213,7 +213,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-  // Notify XPTI about the memset submission
+  // Notify XPTI about the memcpy submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);

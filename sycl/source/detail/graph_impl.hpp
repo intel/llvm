@@ -703,8 +703,10 @@ private:
         sycl::detail::CGFillUSM *FillUSM =
             static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
         Stream << "Dst: " << FillUSM->getDst()
-               << " Length: " << FillUSM->getLength()
-               << " Pattern: " << FillUSM->getFill() << "\\n";
+               << " Length: " << FillUSM->getLength() << " Pattern: ";
+        for (auto byte : FillUSM->getPattern())
+          Stream << byte;
+        Stream << "\\n";
       }
       break;
     case sycl::detail::CG::CGTYPE::PrefetchUSM:
