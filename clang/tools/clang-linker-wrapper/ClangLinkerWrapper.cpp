@@ -495,10 +495,15 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
   return Error::success();
 }
 
-// This routine is used to convert SPIR-V input files into LLVM IR files.
-// If input is not a SPIR-V file, then the original file is returned.
-// TODO: Add a check to identify SPIR-V files and exit early if the input is
-// not a SPIR-V file.
+/// This routine is used to convert SPIR-V input files into LLVM IR files.
+/// 'llvm-spirv -r' command is used for this purpose.
+/// If input is not a SPIR-V file, then the original file is returned.
+/// TODO: Add a check to identify SPIR-V files and exit early if the input is
+/// not a SPIR-V file.
+/// 'Filename' is the input file that could be a SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-spirv tool.
 static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
                                             const ArgList &Args) {
   Expected<std::string> SPIRVToIRWrapperPath = findProgram(
@@ -525,10 +530,10 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
-// Add any sycl-post-link options that rely on a specific Triple in addition
-// to user supplied options.
-// NOTE: Any changes made here should be reflected in the similarly named
-// function in clang/lib/Driver/ToolChains/Clang.cpp.
+/// Add any sycl-post-link options that rely on a specific Triple in addition
+/// to user supplied options.
+/// NOTE: Any changes made here should be reflected in the similarly named
+/// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                                SmallVector<StringRef, 8> &PostLinkArgs,
@@ -590,7 +595,11 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
     PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
 }
 
-// Run sycl-post-link tool
+/// Run sycl-post-link tool for SYCL offloading.
+/// 'InputFiles' is the list of input LLVM IR files.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// sycl-post-link tool.
 static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
                                            const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
@@ -693,10 +702,10 @@ struct Table {
   }
 };
 
-// Add any llvm-spirv option that relies on a specific Triple in addition
-// to user supplied options.
-// NOTE: Any changes made here should be reflected in the similarly named
-// function in clang/lib/Driver/ToolChains/Clang.cpp.
+/// Add any llvm-spirv option that relies on a specific Triple in addition
+/// to user supplied options.
+/// NOTE: Any changes made here should be reflected in the similarly named
+/// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSPIRVTransOpts(const ArgList &Args,
                              SmallVector<StringRef, 8> &TranslatorArgs,
@@ -767,7 +776,11 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
-// Run LLVM to SPIR-V translation.
+/// Run LLVM to SPIR-V translation.
+/// Converts 'File' from LLVM bitcode to SPIR-V format using llvm-spirv tool.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-spirv tool.
 static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
                                                      const ArgList &Args) {
   Expected<std::string> LLVMToSPIRVPath =
@@ -799,6 +812,13 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   return *TempFileOrErr;
 }
 
+/// Adds all AOT backend options required for SYCL AOT compilation step to
+/// 'CmdArgs'.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate backend options required to be passed
+/// into the SYCL AOT compilation step.
+/// IsCPU is a bool used to direct option generation. If IsCPU is false, then
+/// options are generated for AOT compilation targeting Intel GPUs.
 static void addBackendOptions(const ArgList &Args,
                               SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
   StringRef OptC =
@@ -813,7 +833,12 @@ static void addBackendOptions(const ArgList &Args,
   return;
 }
 
-/// Run AOT compilation for Intel CPU
+/// Run AOT compilation for Intel CPU.
+/// Calls opencl-aot tool to generate device code for Intel CPU backend.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
                                                  const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
@@ -841,6 +866,11 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 }
 
 /// Run AOT compilation for Intel GPU
+/// Calls ocloc tool to generate device code for Intel GPU backend.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
                                                  const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
@@ -874,7 +904,11 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
   return *TempFileOrErr;
 }
 
-/// Run AOT compilation
+/// Run AOT compilation for Intel CPU/GPU.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
@@ -1045,7 +1079,11 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   return OutputFilePath;
 }
 
-// Run llc
+/// Run llc tool for SYCL offloading.
+/// 'InputFile' is the wrapped input file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llc tool.
 static Expected<StringRef> runCompile(StringRef &InputFile,
                                       const ArgList &Args) {
   // Create a new file to write the output of llc to.
@@ -1086,7 +1124,12 @@ static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-// Link all SYCL input files into one before adding device library files.
+/// Link all SYCL device input files into one before adding device library
+/// files. Device linking is performed using llvm-link tool.
+/// 'InputFiles' is the list of all LLVM IR device input files.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-link tool.
 Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
                                          const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
@@ -1118,7 +1161,12 @@ Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
-// Link all device library files and input file into one.
+/// Link all device library files and input file into one LLVM IR file. This
+/// linking is performed using llvm-link tool.
+/// 'InputFiles' is the list of all LLVM IR device input files.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-link tool.
 static Expected<StringRef>
 linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
                    const ArgList &Args) {
@@ -1148,6 +1196,13 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
+/// This function is used to link all SYCL device input files into a single
+/// LLVM IR file. This file is in turn linked with all SYCL device library
+/// files.
+/// 'InputFiles' is the list of all LLVM IR device input files.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-link tool.
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                       const ArgList &Args) {
   SmallVector<StringRef, 16> InputFilesVec;
@@ -1211,6 +1266,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     }
   }
 
+  // Make sure that SYCL device library files are available.
+  // Note: For AMD targets, we do not pass any SYCL device libraries.
   if (ExtractedDeviceLibFiles.empty()) {
     // TODO: Add NVPTX when ready
     if (Triple.isSPIROrSPIRV())
