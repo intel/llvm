@@ -339,9 +339,13 @@ class device_ext : public sycl::device {
 public:
   device_ext() : sycl::device(), _ctx(*this) {}
   ~device_ext() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    sycl::event::wait(_events);
-    _queues.clear();
+    try {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      sycl::event::wait(_events);
+      _queues.clear();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_ext", e);
+    }
   }
   device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
              bool in_order = true)
@@ -938,4 +942,7 @@ static inline unsigned int get_device_id(const sycl::device &dev) {
   return detail::dev_mgr::instance().get_device_id(dev);
 }
 
+static inline unsigned int device_count() {
+  return detail::dev_mgr::instance().device_count();
+}
 } // namespace syclcompat

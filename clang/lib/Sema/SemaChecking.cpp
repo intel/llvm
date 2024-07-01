@@ -3882,7 +3882,7 @@ bool Sema::CheckARMBuiltinExclusiveCall(unsigned BuiltinID, CallExpr *TheCall,
   const PointerType *pointerType = PointerArg->getType()->getAs<PointerType>();
   if (!pointerType) {
     Diag(DRE->getBeginLoc(), diag::err_atomic_builtin_must_be_pointer)
-        << PointerArg->getType() << PointerArg->getSourceRange();
+        << PointerArg->getType() << 0 << PointerArg->getSourceRange();
     return true;
   }
 
@@ -3916,7 +3916,7 @@ bool Sema::CheckARMBuiltinExclusiveCall(unsigned BuiltinID, CallExpr *TheCall,
   if (!ValType->isIntegerType() && !ValType->isAnyPointerType() &&
       !ValType->isBlockPointerType() && !ValType->isFloatingType()) {
     Diag(DRE->getBeginLoc(), diag::err_atomic_builtin_must_be_pointer_intfltptr)
-        << PointerArg->getType() << PointerArg->getSourceRange();
+        << PointerArg->getType() << 0 << PointerArg->getSourceRange();
     return true;
   }
 
@@ -5754,6 +5754,28 @@ bool Sema::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
   // position of memory order and scope arguments in the builtin
   unsigned OrderIndex, ScopeIndex;
   switch (BuiltinID) {
+  case AMDGPU::BI__builtin_amdgcn_global_load_lds: {
+    constexpr const int SizeIdx = 2;
+    llvm::APSInt Size;
+    Expr *ArgExpr = TheCall->getArg(SizeIdx);
+    ExprResult R = VerifyIntegerConstantExpression(ArgExpr, &Size);
+    if (R.isInvalid())
+      return true;
+    switch (Size.getSExtValue()) {
+    case 1:
+    case 2:
+    case 4:
+      return false;
+    default:
+      Diag(ArgExpr->getExprLoc(),
+           diag::err_amdgcn_global_load_lds_size_invalid_value)
+          << ArgExpr->getSourceRange();
+      Diag(ArgExpr->getExprLoc(),
+           diag::note_amdgcn_global_load_lds_size_valid_value)
+          << ArgExpr->getSourceRange();
+      return true;
+    }
+  }
   case AMDGPU::BI__builtin_amdgcn_get_fpenv:
   case AMDGPU::BI__builtin_amdgcn_set_fpenv:
     return false;
@@ -6185,10 +6207,9 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
   }
 
   // Check size is passed as a specialization constant
-  const auto CheckSize = [this, IsAlignedAlloca, ElementTypeIndex,
-                          SpecNameIndex](const ASTContext &Ctx,
-                                         SourceLocation Loc,
-                                         const TemplateArgumentList *CST) {
+  const auto CheckSize = [this, IsAlignedAlloca, SpecNameIndex](
+                             const ASTContext &Ctx, SourceLocation Loc,
+                             const TemplateArgumentList *CST) {
     TemplateArgument TA = CST->get(SpecNameIndex);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
@@ -7165,7 +7186,7 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
   const PointerType *pointerType = Ptr->getType()->getAs<PointerType>();
   if (!pointerType) {
     Diag(ExprRange.getBegin(), diag::err_atomic_builtin_must_be_pointer)
-        << Ptr->getType() << Ptr->getSourceRange();
+        << Ptr->getType() << 0 << Ptr->getSourceRange();
     return ExprError();
   }
 
@@ -7192,6 +7213,13 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
           << Ptr->getType() << Ptr->getSourceRange();
       return ExprError();
     }
+  }
+
+  // Pointer to object of size zero is not allowed.
+  if (Context.getTypeInfoInChars(AtomTy).Width.isZero()) {
+    Diag(ExprRange.getBegin(), diag::err_atomic_builtin_must_be_pointer)
+        << Ptr->getType() << 1 << Ptr->getSourceRange();
+    return ExprError();
   }
 
   // For an arithmetic operation, the implied arithmetic must be well-formed.
@@ -7585,7 +7613,7 @@ ExprResult Sema::BuiltinAtomicOverloaded(ExprResult TheCallResult) {
   const PointerType *pointerType = FirstArg->getType()->getAs<PointerType>();
   if (!pointerType) {
     Diag(DRE->getBeginLoc(), diag::err_atomic_builtin_must_be_pointer)
-        << FirstArg->getType() << FirstArg->getSourceRange();
+        << FirstArg->getType() << 0 << FirstArg->getSourceRange();
     return ExprError();
   }
 
@@ -7593,7 +7621,7 @@ ExprResult Sema::BuiltinAtomicOverloaded(ExprResult TheCallResult) {
   if (!ValType->isIntegerType() && !ValType->isAnyPointerType() &&
       !ValType->isBlockPointerType()) {
     Diag(DRE->getBeginLoc(), diag::err_atomic_builtin_must_be_pointer_intptr)
-        << FirstArg->getType() << FirstArg->getSourceRange();
+        << FirstArg->getType() << 0 << FirstArg->getSourceRange();
     return ExprError();
   }
 

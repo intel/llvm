@@ -80,15 +80,29 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-    : handler(Queue, Queue, nullptr, IsHost) {}
+    : handler(Queue, IsHost, /*CallerNeedsEvent=*/true) {}
 
+/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool IsHost)
+    : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
+              /*CallerNeedsEvent=*/true) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                 bool CallerNeedsEvent)
+    : handler(Queue, Queue, nullptr, IsHost, CallerNeedsEvent) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool IsHost, bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                   std::move(SecondaryQueue))),
+                                                   std::move(SecondaryQueue),
+                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
 handler::handler(
@@ -279,40 +293,10 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          if (MQueue->getDeviceImplPtr()->getBackend() ==
-              backend::ext_intel_esimd_emulator) {
-            // Capture the host timestamp for profiling (queue time)
-            if (NewEvent != nullptr)
-              NewEvent->setHostEnqueueTime();
-            [&](auto... Args) {
-              if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
-              } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
-              }
-            }(/* queue */
-              nullptr,
-              /* kernel */
-              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-              /* work_dim */
-              MNDRDesc.Dims,
-              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
-              /* global_work_size */ &MNDRDesc.GlobalSize[0],
-              /* local_work_size */ &MNDRDesc.LocalSize[0],
-              /* num_events_in_wait_list */ 0,
-              /* event_wait_list */ nullptr,
-              /* event */ nullptr);
-            Result = PI_SUCCESS;
-          } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-          }
+          Result = enqueueImpKernel(
+              MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+              MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
@@ -327,8 +311,9 @@ event handler::finalize() {
         return Result;
       };
 
-      bool DiscardEvent = false;
-      if (MQueue->supportsDiscardingPiEvents()) {
+      bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
+                          MQueue->supportsDiscardingPiEvents();
+      if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
@@ -341,6 +326,9 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
+        auto EventImpl = std::make_shared<detail::event_impl>(
+            detail::event_impl::HES_Discarded);
+        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -518,11 +506,13 @@ event handler::finalize() {
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
-        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MWaitValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::SemaphoreSignal:
     CommandGroup.reset(new detail::CGSemaphoreSignal(
-        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MSignalValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
@@ -604,7 +594,7 @@ event handler::finalize() {
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue));
+      std::move(CommandGroup), std::move(MQueue), MImpl->MEventNeeded);
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
@@ -1404,8 +1394,40 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              opaque_fd &&
+      SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              win32_nt_handle) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore used needs a user passed wait value.");
+  }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MWaitValue = {};
+  setType(detail::CG::SemaphoreWait);
+}
+
+void handler::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t WaitValue) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+          win32_nt_dx12_fence) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore does not support user passed wait values.");
+  }
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MWaitValue = WaitValue;
   setType(detail::CG::SemaphoreWait);
 }
 
@@ -1414,8 +1436,40 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              opaque_fd &&
+      SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              win32_nt_handle) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore used needs a user passed signal value.");
+  }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MSignalValue = {};
+  setType(detail::CG::SemaphoreSignal);
+}
+
+void handler::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t SignalValue) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+          win32_nt_dx12_fence) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore does not support user passed signal values.");
+  }
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MSignalValue = SignalValue;
   setType(detail::CG::SemaphoreSignal);
 }
 
@@ -1745,5 +1799,7 @@ void handler::registerDynamicParameter(
   }
   MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
 }
+
+bool handler::eventNeeded() const { return MImpl->MEventNeeded; }
 } // namespace _V1
 } // namespace sycl

@@ -69,7 +69,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
@@ -77,7 +76,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
@@ -86,7 +84,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.so"
@@ -94,7 +91,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dylib"
@@ -146,8 +142,12 @@ using PiImageMemHandle = ::pi_image_mem_handle;
 using PiImageCopyFlags = ::pi_image_copy_flags;
 using PiInteropMemHandle = ::pi_interop_mem_handle;
 using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiExternalMemDescriptor = ::pi_external_mem_descriptor;
+using PiExternalSemaphoreDescriptor = ::pi_external_semaphore_descriptor;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
+using PiPhysicalMem = ::pi_physical_mem;
+using PiVirtualAccessFlags = ::pi_virtual_access_flags;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

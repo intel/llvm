@@ -120,6 +120,8 @@ piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
 piextGetGlobalVariablePointer
+piextImportExternalMemory
+piextImportExternalSemaphore
 piextImportExternalSemaphoreOpaqueFD
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
@@ -144,6 +146,9 @@ piextMemSampledImageHandleDestroy
 piextMemUnsampledImageCreate
 piextMemUnsampledImageHandleDestroy
 piextPeerAccessGetInfo
+piextPhysicalMemCreate
+piextPhysicalMemRelease
+piextPhysicalMemRetain
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData
@@ -169,4 +174,11 @@ piextUSMImport
 piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
+piextVirtualMemFree
+piextVirtualMemGetInfo
+piextVirtualMemGranularityGetInfo
+piextVirtualMemMap
+piextVirtualMemReserve
+piextVirtualMemSetAccess
+piextVirtualMemUnmap
 piextWaitExternalSemaphore

@@ -145,23 +145,27 @@ cl_context context_impl::get() const {
 bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
-  // Free all events associated with the initialization of device globals.
-  for (auto &DeviceGlobalInitializer : MDeviceGlobalInitializers)
-    DeviceGlobalInitializer.second.ClearEvents(getPlugin());
-  // Free all device_global USM allocations associated with this context.
-  for (const void *DeviceGlobal : MAssociatedDeviceGlobals) {
-    DeviceGlobalMapEntry *DGEntry =
-        detail::ProgramManager::getInstance().getDeviceGlobalEntry(
-            DeviceGlobal);
-    DGEntry->removeAssociatedResources(this);
-  }
-  for (auto LibProg : MCachedLibPrograms) {
-    assert(LibProg.second && "Null program must not be kept in the cache");
-    getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
-  }
-  if (!MHostContext) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
+  try {
+    // Free all events associated with the initialization of device globals.
+    for (auto &DeviceGlobalInitializer : MDeviceGlobalInitializers)
+      DeviceGlobalInitializer.second.ClearEvents(getPlugin());
+    // Free all device_global USM allocations associated with this context.
+    for (const void *DeviceGlobal : MAssociatedDeviceGlobals) {
+      DeviceGlobalMapEntry *DGEntry =
+          detail::ProgramManager::getInstance().getDeviceGlobalEntry(
+              DeviceGlobal);
+      DGEntry->removeAssociatedResources(this);
+    }
+    for (auto LibProg : MCachedLibPrograms) {
+      assert(LibProg.second && "Null program must not be kept in the cache");
+      getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
+    }
+    if (!MHostContext) {
+      // TODO catch an exception and put it to list of asynchronous exceptions
+      getPlugin()->call<PiApiKind::piContextRelease>(MContext);
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
 }
 

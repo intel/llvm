@@ -465,6 +465,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// TODO: Unused. Remove with ABI break.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
 
   /// Constructs SYCL handler from the associated queue and the submission's
@@ -476,9 +477,35 @@ private:
   /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
   ///        is null if no secondary queue is associated with the submission.
   /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// TODO: Unused. Remove with ABI break.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+
+  /// Constructs SYCL handler from queue.
+  ///
+  /// \param Queue is a SYCL queue.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+          bool CallerNeedsEvent);
+
+  /// Constructs SYCL handler from the associated queue and the submission's
+  /// primary and secondary queue.
+  ///
+  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
+  ///        SecondaryQueue.
+  /// \param PrimaryQueue is the primary SYCL queue of the submission.
+  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
+  ///        is null if no secondary queue is associated with the submission.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost,
+          bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -489,12 +516,10 @@ private:
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 
   /// Stores copy of Arg passed to the CGData.MArgsStorage.
-  template <typename T, typename F = typename std::remove_const_t<
-                            typename std::remove_reference_t<T>>>
-  F *storePlainArg(T &&Arg) {
+  template <typename T> void *storePlainArg(T &&Arg) {
     CGData.MArgsStorage.emplace_back(sizeof(T));
-    auto Storage = reinterpret_cast<F *>(CGData.MArgsStorage.back().data());
-    *Storage = Arg;
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, &Arg, sizeof(T));
     return Storage;
   }
 
@@ -576,6 +601,16 @@ private:
   ///
   /// \return a SYCL event object representing the command group
   event finalize();
+
+  /// Constructs CG object of specific type, passes it to Scheduler and
+  /// returns sycl::event object representing the command group.
+  /// It's expected that the method is the latest method executed before
+  /// object destruction.
+  /// \param CallerNeedsEvent Specifies if the caller needs an event
+  /// representing the work related to this handler.
+  ///
+  /// \return a SYCL event object representing the command group
+  event finalize(bool CallerNeedsEvent);
 
   /// Saves streams associated with this handler.
   ///
@@ -691,7 +726,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -703,7 +738,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
@@ -1185,6 +1220,8 @@ private:
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
   }
+
+  bool eventNeeded() const;
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
@@ -3296,22 +3333,48 @@ public:
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
 
-  /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
-  /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// commands submitted to the queue have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Instruct the queue to set the state of the external semaphore to
+  /// \p SignalValue once all previous commands submitted to the queue have
+  /// completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;

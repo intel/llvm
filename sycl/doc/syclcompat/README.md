@@ -918,6 +918,12 @@ static inline void list_devices();
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
 
+// Util function to get the device id from a device
+static inline unsigned int get_device_id(const sycl::device &dev);
+
+// Util function to get the number of available devices
+static inline unsigned int device_count();
+
 } // syclcompat
 ```
 
