@@ -274,7 +274,7 @@ public:
 
   ContextImplPtr getContextImplPtr() {
     if (MIsDefaultConstructed)
-      tryToInitContext();
+      initContextIfNeeded();
     return MContext;
   }
 
@@ -400,7 +400,7 @@ protected:
 
   // Events constructed without a context will lazily use the default context
   // when needed.
-  void tryToInitContext();
+  void initContextIfNeeded();
   // Event class represents 3 different kinds of operations:
   // | type  | has PI event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |
