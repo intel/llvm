@@ -4,22 +4,16 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang -cc1 %s -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t.bc
-// RUN: clang-offload-packager -o %t.out --image=file=%t.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t.o \
-// RUN:   -fembed-offload-object=%t.out
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.o
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: echo '' > %t.devicelib.cpp
-// RUN: %clang -cc1 %t.devicelib.cpp -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t.devicelib.bc
-// RUN: clang-offload-packager -o %t.devicelib.out --image=file=%t.devicelib.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t.devicelib.o \
-// RUN:   -fembed-offload-object=%t.devicelib.out
+// RUN: touch %t.devicelib.cpp
+// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper -sycl-device-library-location= -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
+// RUN: clang-linker-wrapper -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
 // CHK-CMDS: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts=--spirv-preserve-auxdata --llvm-spirv-opts=--spirv-target-env=SPV-IR --llvm-spirv-opts=--spirv-builtin-format=global
 // CHK-CMDS-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
@@ -33,22 +27,16 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang -cc1 %s -triple spir64_gen-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t1.bc
-// RUN: clang-offload-packager -o %t1.out --image=file=%t1.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=pvc
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t1.o \
-// RUN:   -fembed-offload-object=%t1.out
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t1.o
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: echo '' > %t1.devicelib.cpp
-// RUN: %clang -cc1 %t1.devicelib.cpp -triple spir64_gen-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t1.devicelib.bc
-// RUN: clang-offload-packager -o %t1.devicelib.out --image=file=%t1.devicelib.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=pvc
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t1.devicelib.o \
-// RUN:   -fembed-offload-object=%t1.devicelib.out
+// RUN: touch %t1.devicelib.cpp
+// RUN: %clang %t1.devicelib.cpp -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t1.devicelib.o
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper -sycl-device-library-location= -sycl-device-libraries=%t1.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-GEN %s
+// RUN: clang-linker-wrapper -sycl-device-libraries=%t1.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-GEN %s
 // CHK-CMDS-AOT-GEN: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts=--spirv-preserve-auxdata --llvm-spirv-opts=--spirv-target-env=SPV-IR --llvm-spirv-opts=--spirv-builtin-format=global
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
@@ -63,22 +51,16 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang -cc1 %s -triple spir64_x86_64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t2.bc
-// RUN: clang-offload-packager -o %t2.out --image=file=%t2.bc,kind=sycl,triple=spir64_x86_64-unknown-unknown
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t2.o \
-// RUN:   -fembed-offload-object=%t2.out
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t2.o
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: echo '' > %t2.devicelib.cpp
-// RUN: %clang -cc1 %t2.devicelib.cpp -triple spir64_x86_64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t2.devicelib.bc
-// RUN: clang-offload-packager -o %t2.devicelib.out --image=file=%t2.devicelib.bc,kind=sycl,triple=spir64_x86_64-unknown-unknown
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t2.devicelib.o \
-// RUN:   -fembed-offload-object=%t2.devicelib.out
+// RUN: touch %t2.devicelib.cpp
+// RUN: %clang %t2.devicelib.cpp -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t2.devicelib.o
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper -sycl-device-library-location= -sycl-device-libraries=%t2.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-CPU %s
+// RUN: clang-linker-wrapper -sycl-device-libraries=%t2.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t2.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-CPU %s
 // CHK-CMDS-AOT-CPU: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts=--spirv-preserve-auxdata --llvm-spirv-opts=--spirv-target-env=SPV-IR --llvm-spirv-opts=--spirv-builtin-format=global
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-CPU-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
@@ -93,22 +75,16 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t3.bc
-// RUN: clang-offload-packager -o %t3.out --image=file=%t3.bc,kind=sycl,triple=nvptx64-nvidia-cuda
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t3.o \
-// RUN:   -fembed-offload-object=%t3.out
+// RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -c -nocudalib -fno-sycl-libspirv --offload-new-driver -o %t3.o
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: echo '' > %t3.devicelib.cpp
-// RUN: %clang -cc1 %t3.devicelib.cpp -triple nvptx64-nvidia-cuda -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t3.devicelib.bc
-// RUN: clang-offload-packager -o %t3.devicelib.out --image=file=%t3.devicelib.bc,kind=sycl,triple=nvptx64-nvidia-cuda
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t3.devicelib.o \
-// RUN:   -fembed-offload-object=%t3.devicelib.out
+// RUN: touch %t3.devicelib.cpp
+// RUN: %clang %t3.devicelib.cpp -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t3.devicelib.o
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper -sycl-device-library-location= -sycl-device-libraries=%t3.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t3.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-NV %s
+// RUN: clang-linker-wrapper -sycl-device-libraries=%t3.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t3.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-NV %s
 // CHK-CMDS-AOT-NV: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts=--spirv-preserve-auxdata --llvm-spirv-opts=--spirv-target-env=SPV-IR --llvm-spirv-opts=--spirv-builtin-format=global
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
@@ -122,14 +98,11 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang -cc1 %s -triple amdgcn-amd-amdhsa -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -emit-llvm-bc -o %t4.bc
-// RUN: clang-offload-packager -o %t4.out --image=file=%t4.bc,kind=sycl,triple=amdgcn-amd-amdhsa
-// RUN: %clang -cc1 %s -triple x86_64-pc-windows-msvc -emit-obj -o %t4.o \
-// RUN:   -fembed-offload-object=%t4.out
+// RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t4.o
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper -sycl-device-library-location= -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t4.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-AMD %s
+// RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t4.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-AMD %s
 // CHK-CMDS-AOT-AMD: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts=--spirv-preserve-auxdata --llvm-spirv-opts=--spirv-target-env=SPV-IR --llvm-spirv-opts=--spirv-builtin-format=global
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc

@@ -470,12 +470,9 @@ namespace sycl {
 // The list of files and its location are passed from driver.
 static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
                                const ArgList &Args) {
-  StringRef SYCLDeviceLibLoc;
+  StringRef SYCLDeviceLibLoc("");
   if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
     SYCLDeviceLibLoc = A->getValue();
-  else
-    return createStringError(inconvertibleErrorCode(),
-                             "SYCL device library location is invalid.");
   if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
       return createStringError(

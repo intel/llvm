@@ -9,16 +9,13 @@
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: echo '' > %t.devicelib.cpp
-// RUN: %clang -cc1 %t.devicelib.cpp -triple spir64-unknown-unknown -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -emit-llvm-bc -o %t.devicelib.bc
-// RUN: clang-offload-packager -o %t.devicelib.out --image=file=%t.devicelib.bc,kind=sycl,triple=spir64-unknown-unknown
-// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.devicelib.o \
-// RUN:   -fembed-offload-object=%t.devicelib.out
+// RUN: touch %t.devicelib.cpp
+// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
 //
 // Run clang-linker-wrapper test
 //
 //// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
-// RUN:                      -sycl-device-library-location= -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      -sycl-device-libraries=%t.devicelib.o \
 // RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
 
 template <typename t, typename Func>
