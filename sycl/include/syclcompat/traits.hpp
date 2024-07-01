@@ -41,4 +41,9 @@ template <typename T> struct arith {
 };
 template <typename T> using arith_t = typename arith<T>::type;
 
+template <auto F, typename... Args>
+constexpr inline bool args_compatible =
+    std::disjunction_v<std::is_invocable<decltype(F), Args...>,
+                       std::is_invocable<decltype(F), Args..., char *>>;
+
 } // namespace syclcompat
