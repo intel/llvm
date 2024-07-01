@@ -51,10 +51,14 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-[NOTE]
-====
-This extension is currently only considered supported by the Level-Zero backend.
-====
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the Level Zero backend.  Attempting to use this extension in
+kernels that run on other devices or backends may result in undefined
+behavior.  Be aware that the compiler is not able to issue a diagnostic to
+warn you if this happens.
 
 
 == Overview
@@ -130,7 +134,9 @@ which is the byte representation of a kernel argument that is trivially
 copyable.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the `count`
-bytes starting at the address specified by `bytes`.
+bytes starting at the address specified by `bytes`. Since the `raw_kernel_arg`
+object is only a view, the caller must ensure that the lifetime of the `bytes`
+memory lasts at least as long as the lifetime of the `raw_kernel_arg` object.
 
 === Using a raw kernel argument
 
