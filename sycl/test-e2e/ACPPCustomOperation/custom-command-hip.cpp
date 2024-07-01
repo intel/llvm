@@ -57,7 +57,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       if (Q.get_backend() != IH.get_backend())
         throw;
     };
-    CGH.AdaptiveCpp_enqueue_custom_operation(Func);
+    CGH.sycl_ext_oneapi_enqueue_custom_operation(Func);
   });
 }
 
@@ -91,7 +91,7 @@ void test_ht_buffer(queue &Q) {
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
-    CGH.AdaptiveCpp_enqueue_custom_operation(Func);
+    CGH.sycl_ext_oneapi_enqueue_custom_operation(Func);
   });
 }
 

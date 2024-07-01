@@ -31,7 +31,7 @@ int main() {
 
     Q.submit([&](handler &cgh) {
       accessor acc{buf, cgh, read_write};
-      cgh.AdaptiveCpp_enqueue_custom_operation([=](interop_handle ih) {
+      cgh.sycl_ext_oneapi_enqueue_custom_operation([=](interop_handle ih) {
         auto ptr = ih.get_native_mem<backend::ext_oneapi_cuda>(acc);
         auto stream = ih.get_native_queue<backend::ext_oneapi_cuda>();
         int tmp = 0;

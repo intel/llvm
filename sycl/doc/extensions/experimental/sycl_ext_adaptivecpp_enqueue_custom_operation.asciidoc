@@ -8,14 +8,9 @@ incompatible with this experimental version.
 
 ## Introduction
 
-This extension is an experimental AdaptiveCpp extension, which is documented
-[here](https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md)
-
-## Feature test macro
-
-As encouraged by the SYCL specification, a feature-test macro,
-`SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION`, is provided to determine
-whether this extension is implemented.
+This extension is derived from an experimental AdaptiveCpp extension, which is
+documented
+[here](https://github.com/sycl_ext_oneapi/sycl_ext_oneapi/blob/develop/doc/enqueue-custom-operation.md)
 
 ## Example
 
@@ -23,9 +18,9 @@ whether this extension is implemented.
 sycl::queue q;
 
 q.submit([&](sycl::handler &cgh) {
-    auto acc = some_buff.get_access<sycl::access::mode::read>(cgh);
+    sycl::accessor acc{buf, cgh};
 
-    cgh.AdaptiveCpp_enqueue_custom_operation([=](sycl::interop_handle &h) {
+    cgh.sycl_ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
       // Can extract device pointers from accessors
       void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
       // Can extract stream (note: get_native_queue() may not be 
@@ -42,3 +37,53 @@ q.submit([&](sycl::handler &cgh) {
   });
 q.wait()
 ```
+
+Provided that the correct dependencies are handled in the SYCL runtime, there
+is no need to do any further synchronization within the backend API in the user
+submitted lambda.
+
+## Synchronization
+
+The goal of `sycl_ext_oneapi_enqueue_custom_operation` is to integrate interop
+work within the asynchronous SYCL DAG. As such, the user defined lambda must
+only enqueue asynchronous work within the user lambda. Asynchronous work must
+only be submitted  to the native queue obtained from
+`interop_handle::get_native_queue`.
+
+A lambda submitted to sycl_ext_oneapi_enqueue_custom_operation will be executed
+in the host thread, without waiting for any dependent events to complete. This
+is necessary in order for asynchronous interop work to be composed with
+asynchronous SYCL commands. This gives different sychronization guarantees from
+normal SYCL `host_task`s.
+
+In this example:
+
+```c++
+q.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(dep_event);
+    cgh.sycl_ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
+      printf("This will print before dep_event has completed.\n");
+      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
+                      hipMemcpyDeviceToHost, stream);
+    });
+  });
+q.wait()
+```
+
+The print statement will likely print before `dep_event` has completed. However,
+the asynchronous memcpy submitted to the native queue obtained by
+`interop_handle::get_native_queue` is guaranteed to have the correct
+dependencies, and therefore will only start once its dependent events have
+completed.
+
+By contrast, when using a `host_task`, it is guaranteed that the print statment
+will only happen once the host task's dependent events are observed to be
+complete on the host.
+
+## Feature test macro
+
+As encouraged by the SYCL specification, a feature-test macro,
+`SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION`, is provided to determine
+whether this extension is implemented.
+

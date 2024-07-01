@@ -2112,14 +2112,14 @@ public:
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  AdaptiveCpp_enqueue_custom_operation(FuncT &&Func) {
-    AdaptiveCpp_enqueue_custom_operation_impl(Func);
+  sycl_ext_oneapi_enqueue_custom_operation(FuncT &&Func) {
+    sycl_ext_oneapi_enqueue_custom_operation_impl(Func);
   }
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  AdaptiveCpp_enqueue_custom_operation_impl(FuncT &&Func);
+  sycl_ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func);
 
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
