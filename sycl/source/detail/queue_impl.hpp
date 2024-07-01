@@ -350,9 +350,7 @@ public:
   bool hasDiscardEventsProperty() const { return MDiscardEvents; }
 
   /// \return true if this queue allows for discarded events.
-  bool supportsDiscardingPiEvents() const {
-    return MIsInorder;
-  }
+  bool supportsDiscardingPiEvents() const { return MIsInorder; }
 
   bool isInOrder() const { return MIsInorder; }
 
