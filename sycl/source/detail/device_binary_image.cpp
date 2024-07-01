@@ -78,7 +78,9 @@ const char *DeviceBinaryProperty::asCString() const {
           Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) &&
          "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  return pi::cast<const char *>(Prop->ValAddr);
+  // Byte array stores its size in first 8 bytes
+  size_t Shift = Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
+  return pi::cast<const char *>(Prop->ValAddr) + Shift;
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,

@@ -571,7 +571,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // Device image may use more than one set of virtual functions
       size_t Start = 0;
       size_t Stop = StrValue.find_first_of(',');
-      do {
+      while (true) {
         auto SetName = StrValue.substr(Start, Stop - Start);
 
         // There could be more than one device image that uses the same set
@@ -593,9 +593,12 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
           }
         }
 
-        Start = Stop;
-        Stop = StrValue.find_first_of(',', Start + 1);
-      } while (Stop != std::string::npos);
+        if (Stop == std::string::npos)
+          break;
+
+        Start = Stop + 1;
+        Stop = StrValue.find_first_of(',', Start);
+      }
 
     } else {
       // TODO: remove runtime check and turn it into an assert
@@ -1470,13 +1473,16 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         // Device image may use more than one set of virtual functions
         size_t Start = 0;
         size_t Stop = StrValue.find_first_of(',');
-        do {
+        while (true) {
           auto SetName = StrValue.substr(Start, Stop - Start);
           m_VFSet2BinImage[SetName].insert(Img.get());
 
-          Start = Stop;
-          Stop = StrValue.find_first_of(',', Start + 1);
-        } while (Stop != std::string::npos);
+          if (Stop == std::string::npos)
+            break;
+
+          Start = Stop + 1;
+          Stop = StrValue.find_first_of(',', Start);
+        }
       } else {
         assert(std::string(VFProp->Name) == "virtual-functions-set" &&
                "Unexpected virtual function property");

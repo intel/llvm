@@ -10,6 +10,7 @@ namespace VirtualFunctionsTest {
 
 class KernelA;
 class KernelB;
+class KernelC;
 
 } // namespace VirtualFunctionsTest
 
@@ -26,6 +27,11 @@ struct KernelInfo<VirtualFunctionsTest::KernelB>
     : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelB"; }
 };
+template <>
+struct KernelInfo<VirtualFunctionsTest::KernelC>
+    : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "KernelC"; }
+};
 
 } // namespace detail
 } // namespace _V1
@@ -38,7 +44,8 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize);
-  std::uninitialized_copy(&PropSize, &PropSize + sizeof(uint64_t),
+  auto *SizePtr = reinterpret_cast<char *>(&PropSize);
+  std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t),
                           Storage.data());
   std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
                           Storage.data() + /* bytes for size */ 8);
@@ -68,17 +75,27 @@ generateImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static constexpr unsigned char PROGRAM_A = 3;
-static constexpr unsigned char PROGRAM_B = 5;
-static constexpr unsigned char PROGRAM_C = 7;
+static constexpr unsigned PROGRAM_A = 3;
+static constexpr unsigned PROGRAM_A0 = 5;
+static constexpr unsigned PROGRAM_B = 7;
+static constexpr unsigned PROGRAM_B0 = 11;
+static constexpr unsigned PROGRAM_B1 = 13;
+static constexpr unsigned PROGRAM_C = 17;
+static constexpr unsigned PROGRAM_C0 = 19;
+static constexpr unsigned PROGRAM_C1 = 23;
 
 static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
-    generateImage({}, "set-a", /* provides vf set */ false, PROGRAM_B),
-    generateImage({"KernelB"}, "set-a", /* uses vf set */ true, PROGRAM_C)};
+    generateImage({}, "set-a", /* provides vf set */ false, PROGRAM_A0),
+    generateImage({"KernelB"}, "set-b", /* uses vf set */ true, PROGRAM_B),
+    generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B0),
+    generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B1),
+    generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true, PROGRAM_C),
+    generateImage({}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
+    generateImage({}, "set-c2", /* provides vf set */ false, PROGRAM_C1)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<8> ImgArray{Imgs};
 
 static unsigned NumOfPiProgramCreateCalls = 0;
 static unsigned NumOfPiProgramLinkCalls = 0;
@@ -127,7 +144,124 @@ static pi_result redefined_piKernelCreate(pi_program program,
   return PI_SUCCESS;
 }
 
-TEST(VirtualFunctions, A) {
+TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+      redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
+  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
+      redefined_piKernelCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // KernelA uses set "set-a" of virtual functions.
+  Q.single_task<VirtualFunctionsTest::KernelA>([=]() {});
+  // When we submit this kernel, we expect that two programs were created (one
+  // for a kernel and another providing virtual functions set for it).
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 2u);
+  // Both programs should be linked together.
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_A; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_A0; }));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_A * PROGRAM_A0);
+}
+
+TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+      redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
+  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
+      redefined_piKernelCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // KernelB uses set "set-b" of virtual functions that is provided by two
+  // device images.
+  Q.single_task<VirtualFunctionsTest::KernelB>([=]() {});
+  // When we submit this kernel, we expect that three programs were created (one
+  // for a kernel and another two providing virtual functions set for it).
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 3u);
+  // Both programs should be linked together.
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_B; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_B0; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_B1; }));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_B * PROGRAM_B0 * PROGRAM_B1);
+}
+
+TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+      redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
+      redefined_piProgramLink);
+  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
+      redefined_piKernelCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  NumOfPiProgramCreateCalls = 0;
+  NumOfPiProgramLinkCalls = 0;
+  ProgramUsedToCreateKernel = 0;
+  LinkedPrograms.clear();
+
+  // KernelC uses set "set-c" of virtual functions that is provided by two
+  // device images.
+  Q.single_task<VirtualFunctionsTest::KernelC>([=]() {});
+  // When we submit this kernel, we expect that three programs were created (one
+  // for a kernel and another two providing virtual functions set for it).
+  ASSERT_EQ(NumOfPiProgramCreateCalls, 3u);
+  // Both programs should be linked together.
+  ASSERT_EQ(NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_C; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_C0; }));
+  ASSERT_TRUE(
+      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
+                  [=](unsigned char program) { return program == PROGRAM_C1; }));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
+}
+
+// TODO: Test case similar to A, but with kernel bundles
+// TODO: Test case where kernelA uses setA and kernelB uses setA and setB to
+// ensure that dependencies search is recursive.
+
+TEST(VirtualFunctions, DISABLED_A) {
   sycl::unittest::PiMock Mock;
 
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
