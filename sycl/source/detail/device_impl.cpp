@@ -719,8 +719,8 @@ bool device_impl::has(aspect Aspect) const {
     return call_successful && support;
   }
   }
-  throw runtime_error("This device aspect has not been implemented yet.",
-                      PI_ERROR_INVALID_DEVICE);
+
+  return false; // This device aspect has not been implemented yet.
 }
 
 bool device_impl::isAssertFailSupported() const {
