@@ -19,12 +19,6 @@ inline namespace _V1 {
 namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
-                         handler &CGH)
-    : stream_impl(BufferSize, MaxStatementSize, {}) {
-  (void)CGH;
-}
-
-stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
                          const property_list &PropList)
     : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize),
       PropList_(PropList), Buf_(range<1>(BufferSize + OffsetSize + 1)),
@@ -71,10 +65,6 @@ size_t stream_impl::size() const noexcept { return BufferSize_; }
 size_t stream_impl::get_work_item_buffer_size() const {
   return MaxStatementSize_;
 }
-
-size_t stream_impl::get_size() const { return BufferSize_; }
-
-size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
 void stream_impl::initStreamHost(QueueImplPtr Queue) {
   // Real size of full flush buffer is saved only in buffer_impl field of
@@ -138,7 +128,6 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
   }
 }
 
-void stream_impl::flush() { flush(nullptr); }
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

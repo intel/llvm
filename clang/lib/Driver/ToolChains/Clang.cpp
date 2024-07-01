@@ -10416,6 +10416,47 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
   constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
 }
 
+// Utility function to gather all arguments for SPIR-V generation using the
+// SPIR-V backend. This set of arguments is expected to get updated as we add
+// more features/extensions to the SPIR-V backend.
+static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
+                                ArgStringList &BackendArgs) {
+  BackendArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("-mtriple=spirv64-unknown-unknown"));
+  // TODO: Optimization level is currently forced to -O0 due to some testing
+  // issues. Update optimization level after testing issues are resolved.
+  BackendArgs.push_back(TCArgs.MakeArgString("-O0"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("--translator-compatibility-mode"));
+
+  // TODO: There is some overlap between the lists of extensions in SPIR-V
+  // backend and SPIR-V Trnaslator). We will try to combine them when SPIR-V
+  // backdn is ready.
+  std::string ExtArg("--spirv-ext=");
+  std::string DefaultExtArg =
+      "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+      ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+  std::string INTELExtArg = ",+SPV_INTEL_subgroups,+SPV_INTEL_function_pointers"
+                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_INTEL_variable_length_array";
+  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
+
+  // Other args
+  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
+            ",+SPV_KHR_uniform_group_instructions"
+            ",+SPV_INTEL_optnone"
+            ",+SPV_KHR_subgroup_rotate"
+            ",+SPV_INTEL_usm_storage_classes"
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_KHR_bit_instructions";
+
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
+}
+
 // Utility function to gather all llvm-spirv options.
 // Not dependent on target triple.
 static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
@@ -10521,6 +10562,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
 }
 
 // Begin SPIRVTranslator
+// TODO: Add a unique 'llc' JobAction for SPIR-V backends.
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -10536,17 +10578,22 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
+  bool UseSPIRVBackend =
+      TCArgs.hasArg(options::OPT_fsycl_use_spirv_backend_for_spirv_gen);
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
-    llvm::Triple Triple = TC.getTriple();
-    getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
-
-    // Handle -Xspirv-translator
-    TC.TranslateTargetOpt(
-        Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
-        options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+    if (UseSPIRVBackend) {
+      getSPIRVBackendOpts(TCArgs, TranslatorArgs);
+    } else {
+      getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
+      llvm::Triple Triple = TC.getTriple();
+      getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
+      // Handle -Xspirv-translator
+      TC.TranslateTargetOpt(
+          Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
+          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+    }
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());
@@ -10561,8 +10608,10 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
 
-  auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+  auto ToolName = UseSPIRVBackend ? "llc" : getShortName();
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(ToolName)),
       TranslatorArgs, std::nullopt);
 
   if (!ForeachArgs.empty()) {
@@ -10677,6 +10726,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (!IsUsingLTO || LTOMode != LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10731,9 +10785,12 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
-    // Symbol file and specialization constant info generation is mandatory -
+    bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (!IsUsingLTO || LTOMode != LTOK_Thin)
+      addArgs(PostLinkArgs, TCArgs, {"-symbols"});
+    // Specialization constant info generation is mandatory -
     // add options unconditionally
-    addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-imported-symbols"});
     if (SplitEsimd)
