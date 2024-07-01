@@ -706,11 +706,6 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                              "__spv::__spirv_CooperativeMatrixKHR") {
           ResultType = ConvertSPVCooperativeMatrixType(RD);
           break;
-        } else if (RD && RD->getQualifiedNameAsString() ==
-                             "__spv::__spirv_TaskSequenceINTEL") {
-          ResultType = llvm::TargetExtType::get(getLLVMContext(),
-                                                "spirv.TaskSequenceINTEL");
-          break;
         }
       }
     }
