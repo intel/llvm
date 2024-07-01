@@ -38,7 +38,8 @@ public:
 
   dim3(const sycl::range<1> &r) : x(r[0]), y(1), z(1) {}
 
-  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1) : x(x), y(y), z(z) {}
+  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1)
+      : x(x), y(y), z(z) {}
 
   constexpr size_t size() const { return x * y * z; }
 

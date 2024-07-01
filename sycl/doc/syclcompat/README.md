@@ -112,10 +112,10 @@ inline dim3 operator-(const dim3 &a, const dim3 &b);
 } // syclcompat
 ```
 
-The compatibility headers for SYCL offer a
-number of convenience functions that help the mapping between xyz-based
-coordinates to SYCL iteration spaces in the different scopes available. In
-addition to the global range, the following helper functions are also provided:
+The compatibility headers for SYCL offer a number of convenience functions that
+help the mapping between xyz-based coordinates to SYCL iteration spaces in the
+different scopes available. In addition to the global range, the following
+helper functions are also provided:
 
 ``` c++
 namespace syclcompat {
