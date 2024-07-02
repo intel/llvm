@@ -32,9 +32,6 @@ class device_impl;
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  /// Constructs platform_impl for a SYCL host platform.
-  platform_impl() : MHostPlatform(true) {}
-
   /// Constructs platform_impl from a plug-in interoperability platform
   /// handle.
   ///
@@ -89,9 +86,6 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
-  /// \return true if this SYCL platform is a host platform.
-  bool is_host() const { return MHostPlatform; };
-
   /// Returns the backend of this platform.
   backend getBackend(void) const { return MBackend; }
 
@@ -106,14 +100,7 @@ public:
   }
 
   /// \return an instance of OpenCL cl_platform_id.
-  cl_platform_id get() const {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This instance of platform doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_PLATFORM);
-    }
-    return pi::cast<cl_platform_id>(MPlatform);
-  }
+  cl_platform_id get() const { return pi::cast<cl_platform_id>(MPlatform); }
 
   /// Returns raw underlying plug-in platform handle.
   ///
@@ -122,13 +109,7 @@ public:
   /// is in use.
   ///
   /// \return a raw plug-in platform handle.
-  const sycl::detail::pi::PiPlatform &getHandleRef() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_ERROR_INVALID_PLATFORM);
-
-    return MPlatform;
-  }
+  const sycl::detail::pi::PiPlatform &getHandleRef() const { return MPlatform; }
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -140,17 +121,13 @@ public:
   static std::vector<platform> get_platforms();
 
   // \return the Plugin associated with this platform.
-  const PluginPtr &getPlugin() const {
-    assert(!MHostPlatform && "Plugin is not available for Host.");
-    return MPlugin;
-  }
+  const PluginPtr &getPlugin() const { return MPlugin; }
 
   /// Sets the platform implementation to use another plugin.
   ///
   /// \param PluginPtr is a pointer to a plugin instance
   /// \param Backend is the backend that we want this platform to use
   void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = PluginPtr;
     MBackend = Backend;
   }
@@ -192,14 +169,6 @@ public:
   getOrMakeDeviceImpl(sycl::detail::pi::PiDevice PiDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
 
-  /// Static functions that help maintain platform uniquess and
-  /// equality of comparison
-
-  /// Returns the host platform impl
-  ///
-  /// \return the host platform impl
-  static std::shared_ptr<platform_impl> getHostPlatformImpl();
-
   /// Queries the cache to see if the specified PiPlatform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
   /// one and cache it.
@@ -238,7 +207,6 @@ private:
   filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
                      ListT *FilterList) const;
 
-  bool MHostPlatform = false;
   sycl::detail::pi::PiPlatform MPlatform = 0;
   backend MBackend;
 

@@ -81,29 +81,28 @@ void *getValueFromDynamicParameter(
 } // namespace detail
 
 /// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-    : handler(Queue, IsHost, /*CallerNeedsEvent=*/true) {}
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool)
+    : handler(Queue, false, /*CallerNeedsEvent=*/true) {}
 
 /// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool IsHost)
-    : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool)
+    : handler(Queue, PrimaryQueue, SecondaryQueue, false,
               /*CallerNeedsEvent=*/true) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, IsHost, CallerNeedsEvent) {}
+    : handler(Queue, Queue, nullptr, false, CallerNeedsEvent) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool IsHost, bool CallerNeedsEvent)
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool,
+                 bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue),
                                                    CallerNeedsEvent)),
-      MQueue(std::move(Queue)), MIsHost(IsHost) {}
+      MQueue(std::move(Queue)), MIsHost(false) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -287,17 +286,10 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        if (MQueue->is_host()) {
-          MHostKernel->call(MNDRDesc, (NewEvent)
-                                          ? NewEvent->getHostProfilingInfo()
-                                          : nullptr);
-          Result = PI_SUCCESS;
-        } else {
-          Result = enqueueImpKernel(
-              MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-              MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-        }
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -339,7 +331,7 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
-        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -921,7 +913,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     auto EventImpl = detail::getSyclObjImpl(Event);
     // We could not wait for host task events in backend.
     // Adding them as dependency to enable proper scheduling.
-    if (EventImpl->is_host()) {
+    if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
     MEventsWaitWithBarrier.push_back(EventImpl);
