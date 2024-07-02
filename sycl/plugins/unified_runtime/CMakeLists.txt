@@ -99,13 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit aaf08109f2a05adb61f50478824ae2739526daee
-  # Author: Ben Tracy <ben.tracy@codeplay.com>
-  # Date:   Mon Jun 17 14:49:53 2024 +0100
-  #     [CMDBUF] Fix coverity issue in command buffers
-  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
-  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 79be9c5f115f74ee6192500997d32fe48fad19d4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
