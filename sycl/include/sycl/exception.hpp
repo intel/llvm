@@ -328,19 +328,6 @@ public:
 };
 
 class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::profiling instead.") profiling_error
-    : public device_error {
-public:
-  profiling_error() : device_error(make_error_code(errc::profiling)) {}
-
-  profiling_error(const char *Msg, pi_int32 Err)
-      : profiling_error(std::string(Msg), Err) {}
-
-  profiling_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::profiling), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::feature_not_supported instead.")
     feature_not_supported : public device_error {
 public:
