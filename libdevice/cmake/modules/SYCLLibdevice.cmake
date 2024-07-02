@@ -167,6 +167,16 @@ if (NOT MSVC)
     sycl-compiler)
 endif()
 
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  if (NOT DEFINED NATIVE_CPU_DIR)
+    message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
+  endif()
+  # Include NativeCPU UR adapter path to enable finding header file with state struct.
+  # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
+  # Todo: add versions for other targets (for cross-compilation)
+  add_devicelib_bc(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps} EXTRA_ARGS -I ${NATIVE_CPU_DIR} -fsycl-targets=native_cpu)
+endif()
+
 add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})

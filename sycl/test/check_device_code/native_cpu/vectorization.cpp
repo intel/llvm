@@ -1,10 +1,15 @@
 // REQUIRES: native_cpu_ock
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o %t_temp.ll %s
-// RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-DEFAULT
-// RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -mllvm -sycl-native-cpu-vecz-width=16 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-16
-// RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -mllvm -sycl-native-cpu-vecz-width=4 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-4
-// RUN: %clangxx -O0 -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-O0
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O2 -mllvm -sycl-native-cpu-backend -mllvm -sycl-native-cpu-no-vecz -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-DISABLE
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-DEFAULT
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -O2 -mllvm -sycl-native-cpu-vecz-width=16 -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-16
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -O2 -mllvm -sycl-native-cpu-vecz-width=4 -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-4
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -O0 -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-O0
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O2 -mllvm -sycl-native-cpu-no-vecz -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-DISABLE
+
+// Invalid invocations: check that they don't crash the compiler
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-dump-device-ir %s > %t_temp.ll
+// RUN: opt -O3 -verify-each %t_temp.ll -S -o %t_temp2.ll
+// RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -S -emit-llvm %t_temp.ll
+
 #include <sycl/sycl.hpp>
 class Test1;
 int main() {

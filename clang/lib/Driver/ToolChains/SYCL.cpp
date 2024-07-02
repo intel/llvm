@@ -290,6 +290,15 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+
+  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
+      {"libsycl-nativecpu_utils", "internal"}};
+
+  const bool isNativeCPU =
+      (driver::isSYCLNativeCPU(Args) &&
+       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                               TargetTriple));
+
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
@@ -368,6 +377,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
+
+  if (isNativeCPU)
+    addLibraries(SYCLNativeCpuDeviceLibs);
+
   return LibraryList;
 }
 
