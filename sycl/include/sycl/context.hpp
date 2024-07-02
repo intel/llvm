@@ -215,13 +215,6 @@ public:
   cl_context get() const;
 #endif
 
-  /// Checks if this context is a SYCL host context.
-  ///
-  /// \return true if this context is a SYCL host context.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Returns the backend associated with this context.
   ///
   /// \return the backend associated with this context.

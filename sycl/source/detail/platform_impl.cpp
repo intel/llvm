@@ -457,11 +457,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
 
-  // If any DeviceType other than host was requested for host platform,
-  // an empty vector will be returned.
-  if (DeviceType == info::device_type::host)
-    return Res;
-
   pi_uint32 NumDevices = 0;
   MPlugin->call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<sycl::detail::pi::PiDeviceType>(DeviceType),

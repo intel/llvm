@@ -81,28 +81,28 @@ void *getValueFromDynamicParameter(
 } // namespace detail
 
 /// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool)
-    : handler(Queue, false, /*CallerNeedsEvent=*/true) {}
+handler::handler(std::shared_ptr<detail::queue_impl> Queue)
+    : handler(Queue, /*CallerNeedsEvent=*/true) {}
 
 /// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool)
-    : handler(Queue, PrimaryQueue, SecondaryQueue, false,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue)
+    : handler(Queue, PrimaryQueue, SecondaryQueue,
               /*CallerNeedsEvent=*/true) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool,
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, false, CallerNeedsEvent) {}
+    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue),
                                                    CallerNeedsEvent)),
-      MQueue(std::move(Queue)), MIsHost(false) {}
+      MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)

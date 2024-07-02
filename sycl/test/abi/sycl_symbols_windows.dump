@@ -4096,6 +4096,7 @@
 ?frexp_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAH@Z
 ?frexp_impl@detail@_V1@sycl@@YAMMPEAH@Z
 ?frexp_impl@detail@_V1@sycl@@YANNPEAH@Z
+?generateFlushCommand@stream_impl@detail@_V1@sycl@@QEAAXAEAVhandler@34@@Z
 ?get@context@_V1@sycl@@QEBAPEAU_cl_context@@XZ
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ

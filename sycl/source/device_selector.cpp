@@ -232,14 +232,6 @@ __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
   return Score;
 }
 
-int host_selector::operator()(const device &dev) const {
-  // Host device has been removed and host_selector has been deprecated, so this
-  // should never be able to select a device.
-  std::ignore = dev;
-  traceDeviceSelector("info::device_type::host");
-  return detail::REJECT_DEVICE_SCORE;
-}
-
 __SYCL_EXPORT detail::DSelectorInvocableType
 aspect_selector(const std::vector<aspect> &RequireList,
                 const std::vector<aspect> &DenyList /* ={} */) {
