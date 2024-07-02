@@ -33,15 +33,15 @@ int main() {
   float FloatVal = 3.12f;
 
   Q.submit([&](sycl::handler &CGH) {
-     CGH.set_arg(0,
-                 sycl::ext::oneapi::raw_kernel_arg(&IntVal, sizeof(int32_t)));
+     CGH.set_arg(0, sycl::ext::oneapi::experimental::raw_kernel_arg(
+                        &IntVal, sizeof(int32_t)));
      CGH.set_arg(1, OutVals);
      CGH.single_task(ExecKB.ext_oneapi_get_kernel("Kernel1"));
    }).wait();
 
   Q.submit([&](sycl::handler &CGH) {
-     CGH.set_arg(0,
-                 sycl::ext::oneapi::raw_kernel_arg(&FloatVal, sizeof(float)));
+     CGH.set_arg(0, sycl::ext::oneapi::experimental::raw_kernel_arg(
+                        &FloatVal, sizeof(float)));
      CGH.set_arg(1, OutVals + 1);
      CGH.single_task(ExecKB.ext_oneapi_get_kernel("Kernel2"));
    }).wait();

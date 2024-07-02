@@ -81,7 +81,7 @@ char* opaque_type;
 int nbytes;
 ...
 h.set_arg(0, a);
-h.set_arg(1, sycl::ext::oneapi::raw_kernel_arg(opaque_type, nbytes));
+h.set_arg(1, sycl::ext::oneapi::experimental::raw_kernel_arg(opaque_type, nbytes));
 h.parallel_for(range, kernel);
 ----
 
@@ -115,14 +115,14 @@ kernel arguments via a raw byte representation.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
   class raw_kernel_arg {
   public:
     raw_kernel_arg(const void* bytes, size_t count);
   };
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 [source,c++]
@@ -151,7 +151,7 @@ argument in `args` was passed to `set_arg` ", adding a new overload of
 
 [source,c++]
 ----
-void set_arg(int argIndex, sycl::ext::oneapi::raw_kernel_arg&& arg);
+void set_arg(int argIndex, sycl::ext::oneapi::experimental::raw_kernel_arg&& arg);
 ----
 _Effects_: Sets the kernel argument associated with index `argIndex` using the
 bytes represented by `arg`.

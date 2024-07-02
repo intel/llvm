@@ -21,7 +21,8 @@ template <typename T>
 void SetArg(sycl::handler &CGH, T &&Arg, size_t Index, size_t Iteration) {
   // Pick how we set the arg based on the bit at Index in Iteration.
   if (Iteration & (1 << Index))
-    CGH.set_arg(Index, sycl::ext::oneapi::raw_kernel_arg(&Arg, sizeof(T)));
+    CGH.set_arg(Index, sycl::ext::oneapi::experimental::raw_kernel_arg(
+                           &Arg, sizeof(T)));
   else
     CGH.set_arg(Index, Arg);
 }

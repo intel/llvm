@@ -15,7 +15,7 @@ inline namespace _V1 {
 
 class handler;
 
-namespace ext::oneapi {
+namespace ext::oneapi::experimental {
 
 class raw_kernel_arg {
 public:
@@ -29,6 +29,6 @@ private:
   friend class sycl::handler;
 };
 
-} // namespace ext::oneapi
+} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
