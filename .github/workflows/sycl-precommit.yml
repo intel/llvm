@@ -1,4 +1,4 @@
-name: SYCL Pre Commit on Linux
+name: SYCL Pre Commit
 
 on:
   # We rely on "Fork pull request workflows from outside collaborators" -
@@ -18,9 +18,6 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -35,7 +32,7 @@ jobs:
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
-  build:
+  build_linux:
     needs: [detect_changes]
     if: always() && success()
     uses: ./.github/workflows/sycl-linux-build.yml
@@ -46,12 +43,11 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       changes: ${{ needs.detect_changes.outputs.filters }}
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab"
 
   determine_arc_tests:
     name: Decide which Arc tests to run
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    needs: [build_linux, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build_linux.outputs.build_conclusion == 'success' }}
     runs-on: [Linux, aux-tasks]
     timeout-minutes: 3
     outputs:
@@ -69,27 +65,38 @@ jobs:
           else
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
-  test:
-    needs: [build, detect_changes, determine_arc_tests]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+
+  test_linux:
+    needs: [build_linux, detect_changes, determine_arc_tests]
+    if: ${{ always() && !cancelled() && needs.build_linux.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: AMD/HIP
+          # XXX CUDA testing is in a separate workflow because it runs on AWS
+          # which has different access restrictions/requirements. See
+          # sycl-linux-precommit.yml if you're looking for the CUDA precommit
+          # definition
+          - name: E2E on AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
-          - name: Intel
+
+          - name: E2E on Intel GEN12; level zero GPU, OpenCL CPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param gpu-intel-gen12=True
-          - name: E2E tests on Intel Arc A-Series Graphics
+
+          - name: E2E on Intel GEN12 Graphics; OpenCL GPU, OpenCL FPGA
+            runner: '["Linux", "gen12"]'
+            extra_lit_opts: --param gpu-intel-gen12=True
+            target_devices: opencl:gpu;opencl:fpga
+
+          - name: E2E on Intel Arc A-Series Graphics; Level zero GPU, OpenCL CPU
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
@@ -98,23 +105,16 @@ jobs:
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+
+          - name: E2E on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            reset_gpu: true
-            install_drivers: >-
-              ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
-              contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
-            use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+            target_devices: opencl:gpu;opencl:opencl:fpga
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
+      runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
@@ -128,15 +128,40 @@ jobs:
       merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.build_linux.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build_linux.outputs.artifact_decompress_command }}
 
+  build_win:
+    if: |
+      always()
+      && success()
+      && github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-windows-build.yml
 
-  test-perf:
-    needs: [build, detect_changes]
+  test_e2e_win:
+    needs: build_win
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build_win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Intel GEN12 Graphics with Level Zero
+      runner: '["Windows","gen12"]'
+      sycl_toolchain_archive: ${{ needs.build_win.outputs.artifact_archive_name }}
+      extra_lit_opts: --param gpu-intel-gen12=True
+
+  build_macos:
+    name: macOS Build and Test
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-macos-build-and-test.yml
+
+  test_perf:
+    needs: [build_linux, detect_changes]
     if: |
       always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
+      && needs.build_linux.outputs.build_conclusion == 'success'
       && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
           || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
     strategy:
@@ -165,7 +190,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Perf tests on ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
+      runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
       target_devices: all
@@ -179,5 +204,5 @@ jobs:
       merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.build_linux.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build_linux.outputs.artifact_decompress_command }}
