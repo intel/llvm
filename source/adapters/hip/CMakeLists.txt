@@ -63,6 +63,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp

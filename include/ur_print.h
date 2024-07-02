@@ -1043,6 +1043,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpLaunchProperty(const struct ur_exp
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_native_command_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandFlags(enum ur_exp_enqueue_native_command_flag_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_native_command_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandProperties(const struct ur_exp_enqueue_native_command_properties_t params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2009,6 +2025,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueCooperativeKernelLaunchExpPara
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueTimestampRecordingExpParams(const struct ur_enqueue_timestamp_recording_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_native_command_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueNativeCommandExpParams(const struct ur_enqueue_native_command_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_unsampled_image_handle_destroy_exp_params_t struct

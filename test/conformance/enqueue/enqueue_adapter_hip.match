@@ -7,10 +7,15 @@ urEnqueueKernelLaunchUSMLinkedList.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEna
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_3d_2d
 {{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_row_2D
 {{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_3d_2d
+
+# HIP doesn't ignore unsupported USM advice or prefetching. Instead of
+# returning UR_RESULT_SUCCESS as per the spec, it instead returns
+# UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning. These tests will fail
+# until this is rectified.
 urEnqueueUSMAdviseWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ADVICE_FLAG_DEFAULT
 urEnqueueUSMAdviseTest.MultipleParamsSuccess/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueUSMAdviseTest.NonCoherentDeviceMemorySuccessOrWarning/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueUSMPrefetchWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
+
 urEnqueueTimestampRecordingExpTest.Success/AMD_HIP_BACKEND___{{.*}}
 urEnqueueTimestampRecordingExpTest.SuccessBlocking/AMD_HIP_BACKEND___{{.*}}

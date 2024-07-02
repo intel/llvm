@@ -335,6 +335,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     printDeviceInfo<ur_bool_t>(
         hDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP);
     std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP);
+    std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice,
                                UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP);
     std::cout << prefix;
@@ -404,5 +406,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice,
                                UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP);
 }
 } // namespace urinfo

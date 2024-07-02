@@ -951,6 +951,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports recording timestamp events.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // CUDA supports enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
@@ -1085,6 +1089,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
+    int Value = getAttribute(hDevice,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
+    return ReturnValue(static_cast<bool>(Value));
+  }
 
   default:
     break;

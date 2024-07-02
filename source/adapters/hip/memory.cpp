@@ -301,6 +301,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
                      ur_native_handle_t *phNativeMem) {
+  UR_ASSERT(Device != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 #if defined(__HIP_PLATFORM_NVIDIA__)
   if (sizeof(BufferMem::native_type) > sizeof(ur_native_handle_t)) {
     // Check that all the upper bits that cannot be represented by
