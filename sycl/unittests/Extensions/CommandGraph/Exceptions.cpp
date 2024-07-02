@@ -576,7 +576,7 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
   namespace syclex = sycl::ext::oneapi::experimental;
 
   syclex::properties cluster_launch_property{
-      syclex::cuda::cluster_size(sycl::range<1>{4})};
+      syclex::cuda::cluster_size<1>(sycl::range<1>{4})};
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
