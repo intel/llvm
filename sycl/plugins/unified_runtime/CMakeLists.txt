@@ -106,7 +106,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon Jun 17 10:34:52 2024 +0100
   #     Merge pull request #1678 from steffenlarsen/steffen/composite_devices_not_supported_and_empty
   #     Fix return of component and composite device info queries
-  set(UNIFIED_RUNTIME_TAG c63a30987634fbfa42386a95be4bca3b4efed870)
+  set(UNIFIED_RUNTIME_TAG caeceb4c282c88aa1c8b93ffe56cbc0ad7ae4041)
 
   fetch_adapter_source(level_zero
     https://github.com/winstonzhang-intel/unified-runtime.git
