@@ -1201,6 +1201,28 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
             "Cannot update using a graph with mismatched node types. Each pair "
             "of nodes being updated must have the same type");
       }
+
+      if (const auto &CG = MNodeStorage[i]->MCommandGroup; CG) {
+        sycl::detail::CGExecKernel *TargetCGExec =
+            static_cast<sycl::detail::CGExecKernel *>(CG.get());
+        const std::string &TargetKernelName = TargetCGExec->getKernelName();
+
+        sycl::detail::CGExecKernel *SourceCGExec =
+            static_cast<sycl::detail::CGExecKernel *>(
+                GraphImpl->MNodeStorage[i]->MCommandGroup.get());
+        const std::string &SourceKernelName = SourceCGExec->getKernelName();
+
+        if (TargetKernelName.compare(SourceKernelName) != 0) {
+          std::stringstream ErrorStream(
+              "Cannot update using a graph with mismatched kernel "
+              "types. Source node type ");
+          ErrorStream << SourceKernelName;
+          ErrorStream << ", target node type ";
+          ErrorStream << TargetKernelName;
+          throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                ErrorStream.str());
+        }
+      }
     }
   }
 
