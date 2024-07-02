@@ -1052,6 +1052,22 @@ ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpEnqueueNativeCommandFlags(
+    enum ur_exp_enqueue_native_command_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpEnqueueNativeCommandProperties(
+    const struct ur_exp_enqueue_native_command_properties_t params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintAdapterGetParams(const struct ur_adapter_get_params_t *params,
                         char *buffer, const size_t buff_size,
@@ -1698,6 +1714,14 @@ ur_result_t urPrintEnqueueCooperativeKernelLaunchExpParams(
 ur_result_t urPrintEnqueueTimestampRecordingExpParams(
     const struct ur_enqueue_timestamp_recording_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueNativeCommandExpParams(
+    const struct ur_enqueue_native_command_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);

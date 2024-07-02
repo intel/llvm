@@ -436,6 +436,7 @@ details:
     - "Use interoperability platform extensions to convert native handle to native type."
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
+    - "The implementation may require a valid device handle to return the native mem handle"
 params:
     - type: $x_mem_handle_t
       name: hMem
@@ -444,7 +445,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: |
-            [in] handle of the device that the native handle will be resident on.
+            [in][optional] handle of the device that the native handle will be resident on.
     - type: $x_native_handle_t*
       name: phNativeMem
       desc: |
@@ -452,6 +453,8 @@ params:
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+        - "If `hDevice == NULL` and the implementation requires a valid device."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native memory object creation properties"

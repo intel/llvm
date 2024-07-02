@@ -80,6 +80,7 @@ EXPORTS
 	urEnqueueMemImageRead
 	urEnqueueMemImageWrite
 	urEnqueueMemUnmap
+	urEnqueueNativeCommandExp
 	urEnqueueReadHostPipe
 	urEnqueueTimestampRecordingExp
 	urEnqueueUSMAdvise
@@ -272,6 +273,7 @@ EXPORTS
 	urPrintEnqueueMemImageReadParams
 	urPrintEnqueueMemImageWriteParams
 	urPrintEnqueueMemUnmapParams
+	urPrintEnqueueNativeCommandExpParams
 	urPrintEnqueueReadHostPipeParams
 	urPrintEnqueueTimestampRecordingExpParams
 	urPrintEnqueueUsmAdviseParams
@@ -300,6 +302,8 @@ EXPORTS
 	urPrintExpCommandBufferUpdateMemobjArgDesc
 	urPrintExpCommandBufferUpdatePointerArgDesc
 	urPrintExpCommandBufferUpdateValueArgDesc
+	urPrintExpEnqueueNativeCommandFlags
+	urPrintExpEnqueueNativeCommandProperties
 	urPrintExpExternalMemType
 	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor

@@ -225,6 +225,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,               ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 226,         ///< Enumerator for ::urBindlessImagesImportExternalMemoryExp
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,      ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
+    UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -281,6 +282,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,               ///< ::ur_exp_sampler_cubemap_properties_t
+    UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,        ///< ::ur_exp_enqueue_native_command_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1599,6 +1601,7 @@ typedef enum ur_device_info_t {
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,       ///< [::ur_bool_t] Returns true if the device supports updating the kernel
                                                                      ///< commands in a command-buffer.
+    UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,                      ///< [::ur_bool_t] return true if enqueue Cluster Launch is supported
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,             ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                      ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001,  ///< [::ur_bool_t] returns true if the device supports the creation of
@@ -1648,6 +1651,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 3D sampled image data.
     UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
+    UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,      ///< [::ur_bool_t] returns true if the device supports enqueueing of native
+                                                                     ///< work
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1673,7 +1678,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2820,6 +2825,8 @@ urMemBufferPartition(
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid device handle to return the
+///       native mem handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2828,7 +2835,7 @@ urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///         + `NULL == hDevice`
+///         + If `hDevice == NULL` and the implementation requires a valid device.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -2836,7 +2843,8 @@ urMemBufferPartition(
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(
     ur_mem_handle_t hMem,           ///< [in] handle of the mem.
-    ur_device_handle_t hDevice,     ///< [in] handle of the device that the native handle will be resident on.
+    ur_device_handle_t hDevice,     ///< [in][optional] handle of the device that the native handle will be
+                                    ///< resident on.
     ur_native_handle_t *phNativeMem ///< [out] a pointer to the native handle of the mem.
 );
 
@@ -5683,6 +5691,7 @@ typedef enum ur_command_t {
     UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
     UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
     UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,      ///< Event created by ::urEnqueueTimestampRecordingExp
+    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,           ///< Event created by ::urEnqueueNativeCommandExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -9500,6 +9509,80 @@ urUsmP2PPeerAccessGetInfoExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental API for enqueuing work through native APIs
+#if !defined(__GNUC__)
+#pragma region native enqueue(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Native enqueue properties
+typedef uint32_t ur_exp_enqueue_native_command_flags_t;
+typedef enum ur_exp_enqueue_native_command_flag_t {
+    UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD = UR_BIT(0), ///< reserved for future use.
+    /// @cond
+    UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_enqueue_native_command_flag_t;
+/// @brief Bit Mask for validating ur_exp_enqueue_native_command_flags_t
+#define UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Native enqueue properties
+typedef struct ur_exp_enqueue_native_command_properties_t {
+    ur_structure_type_t stype;                   ///< [in] type of this structure, must be
+                                                 ///< ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES
+    void *pNext;                                 ///< [in,out][optional] pointer to extension-specific structure
+    ur_exp_enqueue_native_command_flags_t flags; ///< [in] native enqueue flags
+
+} ur_exp_enqueue_native_command_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function enqueueing work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_enqueue_native_command_function_t)(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pUserData           ///< [in][out] pointer to data to be passed to callback
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Immediately enqueue work through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeEnqueue`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue,                                      ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t pfnNativeEnqueue,     ///< [in] function calling the native underlying API, to be executed
+                                                                   ///< immediately.
+    void *data,                                                    ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList,                                     ///< [in] size of the mem list
+    const ur_mem_handle_t *phMemList,                              ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                                                                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+                                                                   ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+                                                                   ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList,                                  ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,                      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                   ///< events that must be complete before the kernel execution.
+                                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *phEvent                                     ///< [in,out] return an event object that identifies the work that has
+                                                                   ///< been enqueued in nativeEnqueueFunc.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime API function parameters
 #if !defined(__GNUC__)
 #pragma region callbacks
@@ -10915,6 +10998,22 @@ typedef struct ur_enqueue_timestamp_recording_exp_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_timestamp_recording_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueNativeCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_native_command_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_exp_enqueue_native_command_function_t *ppfnNativeEnqueue;
+    void **pdata;
+    uint32_t *pnumMemsInMemList;
+    const ur_mem_handle_t **pphMemList;
+    const ur_exp_enqueue_native_command_properties_t **ppProperties;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_native_command_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesUnsampledImageHandleDestroyExp

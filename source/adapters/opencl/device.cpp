@@ -802,6 +802,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
     bool Supported = false;
     CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(

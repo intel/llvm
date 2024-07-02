@@ -93,7 +93,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     size_t GroupSize[3] = {0, 0, 0};
     const auto &ReqdWGSizeMDMap =
-        hKernel->get_program()->KernelReqdWorkGroupSizeMD;
+        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
     const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
     if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
       const auto ReqdWGSize = ReqdWGSizeMD->second;
@@ -222,7 +222,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_CONTEXT:
     return ReturnValue(hKernel->getContext());
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(hKernel->get_program());
+    return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
   case UR_KERNEL_INFO_NUM_REGS: {

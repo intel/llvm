@@ -1209,7 +1209,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -7845,6 +7846,68 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t
+        pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
+                          ///< immediately.
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies the work that has
+                ///< been enqueued in nativeEnqueueFunc.
+) {
+    auto pfnNativeCommandExp =
+        context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
+
+    if (nullptr == pfnNativeCommandExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_native_command_exp_params_t params = {&hQueue,
+                                                     &pfnNativeEnqueue,
+                                                     &data,
+                                                     &numMemsInMemList,
+                                                     &phMemList,
+                                                     &pProperties,
+                                                     &numEventsInWaitList,
+                                                     &phEventWaitList,
+                                                     &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                             "urEnqueueNativeCommandExp", &params);
+
+    context.logger.info("---> urEnqueueNativeCommandExp");
+
+    ur_result_t result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
+        pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                       "urEnqueueNativeCommandExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -8312,6 +8375,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
     pDdiTable->pfnTimestampRecordingExp =
         ur_tracing_layer::urEnqueueTimestampRecordingExp;
+
+    dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
+    pDdiTable->pfnNativeCommandExp =
+        ur_tracing_layer::urEnqueueNativeCommandExp;
 
     return result;
 }
