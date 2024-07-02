@@ -169,21 +169,19 @@ jobs:
             awk -v me="$tmp_run_time_mean_i" \
                 -v md="$tmp_run_time_median_i" \
                 -v th="$tmp_run_time_throughput_i" \
-                -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
-                    <<< "$tmp_header_title$tmp_newline$tmp_result" \
-                    | tee -a $3   # Print to summary file
+                -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' <<< "$tmp_header_title$tmp_newline$tmp_result" | tee -a $3   # Print to summary file
         }
 
         # run sycl bench step
         run() {
-            tmp_timestamp="$(date '+%Y%m%d_%H%M%S')"
-            mkdir "./sycl-bench/build/bench-$tmp_timestamp/"
-            tmp_summary_file="./sycl-bench/build/bench-$tmp_timestamp/summary.txt" 
+            TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
+            mkdir "./sycl-bench/build/bench-$TIMESTAMP/"
+            tmp_summary_file="./sycl-bench/build/bench-$TIMESTAMP/summary.txt" 
 
             for file in ./sycl-bench/build/bin/*; do
                 # TODO -size should not be always 256, caution
-                tmp_bench_output="./sycl-bench/build/bench-$tmp_timestamp/$(basename $file).csv"
-                tmp_bench_log="./sycl-bench/build/bench-$tmp_timestamp/$(basename $file).log"
+                tmp_bench_output="./sycl-bench/build/bench-$TIMESTAMP/$(basename $file).csv"
+                tmp_bench_log="./sycl-bench/build/bench-$TIMESTAMP/$(basename $file).log"
 
                 printf "\n### Results for $(basename $file) ###\n" | tee -a $tmp_summary_file
                 $file --output=$tmp_bench_output --no-verification --size=256 2> "$tmp_bench_log"
@@ -191,9 +189,25 @@ jobs:
                 # Remove log if nothing logged
                 [ ! -s "$tmp_bench_log" ] && rm "$tmp_bench_log" || cat "$tmp_bench_log" | tee -a $tmp_summary_file
             done
+
+            # Export timestamp for later use
+            echo TIMESTAMP=$TIMESTAMP >> $GITHUB_ENV
         }
 
         run
     - name: Check results
       run: |
         cat ./sycl-bench/build/bench-*/summary.txt
+#     - name: Pack results
+#       id: pack_results
+#       run: |
+#         ARCHIVE_PATH="./sycl-bench/build/bench-$TIMESTAMP.tar.gz"
+#         tar -I gzip -cf "$ARCHIVE_PATH" -C "./sycl-bench/build/bench-$TIMESTAMP" .
+#         echo ARCHIVE_PATH="$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+#     - name: Upload results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: sycl_benchmark_res_${{ env.TIMESTAMP }}
+#         path: ${{ steps.pack_results.outputs.ARCHIVE_PATH }}
+#         retention-days: 7
+# 
