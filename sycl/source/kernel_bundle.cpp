@@ -418,12 +418,11 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
                                          source_language Language,
                                          const std::vector<std::byte> &Bytes,
                                          include_pairs_t IncludePairs) {
+  (void)IncludePairs;
   backend BE = SyclContext.get_backend();
   if (!is_source_kernel_bundle_supported(BE, Language))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
-
-  // throw if !IncludePairs.empty() ? awaiting guidance.
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
