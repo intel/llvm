@@ -22,12 +22,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#define KERNEL_INFO(KernelName) \
-template <>\
-struct KernelInfo<VirtualFunctionsTest::KernelName>\
-    : public unittest::MockKernelInfoBase {\
-  static constexpr const char *getName() { return #KernelName; }\
-};
+#define KERNEL_INFO(KernelName)                                                \
+  template <>                                                                  \
+  struct KernelInfo<VirtualFunctionsTest::KernelName>                          \
+      : public unittest::MockKernelInfoBase {                                  \
+    static constexpr const char *getName() { return #KernelName; }             \
+  };
 
 KERNEL_INFO(KernelA)
 KERNEL_INFO(KernelB)
@@ -51,12 +51,11 @@ generateImage(std::initializer_list<std::string> KernelNames,
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize);
   auto *SizePtr = reinterpret_cast<char *>(&PropSize);
-  std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t),
-                          Storage.data());
+  std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t), Storage.data());
   std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
                           Storage.data() + /* bytes for size */ 8);
-  const std::string PropName = UsesVFSets ? "uses-virtual-functions-set"
-                                          : "virtual-functions-set";
+  const std::string PropName =
+      UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
   sycl::unittest::PiProperty Prop(PropName, Storage,
                                   PI_PROPERTY_TYPE_BYTE_ARRAY);
 
@@ -103,12 +102,14 @@ static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelB"}, "set-b", /* uses vf set */ true, PROGRAM_B),
     generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B0),
     generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B1),
-    generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true, PROGRAM_C),
+    generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true,
+                  PROGRAM_C),
     generateImage({}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
     generateImage({}, "set-c2", /* provides vf set */ false, PROGRAM_C1),
     generateImage({"KernelD"}, "set-d", /* uses vf set */ true, PROGRAM_D),
     generateImage({}, "set-d", /* provides vf set */ false, PROGRAM_D0),
-    generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true, PROGRAM_E),
+    generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true,
+                  PROGRAM_E),
     generateImage({}, "set-e", /* provides vf set */ false, PROGRAM_E0),
     generateImage({"KernelF"}, "set-f", /* uses vf set */ true, PROGRAM_F),
     generateImage({}, "set-f", /* provides vf set */ false, PROGRAM_F0),
@@ -192,9 +193,9 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_A; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_A0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_A0; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_A * PROGRAM_A0);
 }
@@ -228,12 +229,12 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_B; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_B0; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_B1; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_B0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_B1; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_B * PROGRAM_B0 * PROGRAM_B1);
 }
@@ -267,12 +268,12 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_C; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_C0; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_C1; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_C0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_C1; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
 }
@@ -307,17 +308,18 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_D; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_D0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_D0; }));
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_E; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_E0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_E0; }));
   // And the linked program should be used to create a kernel.
-  ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_D * PROGRAM_D0 * PROGRAM_E * PROGRAM_E0);
+  ASSERT_EQ(ProgramUsedToCreateKernel,
+            PROGRAM_D * PROGRAM_D0 * PROGRAM_E * PROGRAM_E0);
 }
 
 TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
@@ -348,12 +350,12 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   ASSERT_TRUE(
       std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
                   [=](unsigned char program) { return program == PROGRAM_F; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_F0; }));
-  ASSERT_TRUE(
-      std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(),
-                  [=](unsigned char program) { return program == PROGRAM_F1; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_F0; }));
+  ASSERT_TRUE(std::any_of(
+      LinkedPrograms.begin(), LinkedPrograms.end(),
+      [=](unsigned char program) { return program == PROGRAM_F1; }));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 
