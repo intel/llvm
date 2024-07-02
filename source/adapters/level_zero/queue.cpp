@@ -364,14 +364,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Queue->RefCount.load()});
   case UR_QUEUE_INFO_FLAGS:
-    die("UR_QUEUE_INFO_FLAGS in urQueueGetInfo not implemented\n");
-    break;
+    return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
-    die("UR_QUEUE_INFO_SIZE in urQueueGetInfo not implemented\n");
-    break;
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
-    die("UR_QUEUE_INFO_DEVICE_DEFAULT in urQueueGetInfo not implemented\n");
-    break;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
     if (Queue->isInOrderQueue()) {
@@ -602,8 +598,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
-    if ((--Queue->RefCountExternal) != 0)
+    if ((--Queue->RefCountExternal) != 0) {
+      // When an External Reference exists one still needs to decrement the
+      // internal reference count. When the External Reference count == 0, then
+      // cleanup of the queue begins and the final decrement of the internal
+      // reference count is completed.
+      Queue->RefCount.decrementAndTest();
       return UR_RESULT_SUCCESS;
+    }
 
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
