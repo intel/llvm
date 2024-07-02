@@ -1437,12 +1437,11 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
 
-    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
-
     // Treat the image as empty one
-    if (EntriesB == EntriesE && !Img->getVirtualFunctions().isAvailable())
+    if (EntriesB == EntriesE)
       continue;
 
+    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map

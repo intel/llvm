@@ -97,23 +97,26 @@ static constexpr unsigned PROGRAM_F = 41;
 static constexpr unsigned PROGRAM_F0 = 47;
 static constexpr unsigned PROGRAM_F1 = 53;
 
+// Device images with no entires are ignored by SYCL RT during registration.
+// Therefore, we have to provide some kernel names to make the test work, even
+// if we don't really have them/use them.
 static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
-    generateImage({}, "set-a", /* provides vf set */ false, PROGRAM_A0),
+    generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false, PROGRAM_A0),
     generateImage({"KernelB"}, "set-b", /* uses vf set */ true, PROGRAM_B),
-    generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B0),
-    generateImage({}, "set-b", /* provides vf set */ false, PROGRAM_B1),
+    generateImage({"DummyKernel1"}, "set-b", /* provides vf set */ false, PROGRAM_B0),
+    generateImage({"DummyKernel2"}, "set-b", /* provides vf set */ false, PROGRAM_B1),
     generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true,
                   PROGRAM_C),
-    generateImage({}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
-    generateImage({}, "set-c2", /* provides vf set */ false, PROGRAM_C1),
+    generateImage({"DummyKernel3"}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
+    generateImage({"DummyKernel4"}, "set-c2", /* provides vf set */ false, PROGRAM_C1),
     generateImage({"KernelD"}, "set-d", /* uses vf set */ true, PROGRAM_D),
-    generateImage({}, "set-d", /* provides vf set */ false, PROGRAM_D0),
+    generateImage({"DummyKernel5"}, "set-d", /* provides vf set */ false, PROGRAM_D0),
     generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true,
                   PROGRAM_E),
-    generateImage({}, "set-e", /* provides vf set */ false, PROGRAM_E0),
+    generateImage({"DummyKernel6"}, "set-e", /* provides vf set */ false, PROGRAM_E0),
     generateImage({"KernelF"}, "set-f", /* uses vf set */ true, PROGRAM_F),
-    generateImage({}, "set-f", /* provides vf set */ false, PROGRAM_F0),
+    generateImage({"DummyKernel7"}, "set-f", /* provides vf set */ false, PROGRAM_F0),
     generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
 
 // Registers mock devices images in the SYCL RT
