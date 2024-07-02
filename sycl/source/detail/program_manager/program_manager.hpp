@@ -64,7 +64,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
-class program_impl;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -165,20 +164,6 @@ public:
   getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
                      const ContextImplPtr Context);
 
-  /// Resolves given program to a device binary image and requests the program
-  /// to flush constants the image depends on.
-  /// \param Prg the program object to get spec constant settings from.
-  ///        Passing program_impl by raw reference is OK, since it is not
-  ///        captured anywhere once the function returns.
-  /// \param NativePrg the native program, target for spec constant setting; if
-  ///        not null then overrides the native program in Prg
-  /// \param Img A source of the information about which constants need
-  ///        setting and symboling->integer spec constant ID mapping. If not
-  ///        null, overrides native program->binary image binding maintained by
-  ///        the program manager.
-  void flushSpecConstants(const program_impl &Prg,
-                          pi::PiProgram NativePrg = nullptr,
-                          const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel

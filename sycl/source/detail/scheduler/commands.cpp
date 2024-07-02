@@ -15,7 +15,6 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sampler_impl.hpp>
