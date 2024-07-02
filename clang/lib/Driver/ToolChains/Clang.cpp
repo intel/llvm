@@ -5387,7 +5387,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // TODO: Once default arch is moved to at least SM_53, empty arch should
       // also result in the flag added.
       if (!GPUArchName.empty() &&
-          StringToCudaArch(GPUArchName) >= CudaArch::SM_53)
+          StringToOffloadArch(GPUArchName) >= OffloadArch::SM_53)
         CmdArgs.push_back("-fnative-half-type");
     }
     // Pass the triple of host when doing SYCL
