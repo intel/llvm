@@ -11,6 +11,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-cpu-vecz-width=4 %s -g -o %t-vec
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-vec
 
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t-new --offload-new-driver
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-new
+
 #include <sycl/sycl.hpp>
 
 #include <array>
