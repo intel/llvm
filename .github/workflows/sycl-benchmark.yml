@@ -73,7 +73,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runner || '["Linux", "gen12"]') }}
     container:
       image: ${{ inputs.image }}
-      options: "${{ inputs.image_options }} --network=host"
+      options: ${{ inputs.image_options }}
     steps:
     - name: Download SYCL toolchain
       if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
@@ -167,7 +167,7 @@ jobs:
             { echo $tmp_header_title; cat $1; } |
                 grep "^[^#]"                    |   # Discard extraneous headers
                 cut -d',' -f$tmp_columns        |   # Cut out columns of interest
-                tr ',' '\t' | #column -t         |   # Display as a table
+                tr ',' '\t' # | #column -t         |   # Display as a table
                 tee -a $3                           # Print to summary file
         }
 
@@ -189,15 +189,6 @@ jobs:
                 [ ! -s "$tmp_bench_log" ] && rm "$tmp_bench_log" || cat "$tmp_bench_log" | tee -a $tmp_summary_file
             done
         }
-
-        # Install pretty-printing utilities
-        #
-        # For some reason, ubuntu has an issue with the `column` command not included in standard util-linux.
-        # So, to use `column`, the BSD utils is used. Either wait until this fixed on Ubuntu's side, or
-        # I can write another script to accomplish this.
-        cat /etc/resolv.conf
-        sudo apt update
-        sudo apt install -y bsdmainutils
 
         run
     - name: Check results
