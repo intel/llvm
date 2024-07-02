@@ -27,6 +27,12 @@ public:
   static std::unique_ptr<SYCLModuleInfo>
   runFusionPasses(llvm::Module &Mod, SYCLModuleInfo &InputInfo,
                   BarrierFlags BarriersFlags);
+
+  ///
+  /// Run the necessary passes in a custom pass pipeline to perform
+  /// materialization of kernel specialization constants.
+  static bool runMaterializerPasses(llvm::Module &Mod,
+                                    std::vector<unsigned char> &SpecConstBlob);
 };
 } // namespace fusion
 } // namespace jit_compiler
