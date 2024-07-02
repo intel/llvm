@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump -triple nvptx-unknown-unknown -target-cpu sm_90 -Wno-c++23-extensions %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -triple nvptx-unknown-unknown -target-cpu sm_90 -Wno-c++23-extensions %s | FileCheck %s
 
 // Tests for AST of Intel max_work_group_size, min_work_groups_per_cu and
 // max_work_groups_per_mp attribute.

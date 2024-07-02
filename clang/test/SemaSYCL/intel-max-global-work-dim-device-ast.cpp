@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 | FileCheck %s
 
 // The test checks AST of [[intel::max_global_work_dim()]] attribute.
 

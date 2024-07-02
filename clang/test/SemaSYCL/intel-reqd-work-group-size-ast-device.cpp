@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Test for AST of reqd_work_group_size kernel attribute in SYCL 1.2.1.
+// Test for AST of reqd_work_group_size kernel attribute in SYCL.
 
 #include "sycl.hpp"
 
@@ -118,6 +118,18 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+    // CHECK: SYCLReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 32
+    // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 32
+    // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 32
+    // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+    h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {});
   });
   return 0;
 }

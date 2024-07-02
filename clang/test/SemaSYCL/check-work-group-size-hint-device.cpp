@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify -DEXPECT_PROP -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump -DEXPECT_PROP %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -DEXPECT_PROP -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -DEXPECT_PROP %s | FileCheck %s
 
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Test for AST of work_group_size_hint kernel attribute in SYCL 2020 modes. 
+// Test for AST of work_group_size_hint kernel attribute in SYCL. 
 #include "sycl.hpp"
 
 // Check the basics.

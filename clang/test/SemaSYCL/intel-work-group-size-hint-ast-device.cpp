@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Test for AST of work_group_size_hint kernel attribute in SYCL 1.2.1.
+// Test for AST of work_group_size_hint kernel attribute in SYCL.
 
 #include "sycl.hpp"
 

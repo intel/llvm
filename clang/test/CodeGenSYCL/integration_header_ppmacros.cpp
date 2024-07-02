@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s
-// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-SYCL2020
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-range-rounding=disable -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-RANGE
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-range-rounding=force -fsycl-int-header=%t.h %s
@@ -16,9 +16,9 @@
 int main() {
   sycl::kernel_single_task<class first_kernel>([]() {});
 }
-// CHECK-SYCL2020: #ifndef SYCL_LANGUAGE_VERSION
-// CHECK-SYCL2020-NEXT: #define SYCL_LANGUAGE_VERSION 202001
-// CHECK-SYCL2020-NEXT: #endif //SYCL_LANGUAGE_VERSION
+// CHECK: #ifndef SYCL_LANGUAGE_VERSION
+// CHECK-NEXT: #define SYCL_LANGUAGE_VERSION 202001
+// CHECK-NEXT: #endif //SYCL_LANGUAGE_VERSION
 
 // CHECK-RANGE: #ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
 // CHECK-RANGE-NEXT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1

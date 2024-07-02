@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Tests for AST of sycl_explicit_simd function attribute in SYCL 1.2.1.
+// Tests for AST of sycl_explicit_simd function attribute in SYCL.
 
 #include "sycl.hpp"
 
