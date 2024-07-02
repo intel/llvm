@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} %{embed-ir} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Test local internalization of a nested array type.

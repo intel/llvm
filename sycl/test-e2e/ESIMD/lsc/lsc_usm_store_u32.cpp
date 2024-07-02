@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2
-// RUN: %{build} -o %t.out
+// DEFINE: %{winBuildFlag} =  %if windows %{-Qfp-speculation=safe%} %else %{%}
+// RUN: %{build} %{winBuildFlag}-o %t.out
 // RUN: %{run} %t.out
 
 #include "Inputs/lsc_usm_store.hpp"
