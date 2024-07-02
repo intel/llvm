@@ -58,6 +58,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
         *Program ///< [out] pointer to handle of program object created.
 ) {
   std::ignore = Properties;
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   try {
     ur_program_handle_t_ *UrProgram =
         new ur_program_handle_t_(ur_program_handle_t_::IL, Context, IL, Length);
@@ -658,23 +660,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
     // device.  Since Level Zero supports only one device, there is only one
     // pointer.  If the pointer is NULL, we don't do anything.  Otherwise, we
     // copy the program's binary image to the buffer at that pointer.
+    uint8_t **PBinary = nullptr;
     if (ProgramInfo) {
-      uint8_t **PBinary = ur_cast<uint8_t **>(ProgramInfo);
-      if (!PBinary[0])
+      PBinary = ur_cast<uint8_t **>(ProgramInfo);
+      if (!PBinary[0]) {
         break;
-
-      std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
-      if (Program->State == ur_program_handle_t_::IL ||
-          Program->State == ur_program_handle_t_::Native ||
-          Program->State == ur_program_handle_t_::Object) {
-        std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
-      } else if (Program->State == ur_program_handle_t_::Exe) {
-        size_t SzBinary = 0;
-        ZE2UR_CALL(zeModuleGetNativeBinary,
-                   (Program->ZeModule, &SzBinary, PBinary[0]));
-      } else {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
       }
+    }
+    std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
+    if (Program->State == ur_program_handle_t_::IL ||
+        Program->State == ur_program_handle_t_::Native ||
+        Program->State == ur_program_handle_t_::Object) {
+      if (PropSizeRet)
+        *PropSizeRet = Program->CodeLength;
+      if (PBinary) {
+        std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
+      }
+    } else if (Program->State == ur_program_handle_t_::Exe) {
+      size_t SzBinary = 0;
+      uint8_t *NativeBinaryPtr = nullptr;
+      if (PBinary) {
+        NativeBinaryPtr = PBinary[0];
+      }
+      ZE2UR_CALL(zeModuleGetNativeBinary,
+                 (Program->ZeModule, &SzBinary, NativeBinaryPtr));
+      if (PropSizeRet)
+        *PropSizeRet = SzBinary;
+    } else {
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
     break;
   }
@@ -723,7 +736,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   case UR_PROGRAM_INFO_SOURCE:
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(Program->Code.get());
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
@@ -765,6 +778,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
     // return for programs that were built outside and registered
     // with urProgramRegister?
     return ReturnValue("");
+  } else if (PropName == UR_PROGRAM_BUILD_INFO_STATUS) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   } else if (PropName == UR_PROGRAM_BUILD_INFO_LOG) {
     // Check first to see if the plugin code recorded an error message.
     if (!Program->ErrorMessage.empty()) {
@@ -856,6 +871,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
                                  ///< program object created.
 ) {
   std::ignore = Properties;
+  UR_ASSERT(Context && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
 
   // We assume here that programs created from a native handle always
