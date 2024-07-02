@@ -438,7 +438,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 }
 
 // Skip allocas, addrspacecasts associated with allocas and debug insts.
-Instruction *getFrontInstAfterSkippingAllocas(BasicBlock *BB) {
+static Instruction *getFirstInstToProcess(BasicBlock *BB) {
   Instruction *I = &BB->front();
   for (;
        I->getOpcode() == Instruction::Alloca ||
@@ -488,7 +488,7 @@ static void materializeLocalsInWIScopeBlocksImpl(
     // Skip allocas, addrspacecasts associated with allocas and debug insts.
     // Alloca instructions and it's associated instructions must be in the
     // beginning of the function.
-    Instruction *LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+    Instruction *LeaderBBFront = getFirstInstToProcess(LeaderBB);
     BasicBlock *BB = LeaderBB->splitBasicBlock(LeaderBBFront, "LeaderMat");
     // Add a barrier to the original block:
     Instruction *At =
@@ -503,7 +503,7 @@ static void materializeLocalsInWIScopeBlocksImpl(
       // fill the leader BB:
       // fetch data from leader's private copy (which is always up to date) into
       // the corresponding shadow variable
-      LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+      LeaderBBFront = getFirstInstToProcess(LeaderBB);
       Builder.SetInsertPoint(LeaderBBFront);
       copyBetweenPrivateAndShadow(L, Shadow, Builder, true /*private->shadow*/);
       // store data to the local variable - effectively "refresh" the value of
@@ -513,7 +513,7 @@ static void materializeLocalsInWIScopeBlocksImpl(
                                   false /*shadow->private*/);
     }
     // now generate the TestBB and the leader WI guard
-    LeaderBBFront = getFrontInstAfterSkippingAllocas(LeaderBB);
+    LeaderBBFront = getFirstInstToProcess(LeaderBB);
     BasicBlock *TestBB = LeaderBB->splitBasicBlock(LeaderBBFront, "TestMat");
     std::swap(TestBB, LeaderBB);
     guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc(), TT);
