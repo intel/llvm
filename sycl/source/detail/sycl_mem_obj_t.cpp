@@ -173,8 +173,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr & /*Context*/,
-                                   bool InitFromUserData, void *&HostPtr,
+void SYCLMemObjT::determineHostPtr(bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
