@@ -64,44 +64,14 @@ struct launch_strategy {
 
 namespace detail {
 
-// Atharva's stuff
-//====================================================================
-template <auto F, typename tuple, std::size_t... I>
-__syclcompat_inline__ inline void
-execute_kernel(tuple args, std::index_sequence<I...>) {
-  F(std::get<I>(args)...);
-}
-
-template <auto F, typename tuple, std::size_t... I>
-__syclcompat_inline__ inline void
-execute_kernel(tuple args, std::index_sequence<I...>, char* lmem_ptr) {
-  F(std::get<I>(args)..., lmem_ptr);
-}
-
-template <auto F, typename tuple>
-__syclcompat_inline__ inline void run_kernel(tuple args) {
-  auto indices = std::make_index_sequence<std::tuple_size_v<tuple>>{};
-  execute_kernel<F>(args, indices);
-}
-
-template <auto F, typename tuple>
-__syclcompat_inline__ inline void run_kernel(tuple args, char* lmem_ptr) {
-  auto indices = std::make_index_sequence<std::tuple_size_v<tuple>>{};
-  execute_kernel<F>(args, indices, lmem_ptr);
-}
-
-// TODO: This is a good basis but we need to:
-// - Extract SubgroupSize & generalize impl
-// - Get local mem working
-template <auto F, typename KProps, typename... Args>
-struct KernelFunctor {
+template <auto F, typename KProps, typename... Args> struct KernelFunctor {
   KernelFunctor(KProps kernel_props, Args... args)
       : kernel_properties{kernel_props},
         argument_tuple(std::make_tuple(args...)) {}
 
-  KernelFunctor(KProps kernel_props, sycl::local_accessor<char, 1> local_acc, Args... args)
-      : kernel_properties{kernel_props},
-        local_acc{local_acc},
+  KernelFunctor(KProps kernel_props, sycl::local_accessor<char, 1> local_acc,
+                Args... args)
+      : kernel_properties{kernel_props}, local_acc{local_acc},
         argument_tuple(std::make_tuple(args...)) {}
 
   auto get(sycl_exp::properties_tag) { return kernel_properties; }
@@ -111,9 +81,11 @@ struct KernelFunctor {
     if constexpr (syclcompat::lmem_invocable<F, Args...>) {
       char *local_mem_ptr = static_cast<char *>(
           local_acc.get_multi_ptr<sycl::access::decorated::no>());
-      run_kernel<F>(argument_tuple, local_mem_ptr);
+      std::apply(
+          [lmem_ptr = local_mem_ptr](auto &&...args) { F(args..., lmem_ptr); },
+          argument_tuple);
     } else {
-      run_kernel<F>(argument_tuple);
+      std::apply([](auto &&...args) { F(args...); }, argument_tuple);
     }
   }
 
