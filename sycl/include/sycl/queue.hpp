@@ -95,6 +95,12 @@ namespace ext ::oneapi ::experimental {
 // returned by info::queue::state
 enum class queue_state { executing, recording };
 struct image_descriptor;
+
+namespace detail {
+template <typename CommandGroupFunc>
+void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc);
+} // namespace detail
 } // namespace ext::oneapi::experimental
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -2689,12 +2695,39 @@ private:
                                            const detail::code_location &);
 #endif
 
+  template <typename CommandGroupFunc>
+  friend void ext::oneapi::experimental::detail::submit_impl(
+      queue &Q, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc);
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  template <typename T>
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
+  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#if __SYCL_USE_FALLBACK_ASSERT
+    // If post-processing is needed, fall back to the regular submit.
+    // TODO: Revisit whether we can avoid this.
+    submit(CGF, CodeLoc);
+#else
+    submit_without_event_impl(CGF, CodeLoc);
+#endif // __SYCL_USE_FALLBACK_ASSERT
+  }
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.
