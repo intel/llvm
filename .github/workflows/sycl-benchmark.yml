@@ -150,6 +150,9 @@ jobs:
                 return  # Do not proceed if file is empty
             fi
 
+            tmp_newline="
+        "
+
             get_csv_col_index $1 run-time-mean
             tmp_run_time_mean_i=$tmp_csv_col_i
             get_csv_col_index $1 run-time-median
@@ -157,18 +160,17 @@ jobs:
             get_csv_col_index $1 run-time-throughput
             tmp_run_time_throughput_i=$tmp_csv_col_i
 
-            # Columns of interest used in `cut`:
-            tmp_columns="1,$tmp_run_time_mean_i,$tmp_run_time_median_i,$tmp_run_time_throughput_i"
-
             # `sycl-bench` output seems to like inserting the header multiple times.
-            # This caches the header and prints it only once:
+            # Here we cache the header to make sure it prints only once:
             tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
+            tmp_result="$(cat $1 | grep '^[^\#]')"
 
-            { echo $tmp_header_title; cat $1; } |
-                grep "^[^#]"                    |   # Discard extraneous headers
-                cut -d',' -f$tmp_columns        |   # Cut out columns of interest
-                tr ',' '\t' # | #column -t         |   # Display as a table
-                tee -a $3                           # Print to summary file
+            awk -v me="$tmp_run_time_mean_i" \
+                -v md="$tmp_run_time_median_i" \
+                -v th="$tmp_run_time_throughput_i" \
+                -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
+                    <<< "$tmp_header_title$tmp_newline$tmp_result" \
+                    | tee -a $3   # Print to summary file
         }
 
         # run sycl bench step
