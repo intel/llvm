@@ -744,20 +744,13 @@ urLoaderConfigSetCodeLocationCallback(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback to replace or instrument generic mock functionality in the
-///        mock adapter.
-typedef ur_result_t (*ur_mock_callback_t)(
-    void *pParams ///< [in][out] Pointer to the appropriate param struct for the function
-);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief The only adapter reported with mock enabled will be the mock adapter.
 ///
 /// @details
 ///     - The mock adapter will default to returning ::UR_RESULT_SUCCESS for all
 ///       entry points. It will also create and correctly reference count dummy
 ///       handles where appropriate. Its behaviour can be modified by linking
-///       the ::ur_mock_headers library and using the callbacks object.
+///       the ::ur_mock_headers library and using the mock::callbacks object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
