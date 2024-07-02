@@ -81,6 +81,21 @@ struct is_key_value_sorter<
                        std::tuple<Key, Value>> &&
         sycl::is_group_v<Group>>> : std::true_type {};
 
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename Properties, size_t ElementsPerWorkItem, typename = void>
+struct is_array_key_value_sorter : std::false_type {};
+
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename Properties, size_t ElementsPerWorkItem>
+struct is_array_key_value_sorter<
+    Sorter, Group, Key, Value, Properties, ElementsPerWorkItem,
+    std::enable_if_t<
+        std::is_same_v<std::invoke_result_t<
+                           Sorter, Group, sycl::span<Key, ElementsPerWorkItem>,
+                           sycl::span<Value, ElementsPerWorkItem>, Properties>,
+                       void> &&
+        sycl::is_group_v<Group>>> : std::true_type {};
+
 } // namespace detail
 
 // ---- sort_over_group
@@ -237,6 +252,63 @@ sort_key_value_over_group(
       exec.get_group(), key, value,
       default_sorters::group_key_value_sorter<KeyTy, ValueTy>(
           exec.get_memory()));
+}
+
+template <std::size_t ElementsPerWorkItem, typename Group, typename T,
+          typename U, typename ArraySorter,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<
+    sycl::ext::oneapi::experimental::is_property_list_v<
+        std::decay_t<Properties>> &&
+        detail::is_array_key_value_sorter<ArraySorter, Group, T, U, Properties,
+                                          ElementsPerWorkItem>::value,
+    void>
+sort_key_value_over_group(Group group, sycl::span<T, ElementsPerWorkItem> keys,
+                          sycl::span<U, ElementsPerWorkItem> values,
+                          ArraySorter array_sorter,
+                          Properties properties = {}) {
+  array_sorter(group, keys, values, properties);
+}
+
+template <typename Group, typename T, typename U, std::size_t Extent,
+          std::size_t ElementsPerWorkItem, typename Compare,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<
+    sycl::ext::oneapi::experimental::is_property_list_v<
+        std::decay_t<Properties>> &&
+        !sycl::ext::oneapi::experimental::is_property_list_v<
+            std::decay_t<Compare>> &&
+        !detail::is_array_key_value_sorter<Compare, Group, T, U, Properties,
+                                           ElementsPerWorkItem>::value,
+    void>
+sort_key_value_over_group(
+    experimental::group_with_scratchpad<Group, Extent> exec,
+    sycl::span<T, ElementsPerWorkItem> keys,
+    sycl::span<U, ElementsPerWorkItem> values, Compare comp,
+    Properties properties = {}) {
+  return experimental::sort_key_value_over_group(
+      exec.get_group(), keys, values,
+      typename experimental::default_sorters::group_key_value_sorter<
+          T, U, Compare, ElementsPerWorkItem>(exec.get_memory(), comp),
+      properties);
+}
+
+template <typename Group, typename T, typename U, std::size_t Extent,
+          std::size_t ElementsPerWorkItem,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_key_value_over_group(
+    experimental::group_with_scratchpad<Group, Extent> exec,
+    sycl::span<T, ElementsPerWorkItem> keys,
+    sycl::span<U, ElementsPerWorkItem> values, Properties properties = {}) {
+  return experimental::sort_key_value_over_group(
+      exec.get_group(), keys, values,
+      typename experimental::default_sorters::group_key_value_sorter<
+          T, U, std::less<>, ElementsPerWorkItem>(exec.get_memory()),
+      properties);
 }
 
 } // namespace ext::oneapi::experimental

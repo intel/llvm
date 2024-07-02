@@ -168,8 +168,9 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
     std::sort(It, TempSorted.end(), Comp);
     std::vector<T> DataSorted;
     DataSorted.resize(TempSorted.size());
-    writeBlockedOrStriped<T>(/*In */ TempSorted, /* Out */ DataSorted,
-                             GroupSize, ElementsPerWorkItem, Prop);
+    ReadWriteBlockedOrStriped<T>(/*In */ TempSorted, /* Out */ DataSorted,
+                                 GroupSize, ElementsPerWorkItem, Prop,
+                                 /* Read */ false);
 
     if constexpr (std::is_same_v<Compare, std::less<T>>)
       assert(DataToSortCase[0] == DataSorted);
@@ -209,9 +210,9 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   for (T &Elem : ArrayDataRandom)
     Elem = T(distribution(generator));
 
-  auto blocked = oneapi_exp::properties{oneapi_exp::input_data_placement<
+  auto blocked = oneapi_exp::properties{oneapi_exp::output_data_placement<
       oneapi_exp::group_algorithm_data_placement::blocked>};
-  auto striped = oneapi_exp::properties{oneapi_exp::input_data_placement<
+  auto striped = oneapi_exp::properties{oneapi_exp::output_data_placement<
       oneapi_exp::group_algorithm_data_placement::striped>};
   RunOnData<UseGroupT::WorkGroup, 1, PerWI>(Q, ArrayDataRandom, std::less<T>{},
                                             blocked);
