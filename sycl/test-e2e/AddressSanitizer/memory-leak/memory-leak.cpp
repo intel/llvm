@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} %t 2>&1 | FileCheck %s
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
@@ -17,7 +17,7 @@ int main() {
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   }).wait();
   // CHECK: ERROR: DeviceSanitizer: detected memory leaks of Device USM
-  // CHECK: Direct leak of 12 byte(s) allocated from:
+  // CHECK: Direct leak of 12 byte(s) at {{0x.*}} allocated from:
 
   return 0;
 }
