@@ -211,7 +211,8 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
   std::scoped_lock<decltype(TempFilesMutex)> Lock(TempFilesMutex);
   SmallString<128> OutputFile;
   if (SaveTemps) {
-    (Prefix + "." + Extension).toNullTerminatedStringRef(OutputFile);
+    // Generate a unique path name without creating a file
+    sys::fs::createUniquePath(Prefix + "%%%%%%." + Extension, OutputFile, /*MakeAbsolute=*/false);
   } else {
     if (std::error_code EC =
             sys::fs::createTemporaryFile(Prefix, Extension, OutputFile))
