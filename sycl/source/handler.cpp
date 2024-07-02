@@ -286,10 +286,11 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        Result = enqueueImpKernel(
-            MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel, MKernelName.c_str(),
-            RawEvents, NewEvent, nullptr, MImpl->MKernelCacheConfig,
-            MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch);
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative,
+                                  MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
