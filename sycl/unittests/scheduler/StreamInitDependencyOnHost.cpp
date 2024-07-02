@@ -47,31 +47,3 @@ public:
     return CommandGroup;
   }
 };
-
-using CmdTypeTy = sycl::detail::Command::CommandType;
-
-// Function recursively checks that initial command has dependency on chain of
-// other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
-// - 1 in a command dependencies tree from initial command to a currently
-// checked one) and requirement on memory object of stream's flush buffer.
-static bool ValidateDepCommandsTree(const detail::Command *Cmd,
-                                    const std::vector<CmdTypeTy> &DepCmdsTypes,
-                                    const detail::SYCLMemObjI *MemObj,
-                                    size_t Depth = 0) {
-  if (!Cmd || Depth >= DepCmdsTypes.size())
-    throw sycl::runtime_error("Command parameters are invalid",
-                              PI_ERROR_INVALID_VALUE);
-
-  for (const detail::DepDesc &Dep : Cmd->MDeps) {
-    if (Dep.MDepCommand &&
-        (Dep.MDepCommand->getType() == DepCmdsTypes[Depth]) &&
-        Dep.MDepRequirement && (Dep.MDepRequirement->MSYCLMemObj == MemObj) &&
-        ((Depth == DepCmdsTypes.size() - 1) ||
-         ValidateDepCommandsTree(Dep.MDepCommand, DepCmdsTypes, MemObj,
-                                 Depth + 1))) {
-      return true;
-    }
-  }
-
-  return false;
-}
