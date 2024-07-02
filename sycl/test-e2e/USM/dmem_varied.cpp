@@ -3,7 +3,7 @@
 
 // This test is expected to reliably work with USM allocator which is
 // currently enabled only on level zero.
-// REQUIRES: level_zero
+// REQUIRES: level_zero || native_cpu
 
 //==---------- dmem_varied.cpp - Test various sizes and alignments ---------==//
 //
