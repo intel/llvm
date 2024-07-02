@@ -359,6 +359,29 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urContextRetain
+__urdlllocal ur_result_t UR_APICALL
+urContextRetain(
+    ur_context_handle_t hContext ///< [in] handle of the context to get a reference of.
+) {
+    auto pfnRetain = context.urDdiTable.Context.pfnRetain;
+
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urContextRetain");
+
+    UR_CALL(pfnRetain(hContext));
+
+    if (auto ContextInfo = context.interceptor->getContextInfo(hContext)) {
+        ContextInfo->RefCount++;
+    }
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext ///< [in] handle of the context to release.
@@ -371,10 +394,16 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
     context.logger.debug("==== urContextRelease");
 
-    UR_CALL(context.interceptor->eraseContext(hContext));
-    ur_result_t result = pfnRelease(hContext);
+    UR_CALL(pfnRelease(hContext));
 
-    return result;
+    if (auto ContextInfo = context.interceptor->getContextInfo(hContext)) {
+        if (--ContextInfo->RefCount != 0) {
+            return UR_RESULT_SUCCESS;
+        }
+        UR_CALL(context.interceptor->eraseContext(hContext));
+    }
+
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1293,6 +1322,7 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnCreate = ur_sanitizer_layer::urContextCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::urContextRetain;
     pDdiTable->pfnRelease = ur_sanitizer_layer::urContextRelease;
 
     pDdiTable->pfnCreateWithNativeHandle =

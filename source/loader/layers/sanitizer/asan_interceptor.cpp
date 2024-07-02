@@ -154,8 +154,11 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
 
-    for (const auto &[_, AI] : m_AllocationMap) {
-        ReportMemoryLeak(AI);
+    if (!m_AllocationMap.empty()) {
+        for (const auto &[_, AI] : m_AllocationMap) {
+            ReportMemoryLeak(AI);
+        }
+        exit(1);
     }
 }
 

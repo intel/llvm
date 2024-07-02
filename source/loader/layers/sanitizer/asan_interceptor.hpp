@@ -41,6 +41,7 @@ struct DeviceInfo {
     uptr ShadowOffset = 0;
     uptr ShadowOffsetEnd = 0;
 
+    // lock this mutex if following fields are accessed
     ur_mutex Mutex;
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
@@ -63,6 +64,7 @@ struct DeviceInfo {
 struct QueueInfo {
     ur_queue_handle_t Handle;
 
+    // lock this mutex if following fields are accessed
     ur_shared_mutex Mutex;
     ur_event_handle_t LastEvent;
 
@@ -82,8 +84,10 @@ struct QueueInfo {
 
 struct KernelInfo {
     ur_kernel_handle_t Handle;
-    ur_shared_mutex Mutex;
     std::atomic<int32_t> RefCount = 1;
+
+    // lock this mutex if following fields are accessed
+    ur_shared_mutex Mutex;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
     // Need preserve the order of local arguments
@@ -104,6 +108,7 @@ struct KernelInfo {
 
 struct ContextInfo {
     ur_context_handle_t Handle;
+    std::atomic<int32_t> RefCount = 1;
 
     std::vector<ur_device_handle_t> DeviceList;
     std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
