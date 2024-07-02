@@ -7135,7 +7135,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 /// @brief Intercept function for urCommandBufferRetainCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
 ) {
     auto pfnRetainCommandExp =
         context.urDdiTable.CommandBufferExp.pfnRetainCommandExp;
