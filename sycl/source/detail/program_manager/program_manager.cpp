@@ -228,7 +228,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
 
-  if (DbgProgMgr > 0)
+  if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
 

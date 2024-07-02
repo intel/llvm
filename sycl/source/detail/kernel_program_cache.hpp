@@ -262,9 +262,8 @@ public:
         BuildState NewState = BuildResult->waitUntilTransition();
 
         // Build succeeded.
-        if (NewState == BuildState::BS_Done) {
+        if (NewState == BuildState::BS_Done)
           return BuildResult;
-        }
 
         // Build failed, or this is the last attempt.
         if (NewState == BuildState::BS_Failed ||
@@ -305,8 +304,6 @@ public:
         std::rethrow_exception(std::current_exception());
       }
     }
-
-    assert(false && "Cache::getOrbuild ends without returning anything");
   }
 
 private:
