@@ -34,6 +34,8 @@ inline sycl::detail::pi::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
     throw sycl::exception(make_error_code(errc::invalid),
                           "Invalid address_access_mode.");
   }
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Invalid address_access_mode.");
 }
 
 class physical_mem_impl {

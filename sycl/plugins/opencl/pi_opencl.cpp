@@ -1291,6 +1291,16 @@ pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
                                        ParamValueSizeRet);
 }
 
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
+}
+
 pi_result piTearDown(void *PluginParameter) {
   return pi2ur::piTearDown(PluginParameter);
 }
