@@ -605,12 +605,6 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
 
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
-    // Query device type
-    DI->Type = GetDeviceType(Device);
-    if (DI->Type == DeviceType::UNKNOWN) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
     // Query alignment
     UR_CALL(context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
@@ -921,7 +915,7 @@ ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
 USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
-        auto Type = GetDeviceType(Device);
+        auto Type = GetDeviceType(Context, Device);
         if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
             if (Data->PrivateShadowOffset) {
                 Result = context.urDdiTable.USM.pfnFree(
