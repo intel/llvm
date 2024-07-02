@@ -40,9 +40,7 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     if (CallingConv::SPIR_KERNEL == F.getCallingConv())
       continue;
 
-    if (F.hasFnAttribute("sycl-call-if-on-device-conditionally") &&
-        ("true" == F.getFnAttribute("sycl-call-if-on-device-conditionally")
-                       .getValueAsString()))
+    if (F.hasFnAttribute("sycl-call-if-on-device-conditionally"))
       FCallers.push_back(&F);
   }
 
@@ -89,30 +87,42 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     Twine NewFCallerName = Twine(FCaller->getName()) + "_" + UniquePrefix +
                            "_" + Twine(FCallerIndex);
     // Also change to external linkage
-    Function *NewFCaller = Function::Create(
+    auto *NewFCaller = Function::Create(
         NewFCallerType, Function::ExternalLinkage, NewFCallerName, &M);
 
     NewFCaller->setCallingConv(FCaller->getCallingConv());
 
+    DenseMap<CallInst *, CallInst *> OldCallsToNewCalls;
+
     // Replace all calls to the old function with the new one
     for (auto &U : FCaller->uses()) {
-      if (auto *Call = dyn_cast<CallInst>(U.getUser())) {
-        SmallVector<Value *, 4> Args;
-        // Add the function pointer as the first argument
-        Args.push_back(FAction);
-        for (unsigned I = 0; I < Call->arg_size(); ++I)
-          Args.push_back(Call->getArgOperand(I));
+      auto *Call = dyn_cast<CallInst>(U.getUser());
 
-        // Create the new call instruction
-        auto *NewCall =
-            CallInst::Create(NewFCaller, Args, /*	NameStr = */ "", Call);
-        NewCall->setCallingConv(Call->getCallingConv());
-        NewCall->setDebugLoc(Call->getDebugLoc());
+      if (!Call)
+        continue;
 
-        // Replace the old call with the new call
-        Call->replaceAllUsesWith(NewCall);
-        Call->eraseFromParent();
-      }
+      SmallVector<Value *, 4> Args;
+      // Add the function pointer as the first argument
+      Args.push_back(FAction);
+      for (unsigned I = 0; I < Call->arg_size(); ++I)
+        Args.push_back(Call->getArgOperand(I));
+
+      // Create the new call instruction
+      auto *NewCall =
+          CallInst::Create(NewFCaller, Args, /*	NameStr = */ "", Call);
+      NewCall->setCallingConv(Call->getCallingConv());
+      NewCall->setDebugLoc(Call->getDebugLoc());
+
+      OldCallsToNewCalls[Call] = NewCall;
+    }
+
+    for (const auto &OldCallToNewCall : OldCallsToNewCalls) {
+      auto *OldCall = OldCallToNewCall.first;
+      auto *NewCall = OldCallToNewCall.second;
+
+      // Replace the old call with the new call
+      OldCall->replaceAllUsesWith(NewCall);
+      OldCall->eraseFromParent();
     }
 
     // Remove the body of the new function
