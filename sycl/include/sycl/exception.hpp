@@ -301,20 +301,6 @@ public:
 };
 
 class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::memory_allocation instead.")
-    memory_allocation_error : public device_error {
-public:
-  memory_allocation_error()
-      : device_error(make_error_code(errc::memory_allocation)) {}
-
-  memory_allocation_error(const char *Msg, pi_int32 Err)
-      : memory_allocation_error(std::string(Msg), Err) {}
-
-  memory_allocation_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::memory_allocation), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::feature_not_supported instead.")
     feature_not_supported : public device_error {
 public:

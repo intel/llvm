@@ -105,8 +105,6 @@ int main() {
   sycl::link_program_error lpe;
   // expected-warning@+1 {{'invalid_object_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
   sycl::invalid_object_error ioe;
-  // expected-warning@+1 {{'memory_allocation_error' is deprecated: use sycl::exception with sycl::errc::memory_allocation instead.}}
-  sycl::memory_allocation_error mae;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}
   sycl::feature_not_supported fns;
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
