@@ -567,7 +567,12 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         }
       }
 
-      // We only link device images that are compatible with a target device
+      // TODO: Complete this part about handling of incompatible device images.
+      // If device image uses the same virtual function set, then we only
+      // link it if it is compatible.
+      // However, if device image provides virtual function set and it is
+      // incompatible, then should link its "dummy" version to avoid link
+      // errors about unresolved external symbols.
       if (doesDevSupportDeviceRequirements(Dev, *BinImage))
         DeviceImagesToLink.insert(BinImage);
     }
