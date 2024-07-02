@@ -3261,7 +3261,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
-    ACPPCustomOperationData CustomOpData{
+    EnqueueNativeCommandData CustomOpData{
         interop_handle{ReqToMem, HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
                        HostTask->MQueue->getContextImplPtr()},
