@@ -115,9 +115,6 @@ int main() {
   sycl::feature_not_supported fns;
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
-  // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
-  ex.get_cl_code();
-  (void)ex;
 
   // expected-warning@+1{{'online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>' is deprecated}}
   sycl::ext::intel::experimental::online_compiler<
