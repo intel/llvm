@@ -77,7 +77,7 @@ struct callbacks_t {
         beforeCallbacks[name] = callback;
     }
 
-    ur_mock_callback_t get_before_callback(std::string name) {
+    ur_mock_callback_t get_before_callback(std::string name) const {
         auto callback = beforeCallbacks.find(name);
 
         if (callback != beforeCallbacks.end()) {
@@ -90,7 +90,7 @@ struct callbacks_t {
         replaceCallbacks[name] = callback;
     }
 
-    ur_mock_callback_t get_replace_callback(std::string name) {
+    ur_mock_callback_t get_replace_callback(std::string name) const {
         auto callback = replaceCallbacks.find(name);
 
         if (callback != replaceCallbacks.end()) {
@@ -103,7 +103,7 @@ struct callbacks_t {
         afterCallbacks[name] = callback;
     }
 
-    ur_mock_callback_t get_after_callback(std::string name) {
+    ur_mock_callback_t get_after_callback(std::string name) const {
         auto callback = afterCallbacks.find(name);
 
         if (callback != afterCallbacks.end()) {
@@ -124,6 +124,6 @@ struct callbacks_t {
     std::unordered_map<std::string, ur_mock_callback_t> afterCallbacks;
 };
 
-extern callbacks_t callbacks;
+callbacks_t &getCallbacks();
 
 } // namespace mock

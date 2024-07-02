@@ -199,7 +199,8 @@ ur_result_t UR_APICALL urLoaderConfigSetCodeLocationCallback(
 ///     - The mock adapter will default to returning ::UR_RESULT_SUCCESS for all
 ///       entry points. It will also create and correctly reference count dummy
 ///       handles where appropriate. Its behaviour can be modified by linking
-///       the ::ur_mock_headers library and using the mock::callbacks object.
+///       the mock library and using the object accessed via
+///       mock::getCallbacks().
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

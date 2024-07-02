@@ -90,14 +90,16 @@ TEST(Mock, Callbacks) {
 
     // This callback is set up to check *phAdapters is still the pre-call
     // init value we set below
-    mock::callbacks.set_before_callback("urAdapterGet", &beforeUrAdapterGet);
+    mock::getCallbacks().set_before_callback("urAdapterGet",
+                                             &beforeUrAdapterGet);
 
     // This callback is set up to return a distinct test value in phAdapters
     // rather than the default generic handle
-    mock::callbacks.set_replace_callback("urAdapterGet", &replaceUrAdapterGet);
+    mock::getCallbacks().set_replace_callback("urAdapterGet",
+                                              &replaceUrAdapterGet);
 
     // This callback is set up to check our replace callback did its job
-    mock::callbacks.set_after_callback("urAdapterGet", &afterUrAdapterGet);
+    mock::getCallbacks().set_after_callback("urAdapterGet", &afterUrAdapterGet);
 
     ur_adapter_handle_t adapter =
         reinterpret_cast<ur_adapter_handle_t>(0xF00DCAFE);

@@ -269,12 +269,12 @@ handles that track a reference count, and ``Retain``/``Release`` entry points wi
 function as expected when used with these handles.
 
 The behavior of the mock adapter can be customized by linking the
-``unified-runtime::mock`` library and making use of the ``mock::callbacks``
-object. Callbacks can be passed into this object to run either before or after a
-given entry point, or they can be set to entirely replace the default behavior.
-Only one callback of each type (before, replace, after) can be set per entry
-point, with subsequent callbacks set in the same "slot" overwriting any set
-previously.
+``unified-runtime::mock`` library and making use of the object accessed via the
+``mock::getCallbacks()`` helper. Callbacks can be passed into this object to
+run either before or after a given entry point, or they can be set to entirely
+replace the default behavior.  Only one callback of each type (before, replace,
+after) can be set per entry point, with subsequent callbacks set in the same
+"slot" overwriting any set previously.
 
 The callback signature defined by ``ur_mock_callback_t`` takes a single
 ``void *`` parameter. When calling a user callback the adapter will pack the

@@ -14,6 +14,9 @@
 
 namespace mock {
 
-callbacks_t callbacks;
+callbacks_t &getCallbacks() {
+    static callbacks_t callbacks;
+    return callbacks;
+}
 
 } // namespace mock
