@@ -94,6 +94,7 @@
 // CHECK-NEXT: info/ext_codeplay_device_traits.def
 // CHECK-NEXT: info/ext_intel_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
+// CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
