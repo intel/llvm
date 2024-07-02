@@ -746,9 +746,17 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_virtual_mem: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   }
-  throw runtime_error("This device aspect has not been implemented yet.",
-                      PI_ERROR_INVALID_DEVICE);
+  }
+
+  return false; // This device aspect has not been implemented yet.
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {

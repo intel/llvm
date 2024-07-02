@@ -82,8 +82,8 @@ constexpr unsigned ASAN_SHADOW_SCALE = 4;
 constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
 // Based on the observation, only the last 24 bits of the address of the private
-// variable have changed, we use 31 bits(2G) to be safe.
-constexpr std::size_t ASAN_PRIVATE_SIZE = 0x7fffffffULL + 1;
+// variable have changed
+constexpr std::size_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
 // These magic values are written to shadow for better error
 // reporting.

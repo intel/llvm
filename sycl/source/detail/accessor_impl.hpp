@@ -39,7 +39,7 @@ class SYCLMemObjI;
 
 class Command;
 
-class __SYCL_EXPORT AccessorImplHost {
+class AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
@@ -127,7 +127,7 @@ public:
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 
-class __SYCL_EXPORT LocalAccessorImplHost {
+class LocalAccessorImplHost {
 public:
   // Allocate ElemSize more data to have sufficient padding to enforce
   // alignment.

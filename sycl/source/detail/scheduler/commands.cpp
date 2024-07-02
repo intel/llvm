@@ -317,11 +317,25 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
   }
 }
 
+namespace {
+
+struct EnqueueNativeCommandData {
+  sycl::interop_handle ih;
+  std::function<void(interop_handle)> func;
+};
+
+void InteropFreeFunc(pi_queue InteropQueue, void *InteropData) {
+  auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
+  return Data->func(Data->ih);
+}
+} // namespace
+
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
+  std::vector<pi_mem> MReqPiMem;
 
-  pi_result waitForEvents() const {
+  bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -343,14 +357,14 @@ class DispatchHostTask {
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
-      } catch (const sycl::exception &E) {
+      } catch (const sycl::exception &) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
+        return false;
       } catch (...) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
+        return false;
       }
     }
 
@@ -360,13 +374,15 @@ class DispatchHostTask {
       Event->waitInternal();
     }
 
-    return PI_SUCCESS;
+    return true;
   }
 
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
+                   std::vector<interop_handle::ReqToMem> ReqToMem,
+                   std::vector<pi_mem> ReqPiMem)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)),
+        MReqPiMem(std::move(ReqPiMem)) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
@@ -385,11 +401,10 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+    if (!waitForEvents()) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::exception(
+          make_error_code(errc::runtime),
+          std::string("Couldn't wait for host-task's dependencies")));
       HostTask.MQueue->reportAsyncException(EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
@@ -403,8 +418,32 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
+        // TODO: should all the backends that support this entry point use this
+        // for host task?
+        auto &Queue = HostTask.MQueue;
+        bool NativeCommandSupport = false;
+        Queue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+            PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+            sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
+        if (NativeCommandSupport) {
+          EnqueueNativeCommandData CustomOpData{
+              IH, HostTask.MHostTask->MInteropTask};
 
-        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
+          // We are assuming that we have already synchronized with the HT's
+          // dependent events, and that the user will synchronize before the end
+          // of the HT lambda. As such we don't pass in any events, or ask for
+          // one back.
+          //
+          // This entry point is needed in order to migrate memory across
+          // devices in the same context for CUDA and HIP backends
+          Queue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
+              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              MReqPiMem.size(), MReqPiMem.data(), 0, nullptr, nullptr);
+        } else {
+          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
+                                   IH);
+        }
       } else
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
     } catch (...) {
@@ -1927,11 +1966,11 @@ static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
-      MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
@@ -2759,11 +2798,15 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
   }
 
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->supportsDiscardingPiEvents() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
   sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2910,8 +2953,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
-                         MCommandGroup->getRequirements().size() == 0);
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
       DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
@@ -3113,13 +3161,14 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
+    std::vector<pi_mem> ReqPiMem;
 
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
       const std::vector<Requirement *> &HandlerReq =
           HostTask->getRequirements();
-      auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
+      auto ReqToMemConv = [&ReqToMem, &ReqPiMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
@@ -3129,6 +3178,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+            ReqPiMem.emplace_back(MemArg);
 
             return;
           }
@@ -3150,7 +3200,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem)));
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqPiMem)));
 
     MShouldCompleteEventIfPossible = false;
 
