@@ -150,6 +150,9 @@ def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
+def sycl_nvptx_device_lib_EQ : CommaJoined<["--", "-"], "sycl-nvptx-device-libraries=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"A comma separated list of nvptx-specific device libraries that are linked during the device link.">;
 
 // Options for SYCL backends and linker options for shared libraries.
 def sycl_backend_compile_options_EQ :
@@ -187,6 +190,25 @@ def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spe
   Flags<[WrapperOnlyOption, HelpHidden]>;
 def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
+
+// Special options to pass backend options required for AOT compilation
+def gpu_tool_arg_EQ :
+  Joined<["--", "-"], "gpu-tool-arg=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
+def cpu_tool_arg_EQ :
+  Joined<["--", "-"], "cpu-tool-arg=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
+
+// Hidden options to store backend compile/link options that are stored in
+// device images for SYCL offloading
+def sycl_backend_compile_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-compile-options-from-image=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Compile options that will be transmitted to the SYCL backend compiler">;
+def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-link-options-from-image=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Link options that will be transmitted to the SYCL backend compiler">;
 
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
