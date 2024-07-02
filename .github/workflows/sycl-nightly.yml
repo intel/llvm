@@ -15,7 +15,14 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args:
+        --shared-libs
+        --no-assertions
+        --hip
+        --cuda
+        --native_cpu
+        --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON"
+        --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       merge_ref: ''
       retention-days: 90
 
@@ -80,6 +87,37 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
             tests_selector: cts
+
+          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            reset_gpu: true
+            install_drivers: >-
+              ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
+              contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
+            use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+
+          # Performance tests below. Specifics:
+          #  - only run performance tests (use LIT_FILTER env)
+          #  - ask llvm-lit to show all the output, even for PASS (-a)
+          #  - run in single thread (-j 1)
+          #  - enable the tests in LIT (--param enable-perf-tests=True)
+          #  - run on all available devices.
+          - name: Perf tests on Intel GEN12 Graphics system
+            runner: '["Linux", "gen12"]'
+            env: '{"LIT_FILTER":"PerformanceTests/"}'
+            extra_lit_opts: -a -j 1 --param enable-perf-tests=True --param gpu-intel-gen12=True
+            target_devices: all
+
+          - name: Perf tests on Intel Arc A-Series Graphics system
+            runner: '["Linux", "arc"]'
+            env: '{"LIT_FILTER":"PerformanceTests/"}'
+            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+            target_devices: all
+
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
