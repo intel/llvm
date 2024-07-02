@@ -84,11 +84,12 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     // call_if_on_device_conditionally_GUID_N
     if (!UniquePrefixOpt.empty())
       UniquePrefix = UniquePrefixOpt;
-    Twine NewFCallerName = Twine(FCaller->getName()) + "_" + UniquePrefix +
-                           "_" + Twine(FCallerIndex);
     // Also change to external linkage
-    auto *NewFCaller = Function::Create(
-        NewFCallerType, Function::ExternalLinkage, NewFCallerName, &M);
+    auto *NewFCaller =
+        Function::Create(NewFCallerType, Function::ExternalLinkage,
+                         Twine(FCaller->getName()) + "_" + UniquePrefix + "_" +
+                             Twine(FCallerIndex),
+                         &M);
 
     NewFCaller->setCallingConv(FCaller->getCallingConv());
 
