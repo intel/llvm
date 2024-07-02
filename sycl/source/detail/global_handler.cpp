@@ -264,6 +264,8 @@ void GlobalHandler::unloadPlugins() {
     }
   }
 
+  urLoaderTearDown();
+
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
 }
