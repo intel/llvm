@@ -8173,7 +8173,7 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
     ) try {
     auto pfnRetainCommandExp =
         ur_lib::context->urDdiTable.CommandBufferExp.pfnRetainCommandExp;

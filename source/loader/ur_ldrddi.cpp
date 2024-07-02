@@ -7492,7 +7492,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 /// @brief Intercept function for urCommandBufferRetainCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7513,6 +7513,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 
     // forward to device-platform
     result = pfnRetainCommandExp(hCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    // TODO: do we need to ref count the loader handles?
 
     return result;
 }

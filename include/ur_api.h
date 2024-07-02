@@ -8822,7 +8822,7 @@ urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in][retain] Handle of the command-buffer command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
