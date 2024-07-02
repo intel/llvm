@@ -5,7 +5,10 @@
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
+
+#include <random>
 
 int main() {
   sycl::queue Q;

@@ -5,8 +5,10 @@
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
+
 #include <random>
-#include <sycl/sycl.hpp>
 
 int main() {
   std::random_device rd;
