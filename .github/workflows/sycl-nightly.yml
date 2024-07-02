@@ -74,13 +74,6 @@ jobs:
             target_devices: opencl:cpu
             tests_selector: e2e
 
-          - name: Self-hosted CUDA
-            runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
-            tests_selector: e2e
-
           - name: SYCL-CTS on OCL CPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
@@ -148,7 +141,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
+      uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
       with:
         files: |
           sycl_linux.tar.gz

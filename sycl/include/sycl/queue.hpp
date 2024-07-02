@@ -95,6 +95,12 @@ namespace ext ::oneapi ::experimental {
 // returned by info::queue::state
 enum class queue_state { executing, recording };
 struct image_descriptor;
+
+namespace detail {
+template <typename CommandGroupFunc>
+void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc);
+} // namespace detail
 } // namespace ext::oneapi::experimental
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -1851,9 +1857,10 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle.
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
@@ -1867,7 +1874,8 @@ public:
   }
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   /// \param DepEvent is an event that specifies the kernel dependencies.
@@ -1875,56 +1883,78 @@ public:
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   /// \return an event representing the signal operation.
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   /// \param DepEvent is an event that specifies the kernel dependencies.
@@ -1932,19 +1962,12 @@ public:
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   /// \param DepEvents is a vector of events that specifies the kernel
@@ -1953,15 +1976,52 @@ public:
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// single_task version with a kernel represented as a lambda.
   ///
@@ -2590,6 +2650,11 @@ public:
         CodeLoc);
   }
 
+  /// Provides a hint to the  runtime that previously issued commands to this
+  /// queue should begin executing once their prerequisites have been satisfied.
+  ///
+  void ext_oneapi_prod();
+
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()
@@ -2630,12 +2695,39 @@ private:
                                            const detail::code_location &);
 #endif
 
+  template <typename CommandGroupFunc>
+  friend void ext::oneapi::experimental::detail::submit_impl(
+      queue &Q, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc);
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  template <typename T>
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
+  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#if __SYCL_USE_FALLBACK_ASSERT
+    // If post-processing is needed, fall back to the regular submit.
+    // TODO: Revisit whether we can avoid this.
+    submit(CGF, CodeLoc);
+#else
+    submit_without_event_impl(CGF, CodeLoc);
+#endif // __SYCL_USE_FALLBACK_ASSERT
+  }
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.

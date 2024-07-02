@@ -25,7 +25,8 @@
 
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/id_query.hpp>

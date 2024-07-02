@@ -59,7 +59,7 @@
                   *)(&x[16 * offset]));                                        \
   }
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 #define VLOAD_VECTORIZE_GENERIC VLOAD_VECTORIZE
 #else
 // The generic address space isn't available, so make the macro do nothing
@@ -107,7 +107,7 @@ float __clc_vload_half_float_helper__global(const __global half *);
 float __clc_vload_half_float_helper__local(const __local half *);
 float __clc_vload_half_float_helper__private(const __private half *);
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 float __clc_vload_half_float_helper__generic(const __generic half *);
 #endif
 
@@ -170,7 +170,7 @@ GEN_VLOAD_HALF(__global)
 GEN_VLOAD_HALF(__local)
 GEN_VLOAD_HALF(__constant)
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 GEN_VLOAD_HALF(__generic)
 #endif
 

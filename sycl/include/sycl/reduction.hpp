@@ -100,7 +100,8 @@ using IsReduOptForFastAtomicFetch =
     std::bool_constant<false>;
 #else
     std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
-                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
+                        is_sgeninteger_v<T>) &&
+                       IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
@@ -138,11 +139,12 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<(
-        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
-        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
-                             IsMinimum<T, BinaryOperation>::value ||
-                             IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgeninteger_v<T> &&
+                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                        is_sgenfloat_v<T>) &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -835,6 +837,10 @@ using __sycl_init_mem_for =
     std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        reduction::InitMemKrn<KernelName>>;
 
+__SYCL_EXPORT void
+addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
+               std::shared_ptr<int> &Counter);
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo {
@@ -1075,8 +1081,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-    auto Event = q.memset(Counter.get(), 0, sizeof(int));
-    CGH.depends_on(Event);
+    addCounterInit(CGH, CGH.MQueue, Counter);
 
     return Counter.get();
   }
@@ -1173,8 +1178,9 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
-  AuxHandler.depends_on(E);
+  handler AuxHandler(CGH.MQueue, CGH.MIsHost, CGH.eventNeeded());
+  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
+    AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();

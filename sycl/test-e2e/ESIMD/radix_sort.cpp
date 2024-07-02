@@ -12,11 +12,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <algorithm>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #define LOG2_ELEMENTS 20
 
 // the number of bits necessary for representing the radix R

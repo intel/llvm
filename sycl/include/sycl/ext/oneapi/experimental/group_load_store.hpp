@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
 
 #include <cstring>

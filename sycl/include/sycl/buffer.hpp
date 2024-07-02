@@ -22,7 +22,6 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/detail/type_traits.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -180,7 +179,7 @@ public:
   template <class Container>
   using EnableIfContiguous =
       std::void_t<std::enable_if_t<std::is_convertible_v<
-                      detail::remove_pointer_t<
+                      std::remove_pointer_t<
                           decltype(std::declval<Container>().data())> (*)[],
                       const T (*)[]>>,
                   decltype(std::declval<Container>().size())>;
@@ -473,7 +472,13 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() { buffer_plain::handleRelease(); }
+  ~buffer() {
+    try {
+      buffer_plain::handleRelease();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~buffer", e);
+    }
+  }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -19,20 +20,31 @@
 #include <vector>
 
 namespace llvm {
-
+class Function;
+class Module;
 class StringRef;
 
-namespace module_split {
-class ModuleDesc;
-}
 namespace util {
 class PropertyValue;
 }
 
 struct SYCLDeviceRequirements {
-  std::set<uint32_t> Aspects;
+  struct AspectNameValuePair {
+    llvm::SmallString<64> Name;
+    uint32_t Value;
+    AspectNameValuePair(StringRef Name, uint32_t Value)
+        : Name(Name), Value(Value) {}
+    bool operator<(const AspectNameValuePair &rhs) const {
+      return Value < rhs.Value;
+    }
+    bool operator==(const AspectNameValuePair &rhs) const {
+      return Value == rhs.Value;
+    }
+  };
+  std::set<AspectNameValuePair> Aspects;
   std::set<uint32_t> FixedTarget;
   std::optional<llvm::SmallVector<uint64_t, 3>> ReqdWorkGroupSize;
+  std::optional<uint32_t> WorkGroupNumDim;
   std::optional<llvm::SmallString<256>> JointMatrix;
   std::optional<llvm::SmallString<256>> JointMatrixMad;
   std::optional<uint32_t> SubGroupSize;
@@ -41,6 +53,7 @@ struct SYCLDeviceRequirements {
 };
 
 SYCLDeviceRequirements
-computeDeviceRequirements(const module_split::ModuleDesc &M);
+computeDeviceRequirements(const Module &M,
+                          const SetVector<Function *> &EntryPoints);
 
 } // namespace llvm

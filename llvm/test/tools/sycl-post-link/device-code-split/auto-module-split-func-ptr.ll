@@ -1,8 +1,14 @@
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix=CHECK-SYM0
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix=CHECK-SYM1
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix=CHECK-IR0
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefix=CHECK-IR1
+
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefix=CHECK-SYM0
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefix=CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix=CHECK-IR0
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix=CHECK-IR1
 
 ; This test checkes that we can properly perform device code split by tracking
 ; all uses of functions (not only direct calls)

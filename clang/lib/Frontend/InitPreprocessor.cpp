@@ -432,7 +432,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   //      [C++] Whether __STDC__ is predefined and if so, what its value is,
   //      are implementation-defined.
   // (Removed in C++20.)
-  if (!LangOpts.MSVCCompat && !LangOpts.TraditionalCPP)
+  if ((!LangOpts.MSVCCompat || LangOpts.MSVCEnableStdcMacro) &&
+      !LangOpts.TraditionalCPP)
     Builder.defineMacro("__STDC__");
   //   -- __STDC_HOSTED__
   //      The integer literal 1 if the implementation is a hosted
@@ -615,11 +616,6 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   if (LangOpts.HIP) {
     Builder.defineMacro("__HIP__");
     Builder.defineMacro("__HIPCC__");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
     if (LangOpts.HIPStdPar) {
       Builder.defineMacro("__HIPSTDPAR__");
       if (LangOpts.HIPStdParInterposeAlloc)
@@ -1039,6 +1035,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   else if (LangOpts.hasDWARFExceptions() &&
            (TI.getTriple().isThumb() || TI.getTriple().isARM()))
     Builder.defineMacro("__ARM_DWARF_EH__");
+  else if (LangOpts.hasWasmExceptions() && TI.getTriple().isWasm())
+    Builder.defineMacro("__WASM_EXCEPTIONS__");
 
   if (LangOpts.Deprecated)
     Builder.defineMacro("__DEPRECATED");

@@ -1911,7 +1911,8 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0)
+    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0 &&
+        !Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
       return ExtensionID::SPV_KHR_non_semantic_info;
     return {};
   }
@@ -2994,7 +2995,9 @@ protected:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_KHR_integer_dot_product;
+    if (!Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      return ExtensionID::SPV_KHR_integer_dot_product;
+    return {};
   }
 
   void validate() const override {
@@ -3053,6 +3056,12 @@ private:
     }
 
     llvm_unreachable("No mapping for argument type to capability.");
+  }
+
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      return VersionNumber::SPIRV_1_6;
+    return VersionNumber::SPIRV_1_0;
   }
 };
 
@@ -3497,7 +3506,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 6, true, 3)
 #undef _SPIRV_OP
 
 class SPIRVCooperativeMatrixCheckedInstructionsINTELInstBase
@@ -4045,7 +4054,9 @@ protected:
     SPVErrLog.checkError(
         (ResTy->isTypeImage() && OC == internal::OpConvertHandleToImageINTEL) ||
             (ResTy->isTypeSampler() &&
-             OC == internal::OpConvertHandleToSamplerINTEL),
+             OC == internal::OpConvertHandleToSamplerINTEL) ||
+            (ResTy->isTypeSampledImage() &&
+             OC == internal::OpConvertHandleToSampledImageINTEL),
         SPIRVEC_InvalidInstruction,
         InstName + "\nIncorrect return type of the instruction must be "
                    "image/sampler\n");
@@ -4055,6 +4066,7 @@ protected:
   typedef SPIRVBindlessImagesInstBase<internal::Op##x> SPIRV##x;
 _SPIRV_OP(ConvertHandleToImageINTEL)
 _SPIRV_OP(ConvertHandleToSamplerINTEL)
+_SPIRV_OP(ConvertHandleToSampledImageINTEL)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

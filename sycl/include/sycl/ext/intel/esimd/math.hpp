@@ -97,7 +97,11 @@ namespace detail {
 template <typename TRes, typename TArg, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<TRes, SZ>
 __esimd_abs_common_internal(simd<TArg, SZ> src0) {
-  simd<TArg, SZ> Result = simd<TArg, SZ>(__esimd_abs<TArg, SZ>(src0.data()));
+  simd<TArg, SZ> Result;
+  if constexpr (detail::is_generic_floating_point_v<TArg>)
+    Result = simd<TArg, SZ>(__spirv_ocl_fabs<TArg, SZ>(src0.data()));
+  else
+    Result = simd<TArg, SZ>(__spirv_ocl_s_abs<TArg, SZ>(src0.data()));
   return convert<TRes>(Result);
 }
 
@@ -266,7 +270,7 @@ __ESIMD_API simd<T, SZ>(min)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
   if constexpr (std::is_floating_point<T>::value) {
-    auto Result = __esimd_fmin<T, SZ>(src0.data(), src1.data());
+    auto Result = __spirv_ocl_fmin<T, SZ>(src0.data(), src1.data());
     if constexpr (is_sat)
       Result = __esimd_sat<T, T, SZ>(Result);
     return simd<T, SZ>(Result);
@@ -383,9 +387,9 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 #define __ESIMD_EMATH_SPIRV_COND                                               \
   std::is_same_v<T, float> || std::is_same_v<T, sycl::half>
 
-/// Inversion - calculates (1/x). Supports \c half and \c float.
+/// Inversion - calculates (1/x). Supports \c half, \c float and \c double.
 /// Precision: 1 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, inv, recip)
+__ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T>, inv, recip)
 
 /// Logarithm base 2. Supports \c half and \c float.
 /// Precision depending on argument range:
@@ -435,13 +439,16 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, sin, sin)
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 
+/// Square root reciprocal - calculates <code>1/sqrt(x)</code>.
+/// Supports \c double.
+/// Precision: 4 ULP.
 template <class T, int N, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
 rsqrt(simd<T, N> src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return 1. / sqrt(src);
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(1. / sqrt(src));
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 /** Scalar version.                                                       */
@@ -449,9 +456,9 @@ template <class T, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
 rsqrt(T src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return 1. / sqrt(src);
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(1. / sqrt(src));
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF
@@ -1472,7 +1479,7 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_min {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
     if constexpr (std::is_floating_point<T1>::value) {
-      return __esimd_fmin<T1, SZ>(v1.data(), v2.data());
+      return __spirv_ocl_fmin<T1, SZ>(v1.data(), v2.data());
     } else if constexpr (std::is_unsigned<T1>::value) {
       return __esimd_umin<T1, SZ>(v1.data(), v2.data());
     } else {
@@ -1837,8 +1844,11 @@ __ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
 /// rdtsc - get the value of timestamp counter.
 /// @return the current value of timestamp counter
 __ESIMD_API uint64_t rdtsc() {
-  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
-  return retv.template bit_cast_view<uint64_t>()[0];
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_ReadClockKHR(0);
+#else
+  __ESIMD_UNSUPPORTED_ON_HOST;
+#endif
 }
 
 /// @} sycl_esimd_math

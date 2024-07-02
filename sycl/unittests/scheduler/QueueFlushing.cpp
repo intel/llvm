@@ -147,7 +147,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                /*SharedPtrStorage*/ {},
                                /*Requirements*/ {},
                                /*Events*/ {}))};
-    detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA};
+    detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA,
+                                    /*EventNeeded=*/true};
     MockReq.MDims = 1;
     (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),
                            ToCleanUp);

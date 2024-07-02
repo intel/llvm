@@ -1223,7 +1223,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
         nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2118,7 +2119,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
         /*user_data=*/nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2681,8 +2683,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &Img,
                                   const NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
-    const RTDeviceBinaryImage::PropertyRange &PropRange =
-        Img.getDeviceRequirements();
+    auto &PropRange = Img.getDeviceRequirements();
     RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
         PropRange.begin(), PropRange.end(),
         [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
@@ -2700,6 +2701,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
   auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
+  auto WorkGroupNumDim = getPropIt("work_group_num_dim");
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
@@ -2796,7 +2798,23 @@ checkDevSupportDeviceRequirements(const device &Dev,
       Dims++;
     }
 
-    if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
+    size_t UserProvidedNumDims = 0;
+    if (WorkGroupNumDim) {
+      // We know the dimensions have been padded to 3, make sure that the pad
+      // value is always set to 1 and record the number of dimensions specified
+      // by the user.
+      UserProvidedNumDims =
+          DeviceBinaryProperty(*(WorkGroupNumDim.value())).asUint32();
+#ifndef NDEBUG
+      for (unsigned i = UserProvidedNumDims; i < 3; ++i)
+        assert(ReqdWGSizeVec[i] == 1 &&
+               "Incorrect padding in required work-group size metadata.");
+#endif // NDEBUG
+    } else {
+      UserProvidedNumDims = Dims;
+    }
+
+    if (NDRDesc.Dims != 0 && NDRDesc.Dims != UserProvidedNumDims)
       return sycl::exception(
           sycl::errc::nd_range,
           "The local size dimension of submitted nd_range doesn't match the "

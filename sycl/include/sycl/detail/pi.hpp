@@ -20,7 +20,6 @@
 
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
-#include <sstream>     // for operator<<, basic_ostream, string...
 #include <stddef.h>    // for size_t
 #include <string>      // for char_traits, string
 #include <type_traits> // for false_type, true_type
@@ -70,7 +69,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
@@ -78,7 +76,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
@@ -87,7 +84,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.so"
@@ -95,7 +91,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dylib"
@@ -107,22 +102,6 @@ bool trace(TraceLevel level);
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);
 
 __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
-
-template <typename T>
-void handleUnknownParamName(const char *functionName, T parameter) {
-  std::stringstream stream;
-  stream << "Unknown parameter " << parameter << " passed to " << functionName
-         << "\n";
-  auto str = stream.str();
-  auto msg = str.c_str();
-  die(msg);
-}
-
-// This macro is used to report invalid enumerators being passed to PI API
-// GetInfo functions. It will print the name of the function that invoked it
-// and the value of the unknown enumerator.
-#define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
-  { sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
@@ -163,8 +142,12 @@ using PiImageMemHandle = ::pi_image_mem_handle;
 using PiImageCopyFlags = ::pi_image_copy_flags;
 using PiInteropMemHandle = ::pi_interop_mem_handle;
 using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
+using PiExternalMemDescriptor = ::pi_external_mem_descriptor;
+using PiExternalSemaphoreDescriptor = ::pi_external_semaphore_descriptor;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
+using PiPhysicalMem = ::pi_physical_mem;
+using PiVirtualAccessFlags = ::pi_virtual_access_flags;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

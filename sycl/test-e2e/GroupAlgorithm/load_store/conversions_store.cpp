@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 
 struct S {
   operator int() const { return i + 42; }

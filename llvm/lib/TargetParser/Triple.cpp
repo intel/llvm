@@ -377,14 +377,14 @@ StringRef Triple::getObjectFormatTypeName(ObjectFormatType Kind) {
 }
 
 static Triple::ArchType parseBPFArch(StringRef ArchName) {
-  if (ArchName.equals("bpf")) {
+  if (ArchName == "bpf") {
     if (sys::IsLittleEndianHost)
       return Triple::bpfel;
     else
       return Triple::bpfeb;
-  } else if (ArchName.equals("bpf_be") || ArchName.equals("bpfeb")) {
+  } else if (ArchName == "bpf_be" || ArchName == "bpfeb") {
     return Triple::bpfeb;
-  } else if (ArchName.equals("bpf_le") || ArchName.equals("bpfel")) {
+  } else if (ArchName == "bpf_le" || ArchName == "bpfel") {
     return Triple::bpfel;
   } else {
     return Triple::UnknownArch;
@@ -1538,6 +1538,8 @@ VersionTuple Triple::getDXILVersion() const {
   if (getArch() != dxil || getOS() != ShaderModel)
     llvm_unreachable("invalid DXIL triple");
   StringRef Arch = getArchName();
+  if (getSubArch() == NoSubArch)
+    Arch = getDXILArchNameFromShaderModel(getOSName());
   Arch.consume_front("dxilv");
   VersionTuple DXILVersion = parseVersionFromName(Arch);
   // FIXME: validate DXIL version against Shader Model version.

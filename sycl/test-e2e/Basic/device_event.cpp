@@ -57,8 +57,7 @@ int test_strideN(size_t stride) {
     nElemsToCopy++;
 
   try {
-    default_selector selector;
-    queue myQueue(selector, [](exception_list l) {
+    queue myQueue(default_selector_v, [](exception_list l) {
       for (auto ep : l) {
         try {
           std::rethrow_exception(ep);
@@ -88,7 +87,7 @@ int test_strideN(size_t stride) {
             local_acc.get_multi_ptr<access::decorated::yes>();
         decorated_global_ptr<int> gptr =
             out_ptr.get_multi_ptr<access::decorated::yes>() +
-            grp.get_id()[0] * 16;
+            grp.get_group_id()[0] * 16;
 
         // Write the values 700, 701, ..., 763 to global memory.
         // Why? Well, a) to ensure that something is written into that memory
