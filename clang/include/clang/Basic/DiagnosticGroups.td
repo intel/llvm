@@ -303,6 +303,9 @@ def : DiagGroup<"pre-c2x-compat-pedantic", [CPre23CompatPedantic]>;
 
 // Warning for treating C input as C++ input.
 def ExpectedFileType : DiagGroup<"expected-file-type">;
+def CPre2yCompat : DiagGroup<"pre-c2y-compat">;
+def CPre2yCompatPedantic : DiagGroup<"pre-c2y-compat-pedantic",
+                                     [CPre2yCompat]>;
 
 // Warnings for C++ code which is not compatible with previous C++ standards.
 def CXXPre14Compat : DiagGroup<"pre-c++14-compat">;
@@ -1207,6 +1210,9 @@ def C99 : DiagGroup<"c99-extensions", [C99Designator]>;
 def C23 : DiagGroup<"c23-extensions">;
 
 def : DiagGroup<"c2x-extensions", [C23]>;
+
+// A warning group for warnings about using C2y features as extensions.
+def C2y : DiagGroup<"c2y-extensions">;
 
 // Previously supported warning group which is no longer pertinent as binary
 // literals are a C++14 and C23 extension now instead of a GNU extension.
