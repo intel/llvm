@@ -23,8 +23,14 @@ namespace fs = filesystem;
 namespace ur_loader {
 
 std::optional<fs::path> getLoaderLibPath() {
+    HMODULE hModule = NULL;
     char pathStr[MAX_PATH_LEN_WIN];
-    if (GetModuleFileNameA(nullptr, pathStr, MAX_PATH_LEN_WIN)) {
+
+    if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                              GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                          reinterpret_cast<LPCSTR>(&getLoaderLibPath),
+                          &hModule) &&
+        GetModuleFileNameA(hModule, pathStr, MAX_PATH_LEN_WIN)) {
         auto libPath = fs::path(pathStr);
         if (fs::exists(libPath)) {
             return fs::absolute(libPath).parent_path();

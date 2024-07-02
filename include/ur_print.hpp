@@ -207,8 +207,16 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command
 template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_command_info_t value, size_t size);
 
+inline ur_result_t printUnion(
+    std::ostream &os,
+    const union ur_exp_launch_property_value_t params,
+    const enum ur_exp_launch_property_id_t tag);
+
 template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_info_t value, size_t size);
+
+template <>
+inline ur_result_t printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os, uint32_t flag);
 
 } // namespace ur::details
 
@@ -321,6 +329,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_semaphore_type_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
@@ -335,7 +345,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_pointer_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_value_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_kernel_launch_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_launch_property_id_t value);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_launch_property_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_native_command_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_enqueue_native_command_properties_t params);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_function_t type
@@ -736,17 +750,11 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP";
         break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP";
-        break;
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
-        break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
@@ -919,6 +927,21 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
         os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
         break;
+    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP:
+        os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP";
+        break;
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
+        os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
+        break;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP";
+        break;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP";
+        break;
+    case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP:
+        os << "UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1071,6 +1094,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
         break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -1323,6 +1349,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
+
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES: {
+        const ur_exp_enqueue_native_command_properties_t *pstruct = (const ur_exp_enqueue_native_command_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
     default:
         os << "unknown enumerator";
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1440,9 +1471,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
         break;
     case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
         os << "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-        break;
-    case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-        os << "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
         break;
     case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
         os << "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
@@ -2502,6 +2530,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP";
         break;
+    case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+        os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
+        break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
         break;
@@ -2576,6 +2607,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -3998,6 +4032,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
+    case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -4287,6 +4333,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -5453,9 +5511,6 @@ inline ur_result_t printFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     switch (value) {
-    case UR_MEM_TYPE_BUFFER:
-        os << "UR_MEM_TYPE_BUFFER";
-        break;
     case UR_MEM_TYPE_IMAGE2D:
         os << "UR_MEM_TYPE_IMAGE2D";
         break;
@@ -5470,9 +5525,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
         break;
     case UR_MEM_TYPE_IMAGE1D_ARRAY:
         os << "UR_MEM_TYPE_IMAGE1D_ARRAY";
-        break;
-    case UR_MEM_TYPE_IMAGE1D_BUFFER:
-        os << "UR_MEM_TYPE_IMAGE1D_BUFFER";
         break;
     case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
         os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
@@ -8809,6 +8861,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     case UR_COMMAND_TIMESTAMP_RECORDING_EXP:
         os << "UR_COMMAND_TIMESTAMP_RECORDING_EXP";
         break;
+    case UR_COMMAND_ENQUEUE_NATIVE_EXP:
+        os << "UR_COMMAND_ENQUEUE_NATIVE_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -9301,6 +9356,48 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_fi
         break;
     case UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS:
         os << "UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_external_mem_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_mem_type_t value) {
+    switch (value) {
+    case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD";
+        break;
+    case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT";
+        break;
+    case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
+        os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_external_semaphore_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_semaphore_type_t value) {
+    switch (value) {
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD";
+        break;
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT";
+        break;
+    case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+        os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE";
         break;
     default:
         os << "unknown enumerator";
@@ -9838,6 +9935,84 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_launch_property_id_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_launch_property_id_t value) {
+    switch (value) {
+    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE:
+        os << "UR_EXP_LAUNCH_PROPERTY_ID_IGNORE";
+        break;
+    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE:
+        os << "UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE";
+        break;
+    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
+        os << "UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur::details {
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print ur_exp_launch_property_value_t union
+inline ur_result_t printUnion(
+    std::ostream &os,
+    const union ur_exp_launch_property_value_t params,
+    const enum ur_exp_launch_property_id_t tag) {
+    os << "(union ur_exp_launch_property_value_t){";
+
+    switch (tag) {
+    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
+
+        os << ".clusterDim = {";
+        for (auto i = 0; i < 3; i++) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << (params.clusterDim[i]);
+        }
+        os << "}";
+
+        break;
+    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE:
+
+        os << ".cooperative = ";
+
+        os << (params.cooperative);
+
+        break;
+    default:
+        os << "<unknown>";
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    os << "}";
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_launch_property_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_launch_property_t params) {
+    os << "(struct ur_exp_launch_property_t){";
+
+    os << ".id = ";
+
+    os << (params.id);
+
+    os << ", ";
+    os << ".value = ";
+    ur::details::printUnion(os, (params.value), params.id);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_peer_info_t type
 /// @returns
 ///     std::ostream &
@@ -9896,6 +10071,78 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
     return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_native_command_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_native_command_flag_t value) {
+    switch (value) {
+    case UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD:
+        os << "UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_native_command_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os, uint32_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD) == (uint32_t)UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD) {
+        val ^= (uint32_t)UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_native_command_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_enqueue_native_command_properties_t params) {
+    os << "(struct ur_exp_enqueue_native_command_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".flags = ";
+
+    ur::details::printFlag<ur_exp_enqueue_native_command_flag_t>(os,
+                                                                 (params.flags));
+
+    os << "}";
+    return os;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_loader_config_create_params_t type
@@ -10131,6 +10378,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phNativePlatform));
+
+    os << ", ";
+    os << ".hAdapter = ";
+
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".pProperties = ";
@@ -11370,6 +11623,49 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->pphKernel));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_get_suggested_local_work_size_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_get_suggested_local_work_size_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur::details::printPtr(os,
+                          *(params->phKernel));
+
+    os << ", ";
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".numWorkDim = ";
+
+    os << *(params->pnumWorkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pSuggestedLocalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppSuggestedLocalWorkSize));
 
     return os;
 }
@@ -14060,6 +14356,82 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_kernel_launch_custom_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_enqueue_kernel_launch_custom_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".hKernel = ";
+
+    ur::details::printPtr(os,
+                          *(params->phKernel));
+
+    os << ", ";
+    os << ".workDim = ";
+
+    os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pLocalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppLocalWorkSize));
+
+    os << ", ";
+    os << ".numPropsInLaunchPropList = ";
+
+    os << *(params->pnumPropsInLaunchPropList);
+
+    os << ", ";
+    os << ".launchPropList = {";
+    for (size_t i = 0; *(params->plaunchPropList) != NULL && i < *params->pnumPropsInLaunchPropList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << (*(params->plaunchPropList))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_enqueue_cooperative_kernel_launch_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -14140,6 +14512,78 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ".blocking = ";
 
     os << *(params->pblocking);
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_native_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_enqueue_native_command_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".pfnNativeEnqueue = ";
+
+    os << reinterpret_cast<void *>(
+        *(params->ppfnNativeEnqueue));
+
+    os << ", ";
+    os << ".data = ";
+
+    ur::details::printPtr(os,
+                          *(params->pdata));
+
+    os << ", ";
+    os << ".numMemsInMemList = ";
+
+    os << *(params->pnumMemsInMemList);
+
+    os << ", ";
+    os << ".phMemList = {";
+    for (size_t i = 0; *(params->pphMemList) != NULL && i < *params->pnumMemsInMemList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphMemList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -14559,10 +15003,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_import_opaque_fd_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_import_external_memory_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_opaque_fd_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_memory_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14579,6 +15023,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ".size = ";
 
     os << *(params->psize);
+
+    os << ", ";
+    os << ".memHandleType = ";
+
+    os << *(params->pmemHandleType);
 
     os << ", ";
     os << ".pInteropMemDesc = ";
@@ -14666,10 +15115,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_import_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_import_external_semaphore_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14681,6 +15130,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phDevice));
+
+    os << ", ";
+    os << ".semHandleType = ";
+
+    os << *(params->psemHandleType);
 
     os << ", ";
     os << ".pInteropSemaphoreDesc = ";
@@ -14741,6 +15195,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phSemaphore));
 
     os << ", ";
+    os << ".hasWaitValue = ";
+
+    os << *(params->phasWaitValue);
+
+    os << ", ";
+    os << ".waitValue = ";
+
+    os << *(params->pwaitValue);
+
+    os << ", ";
     os << ".numEventsInWaitList = ";
 
     os << *(params->pnumEventsInWaitList);
@@ -14782,6 +15246,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phSemaphore));
+
+    os << ", ";
+    os << ".hasSignalValue = ";
+
+    os << *(params->phasSignalValue);
+
+    os << ", ";
+    os << ".signalValue = ";
+
+    os << *(params->psignalValue);
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -16979,6 +17453,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE: {
         os << (const struct ur_kernel_create_with_native_handle_params_t *)params;
     } break;
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE: {
+        os << (const struct ur_kernel_get_suggested_local_work_size_params_t *)params;
+    } break;
     case UR_FUNCTION_KERNEL_SET_ARG_VALUE: {
         os << (const struct ur_kernel_set_arg_value_params_t *)params;
     } break;
@@ -17174,11 +17651,17 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
         os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
     } break;
+    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP: {
+        os << (const struct ur_enqueue_kernel_launch_custom_exp_params_t *)params;
+    } break;
     case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
         os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)params;
     } break;
     case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP: {
         os << (const struct ur_enqueue_timestamp_recording_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
+        os << (const struct ur_enqueue_native_command_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)params;
@@ -17210,8 +17693,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP: {
         os << (const struct ur_bindless_images_mipmap_free_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP: {
-        os << (const struct ur_bindless_images_import_opaque_fd_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP: {
+        os << (const struct ur_bindless_images_import_external_memory_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP: {
         os << (const struct ur_bindless_images_map_external_array_exp_params_t *)params;
@@ -17219,8 +17702,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP: {
         os << (const struct ur_bindless_images_release_interop_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP: {
-        os << (const struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
+        os << (const struct ur_bindless_images_import_external_semaphore_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *)params;

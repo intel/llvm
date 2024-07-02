@@ -123,6 +123,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
+  pDdiTable->pfnGetSuggestedLocalWorkSize = urKernelGetSuggestedLocalWorkSize;
   return UR_RESULT_SUCCESS;
 }
 
@@ -325,11 +326,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageGetInfoExp = urBindlessImagesImageGetInfoExp;
   pDdiTable->pfnMipmapGetLevelExp = urBindlessImagesMipmapGetLevelExp;
   pDdiTable->pfnMipmapFreeExp = urBindlessImagesMipmapFreeExp;
-  pDdiTable->pfnImportOpaqueFDExp = urBindlessImagesImportOpaqueFDExp;
+  pDdiTable->pfnImportExternalMemoryExp =
+      urBindlessImagesImportExternalMemoryExp;
   pDdiTable->pfnMapExternalArrayExp = urBindlessImagesMapExternalArrayExp;
   pDdiTable->pfnReleaseInteropExp = urBindlessImagesReleaseInteropExp;
-  pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
-      urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+  pDdiTable->pfnImportExternalSemaphoreExp =
+      urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnDestroyExternalSemaphoreExp =
       urBindlessImagesDestroyExternalSemaphoreExp;
   pDdiTable->pfnWaitExternalSemaphoreExp =
@@ -393,6 +395,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
+  pDdiTable->pfnNativeCommandExp = urEnqueueNativeCommandExp;
 
   return UR_RESULT_SUCCESS;
 }

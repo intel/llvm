@@ -1,4 +1,3 @@
-{{OPT}}urMemBufferCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}
-{{OPT}}urMemImageCreateTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}
-{{OPT}}urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}
-{{OPT}}urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}
+urMemImageCreateTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}
+urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}
+urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}

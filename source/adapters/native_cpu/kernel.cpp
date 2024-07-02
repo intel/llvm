@@ -213,9 +213,7 @@ urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto ptrToPtr = reinterpret_cast<const intptr_t *>(pArgValue);
-  auto derefPtr = reinterpret_cast<void *>(*ptrToPtr);
-  hKernel->_args.push_back(derefPtr);
+  hKernel->_args.push_back(const_cast<void *>(pArgValue));
 
   return UR_RESULT_SUCCESS;
 }
@@ -296,4 +294,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   std::ignore = phKernel;
 
   DIE_NO_IMPLEMENTATION
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

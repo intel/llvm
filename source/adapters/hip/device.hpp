@@ -25,7 +25,9 @@ private:
   std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
   hipCtx_t HIPContext;
+  hipEvent_t EvBase; // HIP event used as base counter
   uint32_t DeviceIndex;
+
   int MaxWorkGroupSize{0};
   int MaxBlockDimX{0};
   int MaxBlockDimY{0};
@@ -36,9 +38,10 @@ private:
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
-                      ur_platform_handle_t Platform, uint32_t DeviceIndex)
+                      hipEvent_t EvBase, ur_platform_handle_t Platform,
+                      uint32_t DeviceIndex)
       : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        HIPContext(Context), DeviceIndex(DeviceIndex) {
+        HIPContext(Context), EvBase(EvBase), DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
@@ -67,6 +70,8 @@ public:
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
+
+  uint64_t getElapsedTime(hipEvent_t) const;
 
   hipCtx_t getNativeContext() const noexcept { return HIPContext; };
 

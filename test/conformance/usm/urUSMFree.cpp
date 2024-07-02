@@ -42,7 +42,7 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
-        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), &ptr));
+        urUSMHostAlloc(context, nullptr, nullptr, allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;

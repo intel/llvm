@@ -63,6 +63,7 @@ def check_status(input_lines, match_lines):
 class Tag(Enum):
     OPT = "{{OPT}}"         # makes the line optional
     IGNORE = "{{IGNORE}}"   # ignores all input until next match or end of input file
+    COMMENT = "#"           # comment - line ignored
 
 
 ## @brief main function for the match file processing script
@@ -76,7 +77,15 @@ def main():
 
     with open(input_file, 'r') as input, open(match_file, 'r') as match:
         input_lines = input.readlines()
-        match_lines = match.readlines()
+        # Filter out empty lines and comments (lines beginning with the comment
+        # character, ignoring leading whitespace)
+        match_lines = list(
+            filter(
+                lambda line: line.strip()
+                and not line.lstrip().startswith(Tag.COMMENT.value),
+                match.readlines(),
+            )
+        )
 
     ignored_lines = []
 

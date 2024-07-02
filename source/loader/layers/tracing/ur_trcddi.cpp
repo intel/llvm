@@ -352,6 +352,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -365,15 +367,15 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     ur_platform_create_with_native_handle_params_t params = {
-        &hNativePlatform, &pProperties, &phPlatform};
+        &hNativePlatform, &hAdapter, &pProperties, &phPlatform};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                              "urPlatformCreateWithNativeHandle", &params);
 
     context.logger.info("---> urPlatformCreateWithNativeHandle");
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
+                                                   pProperties, phPlatform);
 
     context.notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                        "urPlatformCreateWithNativeHandle", &params, &result,
@@ -1207,7 +1209,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -3165,8 +3168,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     const ur_kernel_arg_pointer_properties_t
         *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
-        pArgValue ///< [in][optional] USM pointer to memory location holding the argument
-                  ///< value. If null then argument value is considered null.
+        pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+    ///< mapping operation. If null then argument value is considered null.
 ) {
     auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
 
@@ -3415,6 +3418,57 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+) {
+    auto pfnGetSuggestedLocalWorkSize =
+        context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_kernel_get_suggested_local_work_size_params_t params = {
+        &hKernel,           &hQueue,          &numWorkDim,
+        &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                             "urKernelGetSuggestedLocalWorkSize", &params);
+
+    context.logger.info("---> urKernelGetSuggestedLocalWorkSize");
+
+    ur_result_t result = pfnGetSuggestedLocalWorkSize(
+        hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pSuggestedLocalWorkSize);
+
+    context.notify_end(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                       "urKernelGetSuggestedLocalWorkSize", &params, &result,
+                       instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE, &params);
     context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
@@ -5834,41 +5888,45 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t
+        memHandleType, ///< [in] type of external memory handle
     ur_exp_interop_mem_desc_t
         *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
-    auto pfnImportOpaqueFDExp =
-        context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
+    auto pfnImportExternalMemoryExp =
+        context.urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
 
-    if (nullptr == pfnImportOpaqueFDExp) {
+    if (nullptr == pfnImportExternalMemoryExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_import_opaque_fd_exp_params_t params = {
-        &hContext, &hDevice, &size, &pInteropMemDesc, &phInteropMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
-                             "urBindlessImagesImportOpaqueFDExp", &params);
+    ur_bindless_images_import_external_memory_exp_params_t params = {
+        &hContext,      &hDevice,         &size,
+        &memHandleType, &pInteropMemDesc, &phInteropMem};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
+        "urBindlessImagesImportExternalMemoryExp", &params);
 
-    context.logger.info("---> urBindlessImagesImportOpaqueFDExp");
+    context.logger.info("---> urBindlessImagesImportExternalMemoryExp");
 
-    ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
-                                              pInteropMemDesc, phInteropMem);
+    ur_result_t result = pfnImportExternalMemoryExp(
+        hContext, hDevice, size, memHandleType, pInteropMemDesc, phInteropMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
-                       "urBindlessImagesImportOpaqueFDExp", &params, &result,
-                       instance);
+    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
+                       "urBindlessImagesImportExternalMemoryExp", &params,
+                       &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP, &params);
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
+        &params);
     context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
@@ -5956,45 +6014,45 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t
+        semHandleType, ///< [in] type of external memory handle
     ur_exp_interop_semaphore_desc_t
         *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
-    auto pfnImportExternalSemaphoreOpaqueFDExp =
-        context.urDdiTable.BindlessImagesExp
-            .pfnImportExternalSemaphoreOpaqueFDExp;
+    auto pfnImportExternalSemaphoreExp =
+        context.urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
 
-    if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
+    if (nullptr == pfnImportExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t params =
-        {&hContext, &hDevice, &pInteropSemaphoreDesc, &phInteropSemaphore};
+    ur_bindless_images_import_external_semaphore_exp_params_t params = {
+        &hContext, &hDevice, &semHandleType, &pInteropSemaphoreDesc,
+        &phInteropSemaphore};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
-        "urBindlessImagesImportExternalSemaphoreOpaqueFDExp", &params);
+        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
+        "urBindlessImagesImportExternalSemaphoreExp", &params);
 
-    context.logger.info(
-        "---> urBindlessImagesImportExternalSemaphoreOpaqueFDExp");
+    context.logger.info("---> urBindlessImagesImportExternalSemaphoreExp");
 
-    ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
+    ur_result_t result = pfnImportExternalSemaphoreExp(
+        hContext, hDevice, semHandleType, pInteropSemaphoreDesc,
+        phInteropSemaphore);
 
     context.notify_end(
-        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
-        "urBindlessImagesImportExternalSemaphoreOpaqueFDExp", &params, &result,
+        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
+        "urBindlessImagesImportExternalSemaphoreExp", &params, &result,
         instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
-        args_str,
-        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
         &params);
     context.logger.info("({}) -> {};\n", args_str.str(), result);
 
@@ -6046,7 +6104,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
+                      ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `waitValue` is ignored.
+    uint64_t waitValue,           ///< [in] the value to be waited on
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6066,7 +6130,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     }
 
     ur_bindless_images_wait_external_semaphore_exp_params_t params = {
-        &hQueue, &hSemaphore, &numEventsInWaitList, &phEventWaitList, &phEvent};
+        &hQueue,    &hSemaphore,          &hasWaitValue,
+        &waitValue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesWaitExternalSemaphoreExp", &params);
@@ -6074,7 +6140,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     context.logger.info("---> urBindlessImagesWaitExternalSemaphoreExp");
 
     ur_result_t result = pfnWaitExternalSemaphoreExp(
-        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, hSemaphore, hasWaitValue, waitValue, numEventsInWaitList,
+        phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
                        "urBindlessImagesWaitExternalSemaphoreExp", &params,
@@ -6094,7 +6161,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
+                        ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `signalValue` is ignored.
+    uint64_t signalValue,         ///< [in] the value to be signalled
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6114,7 +6187,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     }
 
     ur_bindless_images_signal_external_semaphore_exp_params_t params = {
-        &hQueue, &hSemaphore, &numEventsInWaitList, &phEventWaitList, &phEvent};
+        &hQueue,      &hSemaphore,          &hasSignalValue,
+        &signalValue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesSignalExternalSemaphoreExp", &params);
@@ -6122,7 +6197,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     context.logger.info("---> urBindlessImagesSignalExternalSemaphoreExp");
 
     ur_result_t result = pfnSignalExternalSemaphoreExp(
-        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
+        phEventWaitList, phEvent);
 
     context.notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
@@ -7402,6 +7478,72 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    auto pfnKernelLaunchCustomExp =
+        context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_kernel_launch_custom_exp_params_t params = {
+        &hQueue,          &hKernel,
+        &workDim,         &pGlobalWorkSize,
+        &pLocalWorkSize,  &numPropsInLaunchPropList,
+        &launchPropList,  &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                             "urEnqueueKernelLaunchCustomExp", &params);
+
+    context.logger.info("---> urEnqueueKernelLaunchCustomExp");
+
+    ur_result_t result = pfnKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                       "urEnqueueKernelLaunchCustomExp", &params, &result,
+                       instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -7704,6 +7846,68 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t
+        pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
+                          ///< immediately.
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies the work that has
+                ///< been enqueued in nativeEnqueueFunc.
+) {
+    auto pfnNativeCommandExp =
+        context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
+
+    if (nullptr == pfnNativeCommandExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_native_command_exp_params_t params = {&hQueue,
+                                                     &pfnNativeEnqueue,
+                                                     &data,
+                                                     &numMemsInMemList,
+                                                     &phMemList,
+                                                     &pProperties,
+                                                     &numEventsInWaitList,
+                                                     &phEventWaitList,
+                                                     &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                             "urEnqueueNativeCommandExp", &params);
+
+    context.logger.info("---> urEnqueueNativeCommandExp");
+
+    ur_result_t result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
+        pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                       "urEnqueueNativeCommandExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -7816,9 +8020,9 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnMipmapFreeExp =
         ur_tracing_layer::urBindlessImagesMipmapFreeExp;
 
-    dditable.pfnImportOpaqueFDExp = pDdiTable->pfnImportOpaqueFDExp;
-    pDdiTable->pfnImportOpaqueFDExp =
-        ur_tracing_layer::urBindlessImagesImportOpaqueFDExp;
+    dditable.pfnImportExternalMemoryExp = pDdiTable->pfnImportExternalMemoryExp;
+    pDdiTable->pfnImportExternalMemoryExp =
+        ur_tracing_layer::urBindlessImagesImportExternalMemoryExp;
 
     dditable.pfnMapExternalArrayExp = pDdiTable->pfnMapExternalArrayExp;
     pDdiTable->pfnMapExternalArrayExp =
@@ -7828,10 +8032,10 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnReleaseInteropExp =
         ur_tracing_layer::urBindlessImagesReleaseInteropExp;
 
-    dditable.pfnImportExternalSemaphoreOpaqueFDExp =
-        pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp;
-    pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
-        ur_tracing_layer::urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+    dditable.pfnImportExternalSemaphoreExp =
+        pDdiTable->pfnImportExternalSemaphoreExp;
+    pDdiTable->pfnImportExternalSemaphoreExp =
+        ur_tracing_layer::urBindlessImagesImportExternalSemaphoreExp;
 
     dditable.pfnDestroyExternalSemaphoreExp =
         pDdiTable->pfnDestroyExternalSemaphoreExp;
@@ -8159,6 +8363,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
+    dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
+    pDdiTable->pfnKernelLaunchCustomExp =
+        ur_tracing_layer::urEnqueueKernelLaunchCustomExp;
+
     dditable.pfnCooperativeKernelLaunchExp =
         pDdiTable->pfnCooperativeKernelLaunchExp;
     pDdiTable->pfnCooperativeKernelLaunchExp =
@@ -8167,6 +8375,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
     pDdiTable->pfnTimestampRecordingExp =
         ur_tracing_layer::urEnqueueTimestampRecordingExp;
+
+    dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
+    pDdiTable->pfnNativeCommandExp =
+        ur_tracing_layer::urEnqueueNativeCommandExp;
 
     return result;
 }
@@ -8277,6 +8489,11 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_tracing_layer::urKernelCreateWithNativeHandle;
+
+    dditable.pfnGetSuggestedLocalWorkSize =
+        pDdiTable->pfnGetSuggestedLocalWorkSize;
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        ur_tracing_layer::urKernelGetSuggestedLocalWorkSize;
 
     dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
     pDdiTable->pfnSetArgValue = ur_tracing_layer::urKernelSetArgValue;

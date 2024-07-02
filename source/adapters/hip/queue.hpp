@@ -10,8 +10,11 @@
 #pragma once
 
 #include "common.hpp"
+#include <hip/hip_runtime.h>
+#include <mutex>
+#include <vector>
 
-using ur_stream_quard = std::unique_lock<std::mutex>;
+using ur_stream_guard = std::unique_lock<std::mutex>;
 
 /// UR queue mapping on to hipStream_t objects.
 ///
@@ -22,6 +25,10 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
+  // Stream used for recording EvQueue, which holds information about when the
+  // command in question is enqueued on host, as opposed to started. It is
+  // created only if profiling is enabled - either for queue or per event.
+  native_type HostSubmitTimeStream{0};
   // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -90,10 +97,21 @@ struct ur_queue_handle_t_ {
   // returns a lock that needs to remain locked as long as the stream is in use
   native_type getNextComputeStream(uint32_t NumEventsInWaitList,
                                    const ur_event_handle_t *EventWaitList,
-                                   ur_stream_quard &Guard,
+                                   ur_stream_guard &Guard,
                                    uint32_t *StreamToken = nullptr);
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
+
+  // Function which creates the profiling stream. Called only from makeNative
+  // event when profiling is required.
+  void createHostSubmitTimeStream() {
+    static std::once_flag HostSubmitTimeStreamFlag;
+    std::call_once(HostSubmitTimeStreamFlag, [&]() {
+      UR_CHECK_ERROR(hipStreamCreateWithFlags(&HostSubmitTimeStream,
+                                              hipStreamNonBlocking));
+    });
+  }
+  native_type getHostSubmitTimeStream() { return HostSubmitTimeStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
@@ -229,6 +247,12 @@ struct ur_queue_handle_t_ {
     }
   }
 
+  // Thread local stream will be used if ScopedStream is active
+  static hipStream_t &getThreadLocalStream() {
+    static thread_local hipStream_t stream{0};
+    return stream;
+  }
+
   ur_context_handle_t getContext() const { return Context; };
 
   ur_device_handle_t getDevice() const { return Device; };
@@ -242,4 +266,27 @@ struct ur_queue_handle_t_ {
   uint32_t getNextEventId() noexcept { return ++EventCount; }
 
   bool backendHasOwnership() const noexcept { return HasOwnership; }
+};
+
+// RAII object to make hQueue stream getter methods all return the same stream
+// within the lifetime of this object.
+//
+// This is useful for urEnqueueNativeCommandExp where we want guarantees that
+// the user submitted native calls will be dispatched to a known stream, which
+// must be "got" within the user submitted function.
+//
+// TODO: Add a test that this scoping works
+class ScopedStream {
+  ur_queue_handle_t hQueue;
+
+public:
+  ScopedStream(ur_queue_handle_t hQueue, uint32_t NumEventsInWaitList,
+               const ur_event_handle_t *EventWaitList)
+      : hQueue{hQueue} {
+    ur_stream_guard Guard;
+    hQueue->getThreadLocalStream() =
+        hQueue->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
+  }
+  hipStream_t getStream() { return hQueue->getThreadLocalStream(); }
+  ~ScopedStream() { hQueue->getThreadLocalStream() = hipStream_t{0}; }
 };

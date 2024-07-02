@@ -9,7 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "enqueue.hpp"
 #include "memory.hpp"
+#include "queue.hpp"
 #include "sampler.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -91,7 +93,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     size_t GroupSize[3] = {0, 0, 0};
     const auto &ReqdWGSizeMDMap =
-        hKernel->get_program()->KernelReqdWorkGroupSizeMD;
+        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
     const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
     if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
       const auto ReqdWGSize = ReqdWGSizeMD->second;
@@ -220,7 +222,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_CONTEXT:
     return ReturnValue(hKernel->getContext());
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(hKernel->get_program());
+    return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
   case UR_KERNEL_INFO_NUM_REGS: {
@@ -285,7 +287,8 @@ urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_pointer_properties_t *pProperties,
                       const void *pArgValue) {
   std::ignore = pProperties;
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
+  // setKernelArg is expecting a pointer to our argument
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
@@ -378,5 +381,32 @@ urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
   } catch (ur_result_t Err) {
     Result = Err;
   }
+  return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  // Preconditions
+  UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
+            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ur_device_handle_t Device = hQueue->Device;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  size_t ThreadsPerBlock[3] = {};
+
+  // Set the active context here as guessLocalWorkSize needs an active context
+  ScopedContext Active(Device);
+
+  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                     hKernel);
+
+  std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+            pSuggestedLocalWorkSize);
   return Result;
 }

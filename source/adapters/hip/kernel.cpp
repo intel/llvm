@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "enqueue.hpp"
 #include "memory.hpp"
 #include "sampler.hpp"
 
@@ -45,8 +46,10 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                                 hProgram, hProgram->getContext()});
   } catch (ur_result_t Err) {
     Result = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   *phKernel = RetKernel.release();
@@ -272,7 +275,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
+  // setKernelArg is expecting a pointer to our argument
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
@@ -348,4 +352,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     [[maybe_unused]] uint32_t count,
     [[maybe_unused]] const ur_specialization_constant_info_t *pSpecConstants) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    [[maybe_unused]] ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue,
+    uint32_t workDim, [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
+            UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  size_t MaxThreadsPerBlock[3];
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+
+  MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
+  MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
+  MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
+
+  ur_device_handle_t Device = hQueue->getDevice();
+  ScopedContext Active(Device);
+
+  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                     MaxThreadsPerBlock);
+  std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+            pSuggestedLocalWorkSize);
+  return UR_RESULT_SUCCESS;
 }

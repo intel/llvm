@@ -88,8 +88,8 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
 
     for (uint32_t i = 0; i < NumIterations; ++i) {
         /* Copy from DeviceMem2 to DeviceMem1 and multiply by 2 */
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &DeviceMem1));
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, &DeviceMem2));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem1));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem2));
 
         ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                              &GlobalOffset, &ArraySize, nullptr,
@@ -99,8 +99,8 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
         CurValueMem2 = CurValueMem1 * 2;
 
         /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &DeviceMem2));
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, &DeviceMem1));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem2));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem1));
 
         ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                              &GlobalOffset, &ArraySize, nullptr,

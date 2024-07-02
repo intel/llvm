@@ -16,4 +16,6 @@ struct ur_sampler_handle_t_ : _ur_object {
 
   // Level Zero sampler handle.
   ze_sampler_handle_t ZeSampler;
+
+  ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 };

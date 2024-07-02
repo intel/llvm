@@ -47,23 +47,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     // Create a scoped context.
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{phDevices, DeviceCount});
-
-    static std::once_flag InitFlag;
-    std::call_once(
-        InitFlag,
-        [](ur_result_t &) {
-          // Use default stream to record base event counter
-          UR_CHECK_ERROR(hipEventCreateWithFlags(&ur_platform_handle_t_::EvBase,
-                                                 hipEventDefault));
-          UR_CHECK_ERROR(hipEventRecord(ur_platform_handle_t_::EvBase, 0));
-        },
-        RetErr);
-
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     RetErr = Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return RetErr;
 }
@@ -78,7 +68,8 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(static_cast<uint32_t>(hContext->Devices.size()));
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevices());
+    return ReturnValue(hContext->getDevices().data(),
+                       hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
@@ -130,9 +121,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t, uint32_t, const ur_device_handle_t *,
-    const ur_context_native_properties_t *, ur_context_handle_t *) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+    [[maybe_unused]] ur_native_handle_t hNativeContext,
+    [[maybe_unused]] uint32_t numDevices,
+    [[maybe_unused]] const ur_device_handle_t *phDevices,
+    [[maybe_unused]] const ur_context_native_properties_t *pProperties,
+    [[maybe_unused]] ur_context_handle_t *phContext) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(

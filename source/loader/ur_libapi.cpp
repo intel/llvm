@@ -653,6 +653,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -660,6 +662,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -671,7 +675,8 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
+    return pfnCreateWithNativeHandle(hNativePlatform, hAdapter, pProperties,
+                                     phPlatform);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -842,7 +847,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1470,6 +1475,22 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create an image object
 ///
+/// @details
+///     - The primary ::ur_image_format_t that must be supported by all the
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
+///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clCreateImage**
@@ -1490,12 +1511,13 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
 ///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urMemImageCreate(
@@ -1695,6 +1717,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid device handle to return the
+///       native mem handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1703,7 +1727,7 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///         + `NULL == hDevice`
+///         + If `hDevice == NULL` and the implementation requires a valid device.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -1711,7 +1735,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
     ) try {
@@ -3841,8 +3866,8 @@ ur_result_t UR_APICALL urKernelSetArgPointer(
     const ur_kernel_arg_pointer_properties_t
         *pProperties, ///< [in][optional] pointer to USM pointer properties.
     const void *
-        pArgValue ///< [in][optional] USM pointer to memory location holding the argument
-                  ///< value. If null then argument value is considered null.
+        pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+    ///< mapping operation. If null then argument value is considered null.
     ) try {
     auto pfnSetArgPointer = ur_lib::context->urDdiTable.Kernel.pfnSetArgPointer;
     if (nullptr == pfnSetArgPointer) {
@@ -4097,6 +4122,58 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+    ) try {
+    auto pfnGetSuggestedLocalWorkSize =
+        ur_lib::context->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
+                                        pGlobalWorkOffset, pGlobalWorkSize,
+                                        pSuggestedLocalWorkSize);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -4120,7 +4197,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE - "If `hQueue` isn't a valid queue handle or if `propName` isn't supported by `hQueue`."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urQueueGetInfo(
@@ -6525,7 +6602,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
@@ -6607,7 +6684,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
@@ -6658,7 +6735,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
@@ -6713,7 +6790,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
@@ -6876,7 +6953,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Import external memory in the form of a file descriptor
+/// @brief Import external memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -6890,29 +6967,34 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t
+        memHandleType, ///< [in] type of external memory handle
     ur_exp_interop_mem_desc_t
         *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
     ) try {
-    auto pfnImportOpaqueFDExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
-    if (nullptr == pfnImportOpaqueFDExp) {
+    auto pfnImportExternalMemoryExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnImportExternalMemoryExp;
+    if (nullptr == pfnImportExternalMemoryExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImportOpaqueFDExp(hContext, hDevice, size, pInteropMemDesc,
-                                phInteropMem);
+    return pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
+                                      pInteropMemDesc, phInteropMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6936,7 +7018,7 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -6999,7 +7081,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Import an external semaphore in the form of a file descriptor
+/// @brief Import an external semaphore
 ///
 /// @remarks
 ///   _Analogues_
@@ -7013,28 +7095,33 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE < semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pInteropSemaphoreDesc`
 ///         + `NULL == phInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t
+        semHandleType, ///< [in] type of external memory handle
     ur_exp_interop_semaphore_desc_t
         *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
         phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
     ) try {
-    auto pfnImportExternalSemaphoreOpaqueFDExp =
+    auto pfnImportExternalSemaphoreExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnImportExternalSemaphoreOpaqueFDExp;
-    if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
+            .pfnImportExternalSemaphoreExp;
+    if (nullptr == pfnImportExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
+    return pfnImportExternalSemaphoreExp(hContext, hDevice, semHandleType,
+                                         pInteropSemaphoreDesc,
+                                         phInteropSemaphore);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -7095,7 +7182,13 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
+                      ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `waitValue` is ignored.
+    uint64_t waitValue,           ///< [in] the value to be waited on
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -7114,7 +7207,8 @@ ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, numEventsInWaitList,
+    return pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, hasWaitValue,
+                                       waitValue, numEventsInWaitList,
                                        phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -7141,7 +7235,13 @@ ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
+                        ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `signalValue` is ignored.
+    uint64_t signalValue,         ///< [in] the value to be signalled
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -7160,8 +7260,9 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSignalExternalSemaphoreExp(
-        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+    return pfnSignalExternalSemaphoreExp(hQueue, hSemaphore, hasSignalValue,
+                                         signalValue, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -8065,7 +8166,9 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Update a kernel launch command in a finalized command-buffer.
+/// @brief Update a kernel launch command in a finalized command-buffer. This
+///        entry-point is synchronous and may block if the command-buffer is
+///        executing when the entry-point is called.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8355,6 +8458,95 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     }
 
     return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Launch kernel with custom launch properties
+///
+/// @details
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
+///       `urEnqueueKernelLaunch`
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchKernelEx**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///         + NULL == hQueue
+///         + NULL == hKernel
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == launchPropList`
+///         + NULL == pGlobalWorkSize
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + phEventWaitList == NULL && numEventsInWaitList > 0
+///         + phEventWaitList != NULL && numEventsInWaitList == 0
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+    ) try {
+    auto pfnKernelLaunchCustomExp =
+        ur_lib::context->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnKernelLaunchCustomExp(hQueue, hKernel, workDim, pGlobalWorkSize,
+                                    pLocalWorkSize, numPropsInLaunchPropList,
+                                    launchPropList, numEventsInWaitList,
                                     phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -8725,6 +8917,58 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
     return pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName,
                                    propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Immediately enqueue work through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeEnqueue`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t
+        pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
+                          ///< immediately.
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies the work that has
+                ///< been enqueued in nativeEnqueueFunc.
+    ) try {
+    auto pfnNativeCommandExp =
+        ur_lib::context->urDdiTable.EnqueueExp.pfnNativeCommandExp;
+    if (nullptr == pfnNativeCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnNativeCommandExp(hQueue, pfnNativeEnqueue, data, numMemsInMemList,
+                               phMemList, pProperties, numEventsInWaitList,
+                               phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
