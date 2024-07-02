@@ -25,38 +25,38 @@ int test_cluster_launch_parallel_for(sycl::queue &Queue,
 
   Queue
       .submit([&](sycl::handler &CGH) {
-        CGH.parallel_for(
-            sycl::nd_range<Dim>(GlobalRange, LocalRange),
-            ClusterLaunchProperty, [=](sycl::nd_item<Dim> It) {
-              uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
+        CGH.parallel_for(sycl::nd_range<Dim>(GlobalRange, LocalRange),
+                         ClusterLaunchProperty, [=](sycl::nd_item<Dim> It) {
+                           uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
 // Temporary solution till cluster group class is implemented
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
     (__SYCL_CUDA_ARCH__ >= 900)
-              asm volatile("\n\t"
-                           "mov.u32 %0, %%cluster_nctaid.x; \n\t"
-                           "mov.u32 %1, %%cluster_nctaid.y; \n\t"
-                           "mov.u32 %2, %%cluster_nctaid.z; \n\t"
-                           : "=r"(ClusterDimZ), "=r"(ClusterDimY),
-                             "=r"(ClusterDimX));
+                           asm volatile("\n\t"
+                                        "mov.u32 %0, %%cluster_nctaid.x; \n\t"
+                                        "mov.u32 %1, %%cluster_nctaid.y; \n\t"
+                                        "mov.u32 %2, %%cluster_nctaid.z; \n\t"
+                                        : "=r"(ClusterDimZ), "=r"(ClusterDimY),
+                                          "=r"(ClusterDimX));
 #endif
-              if constexpr (Dim == 1) {
-                if (ClusterDimZ == ClusterRange[0] && ClusterDimY == 1 &&
-                    ClusterDimX == 1) {
-                  *CorrectResultFlag = 1;
-                }
-              } else if constexpr (Dim == 2) {
-                if (ClusterDimZ == ClusterRange[1] &&
-                    ClusterDimY == ClusterRange[0] && ClusterDimX == 1) {
-                  *CorrectResultFlag = 1;
-                }
-              } else {
-                if (ClusterDimZ == ClusterRange[2] &&
-                    ClusterDimY == ClusterRange[1] &&
-                    ClusterDimX == ClusterRange[0]) {
-                  *CorrectResultFlag = 1;
-                }
-              }
-            });
+                           if constexpr (Dim == 1) {
+                             if (ClusterDimZ == ClusterRange[0] &&
+                                 ClusterDimY == 1 && ClusterDimX == 1) {
+                               *CorrectResultFlag = 1;
+                             }
+                           } else if constexpr (Dim == 2) {
+                             if (ClusterDimZ == ClusterRange[1] &&
+                                 ClusterDimY == ClusterRange[0] &&
+                                 ClusterDimX == 1) {
+                               *CorrectResultFlag = 1;
+                             }
+                           } else {
+                             if (ClusterDimZ == ClusterRange[2] &&
+                                 ClusterDimY == ClusterRange[1] &&
+                                 ClusterDimX == ClusterRange[0]) {
+                               *CorrectResultFlag = 1;
+                             }
+                           }
+                         });
       })
       .wait_and_throw();
 

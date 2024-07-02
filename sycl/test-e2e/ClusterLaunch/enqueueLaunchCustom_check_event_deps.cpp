@@ -45,8 +45,7 @@ int main() {
 
       cuda::cluster_size ClusterDims(sycl::range{2});
       properties ClusterLaunchProperty{ClusterDims};
-      auto Acc =
-          Buff.template get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buff.template get_access<sycl::access::mode::read_write>(CGH);
       CGH.parallel_for(
           sycl::nd_range({4096}, {32}), ClusterLaunchProperty,
           [=](sycl::nd_item<1> It) {
@@ -56,13 +55,12 @@ int main() {
           });
     });
     Queue.submit([&](sycl::handler &CGH) {
-      auto Acc =
-          Buff.template get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buff.template get_access<sycl::access::mode::read_write>(CGH);
       CGH.parallel_for(4096, [=](auto i) { Acc[i] *= 5; });
     });
   }
 
-  for (const auto& V : HostArray) {
+  for (const auto &V : HostArray) {
     if (V != 15) {
       return 1;
     }
