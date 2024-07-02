@@ -101,8 +101,6 @@ int main() {
   sycl::device_error de;
   // expected-warning@+1 {{'compile_program_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
   sycl::compile_program_error cpe;
-  // expected-warning@+1 {{'link_program_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
-  sycl::link_program_error lpe;
   // expected-warning@+1 {{'invalid_object_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
   sycl::invalid_object_error ioe;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}

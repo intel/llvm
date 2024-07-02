@@ -276,19 +276,6 @@ public:
 
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
-    link_program_error : public device_error {
-public:
-  link_program_error() : device_error(make_error_code(errc::build)) {}
-
-  link_program_error(const char *Msg, pi_int32 Err)
-      : link_program_error(std::string(Msg), Err) {}
-
-  link_program_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::build), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
     invalid_object_error : public device_error {
 public:
   invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
