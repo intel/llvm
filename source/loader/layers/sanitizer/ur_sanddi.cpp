@@ -26,6 +26,13 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
         auto hDevice = phDevices[i];
         std::shared_ptr<DeviceInfo> DI;
         UR_CALL(context.interceptor->insertDevice(hDevice, DI));
+        DI->Type = GetDeviceType(Context, hDevice);
+        if (DI->Type == DeviceType::UNKNOWN) {
+            context.logger.error("Unsupport device");
+            return UR_RESULT_ERROR_INVALID_DEVICE;
+        }
+        context.logger.info("Add {} into context {}", ToString(DI->Type),
+                            (void *)Context);
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }

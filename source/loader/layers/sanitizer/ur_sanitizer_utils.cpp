@@ -72,20 +72,6 @@ ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     return Device;
 }
 
-std::string GetDeviceName(ur_device_handle_t Device) {
-    size_t Size = 0;
-    [[maybe_unused]] auto Res = context.urDdiTable.Device.pfnGetInfo(
-        Device, UR_DEVICE_INFO_NAME, 0, nullptr, &Size);
-    assert(Res == UR_RESULT_SUCCESS && "GetDeviceName() failed");
-
-    std::vector<char> NameBuf(Size);
-    Res = context.urDdiTable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_NAME,
-                                               Size, NameBuf.data(), nullptr);
-    assert(Res == UR_RESULT_SUCCESS);
-
-    return std::string(NameBuf.data(), Size - 1);
-}
-
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program{};
     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
@@ -129,7 +115,8 @@ ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
     return Device;
 }
 
-DeviceType GetDeviceType(ur_device_handle_t Device) {
+DeviceType GetDeviceType(ur_context_handle_t Context,
+                         ur_device_handle_t Device) {
     ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
     [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
@@ -140,16 +127,24 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
         // TODO: Check fpga is fpga emulator
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
-        // Ref: https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
-        auto Name = GetDeviceName(Device);
-        if (Name.rfind("Intel(R) Data Center GPU Max", 0) == 0) {
-            return DeviceType::GPU_PVC;
-        } else if ((Name.rfind("Intel(R) Arc(TM)", 0) == 0 &&
-                    Name != "Intel(R) Arc(TM) Graphics") ||
-                   Name.rfind("Intel(R) Data Center GPU Flex", 0) == 0) {
-            return DeviceType::GPU_DG2;
+        uptr Ptr;
+        ur_result_t Result = context.urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, nullptr, nullptr, 4, (void **)&Ptr);
+        context.logger.debug("GetDeviceType: {}", (void *)Ptr);
+        assert(Result == UR_RESULT_SUCCESS &&
+               "getDeviceType() failed at allocating device USM");
+        // FIXME: There's no API querying the address bits of device, so we guess it by the
+        // value of device USM pointer (see "USM Allocation Range" in asan_shadow_setup.cpp)
+        auto Type = DeviceType::UNKNOWN;
+        if (Ptr >> 48 == 0xff00U) {
+            Type = DeviceType::GPU_PVC;
+        } else {
+            Type = DeviceType::GPU_DG2;
         }
-        return DeviceType::UNKNOWN;
+        Result = context.urDdiTable.USM.pfnFree(Context, (void *)Ptr);
+        assert(Result == UR_RESULT_SUCCESS &&
+               "getDeviceType() failed at releasing device USM");
+        return Type;
     }
     default:
         return DeviceType::UNKNOWN;
