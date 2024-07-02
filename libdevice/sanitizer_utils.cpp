@@ -174,7 +174,8 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
                          launch_info->LocalShadowOffsetEnd,
                          launch_info->NumLocalArgs, launch_info->LocalArgs);
 
-    auto shadow_ptr = shadow_offset + ((wg_lid * slm_size) >> ASAN_SHADOW_SCALE) +
+    auto shadow_ptr = shadow_offset +
+                      ((wg_lid * slm_size) >> ASAN_SHADOW_SCALE) +
                       ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
@@ -185,7 +186,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
       return 0;
     }
     return shadow_ptr;
-  }else if (as == ADDRESS_SPACE_PRIVATE) { // private
+  } else if (as == ADDRESS_SPACE_PRIVATE) { // private
     // work-group linear id
     const auto WG_LID =
         __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
