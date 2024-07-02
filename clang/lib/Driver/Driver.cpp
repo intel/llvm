@@ -5524,7 +5524,7 @@ class OffloadingActionBuilder final {
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
-        if (IsSPIR || IsNVPTX) {
+        if (IsSPIR || IsNVPTX || IsAMDGCN) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5875,10 +5875,9 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX() ||
-                (TC->getTriple().isSPIR() &&
+            if (TC->getTriple().isSPIR() &&
                  TC->getTriple().getSubArch() ==
-                     llvm::Triple::SPIRSubArch_fpga)) {
+                     llvm::Triple::SPIRSubArch_fpga) {
               auto *SYCLDeviceLibsInputAction =
                   C.MakeAction<InputAction>(*InputArg, types::TY_Object);
               auto *SYCLDeviceLibsUnbundleAction =

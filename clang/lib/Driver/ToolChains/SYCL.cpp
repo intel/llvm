@@ -294,8 +294,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX() ||
-      (TargetTriple.isSPIR() &&
+  if ((TargetTriple.isSPIR() &&
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
     // For NVidia or FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
@@ -307,10 +306,21 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
         continue;
       SmallString<128> LibName(Lib.DeviceLibName);
+      if (TargetTriple.isNVPTX())
+        LibName.append("--cuda");
       llvm::sys::path::replace_extension(LibName, LibSuffix);
       LibraryList.push_back(Args.MakeArgString(LibName));
     }
   };
+
+  if (TargetTriple.isNVPTX()) {
+    LibraryList.push_back(Args.MakeArgString("devicelib--CUDA.bc"));
+    return LibraryList;
+  }
+  if (TargetTriple.isAMDGCN()) {
+    LibraryList.push_back(Args.MakeArgString("devicelib--AMD.bc"));
+    return LibraryList;
+  }
 
   addLibraries(SYCLDeviceWrapperLibs);
   if (IsSpirvAOT || TargetTriple.isNVPTX())
@@ -374,35 +384,19 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
-    "bfloat16",
-    "crt",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
-    "msvc-math",
+      "msvc-math",
 #else
-    "sanitizer",
+      "sanitizer",
 #endif
-    "imf",
-    "imf-fp64",
-    "imf-bf16",
-    "itt-compiler-wrappers",
-    "itt-stubs",
-    "itt-user-wrappers",
-    "fallback-cassert",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
-    "fallback-bfloat16",
-    "native-bfloat16"};
+      "imf", "imf-fp64", "imf-bf16", "itt-compiler-wrappers", "itt-stubs",
+      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
+      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
+      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
+};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
@@ -443,7 +437,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX || IsFPGA) {
+      if (IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())

@@ -214,6 +214,42 @@ function(add_libclc_alias alias target)
 
 endfunction(add_libclc_alias alias target)
 
+# runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#   LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+#   IN_FILE string
+#     Target name of the input bytecode file
+#   OUT_DIR string
+#     Name of the directory where the output should be placed
+function(opt_prepare out_file)
+  cmake_parse_arguments(OPT  "" "LIB_TGT;IN_FILE;OUT_DIR" "" ${ARGN})
+  add_custom_command( OUTPUT ${OPT_LIB_TGT}.bc
+    COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${OPT_LIB_TGT}.bc
+    ${OPT_IN_FILE}
+    DEPENDS libclc::opt ${OPT_IN_FILE}
+  )
+  add_custom_target( ${OPT_LIB_TGT}
+    ALL DEPENDS ${OPT_LIB_TGT}.bc
+  )
+set_target_properties( ${OPT_LIB_TGT}
+  PROPERTIES TARGET_FILE ${OPT_LIB_TGT}.bc
+  )
+
+set( builtins_opt_lib $<TARGET_PROPERTY:${OPT_LIB_TGT},TARGET_FILE> )
+
+  # Add prepare target
+  add_custom_command( OUTPUT ${OPT_OUT_DIR}/${out_file}
+    COMMAND prepare_builtins -o ${OPT_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+    DEPENDS ${builtins_opt_lib} prepare_builtins )
+  add_custom_target( prepare-${out_file} ALL
+    DEPENDS ${OPT_OUT_DIR}/${out_file}
+  )
+  set_target_properties( prepare-${out_file}
+    PROPERTIES TARGET_FILE ${OPT_OUT_DIR}/${out_file}
+  )
+endfunction()
+
 # add_libclc_builtin_set(arch_suffix
 #   TRIPLE string
 #     Triple used to compile
@@ -288,39 +324,18 @@ macro(add_libclc_builtin_set arch_suffix)
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
+  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    DEPENDS ${builtins_link_lib} prepare_builtins )
+
   set( builtins_opt_lib_tgt builtins.opt.${arch_suffix} )
 
-  # Add opt target
-  add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
-    COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-      ${builtins_link_lib}
-    DEPENDS libclc::opt ${builtins_link_lib}
-  )
-  add_custom_target( ${builtins_opt_lib_tgt}
-    ALL DEPENDS ${builtins_opt_lib_tgt}.bc
-  )
-  set_target_properties( ${builtins_opt_lib_tgt}
-    PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
-
-  # Add prepare target
-  set( obj_suffix ${arch_suffix}.bc )
-  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} prepare_builtins )
-  add_custom_target( prepare-${obj_suffix} ALL
-    DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
-  set_target_properties( prepare-${obj_suffix}
-    PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
+  opt_prepare(${arch_suffix}.bc LIB_TGT ${builtins_opt_lib_tgt} IN_FILE
+    ${builtins_link_lib} OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
+  set( obj_suffix ${arch_suffix}.bc )
   add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
   set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
 
