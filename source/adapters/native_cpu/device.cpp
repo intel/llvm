@@ -90,7 +90,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("cl_khr_fp64 ");
+    return ReturnValue("cl_khr_fp16, cl_khr_fp64 ");
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -294,10 +294,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t Capabilities =
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
@@ -312,7 +309,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     // These two are exclusive of L0.
-    return ReturnValue(0);
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
@@ -324,6 +321,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
+
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
+    return ReturnValue(false);
+
   default:
     DIE_NO_IMPLEMENTATION;
   }

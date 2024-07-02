@@ -45,6 +45,8 @@ public:
 
   bool isCompleted() const noexcept;
 
+  bool isInterop() const noexcept { return IsInterop; };
+
   uint32_t getExecutionStatus() const noexcept {
 
     if (!isRecorded()) {
@@ -90,6 +92,9 @@ public:
     const bool RequiresTimings =
         Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
         Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+    if (RequiresTimings) {
+      Queue->createHostSubmitTimeStream();
+    }
     native_type EvEnd = nullptr, EvQueued = nullptr, EvStart = nullptr;
     UR_CHECK_ERROR(cuEventCreate(
         &EvEnd, RequiresTimings ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
@@ -137,6 +142,8 @@ private:
                    // yet.
   bool IsStarted;  // Signifies wether the operation associated with the
                    // UR event has started or not
+
+  const bool IsInterop{false}; // Made with urEventCreateWithNativeHandle
 
   uint32_t StreamToken;
   uint32_t EventID; // Queue identifier of the event.
@@ -192,7 +199,8 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
   CUstream LastSeenStream = 0;
   for (size_t i = 0; i < Events.size(); i++) {
     auto Event = Events[i];
-    if (!Event || (i != 0 && Event->getStream() == LastSeenStream)) {
+    if (!Event || (i != 0 && !Event->isInterop() &&
+                   Event->getStream() == LastSeenStream)) {
       continue;
     }
 

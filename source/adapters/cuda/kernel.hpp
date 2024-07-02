@@ -178,8 +178,6 @@ struct ur_kernel_handle_t_ {
     urContextRelease(Context);
   }
 
-  ur_program_handle_t get_program() const noexcept { return Program; }
-
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
@@ -187,6 +185,7 @@ struct ur_kernel_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   native_type get() const noexcept { return Function; };
+
   ur_program_handle_t getProgram() const noexcept { return Program; };
 
   native_type get_with_offset_parameter() const noexcept {

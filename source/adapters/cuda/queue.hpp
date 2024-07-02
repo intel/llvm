@@ -9,10 +9,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
 #include <ur/ur.hpp>
 
 #include <algorithm>
 #include <cuda.h>
+#include <mutex>
 #include <vector>
 
 using ur_stream_guard_ = std::unique_lock<std::mutex>;
@@ -27,6 +29,10 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
+  // Stream used for recording EvQueue, which holds information about when the
+  // command in question is enqueued on host, as opposed to started. It is
+  // created only if profiling is enabled - either for queue or per event.
+  native_type HostSubmitTimeStream{0};
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -95,9 +101,28 @@ struct ur_queue_handle_t_ {
                                    const ur_event_handle_t *EventWaitList,
                                    ur_stream_guard_ &Guard,
                                    uint32_t *StreamToken = nullptr);
+
+  // Thread local stream will be used if ScopedStream is active
+  static CUstream &getThreadLocalStream() {
+    static thread_local CUstream stream{0};
+    return stream;
+  }
+
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
   ur_device_handle_t getDevice() const noexcept { return Device; };
+
+  // Function which creates the profiling stream. Called only from makeNative
+  // event when profiling is required.
+  void createHostSubmitTimeStream() {
+    static std::once_flag HostSubmitTimeStreamFlag;
+    std::call_once(HostSubmitTimeStreamFlag, [&]() {
+      UR_CHECK_ERROR(cuStreamCreateWithPriority(&HostSubmitTimeStream,
+                                                CU_STREAM_NON_BLOCKING, 0));
+    });
+  }
+
+  native_type getHostSubmitTimeStream() { return HostSubmitTimeStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
@@ -246,4 +271,25 @@ struct ur_queue_handle_t_ {
   uint32_t getNextEventID() noexcept { return ++EventCount; }
 
   bool backendHasOwnership() const noexcept { return HasOwnership; }
+};
+
+// RAII object to make hQueue stream getter methods all return the same stream
+// within the lifetime of this object.
+//
+// This is useful for urEnqueueNativeCommandExp where we want guarantees that
+// the user submitted native calls will be dispatched to a known stream, which
+// must be "got" within the user submitted fuction.
+class ScopedStream {
+  ur_queue_handle_t hQueue;
+
+public:
+  ScopedStream(ur_queue_handle_t hQueue, uint32_t NumEventsInWaitList,
+               const ur_event_handle_t *EventWaitList)
+      : hQueue{hQueue} {
+    ur_stream_guard_ Guard;
+    hQueue->getThreadLocalStream() =
+        hQueue->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
+  }
+  CUstream getStream() { return hQueue->getThreadLocalStream(); }
+  ~ScopedStream() { hQueue->getThreadLocalStream() = CUstream{0}; }
 };

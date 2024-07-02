@@ -66,9 +66,6 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
   }
 }
 
-usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
-    InitializeDisjointPoolConfig();
-
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
@@ -228,6 +225,14 @@ template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
 }
 template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
   return ZE_STRUCTURE_TYPE_IMAGE_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_image_bindless_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_image_pitched_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
 }
 template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_DESC;

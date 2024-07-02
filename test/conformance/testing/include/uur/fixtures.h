@@ -406,7 +406,7 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     }
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 template <class T>
@@ -1097,6 +1097,11 @@ std::string deviceTestWithParamPrinter(
     ss << param;
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
+
+template <>
+std::string deviceTestWithParamPrinter<ur_image_format_t>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, ur_image_format_t>> &info);
 
 // Helper struct to allow bool param tests with meaningful names.
 struct BoolTestParam {

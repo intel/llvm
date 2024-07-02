@@ -33,6 +33,8 @@ void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
 }
 
 CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   uint32_t StreamI;
   uint32_t Token;
   while (true) {
@@ -68,6 +70,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
 CUstream ur_queue_handle_t_::getNextComputeStream(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_stream_guard_ &Guard, uint32_t *StreamToken) {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
     uint32_t Token = EventWaitList[i]->getComputeStreamToken();
     if (reinterpret_cast<ur_queue_handle_t>(EventWaitList[i]->getQueue()) ==
@@ -94,6 +98,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(
 }
 
 CUstream ur_queue_handle_t_::getNextTransferStream() {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   if (TransferStreams.empty()) { // for example in in-order queue
     return getNextComputeStream();
   }
@@ -167,12 +173,11 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t Err) {
-
     return Err;
-
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 
@@ -200,6 +205,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
       UR_CHECK_ERROR(cuStreamSynchronize(S));
       UR_CHECK_ERROR(cuStreamDestroy(S));
     });
+
+    if (hQueue->getHostSubmitTimeStream() != CUstream{0}) {
+      UR_CHECK_ERROR(cuStreamSynchronize(hQueue->getHostSubmitTimeStream()));
+      UR_CHECK_ERROR(cuStreamDestroy(hQueue->getHostSubmitTimeStream()));
+    }
 
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t Err) {

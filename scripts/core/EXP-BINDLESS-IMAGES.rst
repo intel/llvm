@@ -50,6 +50,7 @@ Runtime:
   * Sampled images
   * Unsampled images
   * Mipmaps
+  * Image arrays
   * Cubemaps
   * USM backed images
 
@@ -111,6 +112,16 @@ Enums
     * ${X}_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS
     * ${X}_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED
 
+* ${x}_exp_external_mem_type_t
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE
+
+* ${x}_exp_external_semaphore_type_t
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE
+
 * ${x}_function_t
     * ${X}_FUNCTION_USM_PITCHED_ALLOC_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP
@@ -123,10 +134,10 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP
-    * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP
-    * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
@@ -166,10 +177,10 @@ Functions
    * ${x}BindlessImagesMipmapFreeExp
 
 * Interop
-   * ${x}BindlessImagesImportOpaqueFDExp
+   * ${x}BindlessImagesImportExternalMemoryExp
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesReleaseInteropExp
-   * ${x}BindlessImagesImportExternalSemaphoreOpaqueFDExp
+   * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesDestroyExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
    * ${x}BindlessImagesSignalExternalSemaphoreExp
@@ -207,6 +218,25 @@ Changelog
 +------------------------------------------------------------------------+
 | 11.0     | Added device queries for sampled image fetch capabilities.  |
 +----------+-------------------------------------------------------------+
+| 12.0     | Added image arrays to list of supported bindless images     |
++----------+-------------------------------------------------------------+
+| 13.0     || Interop import API has been adapted to cater to multiple   |
+|          ||  external memory and semaphore handle types                |
+|          || Removed the following APIs:                                |
+|          ||  - ImportExternalOpaqueFDExp                               |
+|          ||  - ImportExternalSemaphoreOpaqueFDExp                      |
+|          || Added the following APIs:                                  |
+|          ||  - ImportExternalMemoryExp                                 |
+|          ||  - ImportExternalSemaphoreExp                              |
+|          || Added the following enums:                                 |
+|          ||  - exp_external_mem_type_t                                 |
+|          ||  - exp_external_semaphore_type_t                           |
+|          || Semaphore oparations now take value parameters which set   |
+|          || the state the semaphore should wait on or signal.          |
+|          || Introduced resource enums for DX12 interop:                |
+|          ||  - ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE       |
+|          ||  - ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE    |
++------------------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

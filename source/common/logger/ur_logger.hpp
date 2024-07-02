@@ -15,14 +15,19 @@
 namespace logger {
 
 Logger create_logger(std::string logger_name, bool skip_prefix = false,
-                     bool skip_linebreak = false);
+                     bool skip_linebreak = false,
+                     logger::Level default_log_level = logger::Level::QUIET);
 
-inline Logger &get_logger(std::string name = "common") {
-    static Logger logger = create_logger(std::move(name));
+inline Logger &
+get_logger(std::string name = "common",
+           logger::Level default_log_level = logger::Level::QUIET) {
+    static Logger logger =
+        create_logger(std::move(name), /*skip_prefix*/ false,
+                      /*slip_linebreak*/ false, default_log_level);
     return logger;
 }
 
-inline void init(std::string name) { get_logger(std::move(name)); }
+inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
@@ -99,6 +104,8 @@ template <typename T> inline std::string toHex(T t) {
 ///             UR_LOG_LOADER="level:info;flush:warning;output:file,out.log"
 /// @param logger_name name that should be appended to the `UR_LOG_` prefix to
 ///        get the proper environment variable, ie. "loader"
+/// @param default_log_level provides the default logging configuration when the environment
+///        variable is not provided or cannot be parsed
 /// @return an instance of a logger::Logger. In case of failure in the parsing of
 ///         the environment variable, returns a default logger with the following
 ///         options:
@@ -107,14 +114,14 @@ template <typename T> inline std::string toHex(T t) {
 ///                            to be printed immediately as they occur
 ///             - output: stderr
 inline Logger create_logger(std::string logger_name, bool skip_prefix,
-                            bool skip_linebreak) {
+                            bool skip_linebreak,
+                            logger::Level default_log_level) {
     std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                    ::toupper);
     std::stringstream env_var_name;
-    const auto default_level = logger::Level::QUIET;
     const auto default_flush_level = logger::Level::ERR;
     const std::string default_output = "stderr";
-    auto level = default_level;
+    auto level = default_log_level;
     auto flush_level = default_flush_level;
     std::unique_ptr<logger::Sink> sink;
 
@@ -122,8 +129,10 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     try {
         auto map = getenv_to_map(env_var_name.str().c_str());
         if (!map.has_value()) {
-            return Logger(std::make_unique<logger::StderrSink>(
-                std::move(logger_name), skip_prefix, skip_linebreak));
+            return Logger(
+                default_log_level,
+                std::make_unique<logger::StderrSink>(
+                    std::move(logger_name), skip_prefix, skip_linebreak));
         }
 
         auto kv = map->find("level");
@@ -151,8 +160,10 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
             std::cerr << "Wrong logger environment variable parameter: '"
                       << map->begin()->first
                       << "'. Default logger options are set.";
-            return Logger(std::make_unique<logger::StderrSink>(
-                std::move(logger_name), skip_prefix, skip_linebreak));
+            return Logger(
+                default_log_level,
+                std::make_unique<logger::StderrSink>(
+                    std::move(logger_name), skip_prefix, skip_linebreak));
         }
 
         sink = values.size() == 2
@@ -164,8 +175,9 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
         std::cerr << "Error when creating a logger instance from the '"
                   << env_var_name.str() << "' environment variable:\n"
                   << e.what() << std::endl;
-        return Logger(std::make_unique<logger::StderrSink>(
-            std::move(logger_name), skip_prefix, skip_linebreak));
+        return Logger(default_log_level,
+                      std::make_unique<logger::StderrSink>(
+                          std::move(logger_name), skip_prefix, skip_linebreak));
     }
     sink->setFlushLevel(flush_level);
 

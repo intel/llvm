@@ -42,6 +42,8 @@ public:
 
   bool isCompleted() const;
 
+  bool isInterop() const noexcept { return IsInterop; };
+
   uint32_t getExecutionStatus() const {
     if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
@@ -80,8 +82,23 @@ public:
   static ur_event_handle_t
   makeNative(ur_command_t Type, ur_queue_handle_t Queue, hipStream_t Stream,
              uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
-    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, Stream,
-                                  StreamToken);
+    const bool RequiresTimings =
+        Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
+        Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+    if (RequiresTimings) {
+      Queue->createHostSubmitTimeStream();
+    }
+    native_type EvEnd{nullptr}, EvQueued{nullptr}, EvStart{nullptr};
+    UR_CHECK_ERROR(hipEventCreateWithFlags(
+        &EvEnd, RequiresTimings ? hipEventDefault : hipEventDisableTiming));
+
+    if (RequiresTimings) {
+      UR_CHECK_ERROR(hipEventCreateWithFlags(&EvQueued, hipEventDefault));
+      UR_CHECK_ERROR(hipEventCreateWithFlags(&EvStart, hipEventDefault));
+    }
+
+    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, EvEnd,
+                                  EvQueued, EvStart, Stream, StreamToken);
   }
 
   static ur_event_handle_t makeWithNative(ur_context_handle_t context,
@@ -97,8 +114,9 @@ private:
   // This constructor is private to force programmers to use the makeNative /
   // make_user static members in order to create a ur_event_handle_t for HIP.
   ur_event_handle_t_(ur_command_t Type, ur_context_handle_t Context,
-                     ur_queue_handle_t Queue, hipStream_t Stream,
-                     uint32_t StreamToken);
+                     ur_queue_handle_t Queue, native_type EvEnd,
+                     native_type EvQueued, native_type EvStart,
+                     hipStream_t Stream, uint32_t StreamToken);
 
   // This constructor is private to force programmers to use the
   // makeWithNative for event interop
@@ -118,7 +136,8 @@ private:
                    // yet.
   bool IsStarted;  // Signifies wether the operation associated with the
                    // UR event has started or not
-                   //
+
+  const bool IsInterop{false}; // Made with urEventCreateWithNativeHandle
 
   uint32_t StreamToken;
   uint32_t EventId; // Queue identifier of the event.
@@ -174,7 +193,8 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
   hipStream_t LastSeenStream = 0;
   for (size_t i = 0; i < Events.size(); i++) {
     auto Event = Events[i];
-    if (!Event || (i != 0 && Event->getStream() == LastSeenStream)) {
+    if (!Event || (i != 0 && !Event->isInterop() &&
+                   Event->getStream() == LastSeenStream)) {
       continue;
     }
 

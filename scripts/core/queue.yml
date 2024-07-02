@@ -32,7 +32,10 @@ etors:
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: SIZE
-      desc: "[uint32_t] The size of the queue"
+      desc: |
+            [uint32_t] The size of the queue on the device. Only a valid query
+            if the queue was created with the `ON_DEVICE` queue flag, otherwise
+            `$xQueueGetInfo` will return `$X_RESULT_ERROR_INVALID_QUEUE`.
     - name: EMPTY
       desc: "[$x_bool_t] return true if the queue was empty at the time of the query"
 --- #--------------------------------------------------------------------------
@@ -49,7 +52,7 @@ etors:
       desc: "Enable/disable profiling"
     - name: ON_DEVICE
       value: "$X_BIT(2)"
-      desc: "Is a device queue"
+      desc: "Is a device queue. If this is enabled `OUT_OF_ORDER_EXEC_MODE_ENABLE` must also be enabled."
     - name: ON_DEVICE_DEFAULT
       value: "$X_BIT(3)"
       desc: "Is the default queue for a device"
@@ -108,6 +111,7 @@ returns:
         - "`propSize != 0 && pPropValue == NULL`"
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_ERROR_INVALID_QUEUE
+        - "If `hQueue` isn't a valid queue handle or if `propName` isn't supported by `hQueue`."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

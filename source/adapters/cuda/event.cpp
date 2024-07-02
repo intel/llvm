@@ -36,9 +36,9 @@ ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        CUevent EventNative)
     : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{std::numeric_limits<uint32_t>::max()}, EventID{0},
-      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
-      Stream{nullptr}, Context{Context} {
+      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
+      EventID{0}, EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr},
+      Queue{nullptr}, Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 
@@ -55,8 +55,7 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-      // NOTE: This relies on the default stream to be unused.
-      UR_CHECK_ERROR(cuEventRecord(EvQueued, 0));
+      UR_CHECK_ERROR(cuEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
       UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Err) {
@@ -176,7 +175,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_CONTEXT:
     return ReturnValue(hEvent->getContext());
   default:
-    detail::ur::die("Event info request not implemented");
+    break;
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -207,8 +206,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   default:
     break;
   }
-  detail::ur::die("Event Profiling info request not implemented");
-  return {};
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
@@ -221,7 +219,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
-    ScopedContext Active(phEventWaitList[0]->getQueue()->getDevice());
+    // Interop events don't have an associated queue, so get device through
+    // context
+    ScopedContext Active(phEventWaitList[0]->getContext()->getDevices()[0]);
 
     auto WaitFunc = [](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
@@ -280,8 +280,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
-  *phEvent = ur_event_handle_t_::makeWithNative(
-      hContext, reinterpret_cast<CUevent>(hNativeEvent));
+  try {
+    EventPtr =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
+            hContext, reinterpret_cast<CUevent>(hNativeEvent)));
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  *phEvent = EventPtr.release();
 
   return UR_RESULT_SUCCESS;
 }
