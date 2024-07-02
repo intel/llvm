@@ -1,32 +1,34 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -pedantic %s
 
 // The test checks functionality of [[intel::reqd_sub_group_size()]] attribute on SYCL kernel.
 
-#include "sycl.hpp"
 
-using namespace sycl;
-queue q;
+#include "sycl.hpp" //clang/test/SemaSYCL/Inputs/sycl.hpp
 
-[[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
-// expected-note@-1 {{conflicting attribute is here}}
-[[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
+sycl::queue q;
 
-class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
-public:
-  [[intel::reqd_sub_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
-    foo();
-  }
+// Kernel defined as a named function object
+class KernelFunctor1 {
+ public:
+  [[sycl::reqd_work_group_size(16)]] void operator()() const {};
+};
+
+// Kernel defined as a named function object
+class KernelFunctor2 {
+ public:
+  void operator() [[sycl::reqd_work_group_size(16)]] () const {};
 };
 
 int main() {
-  q.submit([&](handler &h) {
-    Functor8 f8;
-    h.single_task<class kernel_name1>(f8);
-
-    h.single_task<class kernel_name2>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
-      foo();
-      baz();
-    });
+  // Kernel defined as a lambda
+  q.submit([&](sycl::handler& h) {
+    KernelFunctor1 kf1;
+    KernelFunctor2 kf2;
+    h.single_task(kf1);
+    h.single_task(kf2);
+    h.single_task<class kernel_name>(
+      []()[[sycl::reqd_work_group_size(16)]]{}
+    );
   });
   return 0;
 }
