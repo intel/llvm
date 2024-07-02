@@ -520,7 +520,7 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT = 0x2011F,
 
   // Return whether cluster launch is supported by device
-  PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2011G,
+  PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
 } _pi_device_info;
 
 typedef enum {
