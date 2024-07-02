@@ -324,7 +324,7 @@ struct EnqueueNativeCommandData {
   std::function<void(interop_handle)> func;
 };
 
-void InteropFreeFunc(pi_queue InteropQueue, void *InteropData) {
+void InteropFreeFunc(pi_queue, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
