@@ -682,28 +682,37 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
-    for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
-      device_image_plain DevImagePlain =
-          getDeviceImageFromBinaryImage(BinImg, Context, Device);
-      const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
-          detail::getSyclObjImpl(DevImagePlain);
+    // If we had a program in cache, then it should have been the finally
+    // linked program already.
+    if (!DeviceCodeWasInCache) {
+      for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
+        device_image_plain DevImagePlain =
+            getDeviceImageFromBinaryImage(BinImg, Context, Device);
+        const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
+            detail::getSyclObjImpl(DevImagePlain);
 
-      SerializedObj ImgSpecConsts = DeviceImageImpl->get_spec_const_blob_ref();
+        SerializedObj ImgSpecConsts = DeviceImageImpl->get_spec_const_blob_ref();
 
-      auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
-          *BinImg, Context, Device, CompileOpts + LinkOpts, ImgSpecConsts);
+        auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+            *BinImg, Context, Device, CompileOpts + LinkOpts, ImgSpecConsts);
+        assert(!DeviceCodeWasInCache &&
+               "we don't expect dependencies to be alreacy cached whilst a "
+               "main program is not cached");
+        std::ignore = DeviceCodeWasInCache;
 
-      if (!DeviceCodeWasInCache &&
-          DeviceImageImpl->get_bin_image_ref()->supportsSpecConstants())
-        setSpecializationConstants(DeviceImageImpl, NativePrg, Plugin);
+        if (BinImg->supportsSpecConstants())
+          setSpecializationConstants(DeviceImageImpl, NativePrg, Plugin);
 
-      // TODO: when it is going to be released?
-      ProgramsToLink.push_back(NativePrg);
+        ProgramsToLink.push_back(NativePrg);
+      }
     }
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
               ProgramsToLink);
+    // Those extra programs won't be used anymore, just a final linked result
+    for (sycl::detail::pi::PiProgram Prg : ProgramsToLink)
+      Plugin->call<PiApiKind::piProgramRelease>(Prg);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -715,9 +724,16 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), {Device}, &Img);
 
     // Save program to persistent cache if it is not there
-    if (!DeviceCodeWasInCache)
+    if (!DeviceCodeWasInCache) {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
+      // If we linked some extra device images, cache the same program for them
+      for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
+        PersistentDeviceCodeCache::putItemToDisc(Device, *BinImg, SpecConsts,
+                                                 CompileOpts + LinkOpts,
+                                                 BuiltProgram.get());
+      }
+    }
     return BuiltProgram.release();
   };
 
