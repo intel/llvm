@@ -521,7 +521,7 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
-    const RTDeviceBinaryImage &Img, const std::vector<device> &Devs) {
+    const RTDeviceBinaryImage &Img, device Dev) {
   // If virtual functions are used in a program, then we need to link several
   // device images together to make sure that vtable pointers stored in
   // objects are valid between different kernels (which could be in different
@@ -568,7 +568,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       }
 
       // We only link device images that are compatible with a target device
-      if (doesDevSupportDeviceRequirements(Devs[0], *BinImage))
+      if (doesDevSupportDeviceRequirements(Dev, *BinImage))
         DeviceImagesToLink.insert(BinImage);
     }
   }
@@ -650,8 +650,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     throw *exception;
 
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink =
-      collectDependentDeviceImagesForVirtualFunctions(
-          Img, {Device});
+      collectDependentDeviceImagesForVirtualFunctions(Img, Device);
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts, &DeviceImagesToLink] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -1404,7 +1403,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
-
     // Treat the image as empty one
     if (EntriesB == EntriesE)
       continue;
@@ -1433,20 +1431,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
     // Record mapping between virtual function sets and device images
     for (const pi_device_binary_property &VFProp : Img->getVirtualFunctions()) {
-      DeviceBinaryProperty Value(VFProp);
-      std::string StrValue = Value.asCString();
-
-      if (std::string(VFProp->Name).find("uses") != std::string::npos) {
-        assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
-               "Unexpected virtual function property");
-        for (const auto &SetName : detail::split_string(StrValue, ','))
-          m_VFSet2BinImage[SetName].insert(Img.get());
-      } else {
-        assert(std::string(VFProp->Name) == "virtual-functions-set" &&
-               "Unexpected virtual function property");
-        // Device image can only export a single set of virtual functions
-        m_VFSet2BinImage[StrValue].insert(Img.get());
-      }
+      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      for (const auto &SetName : detail::split_string(StrValue, ','))
+        m_VFSet2BinImage[SetName].insert(Img.get());
     }
 
     if (DumpImages) {
