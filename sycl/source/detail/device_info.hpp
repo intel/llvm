@@ -301,25 +301,6 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for bf16 math functions
-template <>
-struct get_device_info_impl<bool,
-                            info::device::ext_oneapi_bfloat16_math_functions> {
-  static bool get(const DeviceImplPtr &Dev) {
-    bool result = false;
-
-    sycl::detail::pi::PiResult Err =
-        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(),
-            PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
-            sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
-    }
-    return result;
-  }
-};
-
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
