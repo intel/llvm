@@ -31,6 +31,8 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       const std::shared_ptr<AllocInfo> &AllocInfo);
 
+void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI);
+
 void ReportGenericError(const DeviceSanitizerReport &Report);
 
 void ReportOutOfBoundsError(const DeviceSanitizerReport &Report,

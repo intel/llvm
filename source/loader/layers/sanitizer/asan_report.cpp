@@ -76,6 +76,15 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
     AI->AllocStack.print();
 }
 
+void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI) {
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: detected memory leaks of {}",
+        ToString(AI->Type));
+    context.logger.always("Direct leak of {} byte(s) allocated from:",
+                          AI->UserEnd - AI->UserBegin);
+    AI->AllocStack.print();
+}
+
 void ReportGenericError(const DeviceSanitizerReport &Report) {
     context.logger.always("\n====ERROR: DeviceSanitizer: {}",
                           ToString(Report.ErrorType));
