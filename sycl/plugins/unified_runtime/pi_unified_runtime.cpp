@@ -1438,6 +1438,15 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
                                            EventWaitList, Event);
 }
 
+__SYCL_EXPORT pi_result piextEnqueueNativeCommand(
+    pi_queue Queue, pi_enqueue_native_command_function Fn, void *Data,
+    pi_uint32 NumMems, const pi_mem *Mems, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
+}
+
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
     pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,

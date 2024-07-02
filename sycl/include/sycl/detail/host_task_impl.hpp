@@ -49,6 +49,7 @@ public:
   }
 
   friend class DispatchHostTask;
+  friend class ExecCGCommand;
 };
 
 class CGHostTask : public CG {
@@ -87,6 +88,24 @@ handler::host_task_impl(FuncT &&Func) {
   MHostTask.reset(new detail::HostTask(std::move(Func)));
 
   setType(detail::CG::CodeplayHostTask);
+}
+
+/// Enqueues a command to the SYCL runtime to invoke \p Func once.
+template <typename FuncT>
+std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                            void(interop_handle)>::value>
+handler::sycl_ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func) {
+  throwIfActionIsCreated();
+
+  MNDRDesc.set(range<1>(1));
+  // Need to copy these rather than move so that we can check associated
+  // accessors during finalize
+  MArgs = MAssociatedAccesors;
+
+  // TODO: Should I use a new CG type here?
+  MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+  setType(detail::CG::ACPPCustomOperation);
 }
 
 } // namespace _V1
