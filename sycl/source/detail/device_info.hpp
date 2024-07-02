@@ -674,10 +674,7 @@ struct get_device_info_impl<
           if (Item.first == arch)
             return Item.second;
         }
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
+        return ext::oneapi::experimental::architecture::unknown;
       };
       uint32_t DeviceIp;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
@@ -693,10 +690,7 @@ struct get_device_info_impl<
           if (std::string_view(Item.first) == arch)
             return Item.second;
         }
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
+        return ext::oneapi::experimental::architecture::unknown;
       };
       size_t ResultSize = 0;
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
@@ -727,21 +721,7 @@ struct get_device_info_impl<
       return MapArchIDToArchName(DeviceIp);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
-    // Generating a user-friendly error message
-    std::string DeviceStr;
-    if (Dev->is_gpu())
-      DeviceStr = "GPU";
-    else if (Dev->is_cpu())
-      DeviceStr = "CPU";
-    else if (Dev->is_accelerator())
-      DeviceStr = "accelerator";
-    // else if not needed
-    std::stringstream ErrorMessage;
-    ErrorMessage
-        << "sycl_ext_oneapi_device_architecture feature is not supported on "
-        << DeviceStr << " device with sycl::backend::" << CurrentBackend
-        << " backend.";
-    throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
+    return ext::oneapi::experimental::architecture::unknown;
   }
 };
 
@@ -1212,8 +1192,6 @@ struct get_device_info_impl<
     std::vector<sycl::device>,
     ext::oneapi::experimental::info::device::component_devices> {
   static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
-      return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
     pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(

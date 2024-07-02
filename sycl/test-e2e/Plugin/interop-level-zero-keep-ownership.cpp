@@ -30,8 +30,9 @@ int main() {
   { // Scope in which SYCL interop context object is live
     std::vector<device> Devices{};
     Devices.push_back(Device);
-    auto Context = level_zero::make<context>(Devices, ZeContext,
-                                             level_zero::ownership::keep);
+    auto Context = make_context<backend::ext_oneapi_level_zero>(
+        backend_input_t<backend::ext_oneapi_level_zero, context>{
+            ZeContext, Devices, ext::oneapi::level_zero::ownership::keep});
 
     // Create L0 event pool
     ze_event_pool_handle_t ZeEventPool;
@@ -52,8 +53,10 @@ int main() {
 
     { // Scope in which SYCL interop event is alive
       int i = 0;
-      event Event = level_zero::make<event>(Context, ZeEvent,
-                                            level_zero::ownership::keep);
+      event Event = make_event<backend::ext_oneapi_level_zero>(
+          backend_input_t<backend::ext_oneapi_level_zero, event>{
+              ZeEvent, ext::oneapi::level_zero::ownership::keep},
+          Context);
 
       info::event_command_status status;
       do {

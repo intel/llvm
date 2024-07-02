@@ -363,7 +363,7 @@ bool device_impl::has(aspect Aspect) const {
     return is_accelerator();
   case aspect::custom:
     return false;
-  // TODO: Implement this for FPGA and ESIMD emulators.
+  // TODO: Implement this for FPGA emulator.
   case aspect::emulated:
     return false;
   case aspect::host_debuggable:
@@ -694,9 +694,6 @@ bool device_impl::has(aspect Aspect) const {
     return components.size() >= 2;
   }
   case aspect::ext_oneapi_is_component: {
-    if (getBackend() != backend::ext_oneapi_level_zero)
-      return false;
-
     typename sycl_to_pi<device>::type Result = nullptr;
     bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
                               getHandleRef(),
@@ -749,9 +746,17 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_virtual_mem: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   }
-  throw runtime_error("This device aspect has not been implemented yet.",
-                      PI_ERROR_INVALID_DEVICE);
+  }
+
+  return false; // This device aspect has not been implemented yet.
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {

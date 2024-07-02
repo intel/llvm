@@ -109,9 +109,8 @@ public:
 
   sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
-                          sycl::detail::Requirement *Req,
-                          std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+                          sycl::detail::Requirement *Req) {
+    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
 
   void decrementLeafCountersForRecord(sycl::detail::MemObjRecord *Rec) {
@@ -195,11 +194,12 @@ public:
     return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
   }
 
-  sycl::detail::Command *
-  addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-        sycl::detail::QueueImplPtr Queue,
-        std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue)
+  sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
+                               sycl::detail::QueueImplPtr Queue,
+                               std::vector<sycl::detail::Command *> &ToEnqueue,
+                               bool EventNeeded) {
+    return MGraphBuilder
+        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded)
         .NewCmd;
   }
 
@@ -226,8 +226,9 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
-      : sycl::handler(Queue, IsHost) {}
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost,
+              bool CallerNeedsEvent)
+      : sycl::handler(Queue, IsHost, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -293,8 +294,8 @@ public:
 class MockHandlerCustomFinalize : public MockHandler {
 public:
   MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost)
-      : MockHandler(Queue, IsHost) {}
+                            bool IsHost, bool CallerNeedsEvent)
+      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
