@@ -508,8 +508,8 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
     return SPIRVToIRWrapperPath.takeError();
 
   // Create a new file to write the converted file to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "bc");
+  auto TempFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + "-spv-to-llvmir", "bc");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
@@ -600,8 +600,8 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
     return SYCLPostLinkPath.takeError();
 
   // Create a new file to write the output of sycl-post-link to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "table");
+  auto TempFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + "-sycl-post-link", "table");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
@@ -1144,8 +1144,8 @@ Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
     return LLVMLinkPath.takeError();
 
   // Create a new file to write the linked device file to.
-  auto OutFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "bc");
+  auto OutFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + "-sycl-input-link", "bc");
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
