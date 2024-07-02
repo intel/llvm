@@ -17,7 +17,6 @@ set(SYCL_PI_UR_SOURCE_DIR
 
 # Override default to enable building tests from unified-runtime
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
-set(UMF_ENABLE_POOL_TRACKING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_L0 ON)
@@ -99,13 +98,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit aaf08109f2a05adb61f50478824ae2739526daee
-  # Author: Ben Tracy <ben.tracy@codeplay.com>
-  # Date:   Mon Jun 17 14:49:53 2024 +0100
-  #     [CMDBUF] Fix coverity issue in command buffers
-  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
-  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
+  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
+
+  # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
+  # to link statically on windows
+  if(WIN32)
+    set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
+
+  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git") # TODO: Restore repo and tag.
+  set(UNIFIED_RUNTIME_TAG 36ffb090991f9078819243c54f8827f621a99269)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -191,7 +194,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS umf)
+add_library(UnifiedMemoryFramework ALIAS ur_umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -291,3 +294,11 @@ if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     Some valid SYCL programs may not build or may have low performance.")
   endif()
 endif()
+
+add_dependencies(sycl-runtime-libraries ur_umf)
+
+# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+install(TARGETS umf
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
