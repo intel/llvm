@@ -99,7 +99,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
   # commit aaf08109f2a05adb61f50478824ae2739526daee
   # Author: Ben Tracy <ben.tracy@codeplay.com>
   # Date:   Mon Jun 17 14:49:53 2024 +0100
@@ -109,7 +109,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 51cbcea6e8ffd4ca6e2be918335be509ae6f401c
+    # Author: Duncan Brawley <duncan.brawley@codeplay.com>
+    # Date:   Mon, 10 Jun 2024 17:27:17 +0100
+    #     [Bindless][Exp] Create mapping of host and device handle
+    51cbcea6e8ffd4ca6e2be918335be509ae6f401c
   )
 
   fetch_adapter_source(opencl
