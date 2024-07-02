@@ -892,13 +892,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     /* CL type: cl_bool
      * UR type: ur_bool_t */
 
-    cl_bool CLValue;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        sizeof(cl_bool), &CLValue, nullptr));
+    oclv::OpenCLVersion DevVer;
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), DevVer));
+    if (DevVer >= oclv::V2_1) {
+        cl_bool CLValue;
+        CL_RETURN_ON_FAILURE(
+            clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                            sizeof(cl_bool), &CLValue, nullptr));
 
-    /* cl_bool is uint32_t and ur_bool_t is bool */
-    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+        /* cl_bool is uint32_t and ur_bool_t is bool */
+        return ReturnValue(static_cast<ur_bool_t>(CLValue));
+    } else {
+        return ReturnValue(false);
+    }
   }
   case UR_DEVICE_INFO_VENDOR_ID:
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
