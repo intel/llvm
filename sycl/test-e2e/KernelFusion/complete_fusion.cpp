@@ -1,7 +1,11 @@
 // RUN: %{build} %{embed-ir} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test complete fusion without any internalization
+
+// The two kernels are fused, so only a single, fused kernel is launched.
+// CHECK-COUNT-1: piEnqueueKernelLaunch
+// CHECK-NOT: piEnqueueKernelLaunch
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
