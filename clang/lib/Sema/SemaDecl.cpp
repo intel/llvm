@@ -11967,8 +11967,8 @@ static bool CheckMultiVersionFunction(Sema &S, FunctionDecl *NewFD,
     return false;
 
   if (!OldDecl || !OldDecl->getAsFunction() ||
-      OldDecl->getDeclContext()->getRedeclContext() !=
-          NewFD->getDeclContext()->getRedeclContext()) {
+      !OldDecl->getDeclContext()->getRedeclContext()->Equals(
+          NewFD->getDeclContext()->getRedeclContext())) {
     // If there's no previous declaration, AND this isn't attempting to cause
     // multiversioning, this isn't an error condition.
     if (MVKind == MultiVersionKind::None)
@@ -16542,16 +16542,19 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     DiscardCleanupsInEvaluationContext();
   }
 
-  if (FD && ((LangOpts.OpenMP && (LangOpts.OpenMPIsTargetDevice ||
-                                  !LangOpts.OMPTargetTriples.empty())) ||
-             LangOpts.CUDA || LangOpts.SYCLIsDevice)) {
+  if (!FD)
+    return dcl;
+
+  if ((LangOpts.OpenMP &&
+       (LangOpts.OpenMPIsTargetDevice || !LangOpts.OMPTargetTriples.empty())) ||
+      LangOpts.CUDA || LangOpts.SYCLIsDevice) {
     auto ES = getEmissionStatus(FD);
     if (ES == Sema::FunctionEmissionStatus::Emitted ||
         ES == Sema::FunctionEmissionStatus::Unknown)
       DeclsToCheckForDeferredDiags.insert(FD);
   }
 
-  if (FD && !FD->isDeleted())
+  if (!FD->isDeleted())
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
   // Handle free functions.

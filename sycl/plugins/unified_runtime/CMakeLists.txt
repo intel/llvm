@@ -100,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
-  # Merge: a011f092 d8500a36
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jun 21 10:22:52 2024 +0100
-  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
-  #     Correct level of indirection used in KernelSetArgPointer calls.
-  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
+  # commit aaf08109f2a05adb61f50478824ae2739526daee
+  # Author: Ben Tracy <ben.tracy@codeplay.com>
+  # Date:   Mon Jun 17 14:49:53 2024 +0100
+  #     [CMDBUF] Fix coverity issue in command buffers
+  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
+  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
