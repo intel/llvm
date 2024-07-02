@@ -179,7 +179,7 @@ work-groups present inside the cluster.
 [source, c++]
 ----
 size_t max_cluster_size = 
-      device.get_info<info::device::ext_cuda_experimental_max_cluster_group_size>();
+      device.get_info<info::device::ext_oneapi_cuda_experimental_max_cluster_group_size>();
 ----
 
 
