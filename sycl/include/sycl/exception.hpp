@@ -190,19 +190,6 @@ public:
 };
 
 class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::event instead.") event_error
-    : public runtime_error {
-public:
-  event_error() : runtime_error(make_error_code(errc::event)) {}
-
-  event_error(const char *Msg, pi_int32 Err)
-      : event_error(std::string(Msg), Err) {}
-
-  event_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::event), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
     invalid_parameter_error : public runtime_error {
 public:

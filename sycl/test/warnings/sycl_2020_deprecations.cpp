@@ -89,8 +89,6 @@ int main() {
   sycl::runtime_error re;
   // expected-warning@+1 {{'nd_range_error' is deprecated: use sycl::exception with sycl::errc::nd_range instead.}}
   sycl::nd_range_error ne;
-  // expected-warning@+1 {{'event_error' is deprecated: use sycl::exception with sycl::errc::event instead.}}
-  sycl::event_error ee;
   // expected-warning@+1 {{'invalid_parameter_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
   sycl::invalid_parameter_error ipe;
   // expected-warning@+1 {{'device_error' is deprecated: use sycl::exception with a sycl::errc enum value instead.}}
