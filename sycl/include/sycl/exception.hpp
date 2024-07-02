@@ -176,19 +176,6 @@ protected:
   runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
-class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
-                            "errc::kernel_argument instead.") kernel_error
-    : public runtime_error {
-public:
-  kernel_error() : runtime_error(make_error_code(errc::kernel)) {}
-
-  kernel_error(const char *Msg, pi_int32 Err)
-      : kernel_error(std::string(Msg), Err) {}
-
-  kernel_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel), Msg, Err) {}
-};
-
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
