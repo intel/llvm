@@ -190,19 +190,6 @@ public:
 };
 
 class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::accessor instead.") accessor_error
-    : public runtime_error {
-public:
-  accessor_error() : runtime_error(make_error_code(errc::accessor)) {}
-
-  accessor_error(const char *Msg, pi_int32 Err)
-      : accessor_error(std::string(Msg), Err) {}
-
-  accessor_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::accessor), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
 public:
