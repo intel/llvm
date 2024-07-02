@@ -36,15 +36,15 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
 
   ~ur_exp_command_buffer_handle_t_();
 
-  void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
+  void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          ur_event_handle_t Event);
 
-  ur_exp_command_buffer_sync_point_t GetNextSyncPoint() const {
+  ur_exp_command_buffer_sync_point_t getNextSyncPoint() const {
     return NextSyncPoint;
   }
 
   // Indicates if a copy engine is available for use
-  bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
+  bool useCopyEngine() const { return ZeCopyCommandList != nullptr; }
 
   /**
    * Obtains a fence for a specific L0 queue. If there is already an available
