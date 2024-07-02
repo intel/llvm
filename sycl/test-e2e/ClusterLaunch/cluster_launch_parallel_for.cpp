@@ -1,6 +1,6 @@
 // Tests whether or not cluster launch was successful, with the correct ranges
 // that were passed via parallel for overload
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_cuda_cluster_group
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
@@ -11,24 +11,24 @@
 #include <string>
 
 template <int Dim>
-int test_cluster_launch_parallel_for(sycl::queue &queue,
-                                     sycl::range<Dim> global_range,
-                                     sycl::range<Dim> local_range,
-                                     sycl::range<Dim> cluster_range) {
+int test_cluster_launch_parallel_for(sycl::queue &Queue,
+                                     sycl::range<Dim> GlobalRange,
+                                     sycl::range<Dim> LocalRange,
+                                     sycl::range<Dim> ClusterRange) {
   using namespace sycl::ext::oneapi::experimental;
 
-  cuda::cluster_size cluster_dims(cluster_range);
-  properties cluster_launch_property{cluster_dims};
+  cuda::cluster_size ClusterDims(ClusterRange);
+  properties ClusterLaunchProperty{ClusterDims};
 
-  int *correct_result_flag = sycl::malloc_device<int>(1, queue);
-  queue.memset(correct_result_flag, 0, sizeof(int)).wait();
+  int *CorrectResultFlag = sycl::malloc_device<int>(1, Queue);
+  Queue.memset(CorrectResultFlag, 0, sizeof(int)).wait();
 
-  queue
-      .submit([&](sycl::handler &cgh) {
-        cgh.parallel_for(
-            sycl::nd_range<Dim>(global_range, local_range),
-            cluster_launch_property, [=](sycl::nd_item<Dim> it) {
-              uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
+  Queue
+      .submit([&](sycl::handler &CGH) {
+        CGH.parallel_for(
+            sycl::nd_range<Dim>(GlobalRange, LocalRange),
+            ClusterLaunchProperty, [=](sycl::nd_item<Dim> It) {
+              uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
 // Temporary solution till cluster group class is implemented
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
     (__SYCL_CUDA_ARCH__ >= 900)
@@ -36,55 +36,50 @@ int test_cluster_launch_parallel_for(sycl::queue &queue,
                            "mov.u32 %0, %%cluster_nctaid.x; \n\t"
                            "mov.u32 %1, %%cluster_nctaid.y; \n\t"
                            "mov.u32 %2, %%cluster_nctaid.z; \n\t"
-                           : "=r"(cluster_dim_z), "=r"(cluster_dim_y),
-                             "=r"(cluster_dim_x));
+                           : "=r"(ClusterDimZ), "=r"(ClusterDimY),
+                             "=r"(ClusterDimX));
 #endif
               if constexpr (Dim == 1) {
-                if (cluster_dim_z == cluster_range[0] && cluster_dim_y == 1 &&
-                    cluster_dim_x == 1) {
-                  *correct_result_flag = 1;
+                if (ClusterDimZ == ClusterRange[0] && ClusterDimY == 1 &&
+                    ClusterDimX == 1) {
+                  *CorrectResultFlag = 1;
                 }
               } else if constexpr (Dim == 2) {
-                if (cluster_dim_z == cluster_range[1] &&
-                    cluster_dim_y == cluster_range[0] && cluster_dim_x == 1) {
-                  *correct_result_flag = 1;
+                if (ClusterDimZ == ClusterRange[1] &&
+                    ClusterDimY == ClusterRange[0] && ClusterDimX == 1) {
+                  *CorrectResultFlag = 1;
                 }
               } else {
-                if (cluster_dim_z == cluster_range[2] &&
-                    cluster_dim_y == cluster_range[1] &&
-                    cluster_dim_x == cluster_range[0]) {
-                  *correct_result_flag = 1;
+                if (ClusterDimZ == ClusterRange[2] &&
+                    ClusterDimY == ClusterRange[1] &&
+                    ClusterDimX == ClusterRange[0]) {
+                  *CorrectResultFlag = 1;
                 }
               }
             });
       })
       .wait_and_throw();
 
-  int correct_result_flag_host = 0;
-  queue.copy(correct_result_flag, &correct_result_flag_host, 1).wait();
-  return correct_result_flag_host;
+  int CorrectResultFlagHost = 0;
+  Queue.copy(CorrectResultFlag, &CorrectResultFlagHost, 1).wait();
+  return CorrectResultFlagHost;
 }
 
 int main() {
 
-  sycl::queue queue;
+  sycl::queue Queue;
 
-  if (!queue.get_device().has(sycl::aspect::ext_oneapi_cuda_cluster_group)) {
-    printf("Cluster group not supported on this arch, exiting...\n");
-    return 0;
-  }
-
-  int host_correct_flag =
-      test_cluster_launch_parallel_for(queue, sycl::range{128, 128, 128},
+  int HostCorrectFlag =
+      test_cluster_launch_parallel_for(Queue, sycl::range{128, 128, 128},
                                        sycl::range{16, 16, 2},
                                        sycl::range{2, 4, 1}) &&
-      test_cluster_launch_parallel_for(queue, sycl::range{512, 1024},
+      test_cluster_launch_parallel_for(Queue, sycl::range{512, 1024},
                                        sycl::range{32, 32},
                                        sycl::range{4, 2}) &&
-      test_cluster_launch_parallel_for(queue, sycl::range{128}, sycl::range{32},
+      test_cluster_launch_parallel_for(Queue, sycl::range{128}, sycl::range{32},
                                        sycl::range{2}) &&
-      test_cluster_launch_parallel_for(queue, sycl::range{16384},
+      test_cluster_launch_parallel_for(Queue, sycl::range{16384},
                                        sycl::range{32}, sycl::range{16});
 
-  return !host_correct_flag;
+  return !HostCorrectFlag;
 }
