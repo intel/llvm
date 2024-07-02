@@ -209,8 +209,9 @@ enum PropKind : uint32_t {
   CallsIndirectly = 68,
   InputDataPlacement = 69,
   OutputDataPlacement = 70,
+  ClusterLaunch = 71,
   // PropKindSize must always be the last value.
-  PropKindSize = 71,
+  PropKindSize = 72,
 };
 
 struct property_key_base_tag {};

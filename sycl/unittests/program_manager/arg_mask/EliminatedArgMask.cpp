@@ -124,7 +124,8 @@ public:
           std::move(CGH->CGData), std::move(CGH->MArgs),
           CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
           std::move(MImpl->MAuxiliaryResources), CGH->MCGType, {},
-          MImpl->MKernelIsCooperative, CGH->MCodeLoc));
+          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          CGH->MCodeLoc));
       break;
     }
     default:

@@ -183,3 +183,4 @@ piextVirtualMemReserve
 piextVirtualMemSetAccess
 piextVirtualMemUnmap
 piextWaitExternalSemaphore
+piextEnqueueKernelLaunchCustom

@@ -50,8 +50,8 @@ public:
   int MIndex;
 };
 
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions.
+// The structure represents NDRange - global, local sizes, global offset,
+// number of dimensions, and the cluster dimensions if applicable.
 class NDRDescT {
   // The method initializes all sizes for dimensions greater than the passed one
   // to the default values, so they will not affect execution.
@@ -128,6 +128,17 @@ public:
     Dims = Dims_;
   }
 
+  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
+    if (Dims_ != Dims) {
+      throw std::runtime_error(
+          "Dimensionality of cluster, global and local ranges must be same");
+    }
+
+    for (int I = 0; I < Dims_; ++I) {
+      ClusterDimensions[I] = N[I];
+    }
+  }
+
   sycl::range<3> GlobalSize;
   sycl::range<3> LocalSize;
   sycl::id<3> GlobalOffset;
@@ -135,6 +146,7 @@ public:
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
   sycl::range<3> NumWorkGroups;
+  sycl::range<3> ClusterDimensions{1, 1, 1};
   size_t Dims;
 };
 

@@ -32,6 +32,7 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
@@ -974,6 +975,27 @@ private:
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
+  template <typename Properties>
+  void checkAndSetClusterRange(const Properties &Props) {
+    namespace syclex = sycl::ext::oneapi::experimental;
+    if constexpr (syclex::detail::hasClusterDim<Properties, 1>()) {
+      setKernelUsesClusterLaunch();
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<syclex::cuda::cluster_size_key<1>>()
+              .get_cluster_size());
+    } else if constexpr (syclex::detail::hasClusterDim<Properties, 2>()) {
+      setKernelUsesClusterLaunch();
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<syclex::cuda::cluster_size_key<2>>()
+              .get_cluster_size());
+    } else if constexpr (syclex::detail::hasClusterDim<Properties, 3>()) {
+      setKernelUsesClusterLaunch();
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<syclex::cuda::cluster_size_key<3>>()
+              .get_cluster_size());
+    }
+  }
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -1042,6 +1064,8 @@ private:
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
     }
+
+    checkAndSetClusterRange(Props);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1501,9 +1525,9 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
+    processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
@@ -3701,6 +3725,9 @@ private:
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
   // Set value of the kernel is cooperative flag
   void setKernelIsCooperative(bool);
+
+  // Set using cuda thread block cluster launch flag true
+  void setKernelUsesClusterLaunch();
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
