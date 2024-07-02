@@ -15,3 +15,4 @@ add_sycl_unittest(ExtensionsTests OBJECT
 )
 
 add_subdirectory(CommandGraph)
+add_subdirectory(VirtualFunctions)
