@@ -18,6 +18,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <detail/split_string.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -531,83 +532,50 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   // is used to stop that recursion, i.e. to avoid looking at sets we have
   // already seen.
   std::set<std::string> HandledSets;
+  std::queue<std::string> WorkList;
   for (const pi_device_binary_property &VFProp : Img.getVirtualFunctions()) {
-    DeviceBinaryProperty Value(VFProp);
-    std::string StrValue = Value.asCString();
-    if (std::string(VFProp->Name).find("uses") != std::string::npos) {
-      assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
-             "Unexpected virtual function property");
-      std::queue<std::string> WorkList;
-      // Device image may use more than one set of virtual functions
-      size_t Start = 0;
-      size_t Stop = StrValue.find_first_of(',');
-      while (true) {
-        auto SetName = StrValue.substr(Start, Stop - Start);
-        HandledSets.insert(SetName);
-        WorkList.push(std::move(SetName));
-
-        if (Stop == std::string::npos)
-          break;
-
-        Start = Stop + 1;
-        Stop = StrValue.find_first_of(',', Start);
-      }
-
-      while (!WorkList.empty()) {
-        std::string SetName = WorkList.front();
-        WorkList.pop();
-
-        // There could be more than one device image that uses the same set
-        // of virtual functions, or provides virtual funtions from the same
-        // set.
-        // TODO: Dependent device image could have its own dependencies. This
-        // should be a recursive search.
-        for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
-          for (const pi_device_binary_property &NestedVFProp :
-               BinImage->getVirtualFunctions()) {
-            DeviceBinaryProperty NValue(NestedVFProp);
-            std::string NStrValue = NValue.asCString();
-            if (std::string(NestedVFProp->Name).find("uses") !=
-                std::string::npos) {
-              assert(std::string(NestedVFProp->Name) ==
-                         "uses-virtual-functions-set" &&
-                     "Unexpected virtual function property");
-              // Device image may use more than one set of virtual functions
-              size_t Start = 0;
-              size_t Stop = NStrValue.find_first_of(',');
-              while (true) {
-                auto NSetName = NStrValue.substr(Start, Stop - Start);
-                if (HandledSets.insert(NSetName).second)
-                  WorkList.push(std::move(NSetName));
-
-                if (Stop == std::string::npos)
-                  break;
-
-                Start = Stop + 1;
-                Stop = NStrValue.find_first_of(',', Start);
-              }
-
-            } else {
-              assert(std::string(NestedVFProp->Name) ==
-                         "virtual-functions-set" &&
-                     "Unexpected virtual function property");
-              if (HandledSets.insert(NStrValue).second)
-                WorkList.push(std::move(NStrValue));
-            }
-          }
-
-          // We only link device images that are compatible with a target device
-          if (doesDevSupportDeviceRequirements(Devs[0], *BinImage))
-            DeviceImagesToLink.insert(BinImage);
-        }
-      }
-
-    } else {
-      // TODO: remove runtime check and turn it into an assert
-      assert(false && "Unexpected virtual function property");
+    std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+    // Device image passed to this function is expected to contain SYCL kernels
+    // and therefore it may only use virtual function sets, but cannot provide
+    // them. We expect to see just a single property here
+    assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
+           "Unexpected virtual function property");
+    for (const auto &SetName : detail::split_string(StrValue, ',')) {
+      WorkList.push(SetName);
+      HandledSets.insert(SetName);
     }
   }
 
+  while (!WorkList.empty()) {
+    std::string SetName = WorkList.front();
+    WorkList.pop();
+
+    // There could be more than one device image that uses the same set
+    // of virtual functions, or provides virtual funtions from the same
+    // set.
+    for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
+      // Here we can encounter both uses-virtual-functions-set and
+      // virtual-functions-set properties, but their handling is the same: we
+      // just grab all sets they reference and add them for consideration if
+      // we haven't done so already.
+      for (const pi_device_binary_property &VFProp :
+           BinImage->getVirtualFunctions()) {
+        std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+        for (const auto &SetName : detail::split_string(StrValue, ',')) {
+          if (HandledSets.insert(SetName).second)
+            WorkList.push(SetName);
+        }
+      }
+
+      // We only link device images that are compatible with a target device
+      if (doesDevSupportDeviceRequirements(Devs[0], *BinImage))
+        DeviceImagesToLink.insert(BinImage);
+    }
+  }
+
+  // We may have inserted the original image into the list as well, because it
+  // is also a part of m_VFSet2BinImage map. No need to to return it to avoid
+  // passing it twice to link call later.
   DeviceImagesToLink.erase(const_cast<RTDeviceBinaryImage *>(&Img));
 
   return DeviceImagesToLink;
@@ -1471,19 +1439,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (std::string(VFProp->Name).find("uses") != std::string::npos) {
         assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
                "Unexpected virtual function property");
-        // Device image may use more than one set of virtual functions
-        size_t Start = 0;
-        size_t Stop = StrValue.find_first_of(',');
-        while (true) {
-          auto SetName = StrValue.substr(Start, Stop - Start);
+        for (const auto &SetName : detail::split_string(StrValue, ','))
           m_VFSet2BinImage[SetName].insert(Img.get());
-
-          if (Stop == std::string::npos)
-            break;
-
-          Start = Stop + 1;
-          Stop = StrValue.find_first_of(',', Start);
-        }
       } else {
         assert(std::string(VFProp->Name) == "virtual-functions-set" &&
                "Unexpected virtual function property");
