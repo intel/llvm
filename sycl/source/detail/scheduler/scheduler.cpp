@@ -94,7 +94,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
@@ -130,17 +130,18 @@ EventImplPtr Scheduler::addCG(
       NewEvent = NewCmd->getEvent();
       break;
     case CG::CodeplayHostTask: {
-      auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
-                                        DefaultHostQueue, AuxiliaryCmds);
+      auto Result =
+          MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
+                              AuxiliaryCmds, EventNeeded);
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
       break;
     }
     default:
-      auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
-                                        std::move(Queue), AuxiliaryCmds,
-                                        CommandBuffer, std::move(Dependencies));
+      auto Result = MGraphBuilder.addCG(
+          std::move(CommandGroup), std::move(Queue), AuxiliaryCmds, EventNeeded,
+          CommandBuffer, std::move(Dependencies));
 
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
@@ -479,7 +480,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
 
   std::vector<Command *> ToCleanUp;
   auto CmdEvent = Cmd->getEvent();
-  auto QueueImpl = Cmd->getQueue();
+  auto QueueImpl = CmdEvent->getSubmittedQueue();
+  assert(QueueImpl && "Submitted queue for host task must not be null");
   {
     ReadLockT Lock = acquireReadLock();
 

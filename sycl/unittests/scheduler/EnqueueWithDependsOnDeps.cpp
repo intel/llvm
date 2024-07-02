@@ -60,7 +60,8 @@ protected:
     std::vector<detail::Command *> ToEnqueue;
 
     // Emulating processing of command group function
-    MockHandlerCustomFinalize MockCGH(QueueDevImpl, false);
+    MockHandlerCustomFinalize MockCGH(QueueDevImpl, false,
+                                      /*CallerNeedsEvent=*/true);
 
     for (auto EventImpl : Events)
       MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
@@ -84,7 +85,7 @@ protected:
     detail::Command *NewCmd = MS.addCG(
         std::move(CmdGroup),
         Type == TestCGType::HOST_TASK ? MS.getDefaultHostQueue() : QueueDevImpl,
-        ToEnqueue);
+        ToEnqueue, /*EventNeeded=*/true);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
   }
@@ -165,7 +166,13 @@ protected:
   };
 };
 
+#ifdef _WIN32
+// Disabled on Windows due to flaky behavior
+// https://github.com/intel/llvm/issues/14060
+TEST_F(DependsOnTests, DISABLED_EnqueueNoMemObjTwoHostTasks) {
+#else
 TEST_F(DependsOnTests, EnqueueNoMemObjTwoHostTasks) {
+#endif
   // Checks enqueue of two dependent host tasks
   detail::QueueImplPtr QueueHostImpl = MS.getDefaultHostQueue();
   std::vector<EventImplPtr> Events;

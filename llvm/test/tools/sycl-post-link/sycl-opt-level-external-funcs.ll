@@ -9,7 +9,7 @@
 ; - module with 'bar' (as entry point) with 'optLevel' set to 2 (taken from
 ;   'bar')
 
-; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-OPT-LEVEL-PROP-0
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-OPT-LEVEL-PROP-1
