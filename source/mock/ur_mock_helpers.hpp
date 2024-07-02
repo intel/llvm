@@ -20,6 +20,11 @@
 #include <unordered_map>
 #include <vector>
 
+// This is the callback function we accept to override or instrument
+// entry-points. pParams is expected to be a pointer to the appropriate params_t
+// struct for the given entry point.
+typedef ur_result_t (*ur_mock_callback_t)(void *pParams);
+
 namespace mock {
 
 struct dummy_handle_t_ {

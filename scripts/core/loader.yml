@@ -1,3 +1,4 @@
+#
 # Copyright (C) 2022-2023 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -186,19 +187,10 @@ params:
       name: pUserData
       desc: "[in][out][optional] pointer to data to be passed to callback."
 --- #--------------------------------------------------------------------------
-type: fptr_typedef
-desc: "Callback to replace or instrument generic mock functionality in the mock adapter."
-name: $x_mock_callback_t
-return: $x_result_t
-params:
-    - type: void*
-      name: pParams
-      desc: "[in][out] Pointer to the appropriate param struct for the function"
---- #--------------------------------------------------------------------------
 type: function
 desc: "The only adapter reported with mock enabled will be the mock adapter."
 details:
-    - "The mock adapter will default to returning $X_RESULT_SUCCESS for all entry points. It will also create and correctly reference count dummy handles where appropriate. Its behaviour can be modified by linking the $x_mock_headers library and using the callbacks object."
+    - "The mock adapter will default to returning $X_RESULT_SUCCESS for all entry points. It will also create and correctly reference count dummy handles where appropriate. Its behaviour can be modified by linking the $x_mock_headers library and using the mock::callbacks object."
 class: $xLoaderConfig
 loader_only: True
 name: "SetMockingEnabled"

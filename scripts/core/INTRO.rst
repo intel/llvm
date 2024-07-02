@@ -280,7 +280,7 @@ given entry point can only have one of each kind of callback associated with
 it, multiple structs with the same function/mode combination will override
 eachother.
 
-The callback signature defined by ``${x}_mock_callback_t`` takes a single
+The callback signature defined by ``ur_mock_callback_t`` takes a single
 ``void *`` parameter. When calling a user callback the layer will pack the
 entry point's parameters into the appropriate ``_params_t`` struct (e.g.
 ``ur_adapter_get_params_t``) and pass a pointer to that struct into the
