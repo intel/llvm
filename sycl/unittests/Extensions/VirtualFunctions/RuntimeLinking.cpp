@@ -49,11 +49,12 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiPropertySet PropSet;
   sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
   uint64_t PropSize = VFSets.size();
-  std::vector<char> Storage(/* bytes for size */ 8 + PropSize);
+  std::vector<char> Storage(/* bytes for size */ 8 + PropSize  + /* null terminator */ 1);
   auto *SizePtr = reinterpret_cast<char *>(&PropSize);
   std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t), Storage.data());
   std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
                           Storage.data() + /* bytes for size */ 8);
+  Storage.back() = '\0';
   const std::string PropName =
       UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
   sycl::unittest::PiProperty Prop(PropName, Storage,
@@ -366,7 +367,7 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
 
   // When we submit a second kernel, we expect that no new programs will be
   // created and we will simply use previously linked program for that kernel.
-  Q.single_task<VirtualFunctionsTest::KernelF>([=]() {});
+  Q.single_task<VirtualFunctionsTest::KernelG>([=]() {});
   ASSERT_EQ(NumOfPiProgramCreateCalls, 0u);
   ASSERT_EQ(NumOfPiProgramLinkCalls, 0u);
   ASSERT_EQ(ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
