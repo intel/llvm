@@ -315,19 +315,6 @@ public:
 };
 
 class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::platform instead.") platform_error
-    : public device_error {
-public:
-  platform_error() : device_error(make_error_code(errc::platform)) {}
-
-  platform_error(const char *Msg, pi_int32 Err)
-      : platform_error(std::string(Msg), Err) {}
-
-  platform_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::platform), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::feature_not_supported instead.")
     feature_not_supported : public device_error {
 public:
