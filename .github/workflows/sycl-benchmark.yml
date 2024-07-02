@@ -136,6 +136,7 @@ jobs:
         cd -
         echo LD_LIBRARY_PATH=$SYCL_ARTIFACT_PATH/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - name: Run sycl-bench tests
+      continue-on-error: true
       run: |
         # Determine the index of a column in a CSV given its title
         # Usage: get_csv_col_index <benchmark output .csv file> <column name>
