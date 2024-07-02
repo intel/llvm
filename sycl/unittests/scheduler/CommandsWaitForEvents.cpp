@@ -163,7 +163,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_TRUE(EventImplProxy->MPostCompleteEvents.size() == 1)
+    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();
@@ -219,13 +219,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   std::shared_ptr<detail::event_impl> E2(
       new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
 
-  device HostDevice = detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl());
-  std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-      /*PropList=*/{}));
-
-  MockCommand Cmd(DefaultHostQueue);
+  MockCommand Cmd(nullptr);
 
   std::vector<std::shared_ptr<detail::event_impl>> Events;
   Events.push_back(E1);
@@ -233,7 +227,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
 
   pi_event EventResult = nullptr;
 
-  Cmd.waitForEventsCall(DefaultHostQueue, Events, EventResult);
+  Cmd.waitForEventsCall(nullptr, Events, EventResult);
 
   ASSERT_TRUE(TestContext->EventCtx1WasWaited &&
               TestContext->EventCtx2WasWaited)
