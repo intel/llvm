@@ -22,17 +22,17 @@
 
 #pragma once
 
-// #include <sycl/accessor.hpp>
 #include "sycl/ext/oneapi/properties/properties.hpp"
+#include "sycl/ext/oneapi/experimental/enqueue_functions.hpp"
 #include <sycl/event.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>
-// #include <sycl/reduction.hpp>
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
 #include <syclcompat/traits.hpp>
+#include <syclcompat/defs.hpp>
 
 namespace syclcompat {
 namespace experimental {
@@ -41,13 +41,16 @@ namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 // launch_strategy is constructed by the user & passed to `compat_exp::launch`
 template <typename RangeT, typename KProps, typename LProps>
-struct launch_strategy{
+struct launch_strategy {
   static_assert(sycl_exp::is_property_list_v<KProps>);
   static_assert(sycl_exp::is_property_list_v<LProps>);
+
+  using KPropsT = KProps;
 
   launch_strategy(RangeT range, KProps kprops, LProps lprops, size_t lmem_size)
       : range{range}, kernel_properties{kprops}, launch_properties{lprops},
         local_mem_size{lmem_size} {}
+
   RangeT range;
   KProps kernel_properties;
   LProps launch_properties;
@@ -63,47 +66,89 @@ namespace detail {
 
 // Atharva's stuff
 //====================================================================
-template <auto KernelFunc, typename tuple, std::size_t... I>
-__attribute__((always_inline)) inline void
-run_kernel(tuple args, std::index_sequence<I...>) {
-  KernelFunc(std::get<I>(args)...);
+template <auto F, typename tuple, std::size_t... I>
+__syclcompat_inline__ inline void
+execute_kernel(tuple args, std::index_sequence<I...>) {
+  F(std::get<I>(args)...);
 }
 
-template <auto KernelFunc, typename tuple>
-__attribute__((always_inline)) inline void run_kernel(tuple args) {
+template <auto F, typename tuple, std::size_t... I>
+__syclcompat_inline__ inline void
+execute_kernel(tuple args, std::index_sequence<I...>, char* lmem_ptr) {
+  F(std::get<I>(args)..., lmem_ptr);
+}
+
+template <auto F, typename tuple>
+__syclcompat_inline__ inline void run_kernel(tuple args) {
   auto indices = std::make_index_sequence<std::tuple_size_v<tuple>>{};
-  run_kernel<KernelFunc>(args, indices);
+  execute_kernel<F>(args, indices);
+}
+
+template <auto F, typename tuple>
+__syclcompat_inline__ inline void run_kernel(tuple args, char* lmem_ptr) {
+  auto indices = std::make_index_sequence<std::tuple_size_v<tuple>>{};
+  execute_kernel<F>(args, indices, lmem_ptr);
 }
 
 // TODO: This is a good basis but we need to:
 // - Extract SubgroupSize & generalize impl
 // - Get local mem working
-template <int SubgroupSize, auto KernelFunc, typename... Args>
+template <auto F, typename KProps, typename... Args>
 struct KernelFunctor {
-  KernelFunctor(Args... args) : argument_tuple(std::make_tuple(args...)) {}
+  KernelFunctor(KProps kernel_props, Args... args)
+      : kernel_properties{kernel_props},
+        argument_tuple(std::make_tuple(args...)) {}
 
-  auto get(sycl_exp::properties_tag) {
-    return sycl_exp::properties{
-        sycl_exp::sub_group_size<SubgroupSize>};
+  KernelFunctor(KProps kernel_props, sycl::local_accessor<char, 1> local_acc, Args... args)
+      : kernel_properties{kernel_props},
+        local_acc{local_acc},
+        argument_tuple(std::make_tuple(args...)) {}
+
+  auto get(sycl_exp::properties_tag) { return kernel_properties; }
+
+  __syclcompat_inline__ inline void
+  operator()(sycl::nd_item<1> it) const { // TODO: nd_item DIM template here
+    if constexpr (syclcompat::lmem_invocable<F, Args...>) {
+      char *local_mem_ptr = static_cast<char *>(
+          local_acc.get_multi_ptr<sycl::access::decorated::no>());
+      run_kernel<F>(argument_tuple, local_mem_ptr);
+    } else {
+      run_kernel<F>(argument_tuple);
+    }
   }
 
-  __attribute__((always_inline)) inline void
-  operator()(sycl::nd_item<3> it) const {
-    run_kernel<KernelFunc>(argument_tuple);
-  }
-
+  KProps kernel_properties;
   std::tuple<Args...> argument_tuple;
+  sycl::local_accessor<char, 1> local_acc;
 };
+
 //====================================================================
 
 template <auto F, typename LaunchStrategy, typename... Args>
 sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
   static_assert(syclcompat::args_compatible<F, Args...>);
-  return sycl::event{};
+
+  sycl_exp::launch_config config(launch_strategy.range,
+                                 launch_strategy.launch_properties);
+
+  return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
+    if constexpr (syclcompat::lmem_invocable<F, Args...>) {
+      sycl::local_accessor<char, 1> local_memory(launch_strategy.local_mem_size,
+                                                 cgh);
+      sycl_exp::nd_launch(
+          cgh, config,
+          KernelFunctor<F, typename LaunchStrategy::KPropsT, Args...>(
+              launch_strategy.kernel_properties, local_memory, args...));
+    } else {
+      sycl_exp::nd_launch(
+          cgh, config,
+          KernelFunctor<F, typename LaunchStrategy::KPropsT, Args...>(
+              launch_strategy.kernel_properties, args...));
+    }
+  });
 }
 
 } // namespace detail
-
 
 template <auto F, typename LaunchStrategy, typename... Args>
 std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>

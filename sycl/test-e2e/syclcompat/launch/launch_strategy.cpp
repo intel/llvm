@@ -33,6 +33,7 @@
 
 //#include <syclcompat/launch.hpp>
 #include <syclcompat/launch_strategy.hpp>
+#include <syclcompat/memory.hpp>
 
 
 #include "launch_fixt.hpp"
@@ -116,20 +117,34 @@ int test_basic_launch() {
 int test_lmem_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
+  using T = int;
   sycli_exp::cache_config my_cache_config{sycli_exp::large_slm}; // constructed at runtime
 
   int local_mem_size = LOCAL_MEM_SIZE; // rt value
 
+  size_t num_elements = local_mem_size / sizeof(T);
+  T *h_a = (T *)syclcompat::malloc_host(local_mem_size);
+  T *d_a = (T *)syclcompat::malloc(local_mem_size);
+
   compat_exp::launch_strategy my_config(
-      sycl::nd_range<1>{{32}, {32}},
+      sycl::nd_range<1>{{256}, {256}},
       sycl_exp::properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
       sycl_exp::properties{}, local_mem_size);
 
-  compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config);
+  compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
   compat_exp::launch<dynamic_local_mem_typed_kernel<int>>(
-      my_config, static_cast<int *>(nullptr));
+      my_config, d_a).wait();
   std::cout << "Launched 2 succesfully" << std::endl;
+
+
+  syclcompat::memcpy(h_a, d_a, local_mem_size);
+  syclcompat::free(d_a);
+
+  for (int i = 0; i < num_elements; i++) {
+    assert(h_a[i] == static_cast<T>(num_elements - i - 1));
+  }
+  syclcompat::free(h_a);
   return 0;
 }
 

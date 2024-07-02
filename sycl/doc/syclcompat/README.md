@@ -49,6 +49,7 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 * [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+//TODO: enqueue_functions and kernel_properties and properties
 
 If available, the following extensions extend SYCLcompat functionality:
 
