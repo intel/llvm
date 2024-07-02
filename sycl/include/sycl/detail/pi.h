@@ -1281,10 +1281,7 @@ using pi_image_handle = pi_uint64;
 using pi_image_mem_handle = void *;
 using pi_interop_mem_handle = pi_uint64;
 using pi_interop_semaphore_handle = pi_uint64;
-<<<<<<< HEAD
 using pi_physical_mem = _pi_physical_mem *;
-=======
->>>>>>> 45ab12b06592 (Implement ACPPCustomOperation in DPC++)
 using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
 
 typedef struct {
