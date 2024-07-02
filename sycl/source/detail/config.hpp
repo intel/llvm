@@ -239,7 +239,7 @@ const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap() {
   static const std::array<std::pair<std::string, info::device_type>, 5>
       SyclDeviceTypeMap = {
-           {{"cpu", info::device_type::cpu},
+          {{"cpu", info::device_type::cpu},
            {"gpu", info::device_type::gpu},
            /* Duplicate entries are fine as this map is one-directional.*/
            {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
