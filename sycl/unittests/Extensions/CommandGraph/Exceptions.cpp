@@ -586,7 +586,6 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
                                      cluster_launch_property,
                                      [&](sycl::nd_item<1> it) {});
     });
-    Queue.wait_and_throw();
     Graph.end_recording(Queue);
   } catch (exception &Exception) {
     ExceptionCode = Exception.code();
