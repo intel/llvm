@@ -225,6 +225,9 @@ urLoaderConfigSetCodeLocationCallback(ur_loader_config_handle_t hLoaderConfig,
 ur_result_t
 urLoaderConfigSetMockingEnabled(ur_loader_config_handle_t hLoaderConfig,
                                 ur_bool_t enable) {
+    if (!hLoaderConfig) {
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    }
     hLoaderConfig->enableMock = enable;
     return UR_RESULT_SUCCESS;
 }

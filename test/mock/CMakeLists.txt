@@ -11,6 +11,7 @@ target_link_libraries(${MOCK_TEST_NAME}
   ${PROJECT_NAME}::loader
   ${PROJECT_NAME}::headers
   ${PROJECT_NAME}::testing
+  ${PROJECT_NAME}::mock
   GTest::gtest_main)
 
 add_test(NAME ${MOCK_TEST_NAME}
@@ -18,6 +19,3 @@ add_test(NAME ${MOCK_TEST_NAME}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 set_tests_properties(${MOCK_TEST_NAME} PROPERTIES LABELS "mock")
-
-set_property(TEST ${MOCK_TEST_NAME} PROPERTY ENVIRONMENT
-    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\"")

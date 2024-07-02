@@ -258,30 +258,26 @@ For more information about the usage of mentioned environment variables see `Env
 
 Mocking
 ---------------------
-A mock UR adapter can be accessed for test purposes by enabling the ``MOCK``
-layer as described below. When the mock layer is enabled, calls to the API will
-still be intercepted by other layers (e.g. validation, tracing), but they will
-stop short of the loader - the call chain will end in either a generic fallback
-behavior defined by the mock layer itself, or a user defined replacement
-callback.
+A mock UR adapter can be accessed for test purposes by enabling it via
+${x}LoaderConfigSetMockingEnabled. 
 
-The default fallback behavior for entry points in the mock layer is to simply
+The default fallback behavior for entry points in the mock adapter is to simply
 return ``UR_RESULT_SUCCESS``. For entry points concerning handles, i.e. those
 that create a new handle or modify the reference count of an existing one, a
-dummy handle mechanism is used. This means the layer will return generic
+dummy handle mechanism is used. This means the adapter will return generic
 handles that track a reference count, and ``Retain``/``Release`` entry points will
 function as expected when used with these handles.
 
-During global setup the behavior of the mock layer can be customized by setting
-chain of structs, with each registering a callback with a given entry point in
-the API. Callbacks can be registered to be called ``BEFORE`` or ``AFTER`` the
-generic implementation, or they can be registered to entirely ``REPLACE`` it. A
-given entry point can only have one of each kind of callback associated with
-it, multiple structs with the same function/mode combination will override
-eachother.
+The behavior of the mock adapter can be customized by linking the
+``unified-runtime::mock`` library and making use of the ``mock::callbacks``
+object. Callbacks can be passed into this object to run either before or after a
+given entry point, or they can be set to entirely replace the default behavior.
+Only one callback of each type (before, replace, after) can be set per entry
+point, with subsequent callbacks set in the same "slot" overwriting any set
+previously.
 
 The callback signature defined by ``ur_mock_callback_t`` takes a single
-``void *`` parameter. When calling a user callback the layer will pack the
+``void *`` parameter. When calling a user callback the adapter will pack the
 entry point's parameters into the appropriate ``_params_t`` struct (e.g.
 ``ur_adapter_get_params_t``) and pass a pointer to that struct into the
 callback. This allows parameters to be accessed and modified. The definitions
@@ -309,8 +305,6 @@ Layers currently included with the runtime are as follows:
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
    * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN
      - Enables the device-side sanitizer layer, see Sanitizers_ for more detail.
-   * - UR_LAYER_MOCK
-     - Enables adapter mocking for test purposes. Similar behavior to the null adapter except entry points can be overridden or instrumented with callbacks. See Mocking_ for more detail.
 
 Environment Variables
 ---------------------
