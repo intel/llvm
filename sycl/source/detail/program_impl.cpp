@@ -258,8 +258,7 @@ void program_impl::link(std::string LinkOptions) {
   MState = program_state::linked;
 }
 
-bool program_impl::has_kernel(std::string KernelName,
-                              bool IsCreatedFromSource) const {
+bool program_impl::has_kernel(std::string KernelName, bool) const {
   throw_if_state_is(program_state::none);
 
   std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
