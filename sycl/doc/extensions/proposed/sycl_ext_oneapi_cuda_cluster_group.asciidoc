@@ -185,7 +185,7 @@ size_t max_cluster_size =
 
 === Accessing the Cluster Group From Device Code
 
-Building upon the group hierarchy in sycl, this proposal adds another level
+Building upon the group hierarchy in SYCL, this proposal adds another level
 above `group`(for work-groups), to be called as `cluster-group`, which 
 represents a collection of work-groups and will be accessible via the `nd_item`
 class, via a method to be introduced called `ext_oneapi_cuda_get_cluster_group()`.
