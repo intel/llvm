@@ -371,6 +371,7 @@ public:
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
   void takeMemberDecorates(SPIRVEntry *);
+  void replaceTargetIdInDecorates(SPIRVId);
 
   /// After a SPIRV entry is created during reading SPIRV binary by default
   /// constructor, this function is called to allow the SPIRV entry to resize

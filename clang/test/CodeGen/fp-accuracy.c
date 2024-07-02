@@ -421,7 +421,7 @@ void f1(float a, float b) {
 // CHECK-F1: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F1_LOW]]
 // CHECK-F1: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F1_MEDIUM]]
 // CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
-// CHECK-F1: call float @tanf(float {{.*}})
+// CHECK-F1: call float @llvm.tan.f32(float {{.*}})
 // CHECK-F1: call float @hypotf(float {{.*}}, float {{.*}})
 // CHECK-F1: call float @ldexpf(float {{.*}}, i32 {{.*}})
 //
@@ -462,7 +462,7 @@ void f1(float a, float b) {
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
 // CHECK-F5: call double @llvm.log10.f64(double {{.*}})
 // CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
-// CHECK-F5: call float @tanf(float {{.*}})
+// CHECK-F5: call float @llvm.tan.f32(float {{.*}})
 // CHECK-F5: call float @hypotf(float {{.*}}, float {{.*}})
 // CHECK-F5: call float @ldexpf(float {{.*}}, i32 {{.*}})
 //
@@ -592,16 +592,16 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-DEFAULT: call double @sinh(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sqrt.f64(double {{.*}})
-// CHECK-DEFAULT: call double @tan(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
 // CHECK-DEFAULT: call double @tanh(double {{.*}})
 //
 // CHECK-DEFAULT-LABEL: define dso_local void @f2
 // CHECK-DEFAULT: call float @llvm.cos.f32(float {{.*}})
 // CHECK-DEFAULT: call float @llvm.sin.f32(float {{.*}})
-// CHECK-DEFAULT: call double @tan(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.log10.f64(double {{.*}})
 // CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
-// CHECK-DEFAULT: call float @tanf(float {{.*}})
+// CHECK-DEFAULT: call float @llvm.tan.f32(float {{.*}})
 // CHECK-DEFAULT: call float @hypotf(float {{.*}}, float {{.*}})
 //
 // CHECK-DEFAULT-LABEL: define dso_local void @f3

@@ -2127,7 +2127,7 @@ public:
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
     vec_t Tmp;
-    Tmp.template load(offset, ptr);
+    Tmp.load(offset, ptr);
     *this = Tmp;
   }
 

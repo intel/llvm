@@ -1,18 +1,18 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
-; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
-; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
-; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
 
 ; This should use the frame index side table for allocas, not DBG_VALUE
 ; instructions. For SDAG ISel, this test would see an SDNode materializing the

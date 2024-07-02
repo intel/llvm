@@ -285,6 +285,9 @@ public:
   /// Emit a partial diagnostic.
   SemaDiagnosticBuilder Diag(SourceLocation Loc, const PartialDiagnostic &PD,
                              bool DeferHint = false);
+
+  /// Build a partial diagnostic.
+  PartialDiagnostic PDiag(unsigned DiagID = 0);
 };
 
 } // namespace clang

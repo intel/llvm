@@ -1176,17 +1176,19 @@ SPIRVEntry *SPIRVModuleImpl::replaceForward(SPIRVForward *Forward,
                                             SPIRVEntry *Entry) {
   SPIRVId Id = Entry->getId();
   SPIRVId ForwardId = Forward->getId();
-  if (ForwardId == Id)
+  if (ForwardId == Id) {
     IdEntryMap[Id] = Entry;
-  else {
+    // Annotations include name, decorations, execution modes
+    Entry->takeAnnotations(Forward);
+  } else {
     auto Loc = IdEntryMap.find(Id);
     assert(Loc != IdEntryMap.end());
     IdEntryMap.erase(Loc);
     Entry->setId(ForwardId);
     IdEntryMap[ForwardId] = Entry;
+    // Replace current Id with ForwardId in decorates.
+    Entry->replaceTargetIdInDecorates(ForwardId);
   }
-  // Annotations include name, decorations, execution modes
-  Entry->takeAnnotations(Forward);
   delete Forward;
   return Entry;
 }

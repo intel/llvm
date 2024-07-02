@@ -7,22 +7,22 @@
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-3DWO
 //
 // CHECK-1DRO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-1DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
+// CHECK-1DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
 //
 // CHECK-2DRO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-2DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
+// CHECK-2DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
 //
 // CHECK-3DRO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-3DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
+// CHECK-3DRO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) %{{[0-9]+}})
 //
 // CHECK-1DWO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-1DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
+// CHECK-1DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
 //
 // CHECK-2DWO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-2DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
+// CHECK-2DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
 //
 // CHECK-3DWO: define {{.*}}spir_kernel void @{{.*}}(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-3DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z]+}}, target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
+// CHECK-3DWO: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %{{[a-zA-Z0-9_]+}}, target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) %{{[0-9]+}})
 //
 // TODO: Add tests for the image_array opencl datatype support.
 #include "Inputs/sycl.hpp"

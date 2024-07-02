@@ -1980,6 +1980,7 @@ static void getTrivialDefaultFunctionAttributes(
     case CodeGenOptions::FramePointerKind::None:
       // This is the default behavior.
       break;
+    case CodeGenOptions::FramePointerKind::Reserved:
     case CodeGenOptions::FramePointerKind::NonLeaf:
     case CodeGenOptions::FramePointerKind::All:
       FuncAttrs.addAttribute("frame-pointer",
@@ -5764,6 +5765,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       !isa_and_nonnull<FunctionDecl>(TargetDecl))
     EmitKCFIOperandBundle(ConcreteCallee, BundleList);
 
+  // Add the pointer-authentication bundle.
+  EmitPointerAuthOperandBundle(ConcreteCallee.getPointerAuthInfo(), BundleList);
+
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
     if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
@@ -5856,7 +5860,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Add metadata if calling an __attribute__((error(""))) or warning fn.
   if (TargetDecl && TargetDecl->hasAttr<ErrorAttr>()) {
     llvm::ConstantInt *Line =
-        llvm::ConstantInt::get(Int32Ty, Loc.getRawEncoding());
+        llvm::ConstantInt::get(Int64Ty, Loc.getRawEncoding());
     llvm::ConstantAsMetadata *MD = llvm::ConstantAsMetadata::get(Line);
     llvm::MDTuple *MDT = llvm::MDNode::get(getLLVMContext(), {MD});
     CI->setMetadata("srcloc", MDT);
@@ -6095,12 +6099,12 @@ CGCallee CGCallee::prepareConcreteCallee(CodeGenFunction &CGF) const {
 
 /* VarArg handling */
 
-Address CodeGenFunction::EmitVAArg(VAArgExpr *VE, Address &VAListAddr) {
-  VAListAddr = VE->isMicrosoftABI()
-                 ? EmitMSVAListRef(VE->getSubExpr())
-                 : EmitVAListRef(VE->getSubExpr());
+RValue CodeGenFunction::EmitVAArg(VAArgExpr *VE, Address &VAListAddr,
+                                  AggValueSlot Slot) {
+  VAListAddr = VE->isMicrosoftABI() ? EmitMSVAListRef(VE->getSubExpr())
+                                    : EmitVAListRef(VE->getSubExpr());
   QualType Ty = VE->getType();
   if (VE->isMicrosoftABI())
-    return CGM.getTypes().getABIInfo().EmitMSVAArg(*this, VAListAddr, Ty);
-  return CGM.getTypes().getABIInfo().EmitVAArg(*this, VAListAddr, Ty);
+    return CGM.getTypes().getABIInfo().EmitMSVAArg(*this, VAListAddr, Ty, Slot);
+  return CGM.getTypes().getABIInfo().EmitVAArg(*this, VAListAddr, Ty, Slot);
 }

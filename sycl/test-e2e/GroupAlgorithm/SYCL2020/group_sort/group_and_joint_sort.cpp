@@ -291,7 +291,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 #endif
 
 #if VERSION == 1
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, sycl::range<1>{ReqSubGroupSize});
 #else
     LocalMemorySizeRadix = RadixSorterT::memory_required(
@@ -310,7 +310,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 #endif
 
 #if VERSION == 1
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::work_group, sycl::range<1>{NumOfElements});
 #else
     LocalMemorySizeRadix = RadixSorterT::memory_required(
