@@ -69,7 +69,7 @@ preferCopyEngineForFill(ur_exp_command_buffer_handle_t CommandBuffer,
   assert(PatternSize > 0);
 
   PreferCopyEngine = false;
-  if (!CommandBuffer->UseCopyEngine()) {
+  if (!CommandBuffer->useCopyEngine()) {
     return UR_RESULT_SUCCESS;
   }
 
@@ -301,8 +301,8 @@ ur_result_t createSyncPointAndGetZeEvents(
 
   // Get sync point and register the event with it.
   ur_exp_command_buffer_sync_point_t SyncPoint =
-      CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+      CommandBuffer->getNextSyncPoint();
+  CommandBuffer->registerSyncPoint(SyncPoint, LaunchEvent);
 
   if (RetSyncPoint) {
     *RetSyncPoint = SyncPoint;
@@ -463,7 +463,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   if (ZeComputeCommandList) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeComputeCommandList));
   }
-  if (UseCopyEngine() && ZeCopyCommandList) {
+  if (useCopyEngine() && ZeCopyCommandList) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCopyCommandList));
   }
 
@@ -549,7 +549,7 @@ ur_exp_command_buffer_command_handle_t_::
     urKernelRelease(Kernel);
 }
 
-void ur_exp_command_buffer_handle_t_::RegisterSyncPoint(
+void ur_exp_command_buffer_handle_t_::registerSyncPoint(
     ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
   SyncPoints[SyncPoint] = Event;
   NextSyncPoint++;
@@ -558,7 +558,7 @@ void ur_exp_command_buffer_handle_t_::RegisterSyncPoint(
 
 ze_command_list_handle_t
 ur_exp_command_buffer_handle_t_::chooseCommandList(bool PreferCopyEngine) {
-  if (PreferCopyEngine && this->UseCopyEngine() && !this->IsInOrderCmdList) {
+  if (PreferCopyEngine && this->useCopyEngine() && !this->IsInOrderCmdList) {
     // We indicate that ZeCopyCommandList contains commands to be submitted.
     this->MCopyCommandListEmpty = false;
     return this->ZeCopyCommandList;
@@ -766,7 +766,7 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandListResetEvents));
 
-  if (CommandBuffer->UseCopyEngine()) {
+  if (CommandBuffer->useCopyEngine()) {
     ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCopyCommandList));
   }
 
