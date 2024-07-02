@@ -599,11 +599,14 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         // TODO: Dependent device image could have its own dependencies. This
         // should be a recursive search.
         for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
-          for (const pi_device_binary_property &NestedVFProp : BinImage->getVirtualFunctions()) {
+          for (const pi_device_binary_property &NestedVFProp :
+               BinImage->getVirtualFunctions()) {
             DeviceBinaryProperty NValue(NestedVFProp);
             std::string NStrValue = NValue.asCString();
-            if (std::string(NestedVFProp->Name).find("uses") != std::string::npos) {
-              assert(std::string(NestedVFProp->Name) == "uses-virtual-functions-set" &&
+            if (std::string(NestedVFProp->Name).find("uses") !=
+                std::string::npos) {
+              assert(std::string(NestedVFProp->Name) ==
+                         "uses-virtual-functions-set" &&
                      "Unexpected virtual function property");
               // Device image may use more than one set of virtual functions
               size_t Start = 0;
@@ -621,24 +624,17 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
               }
 
             } else {
-              assert(std::string(NestedVFProp->Name) == "virtual-functions-set" &&
+              assert(std::string(NestedVFProp->Name) ==
+                         "virtual-functions-set" &&
                      "Unexpected virtual function property");
               if (HandledSets.insert(NStrValue).second)
                 WorkList.push(std::move(NStrValue));
             }
           }
 
-          try {
-            // TODO: compatibleWithDevice uses some PI API, but we should have
-            // another helper that checks used aspects and optional features.
-            // Should we use that other helper here as well?
-            if (compatibleWithDevice(BinImage, Devs[0]))
-              DeviceImagesToLink.insert(BinImage);
-          } catch (sycl::exception &) {
-            // compatibleWithDevice may throw. We ignore that exception,
-            // assuming that that image is incompatible.
-            // FIXME: is the assumption above correct?
-          }
+          // We only link device images that are compatible with a target device
+          if (doesDevSupportDeviceRequirements(Devs[0], *BinImage))
+            DeviceImagesToLink.insert(BinImage);
         }
       }
 
@@ -2440,41 +2436,12 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    auto DeviceImagesToLink = collectDependentDeviceImagesForVirtualFunctions(
-        Img, Devs);
-    std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
-    for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
-      device_image_plain DevImagePlain =
-          getDeviceImageFromBinaryImage(BinImg, Context, Devs[0]);
-      const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
-          detail::getSyclObjImpl(DevImagePlain);
-
-      SerializedObj ImgSpecConsts = DeviceImageImpl->get_spec_const_blob_ref();
-
-      // TODO: Add support for creating non-SPIRV programs from multiple
-      // devices.
-      if (DeviceImageImpl->get_bin_image_ref()->getFormat() !=
-              PI_DEVICE_BINARY_TYPE_SPIRV &&
-          Devs.size() > 1)
-        sycl::runtime_error(
-            "Creating a program from AOT binary for multiple device is not "
-            "supported",
-            PI_ERROR_INVALID_OPERATION);
-
-      auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
-          *BinImg, Context, Devs[0], CompileOpts + LinkOpts, ImgSpecConsts);
-
-      if (!DeviceCodeWasInCache &&
-          DeviceImageImpl->get_bin_image_ref()->supportsSpecConstants())
-        setSpecializationConstants(DeviceImageImpl, NativePrg, Plugin);
-
-      // TODO: when it is going to be released?
-      ProgramsToLink.push_back(NativePrg);
-    }
+    // TODO: Add support for using virtual functions with kernel bundles
+    std::vector<sycl::detail::pi::PiProgram> ExtraProgramsToLink;
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask,
-              ProgramsToLink);
+              ExtraProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
