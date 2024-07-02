@@ -94,6 +94,7 @@ Preprocessor::Preprocessor(std::shared_ptr<PreprocessorOptions> PPOpts,
       // deferred to Preprocessor::Initialize().
       Identifiers(IILookup), PragmaHandlers(new PragmaNamespace(StringRef())),
       TUKind(TUKind), SkipMainFilePreamble(0, true),
+      IncludeFooterProcessed(false),
       CurSubmoduleState(&NullSubmoduleState) {
   OwnsHeaderSearch = OwnsHeaders;
 
