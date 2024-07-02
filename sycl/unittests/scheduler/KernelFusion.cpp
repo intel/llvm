@@ -44,10 +44,6 @@ detail::Command *CreateTaskCommand(MockScheduler &MS,
 }
 
 bool CheckTestExecRequirements(const platform &plt) {
-  if (plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return false;
-  }
   // This test only contains device image for SPIR-V capable devices.
   if (plt.get_backend() != sycl::backend::opencl &&
       plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
