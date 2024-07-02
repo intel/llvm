@@ -749,40 +749,37 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
     return BuildF();
 
-
   auto BuildResult =
       Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
-
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
   sycl::detail::pi::PiProgram ResProgram = BuildResult->Val;
   auto Plugin = ContextImpl->getPlugin();
-  // FIXME: better name?
-  auto CacheOtherDevices = [ResProgram, &Plugin]() {
+  auto UpdateRefCountF = [ResProgram, &Plugin]() {
+    // For every cached copy of the program, we need to increment its refcount
     Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
     return ResProgram;
   };
   // If we linked any extra device images for virtual functions, then we need to
   // cache them as well.
-  // TODO: besides caching we need to somehow updated kernel to device image map
-  // that is used for kernel lookup. Next time a kernel is invoked from this, or
-  // dependent device image, it should come from that linked program instead.
   for (const RTDeviceBinaryImage *BImg : DeviceImagesToLink) {
     // CacheKey is captured by reference by GetCachedBuildF, so we can simply
     // update it here and re-use that lambda.
     CacheKey.first.second = BImg->getImageID();
-    // FIXME: is template arg correct?
-    Cache.getOrBuild<compile_program_error>(GetCachedBuildF, CacheOtherDevices);
-    // FIXME: assert that returned value is not a nullptr
+    // TODO: Use SYCL 2020 exceptions
+    auto TempRes = Cache.getOrBuild<compile_program_error>(GetCachedBuildF,
+                                                           UpdateRefCountF);
+    std::ignore = TempRes;
+    assert(TempRes != nullptr && "Invalid build result");
   }
 
   // If caching is enabled, one copy of the program handle will be
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(BuildResult->Val);
-  return BuildResult->Val;
+  Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
+  return ResProgram;
 }
 
 // When caching is enabled, the returned PiProgram and PiKernel will
