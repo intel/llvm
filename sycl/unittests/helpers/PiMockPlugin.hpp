@@ -1569,6 +1569,14 @@ inline pi_result mock_piextCommandBufferAdviseUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextEnqueueNativeCommand(pi_queue,
+                                                void (*)(pi_queue, void *),
+                                                void *, uint32_t,
+                                                const pi_mem *, pi_uint32,
+                                                const pi_event *, pi_event *) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {

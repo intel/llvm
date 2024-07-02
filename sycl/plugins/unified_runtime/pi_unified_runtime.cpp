@@ -1460,6 +1460,16 @@ __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
                                              EventWaitList, Event);
 }
 
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
+}
+
 // This interface is not in Unified Runtime currently
 __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   PI_ASSERT(PluginInit, PI_ERROR_INVALID_VALUE);
