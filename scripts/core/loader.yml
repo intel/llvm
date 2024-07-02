@@ -190,7 +190,7 @@ params:
 type: function
 desc: "The only adapter reported with mock enabled will be the mock adapter."
 details:
-    - "The mock adapter will default to returning $X_RESULT_SUCCESS for all entry points. It will also create and correctly reference count dummy handles where appropriate. Its behaviour can be modified by linking the $x_mock_headers library and using the mock::callbacks object."
+    - "The mock adapter will default to returning $X_RESULT_SUCCESS for all entry points. It will also create and correctly reference count dummy handles where appropriate. Its behaviour can be modified by linking the mock library and using the object accessed via mock::getCallbacks()."
 class: $xLoaderConfig
 loader_only: True
 name: "SetMockingEnabled"

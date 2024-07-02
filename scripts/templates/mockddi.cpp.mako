@@ -44,7 +44,7 @@ namespace driver
         ${th.make_pfncb_param_type(n, tags, obj)} params = { &${",&".join(th.make_param_lines(n, tags, obj, format=["name"]))} };
 
         auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-                mock::callbacks.get_before_callback("${fname}"));
+                mock::getCallbacks().get_before_callback("${fname}"));
         if(beforeCallback) {
             result = beforeCallback( &params );
             if(result != UR_RESULT_SUCCESS) {
@@ -53,7 +53,7 @@ namespace driver
         }
 
         auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-                mock::callbacks.get_replace_callback("${fname}"));
+                mock::getCallbacks().get_replace_callback("${fname}"));
         if(replaceCallback) {
             result = replaceCallback( &params );
         }
@@ -130,7 +130,7 @@ namespace driver
         }
 
         auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-                mock::callbacks.get_after_callback("${fname}"));
+                mock::getCallbacks().get_after_callback("${fname}"));
         if(afterCallback) {
             return afterCallback( &params );
         }
