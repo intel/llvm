@@ -212,7 +212,7 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
   SmallString<128> OutputFile;
   if (SaveTemps) {
     // Generate a unique path name without creating a file
-    sys::fs::createUniquePath(Prefix + "%%%%%%." + Extension, OutputFile,
+    sys::fs::createUniquePath(Prefix + "-%%%%%%." + Extension, OutputFile,
                               /*MakeAbsolute=*/false);
   } else {
     if (std::error_code EC =
