@@ -49,7 +49,8 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiPropertySet PropSet;
   sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
   uint64_t PropSize = VFSets.size();
-  std::vector<char> Storage(/* bytes for size */ 8 + PropSize  + /* null terminator */ 1);
+  std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
+                            /* null terminator */ 1);
   auto *SizePtr = reinterpret_cast<char *>(&PropSize);
   std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t), Storage.data());
   std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
@@ -102,21 +103,29 @@ static constexpr unsigned PROGRAM_F1 = 53;
 // if we don't really have them/use them.
 static sycl::unittest::PiImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
-    generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false, PROGRAM_A0),
+    generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false,
+                  PROGRAM_A0),
     generateImage({"KernelB"}, "set-b", /* uses vf set */ true, PROGRAM_B),
-    generateImage({"DummyKernel1"}, "set-b", /* provides vf set */ false, PROGRAM_B0),
-    generateImage({"DummyKernel2"}, "set-b", /* provides vf set */ false, PROGRAM_B1),
+    generateImage({"DummyKernel1"}, "set-b", /* provides vf set */ false,
+                  PROGRAM_B0),
+    generateImage({"DummyKernel2"}, "set-b", /* provides vf set */ false,
+                  PROGRAM_B1),
     generateImage({"KernelC"}, "set-c1,set-c2", /* uses vf set */ true,
                   PROGRAM_C),
-    generateImage({"DummyKernel3"}, "set-c1", /* provides vf set */ false, PROGRAM_C0),
-    generateImage({"DummyKernel4"}, "set-c2", /* provides vf set */ false, PROGRAM_C1),
+    generateImage({"DummyKernel3"}, "set-c1", /* provides vf set */ false,
+                  PROGRAM_C0),
+    generateImage({"DummyKernel4"}, "set-c2", /* provides vf set */ false,
+                  PROGRAM_C1),
     generateImage({"KernelD"}, "set-d", /* uses vf set */ true, PROGRAM_D),
-    generateImage({"DummyKernel5"}, "set-d", /* provides vf set */ false, PROGRAM_D0),
+    generateImage({"DummyKernel5"}, "set-d", /* provides vf set */ false,
+                  PROGRAM_D0),
     generateImage({"KernelE"}, "set-e,set-d", /* uses vf set */ true,
                   PROGRAM_E),
-    generateImage({"DummyKernel6"}, "set-e", /* provides vf set */ false, PROGRAM_E0),
+    generateImage({"DummyKernel6"}, "set-e", /* provides vf set */ false,
+                  PROGRAM_E0),
     generateImage({"KernelF"}, "set-f", /* uses vf set */ true, PROGRAM_F),
-    generateImage({"DummyKernel7"}, "set-f", /* provides vf set */ false, PROGRAM_F0),
+    generateImage({"DummyKernel7"}, "set-f", /* provides vf set */ false,
+                  PROGRAM_F0),
     generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
 
 // Registers mock devices images in the SYCL RT
@@ -131,9 +140,9 @@ struct CapturesHolder {
 
   bool LinkedProgramsContains(std::initializer_list<unsigned> Programs) {
     return std::all_of(Programs.begin(), Programs.end(), [this](unsigned Prg) {
-      return std::any_of(LinkedPrograms.begin(), LinkedPrograms.end(), [Prg](unsigned LinkedPrg) {
-        return LinkedPrg == Prg;
-          });
+      return std::any_of(
+          LinkedPrograms.begin(), LinkedPrograms.end(),
+          [Prg](unsigned LinkedPrg) { return LinkedPrg == Prg; });
     });
   }
 
@@ -237,9 +246,11 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
   ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(CapturedData.LinkedProgramsContains({PROGRAM_B, PROGRAM_B0, PROGRAM_B1}));
+  ASSERT_TRUE(
+      CapturedData.LinkedProgramsContains({PROGRAM_B, PROGRAM_B0, PROGRAM_B1}));
   // And the linked program should be used to create a kernel.
-  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel, PROGRAM_B * PROGRAM_B0 * PROGRAM_B1);
+  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
+            PROGRAM_B * PROGRAM_B0 * PROGRAM_B1);
 }
 
 TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
@@ -258,9 +269,11 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(CapturedData.LinkedProgramsContains({PROGRAM_C, PROGRAM_C0, PROGRAM_C1}));
+  ASSERT_TRUE(
+      CapturedData.LinkedProgramsContains({PROGRAM_C, PROGRAM_C0, PROGRAM_C1}));
   // And the linked program should be used to create a kernel.
-  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel, PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
+  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
+            PROGRAM_C * PROGRAM_C0 * PROGRAM_C1);
 }
 
 TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
@@ -280,7 +293,8 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
   ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 4u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(CapturedData.LinkedProgramsContains({PROGRAM_D, PROGRAM_D0, PROGRAM_E, PROGRAM_E0}));
+  ASSERT_TRUE(CapturedData.LinkedProgramsContains(
+      {PROGRAM_D, PROGRAM_D0, PROGRAM_E, PROGRAM_E0}));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
             PROGRAM_D * PROGRAM_D0 * PROGRAM_E * PROGRAM_E0);
@@ -301,9 +315,11 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(CapturedData.LinkedProgramsContains({PROGRAM_F, PROGRAM_F0, PROGRAM_F1}));
+  ASSERT_TRUE(
+      CapturedData.LinkedProgramsContains({PROGRAM_F, PROGRAM_F0, PROGRAM_F1}));
   // And the linked program should be used to create a kernel.
-  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
+  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
+            PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 
   CapturedData.clear();
 
@@ -312,7 +328,8 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   Q.single_task<VirtualFunctionsTest::KernelG>([=]() {});
   ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 0u);
   ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 0u);
-  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel, PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
+  ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
+            PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 }
 
 // TODO: Add test cases for kernel_bundle usage
