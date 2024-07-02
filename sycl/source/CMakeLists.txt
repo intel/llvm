@@ -257,11 +257,13 @@ set(SYCL_COMMON_SOURCES
     "interop_handle.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
+    "physical_mem.cpp"
     "platform.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "virtual_mem.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )

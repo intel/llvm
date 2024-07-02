@@ -314,9 +314,23 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
   }
 }
 
+namespace {
+
+struct EnqueueNativeCommandData {
+  sycl::interop_handle ih;
+  std::function<void(interop_handle)> func;
+};
+
+void InteropFreeFunc(pi_queue, void *InteropData) {
+  auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
+  return Data->func(Data->ih);
+}
+} // namespace
+
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
+  std::vector<pi_mem> MReqPiMem;
 
   bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
@@ -362,8 +376,10 @@ class DispatchHostTask {
 
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
+                   std::vector<interop_handle::ReqToMem> ReqToMem,
+                   std::vector<pi_mem> ReqPiMem)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)),
+        MReqPiMem(std::move(ReqPiMem)) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
@@ -402,8 +418,32 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
+        // TODO: should all the backends that support this entry point use this
+        // for host task?
+        auto &Queue = HostTask.MQueue;
+        bool NativeCommandSupport = false;
+        Queue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+            PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+            sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
+        if (NativeCommandSupport) {
+          EnqueueNativeCommandData CustomOpData{
+              IH, HostTask.MHostTask->MInteropTask};
 
-        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
+          // We are assuming that we have already synchronized with the HT's
+          // dependent events, and that the user will synchronize before the end
+          // of the HT lambda. As such we don't pass in any events, or ask for
+          // one back.
+          //
+          // This entry point is needed in order to migrate memory across
+          // devices in the same context for CUDA and HIP backends
+          Queue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
+              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              MReqPiMem.size(), MReqPiMem.data(), 0, nullptr, nullptr);
+        } else {
+          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
+                                   IH);
+        }
       } else
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
     } catch (...) {
@@ -3046,13 +3086,14 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
+    std::vector<pi_mem> ReqPiMem;
 
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
       const std::vector<Requirement *> &HandlerReq =
           HostTask->getRequirements();
-      auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
+      auto ReqToMemConv = [&ReqToMem, &ReqPiMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
@@ -3062,6 +3103,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+            ReqPiMem.emplace_back(MemArg);
 
             return;
           }
@@ -3083,7 +3125,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     queue_impl::getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem)));
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqPiMem)));
 
     MShouldCompleteEventIfPossible = false;
 

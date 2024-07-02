@@ -306,24 +306,28 @@ public:
   }
 
   ~queue_impl() {
-    // The trace event created in the constructor should be active through the
-    // lifetime of the queue object as member variables when ABI breakage is
-    // allowed. This example shows MTraceEvent as a member variable.
+    try {
+      // The trace event created in the constructor should be active through the
+      // lifetime of the queue object as member variables when ABI breakage is
+      // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
-    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
-      // Used cached information in member variables
-      xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
-                            (xpti::trace_event_data_t *)MTraceEvent,
-                            MInstanceID,
-                            static_cast<const void *>("queue_destroy"));
-      xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
-    }
+      constexpr uint16_t NotificationTraceType =
+          static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+      if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+        // Used cached information in member variables
+        xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+                              (xpti::trace_event_data_t *)MTraceEvent,
+                              MInstanceID,
+                              static_cast<const void *>("queue_destroy"));
+        xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
+      }
 #endif
-    throw_asynchronous();
-    cleanup_fusion_cmd();
-    getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
+      throw_asynchronous();
+      cleanup_fusion_cmd();
+      getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
+    }
   }
 
   /// \return an OpenCL interoperability queue handle.

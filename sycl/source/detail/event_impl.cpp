@@ -43,8 +43,12 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
-  if (MEvent)
-    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+  try {
+    if (MEvent)
+      getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
+  }
 }
 
 void event_impl::waitInternal(bool *Success) {

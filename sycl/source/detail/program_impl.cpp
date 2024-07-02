@@ -203,10 +203,14 @@ program_impl::program_impl(ContextImplPtr Context,
 }
 
 program_impl::~program_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  if (MProgram != nullptr) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    if (MProgram != nullptr) {
+      const PluginPtr &Plugin = getPlugin();
+      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~program_impl", e);
   }
 }
 
@@ -255,7 +259,7 @@ void program_impl::link(std::string LinkOptions) {
 }
 
 bool program_impl::has_kernel(std::string KernelName,
-                              bool IsCreatedFromSource) const {
+                              bool /*IsCreatedFromSource*/) const {
   throw_if_state_is(program_state::none);
 
   std::vector<sycl::detail::pi::PiDevice> Devices(get_pi_devices());
