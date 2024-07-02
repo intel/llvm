@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t
@@ -16,7 +16,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 1234567;
+  constexpr std::size_t N = 512;
 #if defined(MALLOC_HOST)
   auto *array = sycl::malloc_host<int>(N, Q);
 #elif defined(MALLOC_SHARED)
@@ -34,7 +34,7 @@ int main() {
   // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on Host USM
   // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on Shared USM
-  // CHECK: {{READ of size 4 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(1234567, 0, 0\)}}
+  // CHECK: {{READ of size 4 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(512, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_int.cpp:}}[[@LINE-7]]
 
   sycl::free(array, Q);
