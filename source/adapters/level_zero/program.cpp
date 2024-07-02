@@ -658,21 +658,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
     // device.  Since Level Zero supports only one device, there is only one
     // pointer.  If the pointer is NULL, we don't do anything.  Otherwise, we
     // copy the program's binary image to the buffer at that pointer.
-    uint8_t **PBinary = ur_cast<uint8_t **>(ProgramInfo);
-    if (!PBinary[0])
-      break;
+    if (ProgramInfo) {
+      uint8_t **PBinary = ur_cast<uint8_t **>(ProgramInfo);
+      if (!PBinary[0])
+        break;
 
-    std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
-    if (Program->State == ur_program_handle_t_::IL ||
-        Program->State == ur_program_handle_t_::Native ||
-        Program->State == ur_program_handle_t_::Object) {
-      std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
-    } else if (Program->State == ur_program_handle_t_::Exe) {
-      size_t SzBinary = 0;
-      ZE2UR_CALL(zeModuleGetNativeBinary,
-                 (Program->ZeModule, &SzBinary, PBinary[0]));
-    } else {
-      return UR_RESULT_ERROR_INVALID_PROGRAM;
+      std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
+      if (Program->State == ur_program_handle_t_::IL ||
+          Program->State == ur_program_handle_t_::Native ||
+          Program->State == ur_program_handle_t_::Object) {
+        std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
+      } else if (Program->State == ur_program_handle_t_::Exe) {
+        size_t SzBinary = 0;
+        ZE2UR_CALL(zeModuleGetNativeBinary,
+                   (Program->ZeModule, &SzBinary, PBinary[0]));
+      } else {
+        return UR_RESULT_ERROR_INVALID_PROGRAM;
+      }
     }
     break;
   }
@@ -720,8 +722,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
+  case UR_PROGRAM_INFO_SOURCE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    die("urProgramGetInfo: not implemented");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
