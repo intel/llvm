@@ -283,10 +283,10 @@ struct ValueOrDefault<
   }
 };
 
-template <typename SyclT, typename PropertiesT> struct all_props_are_keys_of;
+// all_props_are_keys_of
 
 template <typename SyclT, typename PropertiesT>
-struct all_props_are_keys_of : std::true_type {};
+struct all_props_are_keys_of : std::false_type {};
 
 template <typename SyclT>
 struct all_props_are_keys_of<SyclT,
@@ -305,7 +305,8 @@ struct all_props_are_keys_of<
     SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
     : std::bool_constant<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, PropTs...>()> {};
+          all_props_are_keys_of<SyclT, ext::oneapi::experimental::properties<
+                                           std::tuple<PropTs...>>>::value> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
