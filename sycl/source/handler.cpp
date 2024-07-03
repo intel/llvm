@@ -80,17 +80,6 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-/// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue)
-    : handler(Queue, /*CallerNeedsEvent=*/true) {}
-
-/// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue)
-    : handler(Queue, PrimaryQueue, SecondaryQueue,
-              /*CallerNeedsEvent=*/true) {}
-
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
