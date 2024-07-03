@@ -24,27 +24,6 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_bitmanip
 /// @{
 
-/// Rotate left operation with a vector and a scalar inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
-                                int64_t, uint64_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
-                                    int64_t, uint64_t>() &&
-        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
-                                    int64_t, uint64_t>(),
-    __ESIMD_NS::simd<T0, SZ>>
-rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  return __ESIMD_NS::rol<T0, T1, SZ, U>(src0, src1);
-}
-
 /// Count the number of 1-bits.
 /// @tparam T element type.
 /// @tparam N vector length.
