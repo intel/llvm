@@ -950,12 +950,12 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     if (TargetLocalId[0] + delta < g.get_local_linear_range())
       TargetLocalId[0] += delta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return T{__spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                            convertToOpenCLType(x), TargetId)};
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return T{__spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
-                                              convertToOpenCLType(x), delta)};
+    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                            convertToOpenCLType(x), delta);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
