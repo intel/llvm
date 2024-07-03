@@ -1307,16 +1307,6 @@ pi_result piextCommandBufferAdviseUSM(
                                             SyncPointWaitList, SyncPoint);
 }
 
-pi_result
-piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
-                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
-                          pi_uint32 NumEventsInWaitList,
-                          const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
-                                          NumEventsInWaitList, EventWaitList,
-                                          Event);
-}
-
 pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue , pi_kernel , pi_uint32 ,
     const size_t *, const size_t *,
