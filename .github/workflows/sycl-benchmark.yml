@@ -166,10 +166,7 @@ jobs:
             tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
             tmp_result="$(cat $1 | grep '^[^\#]')"
 
-            awk -v me="$tmp_run_time_mean_i" \
-                -v md="$tmp_run_time_median_i" \
-                -v th="$tmp_run_time_throughput_i" \
-                -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' <<< "$tmp_header_title$tmp_newline$tmp_result" | tee -a $3   # Print to summary file
+            awk -v me="$tmp_run_time_mean_i" -v md="$tmp_run_time_median_i" -v th="$tmp_run_time_throughput_i" -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' <<< "$tmp_header_title$tmp_newline$tmp_result" | tee -a $3   # Print to summary file
         }
 
         # run sycl bench step
