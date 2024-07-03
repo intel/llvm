@@ -300,15 +300,18 @@ public:
   }
 
   ~device_image_impl() {
-
-    if (MProgram) {
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
-    }
-    if (MSpecConstsBuffer) {
-      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      memReleaseHelper(Plugin, MSpecConstsBuffer);
+    try {
+      if (MProgram) {
+        const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
+        Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+      }
+      if (MSpecConstsBuffer) {
+        std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+        const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
+        memReleaseHelper(Plugin, MSpecConstsBuffer);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);
     }
   }
 
