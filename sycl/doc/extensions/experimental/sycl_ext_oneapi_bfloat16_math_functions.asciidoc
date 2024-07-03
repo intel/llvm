@@ -67,6 +67,12 @@ The descriptions of the `fma`, `fmin`, `fmax`, `fabs`, `isnan`, `ceil`, `floor`,
 specification:
 https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
+[NOTE]
+The bfloat16 type is supported on all devices. DPC++ currently supports some
+bfloat16 type math functions natively on Intel Xe HP GPUs and Nvidia GPUs with
+Compute Capability >= SM80. On other devices, and in host code, such functions
+are emulated in software.
+
 == Specification
 
 === Feature test macro
@@ -85,21 +91,6 @@ supports.
 |Value |Description
 |1     |The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
 |===   
-
-=== Extension to `enum class aspect`
-
-[source]
-----
-namespace sycl {
-enum class aspect {
-  ...
-  sycl_ext_oneapi_bfloat16_math_functions
-}
-}
-----
-
-If a SYCL device has the `sycl_ext_oneapi_bfloat16_math_functions` aspect,
-then it supports the `bfloat16` math functions described in the next section.
 
 === Math Functions
 
