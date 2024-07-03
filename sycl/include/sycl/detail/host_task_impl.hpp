@@ -102,7 +102,6 @@ handler::sycl_ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func) {
   // accessors during finalize
   MArgs = MAssociatedAccesors;
 
-  // TODO: Should I use a new CG type here?
   MHostTask.reset(new detail::HostTask(std::move(Func)));
 
   setType(detail::CG::ACPPCustomOperation);
