@@ -167,6 +167,10 @@ defvar Sg16_32 = [16, 32];
 defvar IntelBaseAspects = [AspectExt_intel_esimd];
 class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizesList>
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
+def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_pvc_vg", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_pvc", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g12", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g11", Fp16Atomic64, Sg8_16_32>;
