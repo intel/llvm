@@ -4420,6 +4420,7 @@
 ?select_device@device_selector@_V1@sycl@@UEBA?AVdevice@23@XZ
 ?select_device@filter_selector@ONEAPI@_V1@sycl@@UEBA?AVdevice@34@XZ
 ?select_device@filter_selector@oneapi@ext@_V1@sycl@@UEBA?AVdevice@45@XZ
+?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVsampler@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
@@ -4433,6 +4434,7 @@
 ?setType@handler@_V1@sycl@@AEAAXW4CGTYPE@CG@detail@23@@Z
 ?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
 ?set_access_mode@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KW4address_access_mode@12345@AEBVcontext@45@@Z
+?set_arg@handler@_V1@sycl@@QEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?set_final_data_internal@buffer_plain@detail@_V1@sycl@@IEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
 ?set_final_data_internal@buffer_plain@detail@_V1@sycl@@IEAAXXZ
 ?set_final_data_internal@image_plain@detail@_V1@sycl@@IEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
@@ -4452,6 +4454,7 @@
 ?size@stream@_V1@sycl@@QEBA_KXZ
 ?start@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
 ?start_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
+?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
