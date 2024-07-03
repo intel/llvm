@@ -167,6 +167,8 @@ defvar Sg16_32 = [16, 32];
 defvar IntelBaseAspects = [AspectExt_intel_esimd];
 class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizesList>
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
+// Note: only the "canonical" target names are listed here - see
+// SYCL::gen::resolveGenDevice().
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
