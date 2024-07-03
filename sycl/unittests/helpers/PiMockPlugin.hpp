@@ -1353,6 +1353,61 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device,
+                                       pi_virtual_mem_granularity_info, size_t,
+                                       void *, size_t *) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPhysicalMemCreate(pi_context, pi_device, size_t,
+                            pi_physical_mem *ret_physical_mem) {
+  *ret_physical_mem = createDummyHandle<pi_physical_mem>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRetain(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRelease(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemReserve(pi_context, const void *start,
+                                             size_t range_size,
+                                             void **ret_ptr) {
+  *ret_ptr =
+      start ? const_cast<void *>(start) : createDummyHandle<void *>(range_size);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemFree(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemMap(pi_context, const void *, size_t,
+                                         pi_physical_mem, size_t,
+                                         pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemUnmap(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemSetAccess(pi_context, const void *, size_t,
+                                               pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemGetInfo(pi_context, const void *, size_t,
+                                             pi_virtual_mem_info, size_t,
+                                             void *, size_t *) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
                                                void **opaque_data_return) {
   return PI_SUCCESS;
@@ -1511,6 +1566,14 @@ inline pi_result mock_piextCommandBufferAdviseUSM(
     pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueNativeCommand(pi_queue,
+                                                void (*)(pi_queue, void *),
+                                                void *, uint32_t,
+                                                const pi_mem *, pi_uint32,
+                                                const pi_event *, pi_event *) {
   return PI_SUCCESS;
 }
 
