@@ -24,7 +24,7 @@ int main(int argc, char const *argv[]) {
     std::cerr << "Test failed: exception wasn't thrown" << std::endl;
     return 1;
   } catch (sycl::exception &E) {
-    if (E.code() != sycl::errc::kernel_argument ||
+    if (E.code() != sycl::errc::invalid ||
         std::string(E.what()).find(
             "Can't add devices across platforms to a single context.") ==
             std::string::npos) {
