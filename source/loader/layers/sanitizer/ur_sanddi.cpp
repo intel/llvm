@@ -360,9 +360,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRetain
-__urdlllocal ur_result_t UR_APICALL
-urContextRetain(
-    ur_context_handle_t hContext ///< [in] handle of the context to get a reference of.
+__urdlllocal ur_result_t UR_APICALL urContextRetain(
+    ur_context_handle_t
+        hContext ///< [in] handle of the context to get a reference of.
 ) {
     auto pfnRetain = context.urDdiTable.Context.pfnRetain;
 
