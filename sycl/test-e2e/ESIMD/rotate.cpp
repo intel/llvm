@@ -15,11 +15,7 @@
 
 #include "esimd_test_utils.hpp"
 #include <bit>
-#ifdef EXP
-#define NS sycl::ext::intel::experimental::esimd
-#else
 #define NS sycl::ext::intel::esimd
-#endif
 
 // https://stackoverflow.com/questions/776508
 template <typename T> T rotl(T n, unsigned int c) {

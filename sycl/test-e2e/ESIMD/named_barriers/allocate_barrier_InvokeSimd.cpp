@@ -54,7 +54,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(nd_item<1> *ndi) SYCL_ESIMD_FUNCTION {
   uint32_t num_producers = 16;
   uint32_t num_consumers = 16;
   __ESIMD_NS::named_barrier_signal(barrier_id, producer_consumer_mode,
-                                    num_producers, num_consumers);
+                                   num_producers, num_consumers);
   __ESIMD_NS::named_barrier_wait(barrier_id);
 }
 

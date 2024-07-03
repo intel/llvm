@@ -125,7 +125,6 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgSrc0.data(), msgDst.data());
 }
 
-
 /// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgSrc0 is the first source operand of send message.
@@ -166,7 +165,6 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
       msgSrc0.data(), msgSrc1.data());
 }
 
-
 /// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
@@ -206,7 +204,6 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 
 /// @addtogroup sycl_esimd_memory_nbarrier
 /// @{
-
 
 /// Create explicit scoreboard dependency to avoid device code motion
 /// across this call and preserve the \p value computation even

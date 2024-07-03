@@ -21,7 +21,7 @@ void kernel() __attribute__((sycl_device)) {
       fence_mask::l2_flush_texture_data | fence_mask::l2_flush_constant_data |
       fence_mask::l2_flush_rw_data | fence_mask::local_barrier |
       fence_mask::l1_flush_ro_data;
-  
+
   esimd::fence<fm>();
   esimd::barrier();
 
