@@ -2127,6 +2127,9 @@ public:
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   ext_oneapi_enqueue_custom_operation(FuncT &&Func) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_enqueue_custom_operation>();
     ext_oneapi_enqueue_custom_operation_impl(Func);
   }
 
@@ -3109,7 +3112,7 @@ public:
               size_t DestOffset = 0) {
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            ext_oneapi_device_global>();
+            sycl_ext_oneapi_device_global>();
     if (sizeof(T) < DestOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
@@ -3143,7 +3146,7 @@ public:
          size_t NumBytes = sizeof(T), size_t SrcOffset = 0) {
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            ext_oneapi_device_global>();
+            sycl_ext_oneapi_device_global>();
     if (sizeof(T) < SrcOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");

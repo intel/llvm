@@ -53,7 +53,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_enqueue_barrier = 4,
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
-  sycl_ext_oneapi_bindless_images = 7
+  sycl_ext_oneapi_bindless_images = 7,
+  sycl_ext_oneapi_enqueue_custom_operation = 8
 };
 
 inline const char *
