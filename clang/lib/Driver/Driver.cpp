@@ -7781,12 +7781,28 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   for (auto *Arg : Args) {
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
     std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
-    if (Arg->getOption().matches(options::OPT_Xopenmp_target_EQ) &&
-        ToolChain::getOpenMPTriple(Arg->getValue(0)) == TC->getTriple()) {
-      Arg->claim();
-      unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(1));
-      ExtractedArg = getOpts().ParseOneArg(Args, Index);
-      Arg = ExtractedArg.get();
+    if (Kind == Action::OFK_SYCL) {
+      // For SYCL based offloading, we allow for -Xsycl-target-backend
+      // and -Xsycl-target-backend=<target> for specifying options.
+      if (Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) &&
+          llvm::Triple(Arg->getValue(0)) == TC->getTriple()) {
+        Arg->claim();
+        unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(1));
+        ExtractedArg = getOpts().ParseOneArg(Args, Index);
+        Arg = ExtractedArg.get();
+      } else if (Arg->getOption().matches(options::OPT_Xsycl_backend)) {
+        unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(0));
+        ExtractedArg = getOpts().ParseOneArg(Args, Index);
+        Arg = ExtractedArg.get();
+      }
+    } else {
+      if (Arg->getOption().matches(options::OPT_Xopenmp_target_EQ) &&
+          ToolChain::getOpenMPTriple(Arg->getValue(0)) == TC->getTriple()) {
+        Arg->claim();
+        unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(1));
+        ExtractedArg = getOpts().ParseOneArg(Args, Index);
+        Arg = ExtractedArg.get();
+      }
     }
 
     // Add or remove the seen architectures in order of appearance. If an
@@ -7851,8 +7867,18 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       Archs.insert(CudaArchToString(CudaArch::HIPDefault));
     else if (Kind == Action::OFK_OpenMP)
       Archs.insert(StringRef());
-    else if (Kind == Action::OFK_SYCL)
-      Archs.insert(StringRef());
+    else if (Kind == Action::OFK_SYCL) {
+      // For SYCL offloading, we need to check the triple for NVPTX or AMDGPU.
+      // The default arch is set for NVPTX if not provided.  For AMDGPU, emit
+      // an error as the user is responsible to set the arch.
+      if (TC->getTriple().isNVPTX())
+        Archs.insert(CudaArchToString(CudaArch::SM_50));
+      else if (TC->getTriple().isAMDGPU())
+        C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+            << 1 << TC->getTriple().str();
+      else
+        Archs.insert(StringRef());
+    }
   } else {
     Args.ClaimAllArgs(options::OPT_offload_arch_EQ);
     Args.ClaimAllArgs(options::OPT_no_offload_arch_EQ);

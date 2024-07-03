@@ -11121,16 +11121,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
-    // TODO: TargetTriple should not be used here for creating linker wrapper
-    // options. It should also not be passed to the linker wrapper.
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      // TODO: Third party AOT support needs to be added in new offloading
-      // model.
-      if (TC->getTriple().isSPIROrSPIRV()) {
+      // Note: For AMD targets, we do not pass any SYCL device libraries.
+      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
