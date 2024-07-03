@@ -64,11 +64,11 @@ warn you if this happens.
 
 This extension is derived from an experimental AdaptiveCpp extension, which is
 documented
-https://github.com/sycl_ext_oneapi/sycl_ext_oneapi/blob/develop/doc/enqueue-custom-operation.md[here]._
+https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here]._
 
 The extension aims to integrate asynchronous interop work submitted through the
 backend API with the asynchrony of the SYCL runtime DAG. As such it is required
-that any interop calls used within `sycl_ext_oneapi_enqueue_custom_operation`
+that any interop calls used within `ext_oneapi_enqueue_custom_operation`
 are asynchronous.
 
 ```c++
@@ -77,7 +77,7 @@ sycl::queue q;
 q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{buf, cgh};
 
-    cgh.sycl_ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
+    cgh.ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
       // Can extract device pointers from accessors
       void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
       // Can extract stream (note: get_native_queue() may not be 
@@ -129,28 +129,28 @@ has multiple versions._
 
 === Synchronization
 
-The goal of `sycl_ext_oneapi_enqueue_custom_operation` is to integrate interop
+The goal of `ext_oneapi_enqueue_custom_operation` is to integrate interop
 work within the asynchronous SYCL DAG. As such, the user defined lambda must
 only enqueue asynchronous, as opposed to synchronous, backend work within the
 user lambda. Asynchronous work must only be submitted to the native queue
 obtained from
 `interop_handle::get_native_queue`.
 
-Using `sycl_ext_oneapi_enqueue_custom_operation` allows the user to tell the
+Using `ext_oneapi_enqueue_custom_operation` allows the user to tell the
 SYCL runtime to dispatch interop work in the same manner that native SYCL
 commands, like `parallel_for` s or `memcpy` s,  are dispatched. If the SYCL
 runtime uses eager submission of commands to the backend, for normal kernel or
 other command submissions, then the callable passed to
-`sycl_ext_oneapi_enqueue_custom_operation` should execute eagerly, once any
+`ext_oneapi_enqueue_custom_operation` should execute eagerly, once any
 dependent events have also been submitted to the backend. If the SYCL runtime
 enqueues work to the backend lazily, then the user submitted callable will be
 executed lazily as well.
 
-A callable submitted to `sycl_ext_oneapi_enqueue_custom_operation` won't wait
+A callable submitted to `ext_oneapi_enqueue_custom_operation` won't wait
 on its dependent events to complete, only to be enqueued to the backend. This
 allows asynchronous interop work to be composed with asynchronous SYCL
 commands. This gives different sychronization guarantees from normal SYCL
-`host_task` s. `sycl_ext_oneapi_enqueue_custom_operation` doesn't provide
+`host_task` s. `ext_oneapi_enqueue_custom_operation` doesn't provide
 synchronization for host side code in the user submitted callable, meaning host
 code will execute before its dependent events have been satisfied. Only interop
 work submitted to the native queue obtained by
@@ -162,7 +162,7 @@ In this example:
 ```
 q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(dep_event);
-    cgh.sycl_ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
+    cgh.ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
       printf("This will print before dep_event has completed.\n");
       // This stream has been synchronized with dep_event's underlying
       // hipEvent_t
@@ -185,7 +185,7 @@ will only happen once the host task's dependent events are observed to be
 complete on the host.
 
 A SYCL event returned by a submission of a
-`sycl_ext_oneapi_enqueue_custom_operation` command is only complete once the
+`ext_oneapi_enqueue_custom_operation` command is only complete once the
 asynchronous work enqueued to the native queue obtained through
 `interop_handle::get_native_queue()` has completed.
 
@@ -198,7 +198,7 @@ class:
 ```
 class handler {
   template <typename Func>
-  void sycl_ext_oneapi_enqueue_custom_operation(Func&& interopCallable);
+  void ext_oneapi_enqueue_custom_operation(Func&& interopCallable);
 };
 ```
 

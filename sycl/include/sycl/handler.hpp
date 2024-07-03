@@ -2126,14 +2126,14 @@ public:
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  sycl_ext_oneapi_enqueue_custom_operation(FuncT &&Func) {
-    sycl_ext_oneapi_enqueue_custom_operation_impl(Func);
+  ext_oneapi_enqueue_custom_operation(FuncT &&Func) {
+    ext_oneapi_enqueue_custom_operation_impl(Func);
   }
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  sycl_ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func);
+  ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func);
 
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
@@ -3109,7 +3109,7 @@ public:
               size_t DestOffset = 0) {
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_device_global>();
+            ext_oneapi_device_global>();
     if (sizeof(T) < DestOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
@@ -3143,7 +3143,7 @@ public:
          size_t NumBytes = sizeof(T), size_t SrcOffset = 0) {
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_device_global>();
+            ext_oneapi_device_global>();
     if (sizeof(T) < SrcOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");

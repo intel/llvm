@@ -14,7 +14,7 @@ int main() {
 
   int Data = 0;
   int Result = 0;
-  buffer<int, 1> buf(&Data, range<1>(1));
+  buffer<int, 1> Buf(&Data, range<1>(1));
 
   const auto &Devices =
       platform(gpu_selector_v).get_devices(info::device_type::gpu);
@@ -29,25 +29,25 @@ int main() {
     std::cout << "Using on device " << Index << ": "
               << Q.get_device().get_info<info::device::name>() << std::endl;
 
-    Q.submit([&](handler &cgh) {
-      accessor acc{buf, cgh, read_write};
-      cgh.sycl_ext_oneapi_enqueue_custom_operation([=](interop_handle ih) {
-        auto ptr = ih.get_native_mem<backend::ext_oneapi_cuda>(acc);
-        auto stream = ih.get_native_queue<backend::ext_oneapi_cuda>();
-        int tmp = 0;
-        cuMemcpyDtoHAsync(&tmp, ptr, sizeof(int), stream);
-        cuStreamSynchronize(stream);
-        tmp++;
-        cuMemcpyHtoDAsync(ptr, &tmp, sizeof(int), stream);
+    Q.submit([&](handler &CGH) {
+      accessor Acc{Buf, CGH, read_write};
+      CGH.ext_oneapi_enqueue_custom_operation([=](interop_handle IH) {
+        auto Ptr = IH.get_native_mem<backend::ext_oneapi_cuda>(Acc);
+        auto Stream = IH.get_native_queue<backend::ext_oneapi_cuda>();
+        int Tmp = 0;
+        cuMemcpyDtoHAsync(&Tmp, Ptr, sizeof(int), Stream);
+        cuStreamSynchronize(Stream);
+        Tmp++;
+        cuMemcpyHtoDAsync(Ptr, &Tmp, sizeof(int), Stream);
       });
     });
     ++Index;
   }
 
-  auto host_acc = buf.get_host_access();
-  auto passed = (host_acc[0] == Index);
-  std::cout << "Checking result on host: " << (passed ? "passed" : "FAILED")
+  auto HostAcc = Buf.get_host_access();
+  auto Passed = (HostAcc[0] == Index);
+  std::cout << "Checking result on host: " << (Passed ? "Passed" : "FAILED")
             << std::endl;
-  std::cout << host_acc[0] << " ?= " << Index << std::endl;
-  return !passed;
+  std::cout << HostAcc[0] << " ?= " << Index << std::endl;
+  return !Passed;
 }
