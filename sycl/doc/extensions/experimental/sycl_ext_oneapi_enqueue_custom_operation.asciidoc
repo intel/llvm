@@ -131,8 +131,9 @@ has multiple versions._
 
 The goal of `sycl_ext_oneapi_enqueue_custom_operation` is to integrate interop
 work within the asynchronous SYCL DAG. As such, the user defined lambda must
-only enqueue asynchronous work within the user lambda. Asynchronous work must
-only be submitted to the native queue obtained from
+only enqueue asynchronous, as opposed to synchronous, backend work within the
+user lambda. Asynchronous work must only be submitted to the native queue
+obtained from
 `interop_handle::get_native_queue`.
 
 Using `sycl_ext_oneapi_enqueue_custom_operation` allows the user to tell the
