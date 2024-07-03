@@ -244,6 +244,29 @@ static bool supportsGridConstant(CudaArch Arch) {
   return Arch >= CudaArch::SM_70;
 }
 
+static llvm::SmallVector<std::optional<int64_t>, 3>
+decomposeSYCLWGAttr(const llvm::Attribute &Attr) {
+  // Split up values in the comma-separated list of integers.
+  SmallVector<StringRef, 3> ValStrs;
+  Attr.getValueAsString().split(ValStrs, ',');
+  assert(ValStrs.size() <= 3 && "Must have at most three dimensions for "
+                                "SYCL work-group property");
+
+  llvm::SmallVector<std::optional<int64_t>, 3> Ops;
+  // Index-flip the values; SYCL specifies fastest-moving dimensions
+  // right-to-left: NVPTX is left-to-right.
+  for (auto ValStr : reverse(ValStrs)) {
+    size_t Value = 0;
+    [[maybe_unused]] bool Error = ValStr.getAsInteger(10, Value);
+    assert(!Error && "The attribute's value is not a number");
+    Ops.push_back(Value);
+  }
+  // Pad out any missing elements
+  Ops.append(3 - std::max(Ops.size(), size_t{3}), std::nullopt);
+
+  return Ops;
+}
+
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
   if (GV->isDeclaration())
@@ -301,6 +324,33 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
       addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
       addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
+    } else if (auto Attr = F->getFnAttribute("sycl-max-work-group-size");
+               Attr.isValid()) {
+      auto Ops = decomposeSYCLWGAttr(Attr);
+
+      // Work-group sizes (in NVVM annotations) must be positive and less than
+      // INT32_MAX, whereas SYCL can allow for larger work-group sizes (see
+      // -fno-sycl-id-queries-fit-in-int). If any dimension is too large for
+      // NVPTX, don't emit any annotation at all.
+      if (llvm::all_of(Ops, [](std::optional<int64_t> V) {
+            return !V || llvm::isUInt<31>(*V);
+          })) {
+        static constexpr const char *Annots[] = {"maxntidx", "maxntidy",
+                                                 "maxntidz"};
+        for (auto [AnnotStr, Val] : zip(Annots, Ops))
+          if (Val.has_value())
+            addNVVMMetadata(F, AnnotStr, *Val);
+      }
+    }
+
+    if (auto Attr = F->getFnAttribute("sycl-max-total-work-group-size");
+        Attr.isValid()) {
+      size_t Value = 0;
+      bool Error = Attr.getValueAsString().getAsInteger(10, Value);
+      assert(!Error && "The attribute's value is not a number");
+      if (llvm::isUInt<31>(Value)) {
+        addNVVMMetadata(F, "maxntidx", Value);
+      }
     }
 
     auto attrValue = [&](Expr *E) {

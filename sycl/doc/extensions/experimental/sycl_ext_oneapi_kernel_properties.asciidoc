@@ -59,6 +59,7 @@ Joe Garvey, Intel +
 Greg Lueck, Intel +
 John Pennycook, Intel +
 Roland Schulz, Intel
+Fraser Cormack, Codeplay
 
 == Overview
 
@@ -116,9 +117,13 @@ supports.
 
 === Kernel Properties
 
-The kernel properties below correspond to kernel attributes defined in
+Most of the kernel properties below correspond to kernel attributes defined in
 Section 5.8.1 of the SYCL 2020 specification.  Note that deprecated attributes
 (such as `vec_type_hint`) are not included.
+
+The `max_work_group_size` and `max_total_work_group_size` kernel properties are
+also provided as complements to other properties concerning work-group sizes,
+without a corresponding function attribute form.
 
 ```c++
 namespace sycl {
@@ -137,6 +142,17 @@ struct work_group_size_hint_key {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...>;
 }; // work_group_size_hint_key
+
+// Corresponds to max_work_group_size
+struct max_work_group_size_key {
+  template <size_t... Dims>
+  using value_t = property_value<max_work_group_size_key, std::integral_constant<size_t, Dims>...>;
+}; // max_work_group_size_key
+
+struct max_total_work_group_size_key {
+  template <Size Size>
+  using value_t = property_value<max_total_work_group_size_key, std::integral_constant<Size, Size>>;
+}; // max_total_work_group_size_key
 
 // Corresponds to reqd_sub_group_size
 struct sub_group_size_key {
@@ -174,6 +190,12 @@ inline constexpr work_group_size_key::value_t<Dims...> work_group_size;
 template <size_t... Dims>
 inline constexpr work_group_size_hint_key::value_t<Dims...> work_group_size_hint;
 
+template <size_t... Dims>
+inline constexpr max_work_group_size_key::value_t<Dims...> max_work_group_size;
+
+template <size_t Size>
+inline constexpr max_total_work_group_size_key::value_t<Size> max_total_work_group_size;
+
 template <uint32_t Size>
 inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
@@ -182,6 +204,8 @@ inline constexpr device_has_key::value_t<Aspects...> device_has;
 
 template <> struct is_property_key<work_group_size_key> : std::true_type {};
 template <> struct is_property_key<work_group_size_hint_key> : std::true_type {};
+template <> struct is_property_key<max_work_group_size_key> : std::true_type {};
+template <> struct is_property_key<max_total_work_group_size_key> : std::true_type {};
 template <> struct is_property_key<sub_group_size_key> : std::true_type {};
 template <> struct is_property_key<device_has_key> : std::true_type {};
 
@@ -210,6 +234,20 @@ template <> struct is_property_key<device_has_key> : std::true_type {};
  template arguments in the `Dims` parameter pack must match the dimensionality
  of the work-group used to invoke the kernel. The order of the template
  arguments matches the constructor of the `range` class.
+
+|`max_work_group_size`
+|The `max_total_work_group_size` property provides a promise to the compiler
+that the kernel will never be launched with a larger work-group than the
+specified size. The number of template arguments in the `Dims` parameter pack
+must match the dimensionality of the work-group used to invoke the kernel. The
+order of the template arguments matches the constructor of the `range` class.
+
+|`max_total_work_group_size`
+|The `max_total_work_group_size` property provides a promise to the compiler
+that the kernel will never be launched with a work-group with a larger combined
+size the specified amount. The combined work-group size of work-items is
+determined as the multiplicative product of the work-group size across all
+dimensions of the work-group.
 
 |`sub_group_size`
 |The `sub_group_size` property adds the requirement that the kernel must be
