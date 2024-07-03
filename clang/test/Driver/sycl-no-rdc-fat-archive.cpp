@@ -3,7 +3,7 @@
 
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
+// RUN: %clangxx -fno-sycl-use-footer --target=x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t_lib.a %t1_bundle.o
 // RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
