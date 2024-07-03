@@ -196,17 +196,16 @@ jobs:
         run
     - name: Check results
       run: |
-        cat ./sycl-bench/build/bench-*/summary.txt
-#     - name: Pack results
-#       id: pack_results
-#       run: |
-#         ARCHIVE_PATH="./sycl-bench/build/bench-$TIMESTAMP.tar.gz"
-#         tar -I gzip -cf "$ARCHIVE_PATH" -C "./sycl-bench/build/bench-$TIMESTAMP" .
-#         echo ARCHIVE_PATH="$ARCHIVE_PATH" >> $GITHUB_OUTPUT
-#     - name: Upload results
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: sycl_benchmark_res_${{ env.TIMESTAMP }}
-#         path: ${{ steps.pack_results.outputs.ARCHIVE_PATH }}
-#         retention-days: 7
-# 
+        cat "./sycl-bench/build/bench-$TIMESTAMP/summary.txt"
+    - name: Pack results
+      id: pack_results
+      run: |
+        ARCHIVE_PATH="./sycl-bench/build/bench-$TIMESTAMP.tar.gz"
+        tar -I gzip -cf "$ARCHIVE_PATH" -C "./sycl-bench/build/bench-$TIMESTAMP" .
+        echo ARCHIVE_PATH="$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_benchmark_res_${{ env.TIMESTAMP }}
+        path: ${{ steps.pack_results.outputs.ARCHIVE_PATH }}
+        retention-days: 7
