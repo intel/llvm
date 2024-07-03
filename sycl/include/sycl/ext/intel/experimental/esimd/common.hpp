@@ -25,42 +25,6 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_core
 /// @{
 
-/// The scope that lsc_fence operation should apply to
-/// Supported platforms: DG2, PVC
-enum class __SYCL_DEPRECATED(
-    "use sycl::ext::intel::esimd::fence_scope") lsc_scope : uint8_t {
-  group = 0,  /// flush out to the threadgroup's scope
-  local = 1,  /// flush out to the local scope
-  tile = 2,   /// tile, flush out to several DSSs
-  gpu = 3,    /// entire GPU, flush out to the GPUs LLC
-  gpus = 4,   /// all GPUs in the system, flush out to memory shared by all GPUs
-  system = 5, /// the entire system memory space
-  sysacq = 6, /// the entire system memory space with system-acquire semantics
-};
-
-/// The lsc_fence operation to apply to caches
-/// Supported platforms: DG2, PVC
-enum class __SYCL_DEPRECATED("use sycl::ext::intel::esimd::fence_flush_op")
-    lsc_fence_op : uint8_t {
-      none = 0,       /// no operation
-      evict = 1,      /// dirty lines evicted and invalidated from L1
-      invalidate = 2, /// invalidate all clean lines
-      discard = 3,    /// direct and clean lines are discarded w/o eviction
-      clean = 4,   /// dirty lines are written to memory, but retained in cache
-                   /// in clean state
-      flushl3 = 5, /// flush only L3
-    };
-
-/// The specific LSC shared function to fence with lsc_fence
-/// Supported platforms: DG2, PVC
-enum class __SYCL_DEPRECATED("use sycl::ext::intel::esimd::memory_kind")
-    lsc_memory_kind : uint8_t {
-      untyped_global = 0,         /// untyped global memory
-      untyped_global_low_pri = 1, /// low-priority untyped global memory
-      typed_global = 2,           /// typed global memory
-      shared_local = 3,           /// shared local memory
-    };
-
 using lsc_data_size = __ESIMD_DNS::lsc_data_size;
 
 namespace detail {
