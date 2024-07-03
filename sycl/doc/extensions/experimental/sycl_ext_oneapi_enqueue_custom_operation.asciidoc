@@ -112,10 +112,6 @@ determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
 implementation supports.
 
-_And follow the text with a table like this *unless the extension is
-"experimental"*.  Note that your table may have more than one row if it
-has multiple versions._
-
 [%header,cols="1,5"]
 |===
 |Value
@@ -201,8 +197,7 @@ class handler {
   void ext_oneapi_enqueue_custom_operation(Func&& interopCallable);
 };
 ```
-
-`interopCallable` must be a callable which takes a `interop_handle` as its
-first arg.
+Constraints: The Func must a C++ callable object which takes a single parameter
+of type `interop_handle`.
 
 
