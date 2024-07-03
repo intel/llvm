@@ -188,17 +188,17 @@ public:
   sycl::detail::EmptyCommand *
   addEmptyCmd(sycl::detail::Command *Cmd,
               const std::vector<sycl::detail::Requirement *> &Reqs,
-              const sycl::detail::QueueImplPtr &Queue,
               sycl::detail::Command::BlockReason Reason,
               std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
+    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Reason, ToEnqueue);
   }
 
-  sycl::detail::Command *
-  addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-        sycl::detail::QueueImplPtr Queue,
-        std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue)
+  sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
+                               sycl::detail::QueueImplPtr Queue,
+                               std::vector<sycl::detail::Command *> &ToEnqueue,
+                               bool EventNeeded) {
+    return MGraphBuilder
+        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded)
         .NewCmd;
   }
 
@@ -225,8 +225,9 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
-      : sycl::handler(Queue, IsHost) {}
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost,
+              bool CallerNeedsEvent)
+      : sycl::handler(Queue, IsHost, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -292,8 +293,8 @@ public:
 class MockHandlerCustomFinalize : public MockHandler {
 public:
   MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost)
-      : MockHandler(Queue, IsHost) {}
+                            bool IsHost, bool CallerNeedsEvent)
+      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
