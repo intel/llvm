@@ -12,7 +12,7 @@
 
 // TODO: Windows compiler causes this test to fail due to handling of floating
 // point arithmetics. Fixing requires using -Qfp-speculation=safe option to
-// disable some floating point optimizations to produce corect resut. icx
+// disable some floating point optimizations to produce correct result. icx
 // compiler supports that option while clang-cl does not which causes test to
 // fail when running as part of a test suite. Therefore the test is disabled for
 // windows until equivalent option is found.
