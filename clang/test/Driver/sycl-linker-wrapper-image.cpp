@@ -1,12 +1,22 @@
 // REQUIRES: system-linux
 // This test check wrapping of SYCL binaries in clang-linker-wrapper.
-
+//
+// Generate .o file as linker wrapper input.
+//
 // RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: clang-offload-packager -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
-// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
-// RUN:                      -sycl-device-library-location=%S/Inputs -sycl-post-link-options="-split=auto -symbols" \
-// RUN:                      %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
+//
+// Generate .o file as SYCL device library file.
+//
+// RUN: touch %t.devicelib.cpp
+// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
+//
+// Run clang-linker-wrapper test
+//
+//// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
 
 template <typename t, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &func) {

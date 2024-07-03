@@ -96,9 +96,8 @@ queue::ext_oneapi_get_graph() const {
 }
 
 bool queue::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost && "queue::is_host should not be called in implementation.");
-  return IsHost;
+  assert(false && "queue::is_host should not be called in implementation.");
+  return false;
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
@@ -106,39 +105,44 @@ void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, {});
+  return impl->memset(impl, Ptr, Value, Count, {}, /*CallerNeedsEvent=*/true);
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, {DepEvent});
+  return impl->memset(impl, Ptr, Value, Count, {DepEvent},
+                      /*CallerNeedsEvent=*/true);
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(impl, Ptr, Value, Count, DepEvents);
+  return impl->memset(impl, Ptr, Value, Count, DepEvents,
+                      /*CallerNeedsEvent=*/true);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {}, CodeLoc);
+  return impl->memcpy(impl, Dest, Src, Count, {}, /*CallerNeedsEvent=*/true,
+                      CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {DepEvent}, CodeLoc);
+  return impl->memcpy(impl, Dest, Src, Count, {DepEvent},
+                      /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, DepEvents, CodeLoc);
+  return impl->memcpy(impl, Dest, Src, Count, DepEvents,
+                      /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
@@ -150,20 +154,23 @@ event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {});
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {},
+                          /*CallerNeedsEvent=*/true);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent});
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent},
+                          /*CallerNeedsEvent=*/true);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents,
+                          /*CallerNeedsEvent=*/true);
 }
 
 event queue::discard_or_return(const event &Event) {
@@ -182,6 +189,11 @@ event queue::submit_impl(std::function<void(handler &)> CGH,
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
+}
+
+void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
+                                      const detail::code_location &CodeLoc) {
+  return impl->submit_without_event(CGH, impl, CodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
@@ -225,8 +237,13 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled)
-    return getBarrierEventForInorderQueueHelper(impl);
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
+      !impl->MIsProfilingEnabled) {
+    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
+    // If the last event was discarded, fall back to enqueuing a barrier.
+    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
+      return InOrderLastEvent;
+  }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
 }
@@ -245,11 +262,15 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         auto EventImpl = detail::getSyclObjImpl(Event);
-        return !EventImpl->isContextInitialized() || EventImpl->isNOP();
+        return EventImpl->isDefaultConstructed() || EventImpl->isNOP();
       });
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled &&
-      AllEventsEmptyOrNop)
-    return getBarrierEventForInorderQueueHelper(impl);
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
+      !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
+    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
+    // If the last event was discarded, fall back to enqueuing a barrier.
+    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
+      return InOrderLastEvent;
+  }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                 CodeLoc);
@@ -321,7 +342,7 @@ event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   const std::vector<event> &DepEvents) {
   return impl->memcpyToDeviceGlobal(impl, DeviceGlobalPtr, Src,
                                     IsDeviceImageScope, NumBytes, Offset,
-                                    DepEvents);
+                                    DepEvents, /*CallerNeedsEvent=*/true);
 }
 
 event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
@@ -330,7 +351,7 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                     const std::vector<event> &DepEvents) {
   return impl->memcpyFromDeviceGlobal(impl, Dest, DeviceGlobalPtr,
                                       IsDeviceImageScope, NumBytes, Offset,
-                                      DepEvents);
+                                      DepEvents, /*CallerNeedsEvent=*/true);
 }
 
 bool queue::device_has(aspect Aspect) const {

@@ -33,7 +33,6 @@ class node_impl;
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-bool CurrentCodeLocationValid();
 void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
@@ -223,11 +222,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual const ContextImplPtr &getWorkerContext() const;
-
-  /// Get the queue this command will be submitted to. Could differ from MQueue
-  /// for memory copy commands.
-  const QueueImplPtr &getWorkerQueue() const;
+  virtual ContextImplPtr getWorkerContext() const;
 
   /// Returns true iff the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -377,12 +372,12 @@ public:
   std::string MSubmissionFileName;
   std::string MSubmissionFunctionName;
 
-  // This flag allows to control whether host event should be set complete
-  // after successfull enqueue of command. Event is considered as host event if
-  // either it's is_host() return true or there is no backend representation
-  // of event (i.e. getHandleRef() return reference to nullptr value).
-  // By default the flag is set to true due to most of host operations are
-  // synchronous. The only asynchronous operation currently is host-task.
+  // This flag allows to control whether event should be set complete
+  // after successfull enqueue of command. Event is considered as "host" event
+  // if there is no backend representation of event (i.e. getHandleRef() return
+  // reference to nullptr value). By default the flag is set to true due to most
+  // of host operations are synchronous. The only asynchronous operation
+  // currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 
   /// Indicates that the node will be freed by graph cleanup. Such nodes should
@@ -415,7 +410,7 @@ protected:
 /// implement lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue);
+  EmptyCommand();
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MRequirements[0]; }
@@ -587,7 +582,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  const ContextImplPtr &getWorkerContext() const final;
+  ContextImplPtr getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -611,7 +606,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  const ContextImplPtr &getWorkerContext() const final;
+  ContextImplPtr getWorkerContext() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -648,6 +643,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      bool EventNeeded,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
       const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
@@ -671,6 +667,11 @@ public:
   // and allows to refer back to the corresponding KernelFusionCommand if
   // necessary.
   KernelFusionCommand *MFusionCmd = nullptr;
+
+  // MEventNeeded is true if the command needs to produce a valid event. The
+  // implementation may elect to not produce events (native or SYCL) if this
+  // is false.
+  bool MEventNeeded = true;
 
   bool producesPiEvent() const final;
 
@@ -798,8 +799,7 @@ void SetArgBasedOnType(
     const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
-    size_t NextTrueIndex);
+    const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);
 
 void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,

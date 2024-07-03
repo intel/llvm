@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SYCLKernelParamOptInfo.h"
+#include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/Support/Casting.h"
