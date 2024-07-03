@@ -623,7 +623,10 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   return 0;
 }
 
-constexpr size_t AlignMask(size_t n) { return n - 1; }
+constexpr size_t AlignMask(size_t n) {
+  assert(n & 1 == 0);
+  return n - 1;
+}
 
 } // namespace
 
