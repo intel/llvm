@@ -281,22 +281,31 @@ bool kernel_test_memcmp(sycl::queue &deviceQueue) {
       auto str7_acc = buffer_str7.get_access<sycl::access::mode::read>(cgh);
       auto str8_acc = buffer_str8.get_access<sycl::access::mode::read>(cgh);
       cgh.single_task<class KernelTestMemcmp>([=]() {
-        results_acc[0] =
-            memcmp(str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 1);
-        results_acc[1] =
-            memcmp(str2_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 1);
-        results_acc[2] =
-            memcmp(str3_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str2_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 2);
-        results_acc[3] =
-            memcmp(str3_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str4_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 4);
-        results_acc[4] =
-            memcmp(str4_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str5_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 2);
-        results_acc[5] =
-            memcmp(str6_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str7_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 6);
-        results_acc[6] =
-            memcmp(str5_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str6_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 0);
-        results_acc[7] = memcmp(str7_acc.get_multi_ptr<sycl::access::decorated::no>().get(), str8_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
-                                sizeof(str7));
+        results_acc[0] = memcmp(
+            str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 1);
+        results_acc[1] = memcmp(
+            str2_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 1);
+        results_acc[2] = memcmp(
+            str3_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str2_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 2);
+        results_acc[3] = memcmp(
+            str3_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str4_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 4);
+        results_acc[4] = memcmp(
+            str4_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str5_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 2);
+        results_acc[5] = memcmp(
+            str6_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str7_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 6);
+        results_acc[6] = memcmp(
+            str5_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            str6_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 0);
+        results_acc[7] =
+            memcmp(str7_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   str8_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   sizeof(str7));
       });
     });
   }
@@ -396,7 +405,7 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer3(dst1, sycl::range<1>(16));
     deviceQueue.submit([&](sycl::handler &cgh) {
       sycl::accessor<char, 1, sycl::access::mode::read,
-                     sycl::access::target::device,
+                     sycl::access::target::constant_buffer,
                      sycl::access::placeholder::false_t>
           src_acc(buffer1, cgh);
 
@@ -414,18 +423,23 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
       cgh.parallel_for<class KernelTestMemcpyAddrSpace>(
           sycl::nd_range<1>{16, 16}, [=](sycl::nd_item<1>) {
             // memcpy from constant buffer to local buffer
-            memcpy(local_acc.get_multi_ptr<sycl::access::decorated::no>().get(), src_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 8);
+            memcpy(local_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   src_acc.get_pointer(), 8);
             for (size_t idx = 0; idx < 7; ++idx)
               local_acc[idx] += 1;
             // memcpy from local buffer to global buffer
-            memcpy(dst_acc.get_multi_ptr<sycl::access::decorated::no>().get(), local_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 8);
+            memcpy(dst_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   local_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   8);
             char device_buf[16];
             // memcpy from constant buffer to private memory
-            memcpy(device_buf, src_acc.get_multi_ptr<sycl::access::decorated::no>().get(), 8);
+            memcpy(device_buf, src_acc.get_pointer(), 8);
             for (size_t idx = 0; idx < 7; ++idx) {
               device_buf[idx] += 2;
               // memcpy from private to global buffer
-              memcpy(dst1_acc.get_multi_ptr<sycl::access::decorated::no>().get(), device_buf, 8);
+              memcpy(
+                  dst1_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                  device_buf, 8);
             }
           });
     });
