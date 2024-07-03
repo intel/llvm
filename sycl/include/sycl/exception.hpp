@@ -203,51 +203,6 @@ public:
       : runtime_error(make_error_code(errc::kernel_argument), Msg, Err) {}
 };
 
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.") device_error
-    : public exception {
-public:
-  device_error() : exception(make_error_code(errc::invalid)) {}
-
-  device_error(const char *Msg, pi_int32 Err)
-      : device_error(std::string(Msg), Err) {}
-
-  device_error(const std::string &Msg, pi_int32 Err)
-      : exception(make_error_code(errc::invalid), Msg, Err) {}
-
-protected:
-  device_error(std::error_code Ec) : exception(Ec) {}
-
-  device_error(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
-      : exception(Ec, Msg, PIErr) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    compile_program_error : public device_error {
-public:
-  compile_program_error() : device_error(make_error_code(errc::build)) {}
-
-  compile_program_error(const char *Msg, pi_int32 Err)
-      : compile_program_error(std::string(Msg), Err) {}
-
-  compile_program_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::build), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_object_error : public device_error {
-public:
-  invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
-
-  invalid_object_error(const char *Msg, pi_int32 Err)
-      : invalid_object_error(std::string(Msg), Err) {}
-
-  invalid_object_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::invalid), Msg, Err) {}
-};
-
 } // namespace _V1
 } // namespace sycl
 
