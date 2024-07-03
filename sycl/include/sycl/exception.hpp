@@ -176,32 +176,6 @@ protected:
   runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
-class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
-                            "errc::kernel_argument instead.") kernel_error
-    : public runtime_error {
-public:
-  kernel_error() : runtime_error(make_error_code(errc::kernel)) {}
-
-  kernel_error(const char *Msg, pi_int32 Err)
-      : kernel_error(std::string(Msg), Err) {}
-
-  kernel_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::accessor instead.") accessor_error
-    : public runtime_error {
-public:
-  accessor_error() : runtime_error(make_error_code(errc::accessor)) {}
-
-  accessor_error(const char *Msg, pi_int32 Err)
-      : accessor_error(std::string(Msg), Err) {}
-
-  accessor_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::accessor), Msg, Err) {}
-};
-
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
@@ -213,19 +187,6 @@ public:
 
   nd_range_error(const std::string &Msg, pi_int32 Err)
       : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::event instead.") event_error
-    : public runtime_error {
-public:
-  event_error() : runtime_error(make_error_code(errc::event)) {}
-
-  event_error(const char *Msg, pi_int32 Err)
-      : event_error(std::string(Msg), Err) {}
-
-  event_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::event), Msg, Err) {}
 };
 
 class __SYCL2020_DEPRECATED(
@@ -276,19 +237,6 @@ public:
 
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
-    link_program_error : public device_error {
-public:
-  link_program_error() : device_error(make_error_code(errc::build)) {}
-
-  link_program_error(const char *Msg, pi_int32 Err)
-      : link_program_error(std::string(Msg), Err) {}
-
-  link_program_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::build), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
     invalid_object_error : public device_error {
 public:
   invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
@@ -298,46 +246,6 @@ public:
 
   invalid_object_error(const std::string &Msg, pi_int32 Err)
       : device_error(make_error_code(errc::invalid), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::memory_allocation instead.")
-    memory_allocation_error : public device_error {
-public:
-  memory_allocation_error()
-      : device_error(make_error_code(errc::memory_allocation)) {}
-
-  memory_allocation_error(const char *Msg, pi_int32 Err)
-      : memory_allocation_error(std::string(Msg), Err) {}
-
-  memory_allocation_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::memory_allocation), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::platform instead.") platform_error
-    : public device_error {
-public:
-  platform_error() : device_error(make_error_code(errc::platform)) {}
-
-  platform_error(const char *Msg, pi_int32 Err)
-      : platform_error(std::string(Msg), Err) {}
-
-  platform_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::platform), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::profiling instead.") profiling_error
-    : public device_error {
-public:
-  profiling_error() : device_error(make_error_code(errc::profiling)) {}
-
-  profiling_error(const char *Msg, pi_int32 Err)
-      : profiling_error(std::string(Msg), Err) {}
-
-  profiling_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::profiling), Msg, Err) {}
 };
 
 class __SYCL2020_DEPRECATED(
