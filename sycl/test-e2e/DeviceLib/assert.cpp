@@ -124,7 +124,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
   });
   device dev = deviceQueue.get_device();
   bool unsupported = true;
-  if(sycl::opencl::has_extension(dev, "cl_intel_devicelib_assert")) {
+  if (sycl::opencl::has_extension(dev, "cl_intel_devicelib_assert")) {
     unsupported = false;
   }
   if (unsupported && getenv("SKIP_IF_NO_EXT")) {
