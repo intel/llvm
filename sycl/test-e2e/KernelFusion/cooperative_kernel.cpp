@@ -1,4 +1,4 @@
-// RUN: %{build} %{embed-ir} -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test cooperative kernels are not fused

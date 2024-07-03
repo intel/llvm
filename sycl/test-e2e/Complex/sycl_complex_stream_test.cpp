@@ -1,5 +1,8 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-finite-math-only%} %else %{-fno-finite-math-only%}
 
+// https://github.com/intel/llvm/issues/14397
+// UNSUPPORTED: windows && gpu-intel-gen12
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 

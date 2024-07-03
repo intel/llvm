@@ -8,8 +8,8 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "SpecConstants.h"
-#include "Support.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/SYCLLowerIR/Support.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"

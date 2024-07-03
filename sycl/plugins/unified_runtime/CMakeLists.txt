@@ -100,11 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94
-  # Author: Yang Zhao <yang2.zhao@intel.com>
-  # Date:   Thu Jun 27 20:26:17 2024 +0800
-  #     [DeviceSanitizer] Support out-of-bounds on private memory (#1676)
-  set(UNIFIED_RUNTIME_TAG 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94)
+  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
+  # Merge: 7b640455 abab204d
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jul 2 13:52:21 2024 +0100
+  #     Merge pull request #1696 from nrspruit/l0_windows_interop
+  #     [L0] Support for Bindless Image Import
+  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

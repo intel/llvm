@@ -10726,6 +10726,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (!IsUsingLTO || LTOMode != LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10780,9 +10785,12 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
-    // Symbol file and specialization constant info generation is mandatory -
+    bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (!IsUsingLTO || LTOMode != LTOK_Thin)
+      addArgs(PostLinkArgs, TCArgs, {"-symbols"});
+    // Specialization constant info generation is mandatory -
     // add options unconditionally
-    addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-imported-symbols"});
     if (SplitEsimd)
@@ -11126,16 +11134,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
-    // TODO: TargetTriple should not be used here for creating linker wrapper
-    // options. It should also not be passed to the linker wrapper.
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      // TODO: Third party AOT support needs to be added in new offloading
-      // model.
-      if (TC->getTriple().isSPIROrSPIRV()) {
+      // Note: For AMD targets, we do not pass any SYCL device libraries.
+      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();

@@ -97,6 +97,7 @@
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
@@ -111,4 +112,6 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
+#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
