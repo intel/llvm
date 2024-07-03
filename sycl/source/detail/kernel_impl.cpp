@@ -77,9 +77,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 kernel_impl::~kernel_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    if (!is_host()) {
-      getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
-    }
+    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
