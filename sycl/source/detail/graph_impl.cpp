@@ -297,9 +297,13 @@ void exec_graph_impl::makePartitions() {
 }
 
 graph_impl::~graph_impl() {
-  clearQueues();
-  for (auto &MemObj : MMemObjs) {
-    MemObj->markNoLongerBeingUsedInGraph();
+  try {
+    clearQueues();
+    for (auto &MemObj : MMemObjs) {
+      MemObj->markNoLongerBeingUsedInGraph();
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
 }
 
@@ -352,9 +356,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   auto Deps = Dep;
 
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
-
-  // Add any deps from the vector of extra dependencies
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
 
   MNodeStorage.push_back(NodeImpl);
 
@@ -488,19 +489,11 @@ graph_impl::add(node_type NodeType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
-  // Add any deps from the extra dependencies vector
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
-
-  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
-  if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
-    MExtraDependencies.push_back(NodeImpl);
-  }
 
   return NodeImpl;
 }
@@ -610,12 +603,17 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   removeRoot(Dest); // remove receiver from root node list
 }
 
-std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
+    std::weak_ptr<sycl::detail::queue_impl> RecordedQueue) {
   std::vector<sycl::detail::EventImplPtr> Events;
 
+  auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      Events.push_back(getEventForNode(Node));
+      auto EventForNode = getEventForNode(Node);
+      if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
+        Events.push_back(getEventForNode(Node));
+      }
     }
   }
 
@@ -784,34 +782,38 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  const sycl::detail::PluginPtr &Plugin =
-      sycl::detail::getSyclObjImpl(MContext)->getPlugin();
-  MSchedule.clear();
-  // We need to wait on all command buffer executions before we can release
-  // them.
-  for (auto &Event : MExecutionEvents) {
-    Event->wait(Event);
-  }
+  try {
+    const sycl::detail::PluginPtr &Plugin =
+        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
+    MSchedule.clear();
+    // We need to wait on all command buffer executions before we can release
+    // them.
+    for (auto &Event : MExecutionEvents) {
+      Event->wait(Event);
+    }
 
-  for (const auto &Partition : MPartitions) {
-    Partition->MSchedule.clear();
-    for (const auto &Iter : Partition->MPiCommandBuffers) {
-      if (auto CmdBuf = Iter.second; CmdBuf) {
+    for (const auto &Partition : MPartitions) {
+      Partition->MSchedule.clear();
+      for (const auto &Iter : Partition->MPiCommandBuffers) {
+        if (auto CmdBuf = Iter.second; CmdBuf) {
+          pi_result Res = Plugin->call_nocheck<
+              sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+          (void)Res;
+          assert(Res == pi_result::PI_SUCCESS);
+        }
+      }
+    }
+
+    for (auto &Iter : MCommandMap) {
+      if (auto Command = Iter.second; Command) {
         pi_result Res = Plugin->call_nocheck<
-            sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+            sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
         (void)Res;
         assert(Res == pi_result::PI_SUCCESS);
       }
     }
-  }
-
-  for (auto &Iter : MCommandMap) {
-    if (auto Command = Iter.second; Command) {
-      pi_result Res = Plugin->call_nocheck<
-          sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
-      (void)Res;
-      assert(Res == pi_result::PI_SUCCESS);
-    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~exec_graph_impl", e);
   }
 }
 
