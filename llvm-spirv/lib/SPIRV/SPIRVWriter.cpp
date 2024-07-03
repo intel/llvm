@@ -6779,6 +6779,8 @@ VersionNumber getVersionFromTriple(const Triple &TT, SPIRVErrorLog &ErrorLog) {
     return VersionNumber::SPIRV_1_4;
   case Triple::SPIRVSubArch_v15:
     return VersionNumber::SPIRV_1_5;
+  case Triple::SPIRVSubArch_v16:
+    return VersionNumber::SPIRV_1_6;
   default:
     ErrorLog.checkError(false, SPIRVEC_InvalidSubArch, TT.getArchName().str());
     return VersionNumber::MaximumVersion;
