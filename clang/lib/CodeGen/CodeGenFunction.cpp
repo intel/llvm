@@ -826,9 +826,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     // Attributes arguments (first and third) are reversed on SYCLDevice.
     if (getLangOpts().SYCLIsDevice) {
       llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal()))};
+          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDimVal())),
+          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDimVal())),
+          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDimVal()))};
       Fn->setMetadata("max_work_group_size",
                       llvm::MDNode::get(Context, AttrMDArgs));
     }
