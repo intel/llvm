@@ -205,8 +205,14 @@ enum PropKind : uint32_t {
   WorkItemProgress = 64,
   NDRangeKernel = 65,
   SingleTaskKernel = 66,
+  IndirectlyCallable = 67,
+  CallsIndirectly = 68,
+  InputDataPlacement = 69,
+  OutputDataPlacement = 70,
+  IncludeFiles = 71,
+  RegisteredKernelNames = 72,
   // PropKindSize must always be the last value.
-  PropKindSize = 67,
+  PropKindSize = 73,
 };
 
 struct property_key_base_tag {};

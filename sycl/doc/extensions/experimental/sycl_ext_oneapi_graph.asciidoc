@@ -1047,9 +1047,11 @@ Constraints:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. The only property
-  that is valid to pass here is `property::graph::updatable`, to enable the
+* `propList` - Optional parameter for passing properties. Two properties
+  are valid to pass here. One is `property::graph::updatable` to enable the
   returned executable graph to be <<executable-graph-update, updated>>.
+  The other is <<enable-profiling, `property::graph::enable_profiling`>>
+  to enable profiling events returned from submissions of the executable graph.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
@@ -1734,15 +1736,23 @@ passed an invalid event.
 The new handler methods, and queue shortcuts, defined by
 link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
 can only be used in graph nodes created using the Record & Replay API, as
-barriers rely on events to enforce dependencies. For barriers with an empty
-wait list parameter, the semantics are that the barrier node being added to
-will depend on all the existing graph leaf nodes, not only the leaf nodes
-that were added from the queue being recorded.
+barriers rely on events to enforce dependencies.
 
 A synchronous exception will be thrown with error code `invalid` if a user
-tries to add them to a graph using the Explicit API. Empty nodes created with
-the `node::depends_on_all_leaves` property can be used instead of barriers when
-a user is building a graph with the explicit API.
+tries to add a barrier command to a graph using the explicit API. Empty nodes
+created with the `node::depends_on_all_leaves` property can be used instead of
+barriers when a user is building a graph with the explicit API.
+
+The semantics of barriers are defined in `sycl_ext_oneapi_enqueue_barrier` for
+a single command-queue, and correlate as follows to a graph that may contain
+nodes that are recorded from multiple queues and/or added by the explicit API:
+
+* Barriers with an empty wait list parameter will only depend on the leaf nodes
+  that were added to the graph from the queue the barrier command is being
+  recorded from.
+
+* The only commands which have an implicit dependency on the barrier command
+  are those recorded from the same queue the barrier command was submitted to.
 
 ==== sycl_ext_oneapi_memcpy2d
 

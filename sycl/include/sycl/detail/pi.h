@@ -176,9 +176,29 @@
 // piextMemSampledImageCreate
 // 15.52 Added piEnqueueTimestampRecordingExp and
 //       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
+// 15.53 Added new extension functions that enable importing various external
+//       handle types:
+//         - piextImportExternalMemory
+//         - piextImportExternalSemaphore
+//       Deprecated no longer necessary functions:
+//         - piextImportExternalSemaphoreOpaqueFD
+//         - piextMemImportOpaqueFD
+//       The following interop semaphore related functions now take extra
+//       `bool` and `pi_uint64` values:
+//         - `piextWaitExternalSemaphore`
+//         - `piextSignalExternalSemaphore`
+//       The `pi_external_mem_handle_type` enum now has a new
+//       `win32_nt_dx12_resource` value.
+//       the `pi_external_semaphore_handle_type` enum now has a new
+//       `win32_nt_dx12_fence` value.
+// 15.54 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
+// PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
+// _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
+// pi_virtual_access_flags bit flags.
+// 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 52
+#define _PI_H_VERSION_MINOR 55
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -297,7 +317,8 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
-  PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  // Not supported anymore:
+  // PI_EXT_PLATFORM_BACKEND_ESIMD = 5,
   PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 
@@ -489,6 +510,11 @@ typedef enum {
 
   // Timestamp enqueue
   PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
+
+  // Virtual memory support
+  PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x2011E,
+  // Native enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT = 0x2011F,
 } _pi_device_info;
 
 typedef enum {
@@ -740,6 +766,15 @@ typedef enum {
   PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 0x1143,
 } _pi_sampler_cubemap_filter_mode;
 
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM = 0x30100,
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED = 0x30101,
+} _pi_virtual_mem_granularity_info;
+
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE = 0x30200,
+} _pi_virtual_mem_info;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -832,6 +867,10 @@ constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE = (1 << 
 constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE = (1 << 8);
 // clang-format on
 
+using pi_virtual_access_flags = pi_bitfield;
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_RW = (1 << 0);
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_READ_ONLY = (1 << 1);
+
 typedef enum {
   // No preference for SLM or data cache.
   PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
@@ -873,6 +912,8 @@ using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
 using pi_kernel_cache_config = _pi_kernel_cache_config;
+using pi_virtual_mem_granularity_info = _pi_virtual_mem_granularity_info;
+using pi_virtual_mem_info = _pi_virtual_mem_info;
 
 using pi_image_copy_flags = _pi_image_copy_flags;
 
@@ -1161,6 +1202,60 @@ struct pi_device_binaries_struct {
 };
 using pi_device_binaries = pi_device_binaries_struct *;
 
+// This union encapsulates the two external handles we currently support.
+// When choosing the correct field from the union we need to look at the value
+// of the enum `pi_external_mem_handle_type` or
+// `pi_external_semaphore_handle_type`.
+union pi_external_handle {
+  // Used universally for all Linux based interoperability functionality.
+  // The associated enum `pi_external_mem_handle_type` in
+  // `pi_external_mem_descriptor` should always be set to
+  // `pi_external_mem_handle_type::opaque_fd`. Likewise for semaphore handles.
+  int file_descriptor;
+
+  // Could be Win32 NT, KMT, or various DX12 handle types.
+  // The `void *` type is used for all of these.
+  // The exact handle type depends on the enum `pi_external_mem_handle_type`.
+  // This enum is found in `pi_external_mem_descriptor`.
+  // It could be a regular NT handle type (`win32_nt_handle`) or a DX12 specific
+  // resource handle type (`win32_nt_dx12_resource`), etc.
+  void *win32_handle;
+};
+
+// This enum enumerates the specific external memory handles types that we want
+// to import.
+enum class pi_external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
+// This struct holds all the information required to import external memory.
+struct pi_external_mem_descriptor {
+  // The type of the external memory handle.
+  pi_external_mem_handle_type handleType;
+  // Union encapsulates both Opaque FD (linux) and Win32 handles (Windows).
+  pi_external_handle handle;
+  // Size of the external memory in bytes.
+  size_t memorySizeBytes;
+};
+
+// This enum enumerates the specific external semaphore handles types that we
+// want to import.
+enum class pi_external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
+// This struct holds all the information required to import external semaphores.
+struct pi_external_semaphore_descriptor {
+  // The type of the external semaphore handle.
+  pi_external_semaphore_handle_type handleType;
+  // Union encapsulates both Opaque FD (linux) and Win32 handles (Windows).
+  pi_external_handle handle;
+};
+
 // Opaque types that make reading build log errors easier.
 struct _pi_platform;
 struct _pi_device;
@@ -1171,6 +1266,7 @@ struct _pi_program;
 struct _pi_kernel;
 struct _pi_event;
 struct _pi_sampler;
+struct _pi_physical_mem;
 
 using pi_platform = _pi_platform *;
 using pi_device = _pi_device *;
@@ -1185,6 +1281,8 @@ using pi_image_handle = pi_uint64;
 using pi_image_mem_handle = void *;
 using pi_interop_mem_handle = pi_uint64;
 using pi_interop_semaphore_handle = pi_uint64;
+using pi_physical_mem = _pi_physical_mem *;
+using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -2269,6 +2367,125 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
     const pi_event *event_wait_list, pi_event *event);
 
 ///
+/// Virtual memory
+///
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param context is the context to get the granularity from.
+/// \param device is the device to get the granularity from.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret);
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param device is the device the physical memory is on.
+/// \param mem_size is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param ret_physical_mem is the handle for the resulting physical memory.
+__SYCL_EXPORT pi_result
+piextPhysicalMemCreate(pi_context context, pi_device device, size_t mem_size,
+                       pi_physical_mem *ret_physical_mem);
+
+/// API for retaining a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to retain.
+__SYCL_EXPORT pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
+
+/// API for releasing a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to free.
+__SYCL_EXPORT pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
+
+/// API for reserving a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param range_size is the size of the virtual address range to reserve in
+///        bytes.
+/// \param ret_ptr is the pointer to the start of the resulting virtual memory
+///        range.
+__SYCL_EXPORT pi_result piextVirtualMemReserve(pi_context context,
+                                               const void *start,
+                                               size_t range_size,
+                                               void **ret_ptr);
+
+/// API for freeing a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+__SYCL_EXPORT pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                                            size_t range_size);
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+/// \param physical_mem is the handle for the physical memory to map ptr to.
+/// \param offset is the offset into physical_mem in bytes to map ptr to.
+/// \param flags is the access flags to set for the mapping.
+__SYCL_EXPORT pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                                           size_t range_size,
+                                           pi_physical_mem physical_mem,
+                                           size_t offset,
+                                           pi_virtual_access_flags flags);
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context context,
+                                             const void *ptr,
+                                             size_t range_size);
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param flags is the access flags to set for the mapped virtual access range.
+__SYCL_EXPORT pi_result piextVirtualMemSetAccess(pi_context context,
+                                                 const void *ptr,
+                                                 size_t range_size,
+                                                 pi_virtual_access_flags flags);
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+__SYCL_EXPORT pi_result
+piextVirtualMemGetInfo(pi_context context, const void *ptr, size_t range_size,
+                       pi_virtual_mem_info param_name, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret);
+
+///
 /// Plugin
 ///
 ///
@@ -2856,6 +3073,9 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
     const pi_image_mem_handle mem_handle, pi_image_info param_name,
     void *param_value, size_t *param_value_size_ret);
 
+/// [DEPRECATED] This function is deprecated in favor of
+/// `piextImportExternalMemory`
+///
 /// API to import external memory in the form of a file descriptor.
 ///
 /// \param context is the pi_context
@@ -2864,9 +3084,23 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
 /// \param file_descriptor is the file descriptor
 /// \param ret_handle is the returned interop memory handle to the external
 /// memory
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalMemory`")
+pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
+                                 size_t size, int file_descriptor,
+                                 pi_interop_mem_handle *ret_handle);
+
+/// API to import external memory
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param mem_descriptor is the interop memory descriptor
+/// \param ret_handle is the returned interop memory handle to the external
+/// memory
 __SYCL_EXPORT pi_result
-piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
-                       int file_descriptor, pi_interop_mem_handle *ret_handle);
+piextImportExternalMemory(pi_context context, pi_device device,
+                          pi_external_mem_descriptor *mem_descriptor,
+                          pi_interop_mem_handle *ret_handle);
 
 /// API to map an interop memory handle to an image memory handle.
 ///
@@ -2890,6 +3124,9 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
 
+/// [DEPRECATED] This function is deprecated in favor of
+/// `piextImportExternalSemaphore`
+///
 /// API to import an external semaphore in the form of a file descriptor.
 ///
 /// \param context is the pi_context
@@ -2897,9 +3134,24 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(
 /// \param file_descriptor is the file descriptor
 /// \param ret_handle is the returned interop semaphore handle to the external
 /// semaphore
-__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context context, pi_device device, int file_descriptor,
-    pi_interop_semaphore_handle *ret_handle);
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalSemaphore`")
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
+                                     int file_descriptor,
+                                     pi_interop_semaphore_handle *ret_handle);
+
+/// API to import an external semaphore
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param sem_descriptor is the interop semaphore descriptor
+/// \param ret_handle is the returned interop semaphore handle to the external
+/// semaphore
+__SYCL_EXPORT pi_result
+piextImportExternalSemaphore(pi_context context, pi_device device,
+                             pi_external_semaphore_descriptor *sem_descriptor,
+                             pi_interop_semaphore_handle *ret_handle);
 
 /// API to destroy the external semaphore handle.
 ///
@@ -2915,12 +3167,20 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
 ///
 /// \param command_queue is the queue instructed to wait
 /// \param sem_handle is the interop semaphore handle
+/// \param has_wait_value indicates whether the semaphore is capable of setting
+///                       user defined state passed through `wait_value`.
+///                       Otherwise `wait_value` is ignored.
+/// \param wait_value is the user defined value of the semaphore state for
+///                   which this operation will wait upon, provided the
+///                   semaphore type has this capability, and
+///                   `has_wait_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_wait_value, pi_uint64 wait_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
@@ -2929,12 +3189,38 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 ///
 /// \param command_queue is the queue instructed to signal
 /// \param sem_handle is the interop semaphore handle to signal
+/// \param has_signal_value indicates whether the semaphore is capable of
+///                         setting user defined state passed through
+///                         `signal_value`. Otherwise `signal_value` is ignored.
+/// \param signal_value is the user defined value to which the state of the
+///                     semaphore will be set, provided the semaphore type has
+///                     this capability, and `has_signal_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_signal_value, pi_uint64 signal_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API to enqueue work through a backend API such that the plugin can schedule
+/// the backend API calls within its own DAG.
+///
+/// \param command_queue is the queue instructed to signal
+/// \param fn is the user submitted native function enqueueing work to a
+///        backend API
+/// \param data is the data that will be used in fn
+/// \param num_mems is the number of mems in mem_list
+/// \param mem_list is the list of mems that are used in fn
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextEnqueueNativeCommand(
+    pi_queue command_queue, pi_enqueue_native_command_function fn, void *data,
+    pi_uint32 num_mems, const pi_mem *mem_list,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 

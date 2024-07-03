@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --device-globals -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --device-globals -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ;
 ; Test checks that all device_global variables in llvm.compiler.used are removed

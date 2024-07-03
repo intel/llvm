@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5083f4f96557672b7b6a55ea53347896d40549d7
-  # Merge: a97eed15 4c3f9abe
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 17:20:01 2024 +0100
-  #     Merge pull request #1397 from GeorgeWeb/georgi/check-allocation-error-on-event-from-native-handle
-  #     [CUDA][HIP] Catch and report bad_alloc errors for event object creation
-  set(UNIFIED_RUNTIME_TAG 5083f4f96557672b7b6a55ea53347896d40549d7)
+  # commit aaf08109f2a05adb61f50478824ae2739526daee
+  # Author: Ben Tracy <ben.tracy@codeplay.com>
+  # Date:   Mon Jun 17 14:49:53 2024 +0100
+  #     [CMDBUF] Fix coverity issue in command buffers
+  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
+  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
