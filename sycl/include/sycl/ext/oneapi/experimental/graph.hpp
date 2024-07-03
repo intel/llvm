@@ -77,6 +77,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
+  case UGF::sycl_ext_oneapi_enqueue_custom_operation:
+    return "sycl_ext_oneapi_enqueue_custom_operation";
   }
 
   assert(false && "Unhandled graphs feature");
