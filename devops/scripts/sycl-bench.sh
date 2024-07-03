@@ -94,7 +94,7 @@ cleanup() {
 [ "$#" -lt "1" ] && usage
 
 SYCL_BENCH_GIT_REPO="$1"; shift
-SYCL_BENCH_PATH="./"
+SYCL_BENCH_PATH="./sycl-bench"
 while getopts "B:" opt; do
     case $opt in
         B)  SYCL_BENCH_PATH=$OPTARG ;;
