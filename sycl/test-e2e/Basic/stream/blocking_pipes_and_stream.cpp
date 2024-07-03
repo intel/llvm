@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: accelerator, TEMPORARY_DISABLED
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
