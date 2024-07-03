@@ -28,7 +28,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Two possible options: "e2e" and "cts".
+          Three options: "e2e", "cts", "benchmark".
         type: string
         default: "e2e"
 
@@ -112,6 +112,7 @@ on:
         options:
           - e2e
           - cts
+          - benchmark
 
       env:
         description: |
@@ -369,3 +370,15 @@ jobs:
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
+
+    - name: Run benchmarks (via sycl-bench)
+      id: run_benchmarks
+      if: inputs.tests_selector == 'benchmark'
+      run: ./devops/scripts/sycl-bench.sh https://github.com/ianayl/sycl-bench
+    - name: Upload benchmark results
+      if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
+        path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
+        retention-days: 7
