@@ -138,8 +138,9 @@ obtained from
 
 Using `sycl_ext_oneapi_enqueue_custom_operation` allows the user to tell the
 SYCL runtime to dispatch interop work in the same manner that native SYCL
-commands, like `parallel_for` s or `memcpy` s,  are dispatched. If work is
-enqueued eagerly by the SYCL runtime, then the callable passed to
+commands, like `parallel_for` s or `memcpy` s,  are dispatched. If the SYCL
+runtime uses eager submission of commands to the backend, for normal kernel or
+other command submissions, then the callable passed to
 `sycl_ext_oneapi_enqueue_custom_operation` should execute eagerly, once any
 dependent events have also been submitted to the backend. If the SYCL runtime
 enqueues work to the backend lazily, then the user submitted callable will be
