@@ -135,10 +135,25 @@ only enqueue asynchronous work within the user lambda. Asynchronous work must
 only be submitted to the native queue obtained from
 `interop_handle::get_native_queue`.
 
-A lambda submitted to `sycl_ext_oneapi_enqueue_custom_operation` may choose to
-not wait on dependent events to complete, in order for asynchronous interop
-work to be composed with asynchronous SYCL commands. This gives different
-sychronization guarantees from normal SYCL `host_task`s.
+Using `sycl_ext_oneapi_enqueue_custom_operation` allows the user to tell the
+SYCL runtime to dispatch interop work in the same manner that native SYCL
+commands, like `parallel_for` s or `memcpy` s,  are dispatched. If work is
+enqueued eagerly by the SYCL runtime, then the callable passed to
+`sycl_ext_oneapi_enqueue_custom_operation` should execute eagerly, once any
+dependent events have also been submitted to the backend. If the SYCL runtime
+enqueues work to the backend lazily, then the user submitted callable will be
+executed lazily as well.
+
+A callable submitted to `sycl_ext_oneapi_enqueue_custom_operation` won't wait
+on its dependent events to complete, only to be enqueued to the backend. This
+allows asynchronous interop work to be composed with asynchronous SYCL
+commands. This gives different sychronization guarantees from normal SYCL
+`host_task`s. `sycl_ext_oneapi_enqueue_custom_operation` doesn't provide
+synchronization for host side code in the user submitted callable, meaning host
+code will execute before its dependent events have been satisfied. Only interop
+work submitted to the native queue obtained by
+`interop_handle::get_native_queue` is guaranteed to execute once its
+dependencies are satisfied.
 
 In this example:
 
@@ -147,6 +162,8 @@ q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(dep_event);
     cgh.sycl_ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle &h) {
       printf("This will print before dep_event has completed.\n");
+      // This stream has been synchronized with dep_event's underlying
+      // hipEvent_t
       hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
@@ -164,6 +181,11 @@ completed.
 By contrast, when using a `host_task`, it is guaranteed that the print statment
 will only happen once the host task's dependent events are observed to be
 complete on the host.
+
+A SYCL event returned by a submission of a
+`sycl_ext_oneapi_enqueue_custom_operation` command is only complete once the
+asynchronous work enqueued to the native queue obtained through
+`interop_handle::get_native_queue()` has completed.
 
 
 === Additions to handler class
