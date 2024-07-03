@@ -29,6 +29,7 @@ inline namespace _V1 {
 
 // Forward declaration
 class context;
+class exception;
 
 enum class errc : unsigned int {
   success = 0,
@@ -66,6 +67,9 @@ public:
   const char *name() const noexcept override { return "sycl"; }
   std::string message(int) const override { return "SYCL Error"; }
 };
+
+// Forward declare to declare as a friend in sycl::excepton.
+__SYCL_EXPORT pi_int32 get_pi_error(const exception &e);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -110,9 +114,6 @@ public:
 
   context get_context() const;
 
-  __SYCL2020_DEPRECATED("use sycl::exception.code() instead.")
-  cl_int get_cl_code() const;
-
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
@@ -154,6 +155,8 @@ protected:
   }
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
+
+  friend __SYCL_EXPORT pi_int32 detail::get_pi_error(const exception &);
 };
 
 class __SYCL2020_DEPRECATED(

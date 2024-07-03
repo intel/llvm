@@ -4195,7 +4195,6 @@
 ?get_backend@queue@_V1@sycl@@QEBA?AW4backend@23@XZ
 ?get_channel_order@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_order@56@XZ
 ?get_channel_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_type@56@XZ
-?get_cl_code@exception@_V1@sycl@@QEBAHXZ
 ?get_composite_devices@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?get_context@exception@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?get_context@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
@@ -4241,6 +4240,7 @@
 ?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
+?get_pi_error@detail@_V1@sycl@@YAHAEBVexception@23@@Z
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
 ?get_pitch@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$01@34@XZ
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
