@@ -295,6 +295,20 @@ template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
 
+// is_swizzle
+template <typename> struct is_swizzle : std::false_type {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                            OperationCurrentT, Indexes...>> : std::true_type {};
+
+template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
+
+// is_swizzle_or_vec_v
+
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
+
 // is_marray
 template <typename> struct is_marray : std::false_type {};
 template <typename T, size_t N>
@@ -304,7 +318,7 @@ template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
-struct is_integral : std::is_integral<vector_element_t<T>> {};
+struct is_integral : std::is_integral<get_elem_type_t<T>> {};
 
 // is_floating_point
 template <typename T>
@@ -314,7 +328,7 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<std::remove_cv_t<vector_element_t<T>>> {};
+    : is_floating_point_impl<std::remove_cv_t<get_elem_type_t<T>>> {};
 
 // is_arithmetic
 template <typename T>
@@ -324,14 +338,16 @@ struct is_arithmetic
 
 template <typename T>
 struct is_scalar_arithmetic
-    : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<!is_vec_or_swizzle_v<T> && !is_marray_v<T> &&
+                         is_arithmetic<T>::value> {};
 
 template <typename T>
 inline constexpr bool is_scalar_arithmetic_v = is_scalar_arithmetic<T>::value;
 
 template <typename T>
-struct is_vector_arithmetic
-    : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+struct is_nonscalar_arithmetic
+    : std::bool_constant<(is_vec_or_swizzle_v<T> || is_marray_v<T>) &&
+                         is_arithmetic<T>::value> {};
 
 // is_bool
 template <typename T>

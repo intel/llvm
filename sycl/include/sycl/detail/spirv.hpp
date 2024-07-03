@@ -233,8 +233,8 @@ bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
 template <typename T>
 using is_native_broadcast =
     std::bool_constant<detail::is_arithmetic<T>::value &&
-                       !std::is_same<T, half>::value &&
-                       !detail::is_vec<T>::value>;
+                       !std::is_same<T, half>::value && !detail::is_vec_v<T> &&
+                       !detail::is_marray_v<T>>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = std::enable_if_t<
@@ -748,7 +748,7 @@ using EnableIfNativeShuffle =
                      T>;
 
 template <typename T>
-using EnableIfVectorShuffle =
+using EnableIfNonScalarShuffle =
     std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
 
 #else  // ifndef __NVPTX__
@@ -758,8 +758,8 @@ using EnableIfNativeShuffle = std::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
 
 template <typename T>
-using EnableIfVectorShuffle =
-    std::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+using EnableIfNonScalarShuffle =
+    std::enable_if_t<detail::is_nonscalar_arithmetic<T>::value, T>;
 #endif // ifndef __NVPTX__
 
 // Bitcast shuffles can be implemented using a single SubgroupShuffle
@@ -777,7 +777,7 @@ template <typename T>
 using EnableIfBitcastShuffle =
     std::enable_if_t<!(std::is_integral_v<T> &&
                        (sizeof(T) <= sizeof(int32_t))) &&
-                         !detail::is_vector_arithmetic<T>::value &&
+                         !detail::is_nonscalar_arithmetic<T>::value &&
                          (std::is_trivially_copyable_v<T> &&
                           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
                      T>;
@@ -799,7 +799,7 @@ using EnableIfGenericShuffle =
 template <typename T>
 using EnableIfGenericShuffle = std::enable_if_t<
     !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
+        !detail::is_nonscalar_arithmetic<T>::value &&
         !(std::is_trivially_copyable_v<T> &&
           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
     T>;
@@ -950,12 +950,12 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     if (TargetLocalId[0] + delta < g.get_local_linear_range())
       TargetLocalId[0] += delta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), TargetId);
+    return T{__spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                            convertToOpenCLType(x), TargetId)};
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
-                                            convertToOpenCLType(x), delta);
+    return T{__spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                              convertToOpenCLType(x), delta)};
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1021,7 +1021,7 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
+EnableIfNonScalarShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = Shuffle(g, x[s], local_id);
@@ -1030,7 +1030,7 @@ EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
+EnableIfNonScalarShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleXor(g, x[s], local_id);
@@ -1039,7 +1039,7 @@ EnableIfVectorShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
+EnableIfNonScalarShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleDown(g, x[s], delta);
@@ -1048,7 +1048,7 @@ EnableIfVectorShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
+EnableIfNonScalarShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleUp(g, x[s], delta);

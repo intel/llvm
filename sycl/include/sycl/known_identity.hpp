@@ -80,39 +80,51 @@ using IsLogicalOR =
 template <typename T, typename = void>
 struct isComplex : public std::false_type {};
 
+// Generic type traits do not handle marrays of arbitrary size, so this is a
+// work-around.
+// TODO: Mkae is_genX handle marray of arbitrary sizes.
+template <typename T>
+static constexpr bool IsIntegralOrMarrayOf =
+    (is_genbool_v<T> || is_geninteger_v<T>) ||
+    (is_marray_v<T> &&
+     (is_genbool_v<get_elem_type_t<T>> || is_geninteger_v<get_elem_type_t<T>>));
+
+template <typename T>
+static constexpr bool IsFloatOrMarrayOf =
+    is_genfloat_v<T> || (is_marray_v<T> && is_genfloat_v<get_elem_type_t<T>>);
+
 // Identity = 0
 template <typename T, class BinaryOperation>
 using IsZeroIdentityOp = std::bool_constant<
-    ((is_genbool_v<T> ||
-      is_geninteger_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
-                            IsBitOR<T, BinaryOperation>::value ||
-                            IsBitXOR<T, BinaryOperation>::value)) ||
-    (is_genfloat_v<T> && IsPlus<T, BinaryOperation>::value) ||
+    (IsIntegralOrMarrayOf<T> &&
+     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
+      IsBitXOR<T, BinaryOperation>::value)) ||
+    (IsFloatOrMarrayOf<T> && IsPlus<T, BinaryOperation>::value) ||
     (isComplex<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
-using IsOneIdentityOp = std::bool_constant<(
-    is_genbool_v<T> || is_geninteger_v<T> ||
-    is_genfloat_v<T>)&&IsMultiplies<T, BinaryOperation>::value>;
+using IsOneIdentityOp =
+    std::bool_constant<(IsIntegralOrMarrayOf<T> || IsFloatOrMarrayOf<T>) &&
+                       IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = std::bool_constant<(
-    is_genbool_v<T> ||
-    is_geninteger_v<T>)&&IsBitAND<T, BinaryOperation>::value>;
+using IsOnesIdentityOp =
+    std::bool_constant<(IsIntegralOrMarrayOf<T>) &&
+                       IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
-using IsMinimumIdentityOp = std::bool_constant<(
-    is_genbool_v<T> || is_geninteger_v<T> ||
-    is_genfloat_v<T>)&&IsMinimum<T, BinaryOperation>::value>;
+using IsMinimumIdentityOp =
+    std::bool_constant<(IsIntegralOrMarrayOf<T> || IsFloatOrMarrayOf<T>) &&
+                       IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
-using IsMaximumIdentityOp = std::bool_constant<(
-    is_genbool_v<T> || is_geninteger_v<T> ||
-    is_genfloat_v<T>)&&IsMaximum<T, BinaryOperation>::value>;
+using IsMaximumIdentityOp =
+    std::bool_constant<(IsIntegralOrMarrayOf<T> || IsFloatOrMarrayOf<T>) &&
+                       IsMaximum<T, BinaryOperation>::value>;
 
 // Identity = false
 template <typename T, class BinaryOperation>

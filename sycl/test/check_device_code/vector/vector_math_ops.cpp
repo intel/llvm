@@ -181,7 +181,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<std::byte, 3> a, vec<std::byte, 3> b) {
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META58:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i8>, ptr [[A]], align 2, !tbaa [[TBAA11]], !noalias [[META58]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i8>, ptr [[B]], align 2, !tbaa [[TBAA11]], !noalias [[META58]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp sgt <2 x i8> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ugt <2 x i8> [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    [[SEXT_I:%.*]] = sext <2 x i1> [[CMP_I]] to <2 x i8>
 // CHECK-NEXT:    store <2 x i8> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 2, !alias.scope [[META58]]
 // CHECK-NEXT:    ret void
