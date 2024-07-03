@@ -151,9 +151,6 @@ jobs:
                 return  # Do not proceed if file is empty
             fi
 
-            tmp_newline="
-        "
-
             get_csv_col_index $1 run-time-mean
             tmp_run_time_mean_i=$tmp_csv_col_i
             get_csv_col_index $1 run-time-median
@@ -166,7 +163,12 @@ jobs:
             tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
             tmp_result="$(cat $1 | grep '^[^\#]')"
 
-            awk -v me="$tmp_run_time_mean_i" -v md="$tmp_run_time_median_i" -v th="$tmp_run_time_throughput_i" -F',' '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' <<< "$tmp_header_title$tmp_newline$tmp_result" | tee -a $3   # Print to summary file
+            printf "%s\n%s" "$tmp_header_title" "$tmp_result"                \
+              | awk -F',' -v me="$tmp_run_time_mean_i"                       \
+                        -v md="$tmp_run_time_median_i"                       \
+                        -v th="$tmp_run_time_throughput_i"                   \
+                  '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
+              | tee -a $3   # Print to summary file
         }
 
         # run sycl bench step
