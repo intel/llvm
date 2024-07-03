@@ -13,6 +13,7 @@
 #include <sycl/detail/backend_traits.hpp>     // for interop
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/ur.hpp>                 // for cast
 #include <sycl/device.hpp>                    // for device
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/queue.hpp>                     // for queue
@@ -44,7 +45,7 @@ template <typename T,
           typename std::enable_if_t<std::is_same_v<T, platform>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_platform(detail::pi::cast<ur_native_handle_t>(Interop));
+  return make_platform(detail::ur::cast<ur_native_handle_t>(Interop));
 }
 
 // Construction of SYCL device.
@@ -52,7 +53,7 @@ template <typename T,
           typename std::enable_if_t<std::is_same_v<T, device>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_device(detail::pi::cast<ur_native_handle_t>(Interop));
+  return make_device(detail::ur::cast<ur_native_handle_t>(Interop));
 }
 
 // Construction of SYCL context.
@@ -60,7 +61,7 @@ template <typename T,
           typename std::enable_if_t<std::is_same_v<T, context>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_context(detail::pi::cast<ur_native_handle_t>(Interop));
+  return make_context(detail::ur::cast<ur_native_handle_t>(Interop));
 }
 
 // Construction of SYCL queue.
@@ -69,7 +70,7 @@ template <typename T,
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 T make(const context &Context,
        typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_queue(Context, detail::pi::cast<ur_native_handle_t>(Interop));
+  return make_queue(Context, detail::ur::cast<ur_native_handle_t>(Interop));
 }
 } // namespace opencl
 } // namespace _V1

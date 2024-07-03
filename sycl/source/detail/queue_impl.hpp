@@ -21,6 +21,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/assert_happened.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -354,7 +355,7 @@ public:
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr,
                       &nativeHandle);
-    return pi::cast<cl_command_queue>(nativeHandle);
+    return ur::cast<cl_command_queue>(nativeHandle);
   }
 
   /// \return an associated SYCL context.

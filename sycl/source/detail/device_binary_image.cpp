@@ -8,7 +8,7 @@
 
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/pi.hpp>
-#include <ur_api.h>
+#include <sycl/detail/ur.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -70,14 +70,14 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
 ByteArray DeviceBinaryProperty::asByteArray() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
+  const auto *Data = ur::cast<const std::uint8_t *>(Prop->ValAddr);
   return {Data, Prop->ValSize};
 }
 
 const char *DeviceBinaryProperty::asCString() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  return pi::cast<const char *>(Prop->ValAddr);
+  return ur::cast<const char *>(Prop->ValAddr);
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,

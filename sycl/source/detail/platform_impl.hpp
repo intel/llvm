@@ -14,7 +14,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
@@ -113,7 +113,7 @@ public:
     }
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
-    return pi::cast<cl_platform_id>(nativeHandle);
+    return ur::cast<cl_platform_id>(nativeHandle);
   }
 
   const ur_platform_handle_t &getHandleRef() const { return MUrPlatform; }

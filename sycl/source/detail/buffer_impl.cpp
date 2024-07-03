@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/ur.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -49,11 +50,11 @@ void buffer_impl::addInteropObject(
     std::vector<ur_native_handle_t> &Handles) const {
   if (MOpenCLInterop) {
     if (std::find(Handles.begin(), Handles.end(),
-                  pi::cast<ur_native_handle_t>(MInteropMemObject)) ==
+                  ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
       const PluginPtr &Plugin = getPlugin();
-      Plugin->call(urMemRetain, pi::cast<ur_mem_handle_t>(MInteropMemObject));
-      Handles.push_back(pi::cast<ur_native_handle_t>(MInteropMemObject));
+      Plugin->call(urMemRetain, ur::cast<ur_mem_handle_t>(MInteropMemObject));
+      Handles.push_back(ur::cast<ur_native_handle_t>(MInteropMemObject));
     }
   }
 }
@@ -68,7 +69,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
 
   for (auto &Cmd : MRecord->MAllocaCommands) {
     ur_mem_handle_t NativeMem =
-        pi::cast<ur_mem_handle_t>(Cmd->getMemAllocation());
+        ur::cast<ur_mem_handle_t>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
     auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that

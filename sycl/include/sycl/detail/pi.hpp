@@ -18,12 +18,12 @@
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
                                    //
-#include <cstdint>     // for uint64_t, uint32_t
-#include <memory>      // for shared_ptr
-#include <stddef.h>    // for size_t
-#include <string>      // for char_traits, string
-#include <type_traits> // for false_type, true_type
-#include <vector>      // for vector
+#include <cstdint>                 // for uint64_t, uint32_t
+#include <memory>                  // for shared_ptr
+#include <stddef.h>                // for size_t
+#include <string>                  // for char_traits, string
+#include <type_traits>             // for false_type, true_type
+#include <vector>                  // for vector
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -139,9 +139,6 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 // Get a string representing a _pi_platform_info enum
 std::string platformInfoToString(pi_platform_info info);
 
-// Want all the needed casts be explicit, do not define conversion operators.
-template <class To, class From> To cast(From value);
-
 // Performs PI one-time initialization.
 std::vector<PluginPtr> &initializeUr();
 
@@ -192,40 +189,7 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
                                            size_t ImgSize);
 
 } // namespace pi
-
-// Workaround for build with GCC 5.x
-// An explicit specialization shall be declared in the namespace block.
-// Having namespace as part of template name is not supported by GCC
-// older than 7.x.
-// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
-namespace pi {
-// Want all the needed casts be explicit, do not define conversion
-// operators.
-template <class To, class From> inline To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
-                              "assert: cast failed size check");
-  return (To)(value);
-}
-
-// Helper traits for identifying std::vector with arbitrary element type.
-template <typename T> struct IsStdVector : std::false_type {};
-template <typename T> struct IsStdVector<std::vector<T>> : std::true_type {};
-
-// Overload for vectors that applies the cast to all elements. This
-// creates a new vector.
-template <class To, class FromE> To cast(std::vector<FromE> Values) {
-  static_assert(IsStdVector<To>::value, "Return type must be a vector.");
-  To ResultVec;
-  ResultVec.reserve(Values.size());
-  for (FromE &Val : Values)
-    ResultVec.push_back(cast<typename To::value_type>(Val));
-  return ResultVec;
-}
-
-} // namespace pi
 } // namespace detail
-
 } // namespace _V1
 } // namespace sycl
 
