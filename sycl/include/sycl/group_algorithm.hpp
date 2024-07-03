@@ -127,10 +127,10 @@ using is_arithmetic_or_complex =
                                      sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
-struct is_nonscalar_arithmetic_or_complex
-    : std::bool_constant<(is_vec_v<T> || is_marray_v<T>) &&
+struct is_vector_arithmetic_or_complex
+    : std::bool_constant<is_vec<T>::value &&
                          (is_arithmetic<T>::value ||
-                          is_complex<get_elem_type_t<T>>::value)> {};
+                          is_complex<vector_element_t<T>>::value)> {};
 
 // ---- is_plus_or_multiplies_if_complex
 template <typename T, typename BinaryOperation>
@@ -145,11 +145,6 @@ template <typename T> struct get_scalar_binary_op;
 
 template <template <typename> typename F, typename T, int n>
 struct get_scalar_binary_op<F<sycl::vec<T, n>>> {
-  using type = F<T>;
-};
-
-template <template <typename> typename F, typename T, size_t NumElems>
-struct get_scalar_binary_op<F<sycl::marray<T, NumElems>>> {
   using type = F<T>;
 };
 
@@ -269,7 +264,7 @@ reduce_over_group(Group g, T x, BinaryOperation) {
 
 template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -311,8 +306,8 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<V>::value &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<V, BinaryOperation>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
@@ -754,7 +749,7 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation) {
 
 template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -804,8 +799,8 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<V>::value &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<V, BinaryOperation>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
@@ -930,7 +925,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 
 template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -995,8 +990,8 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 
 template <typename Group, typename V, class BinaryOperation, typename T>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_nonscalar_arithmetic_or_complex<V>::value &&
-                  detail::is_nonscalar_arithmetic_or_complex<T>::value &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
                   detail::is_native_op<V, BinaryOperation>::value &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
