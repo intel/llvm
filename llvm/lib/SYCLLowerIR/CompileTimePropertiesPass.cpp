@@ -361,14 +361,22 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
-  if (AttrKindStr == "sycl-work-group-size" ||
-      AttrKindStr == "sycl-work-group-size-hint") {
+  static constexpr std::pair<const char *, const char *> SimpleWGAttrs[] = {
+      {"sycl-work-group-size", "reqd_work_group_size"},
+      {"sycl-work-group-size-hint", "work_group_size_hint"},
+      {"sycl-max-work-group-size", "max_work_group_size"},
+  };
+
+  for (auto [AttrKind, MDStr] : SimpleWGAttrs) {
+    if (AttrKindStr != AttrKind)
+      continue;
     // Split values in the comma-separated list integers.
     SmallVector<StringRef, 3> ValStrs;
     Attr.getValueAsString().split(ValStrs, ',');
 
     assert(ValStrs.size() <= 3 &&
-           "sycl-work-group-size and sycl-work-group-size-hint currently only "
+           "sycl-work-group-size, sycl-work-group-size-hint and "
+           "sycl-max-work-group-size currently only "
            "support up to three values");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
@@ -385,20 +393,24 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
-    const char *MDName = (AttrKindStr == "sycl-work-group-size")
-                             ? "reqd_work_group_size"
-                             : "work_group_size_hint";
-    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+    return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MDVals));
   }
 
-  if (AttrKindStr == "sycl-sub-group-size") {
-    uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(
-        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
-                                            MDNode::get(Ctx, MD));
+  static constexpr std::pair<const char *, const char *> SimpleI32Attrs[] = {
+      {"sycl-sub-group-size", "intel_reqd_sub_group_size"},
+      {"sycl-min-work-groups-per-cu", "min_work_groups_per_cu"},
+      {"sycl-max-work-groups-per-mp", "max_work_groups_per_mp"},
+  };
+
+  for (auto [AttrKind, MDStr] : SimpleI32Attrs) {
+    if (AttrKindStr == AttrKind) {
+      uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
+      IntegerType *Ty = Type::getInt32Ty(Ctx);
+      Metadata *MDVal = ConstantAsMetadata::get(
+          Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
+      SmallVector<Metadata *, 1> MD{MDVal};
+      return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MD));
+    }
   }
 
   // The sycl-single-task attribute currently only has an effect when targeting
@@ -476,6 +488,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
                                             MDNode::get(Ctx, AttrMDArgs));
+  }
+
+  if (AttrKindStr == "sycl-max-work-group-size") {
+    uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
+    IntegerType *Ty = Type::getInt32Ty(Ctx);
+    Metadata *MDVal = ConstantAsMetadata::get(
+        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
+    SmallVector<Metadata *, 1> MD{MDVal};
+    return std::pair<std::string, MDNode *>("max_work_group_size",
+                                            MDNode::get(Ctx, MD));
   }
 
   return std::nullopt;
