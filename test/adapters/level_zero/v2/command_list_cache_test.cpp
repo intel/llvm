@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 struct CommandListCacheTest : public uur::urContextTest {};
 
@@ -30,35 +31,28 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
     ze_command_queue_priority_t Priority = ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
 
     static constexpr int numListsPerType = 3;
+    std::vector<v2::raii::cache_borrowed_command_list_t> regCmdListOwners;
+    std::vector<v2::raii::cache_borrowed_command_list_t> immCmdListOwners;
+
     std::unordered_set<ze_command_list_handle_t> regCmdLists;
     std::unordered_set<ze_command_list_handle_t> immCmdLists;
 
     // get command lists from the cache
     for (int i = 0; i < numListsPerType; ++i) {
-        auto [it, _] = regCmdLists.emplace(
-            cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal)
-                .release());
+        regCmdListOwners.emplace_back(
+            cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal));
+        auto [it, _] = regCmdLists.emplace(regCmdListOwners.back().get());
         ASSERT_TRUE(*it != nullptr);
 
-        std::tie(it, _) = immCmdLists.emplace(
-            cache
-                .getImmediateCommandList(device->ZeDevice, IsInOrder, Ordinal,
-                                         Mode, Priority)
-                .release());
+        immCmdListOwners.emplace_back(cache.getImmediateCommandList(
+            device->ZeDevice, IsInOrder, Ordinal, Mode, Priority));
+        std::tie(it, _) = immCmdLists.emplace(immCmdListOwners.back().get());
         ASSERT_TRUE(*it != nullptr);
     }
 
     // store them back into the cache
-    for (auto cmdList : regCmdLists) {
-        cache.addRegularCommandList(
-            v2::raii::ze_command_list_t(cmdList, &zeCommandListDestroy),
-            device->ZeDevice, IsInOrder, Ordinal);
-    }
-    for (auto cmdList : immCmdLists) {
-        cache.addImmediateCommandList(
-            v2::raii::ze_command_list_t(cmdList, &zeCommandListDestroy),
-            device->ZeDevice, IsInOrder, Ordinal, Mode, Priority);
-    }
+    regCmdListOwners.clear();
+    immCmdListOwners.clear();
 
     // verify we get back the same command lists
     for (int i = 0; i < numListsPerType; ++i) {
@@ -72,6 +66,10 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 
         ASSERT_EQ(regCmdLists.erase(regCmdList.get()), 1);
         ASSERT_EQ(immCmdLists.erase(immCmdList.get()), 1);
+
+        // release the command list manually so they are not added back to the cache
+        zeCommandListDestroy(regCmdList.release());
+        zeCommandListDestroy(immCmdList.release());
     }
 }
 
@@ -131,11 +129,6 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
             } else {
                 ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
             }
-
-            // store the list back to the cache
-            cache.addImmediateCommandList(std::move(CommandList),
-                                          device->ZeDevice, IsInOrder, Ordinal,
-                                          Mode, Priority, Index);
         }
 
         // verify list creation without an index
