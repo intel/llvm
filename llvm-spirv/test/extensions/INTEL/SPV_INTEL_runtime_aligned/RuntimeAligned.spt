@@ -1,4 +1,3 @@
-; XFAIL: *
 ; RUN: llvm-spirv -spirv-text -r %s -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
