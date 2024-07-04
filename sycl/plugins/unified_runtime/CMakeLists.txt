@@ -110,7 +110,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     https://github.com/nrspruit/unified-runtime.git
-    d847710b6c5b6bf5a6f51bc4ded8fb25d0287afd
+    665d4a689f534474d9eaca53fc46fd771a7a570b
   )
 
   fetch_adapter_source(opencl
