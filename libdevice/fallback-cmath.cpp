@@ -72,9 +72,8 @@ float __devicelib_scalbnf(float x, int n) { return __spirv_ocl_ldexp(x, n); }
 DEVICE_EXTERN_C_INLINE
 float __devicelib_roundf(float x) { return __spirv_ocl_round(x); }
 
-SYCL_EXTERNAL long __spirv_ocl_lround(float x);
 DEVICE_EXTERN_C_INLINE
-long int __devicelib_lroundf(float x) { return __spirv_ocl_lround(x); }
+long int __devicelib_lroundf(float x) { return  static_cast<long int>(__spirv_ocl_round(x)); }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_floorf(float x) { return __spirv_ocl_floor(x); }
