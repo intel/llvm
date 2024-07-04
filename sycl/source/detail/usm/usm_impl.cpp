@@ -594,7 +594,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_usm_type_t AllocTy;
 
-  // query type using PI function
+  // query type using UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_result_t Err = Plugin->call_nocheck(
       urUSMGetMemAllocInfo, URCtx, Ptr, UR_USM_ALLOC_INFO_TYPE,
@@ -657,7 +657,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_device_handle_t DeviceId;
 
-  // query device using PI function
+  // query device using UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   Plugin->call(urUSMGetMemAllocInfo, URCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE,
                sizeof(ur_device_handle_t), &DeviceId, nullptr);
@@ -679,7 +679,7 @@ static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
                                         const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
-  // Call the PI function
+  // Call the UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   Plugin->call(urUSMImportExp, URCtx, const_cast<void *>(Ptr), Size);
 }
@@ -687,7 +687,7 @@ static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
-  // Call the PI function
+  // Call the UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   Plugin->call(urUSMReleaseExp, URCtx, const_cast<void *>(Ptr));
 }

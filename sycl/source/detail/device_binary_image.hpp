@@ -81,7 +81,7 @@ protected:
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
-// SYCL RT wrapper over PI binary image.
+// SYCL RT wrapper over UR binary image.
 class RTDeviceBinaryImage {
 public:
   // Represents a range of properties to enable iteration over them.

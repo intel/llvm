@@ -43,23 +43,7 @@ void *loadOsLibrary(const std::string &LibraryPath) {
   return Result;
 }
 
-void *loadOsPluginLibrary(const std::string &PluginPath) {
-  // We fetch the preloaded plugin from the pi_win_proxy_loader.
-  // The proxy_loader handles any required error suppression.
-  auto Result = getPreloadedPlugin(PluginPath);
-
-  return Result;
-}
-
 int unloadOsLibrary(void *Library) {
-  return (int)FreeLibrary((HMODULE)Library);
-}
-
-int unloadOsPluginLibrary(void *Library) {
-  // The mock plugin does not have an associated library, so we allow nullptr
-  // here to avoid it trying to free a non-existent library.
-  if (!Library)
-    return 1;
   return (int)FreeLibrary((HMODULE)Library);
 }
 
@@ -84,21 +68,6 @@ static std::filesystem::path getCurrentDSODirPath() {
   (void)RetCode;
 
   return std::filesystem::path(Path);
-}
-
-// Load plugins corresponding to provided list of plugin names.
-std::vector<std::tuple<std::string, backend, void *>>
-loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
-  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins;
-  const std::filesystem::path LibSYCLDir = getCurrentDSODirPath();
-
-  for (auto &PluginName : PluginNames) {
-    void *Library = getPreloadedPlugin(LibSYCLDir / PluginName.first);
-    LoadedPlugins.push_back(std::make_tuple(
-        std::move(PluginName.first), std::move(PluginName.second), Library));
-  }
-
-  return LoadedPlugins;
 }
 
 } // namespace pi

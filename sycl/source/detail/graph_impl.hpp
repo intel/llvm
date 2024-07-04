@@ -1311,7 +1311,7 @@ public:
 
   /// Destructor.
   ///
-  /// Releases any PI command-buffers the object has created.
+  /// Releases any UR command-buffers the object has created.
   ~exec_graph_impl();
 
   /// Partition the graph nodes and put the partition in MPartitions.
@@ -1404,7 +1404,7 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
+  /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
   enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -1484,7 +1484,7 @@ private:
   std::vector<std::shared_ptr<partition>> MPartitions;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
-  /// Map of nodes to their associated PI command handles.
+  /// Map of nodes to their associated UR command handles.
   std::unordered_map<std::shared_ptr<node_impl>,
                      ur_exp_command_buffer_command_handle_t>
       MCommandMap;

@@ -710,7 +710,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   // 1. Async work is not supported for host device.
   // 2. Non-host events can be ignored if they are not fully initialized.
-  // 3. Some types of commands do not produce PI events after they are
+  // 3. Some types of commands do not produce UR events after they are
   // enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.

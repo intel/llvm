@@ -1,4 +1,4 @@
-//==------------- pi_utils.hpp - Common PI utilities -----------------------==//
+//==------------- pi_utils.hpp - Common UR utilities -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,7 +18,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// RAII object for keeping ownership of a PI event.
+// RAII object for keeping ownership of a UR event.
 struct OwnedUrEvent {
   OwnedUrEvent(const PluginPtr &Plugin)
       : MEvent{std::nullopt}, MPlugin{Plugin} {}

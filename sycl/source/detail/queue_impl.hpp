@@ -59,7 +59,7 @@ using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
-//// Possible CUDA context types supported by PI CUDA backend
+//// Possible CUDA context types supported by UR CUDA backend
 /// TODO: Implement this as a property once there is an extension document
 enum class CUDAContextT : char { primary, custom };
 
@@ -302,7 +302,7 @@ public:
 
   /// Constructs a SYCL queue from plugin interoperability handle.
   ///
-  /// \param PiQueue is a raw PI queue handle.
+  /// \param PiQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
@@ -492,11 +492,11 @@ public:
       MAsyncHandler(std::move(Exceptions));
   }
 
-  /// Creates PI properties array.
+  /// Creates UR properties array.
   ///
   /// \param PropList SYCL properties.
   /// \param Order specifies whether queue is in-order or out-of-order.
-  /// \param Properties PI properties array created from SYCL properties.
+  /// \param Properties UR properties array created from SYCL properties.
   static ur_queue_flags_t createUrQueueFlags(const property_list &PropList,
                                              QueueOrder Order) {
     ur_queue_flags_t CreationFlags = 0;
@@ -560,7 +560,7 @@ public:
     return CreationFlags;
   }
 
-  /// Creates PI queue.
+  /// Creates UR queue.
   ///
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
@@ -632,7 +632,7 @@ public:
     return *PIQ;
   }
 
-  /// \return a raw PI queue handle. The returned handle is not retained. It
+  /// \return a raw UR queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
   ur_queue_handle_t &getHandleRef() {
     if (!MEmulateOOO)
@@ -882,7 +882,7 @@ protected:
   /// \param MemMngrFunc is a function that forwards its arguments to the
   ///        appropriate memory manager function.
   /// \param MemMngrArgs are all the arguments that need to be passed to memory
-  ///        manager except the last three: dependencies, PI event and
+  ///        manager except the last three: dependencies, UR event and
   ///        EventImplPtr are filled out by this helper.
   /// \return an event representing the submitted operation.
   template <typename HandlerFuncT, typename MemMngrFuncT,
@@ -982,8 +982,8 @@ public:
   const bool MIsProfilingEnabled;
 
 protected:
-  // Indicates whether the queue supports discarding PI events for tasks
-  // submitted to it. This condition is necessary but not sufficient, PI events
+  // Indicates whether the queue supports discarding UR events for tasks
+  // submitted to it. This condition is necessary but not sufficient, UR events
   // should be discarded only if they also don't represent potential implicit
   // dependencies for future tasks in other queues.
   const bool MSupportsDiscardingPiEvents;

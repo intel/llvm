@@ -24,8 +24,8 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                   std::make_shared<program_impl>(Context, Kernel),
                   /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
   // Enable USM indirect access for interoperability kernels.
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
+  // Some UR Plugins (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
   if (Context->getPlatformImpl()->supports_usm())
     getPlugin()->call(urKernelSetExecInfo, MURKernel,
                       UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,

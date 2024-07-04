@@ -28,12 +28,12 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
 /// Constructs a SYCL device instance using the provided
-/// PI device instance.
+/// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
     : device_impl(nullptr, Device, Platform, Platform->getPlugin()) {}
 
 /// Constructs a SYCL device instance using the provided
-/// PI device instance.
+/// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, const PluginPtr &Plugin)
     : device_impl(nullptr, Device, nullptr, Plugin) {}
 
@@ -853,7 +853,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
     auto Result = Plugin->call_nocheck(urDeviceGetGlobalTimestamps, MUrDevice,
                                        &MDeviceHostBaseTime.first,
                                        &MDeviceHostBaseTime.second);
-    // We have to remember base host timestamp right after PI call and it is
+    // We have to remember base host timestamp right after UR call and it is
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
     // and piGetDeviceAndHostTimer calls may take significant amount of time,

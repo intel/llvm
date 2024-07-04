@@ -30,7 +30,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle) {
   const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
-  // Create PI device first.
+  // Create UR device first.
   ur_device_handle_t UrDevice;
   Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle,
                PlatformImpl->getHandleRef(), nullptr, &UrDevice);
@@ -45,7 +45,7 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    ur_native_handle_t NativeHandle,
                                    bool KeepOwnership) {
   const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
-  // Create PI context first.
+  // Create UR context first.
   ur_context_handle_t UrContext;
   std::vector<ur_device_handle_t> DeviceHandles;
   for (auto Dev : DeviceList) {
@@ -57,7 +57,7 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   Plugin->call(urContextCreateWithNativeHandle, NativeHandle,
                DeviceHandles.size(), DeviceHandles.data(), &Properties,
                &UrContext);
-  // Construct the SYCL context from PI context.
+  // Construct the SYCL context from UR context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(UrContext, detail::defaultAsyncHandler,
                                      Plugin, DeviceList, !KeepOwnership));

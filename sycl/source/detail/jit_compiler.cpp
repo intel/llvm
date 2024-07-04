@@ -882,8 +882,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<::jit_compiler::JITConstant> JITConstants;
   std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
-  for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
-    PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, InternalizeParams,
+  for (auto UR = FusedParams.begin(); UR != FusedParams.end();) {
+    UR = preProcessArguments(ArgsStorage, UR, PromotedAccs, InternalizeParams,
                              JITConstants, NonIdenticalParameters,
                              ParamIdentities);
   }
@@ -1032,7 +1032,7 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::PTX ||
       Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
-    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    // See CUDA UR (pi_cuda.cpp) _pi_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
         FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
         [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
@@ -1109,7 +1109,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   std::vector<uint8_t> Encoded(NumBytes, 0u);
   uint8_t *Ptr = Encoded.data();
   // Skip 64-bit wide size argument with value 0 at the start of the data.
-  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  // See CUDA UR (pi_cuda.cpp) _pi_program::set_metadata for reference.
   Ptr += sizeof(uint64_t);
   for (const auto &Val : Attr.Values) {
     auto UVal = static_cast<uint32_t>(Val);

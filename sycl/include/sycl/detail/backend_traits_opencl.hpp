@@ -150,7 +150,7 @@ template <class To> inline To cast(std::vector<cl_event> value) {
   return cast<To>(value[0]);
 }
 
-// These conversions should use PI interop API.
+// These conversions should use UR interop API.
 template <>
 inline ur_program_handle_t
     cast(cl_program) = delete; // Use urProgramCreateWithNativeHandle

@@ -1,4 +1,4 @@
-//==- jit_device_binaries.hpp - Runtime construction of PI device binaries -==//
+//==- jit_device_binaries.hpp - Runtime construction of UR device binaries -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,7 +18,7 @@ namespace detail {
 
 /// Representation of _pi_offload_entry for creation of JIT device binaries at
 /// runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Owns the necessary data and provides raw pointers for the UR struct.
 class OffloadEntryContainer {
 public:
   OffloadEntryContainer(const std::string &Name, void *Addr, size_t Size,
@@ -44,7 +44,7 @@ private:
 
 /// Representation of _pi_device_binary_property_struct for creation of JIT
 /// device binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Owns the necessary data and provides raw pointers for the UR struct.
 class PropertyContainer {
 
 public:
@@ -71,7 +71,7 @@ private:
 
 /// Representation of _pi_device_binary_property_set_struct for creation of JIT
 /// device binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Owns the necessary data and provides raw pointers for the UR struct.
 class PropertySetContainer {
 public:
   PropertySetContainer(const std::string &Name);
@@ -79,7 +79,7 @@ public:
   PropertySetContainer(PropertySetContainer &&) = default;
   PropertySetContainer &operator=(PropertySetContainer &&) = default;
   ~PropertySetContainer() = default;
-  // Copying of the container is not allowed, as it would invalidate PI structs.
+  // Copying of the container is not allowed, as it would invalidate UR structs.
   PropertySetContainer(const PropertySetContainer &) = delete;
   PropertySetContainer &operator=(const PropertySetContainer &) = delete;
 
@@ -96,14 +96,14 @@ private:
 
 /// Representation of pi_device_binary_struct for creation of JIT device
 /// binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinaryContainer {
 public:
   DeviceBinaryContainer() = default;
   DeviceBinaryContainer(DeviceBinaryContainer &&) = default;
   DeviceBinaryContainer &operator=(DeviceBinaryContainer &&) = default;
   ~DeviceBinaryContainer() = default;
-  // Copying of the container is not allowed, as it would invalidate PI structs.
+  // Copying of the container is not allowed, as it would invalidate UR structs.
   DeviceBinaryContainer(const DeviceBinaryContainer &) = delete;
   DeviceBinaryContainer &operator=(const DeviceBinaryContainer &) = delete;
 
@@ -126,7 +126,7 @@ private:
 
 /// Representation of pi_device_binaries_struct for creation of JIT device
 /// binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinariesCollection {
 
 public:

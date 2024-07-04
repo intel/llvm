@@ -105,7 +105,7 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice = nullptr;
   Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle, nullptr, nullptr,
                &UrDevice);
-  // Construct the SYCL device from PI device.
+  // Construct the SYCL device from UR device.
   return detail::createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(UrDevice, Plugin));
 }
@@ -121,7 +121,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
   Properties.isNativeHandleOwned = false;
   Plugin->call(urContextCreateWithNativeHandle, NativeHandle, 0, nullptr,
                &Properties, &UrContext);
-  // Construct the SYCL context from PI context.
+  // Construct the SYCL context from UR context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(UrContext, Handler, Plugin));
 }
@@ -328,7 +328,7 @@ kernel make_kernel(const context &TargetContext,
   // program/module. This way we don't need to search the exact device image for
   // the kernel, which may not be trivial.
   //
-  // Other backends don't need PI program.
+  // Other backends don't need UR program.
   //
   ur_program_handle_t UrProgram = nullptr;
   if (Backend == backend::ext_oneapi_level_zero) {
@@ -344,7 +344,7 @@ kernel make_kernel(const context &TargetContext,
     UrProgram = DeviceImageImpl->get_ur_program_ref();
   }
 
-  // Create PI kernel first.
+  // Create UR kernel first.
   ur_kernel_handle_t UrKernel = nullptr;
   ur_kernel_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES;
@@ -355,7 +355,7 @@ kernel make_kernel(const context &TargetContext,
   if (Backend == backend::opencl)
     Plugin->call(urKernelRetain, UrKernel);
 
-  // Construct the SYCL queue from PI queue.
+  // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
       std::make_shared<kernel_impl>(UrKernel, ContextImpl, KernelBundleImpl));
 }

@@ -128,7 +128,7 @@ program_impl::program_impl(ContextImplPtr Context,
   if (MProgram == nullptr) {
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
-    // Translate the raw program handle into PI program.
+    // Translate the raw program handle into UR program.
     Plugin->call(urProgramCreateWithNativeHandle, InteropProgram,
                  MContext->getHandleRef(), nullptr, &MProgram);
   } else
@@ -406,8 +406,8 @@ program_impl::get_ur_kernel_arg_mask_pair(const std::string &KernelName) const {
   }
   Plugin->checkUrResult(Err);
 
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
+  // Some UR Plugins (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
   if (getContextImplPtr()->getPlatformImpl()->supports_usm())
     Plugin->call(urKernelSetExecInfo, Result.first,
                  UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
@@ -443,7 +443,7 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 // TODO(pi2ur): Rename?
 void program_impl::create_ur_program_with_kernel_name(
     const std::string &KernelName, bool JITCompilationIsRequired) {
-  assert(!MProgram && "This program already has an encapsulated PI program");
+  assert(!MProgram && "This program already has an encapsulated UR program");
   ProgramManager &PM = ProgramManager::getInstance();
   const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
