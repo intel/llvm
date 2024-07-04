@@ -317,6 +317,7 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
       setErrorMessage("The " UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS
                       " feature requires cuda 11.6 or later.",
                       UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif
     }
 
