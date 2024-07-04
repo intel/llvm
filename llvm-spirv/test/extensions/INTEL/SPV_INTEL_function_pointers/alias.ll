@@ -1,5 +1,3 @@
-; XFAIL: *
-
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers %t.bc -o %t.spv
@@ -34,7 +32,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: define spir_func i32 @foo(i32 %x)
 
-; CHECK-LLVM: define spir_func void @bar(ptr %y)
+; CHECK-LLVM: define spir_kernel void @bar(ptr %y)
 ; CHECK-LLVM: [[PTRTOINT:%.*]] = ptrtoint ptr @foo to i64
 ; CHECK-LLVM: store i64 [[PTRTOINT]], ptr %y, align 8
 

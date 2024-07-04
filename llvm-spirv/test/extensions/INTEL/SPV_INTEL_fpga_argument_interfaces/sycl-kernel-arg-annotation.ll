@@ -53,6 +53,7 @@ entry:
 ; CHECK-SPIRV: Capability FPGAArgumentInterfacesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_argument_interfaces"
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_buffer_location"
+; CHECK-SPIRV-DAG:  Name [[IDS:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV-DAG:  Name [[ID:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV:  Decorate [[ID]] Alignment 4
 ; CHECK-SPIRV:  Decorate [[ID]] MMHostInterfaceAddressWidthINTEL 32
