@@ -73,7 +73,9 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_roundf(float x) { return __spirv_ocl_round(x); }
 
 DEVICE_EXTERN_C_INLINE
-long int __devicelib_lroundf(float x) { return  static_cast<long int>(__spirv_ocl_round(x)); }
+long int __devicelib_lroundf(float x) {
+  return static_cast<long int>(__spirv_ocl_round(x));
+}
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_floorf(float x) { return __spirv_ocl_floor(x); }

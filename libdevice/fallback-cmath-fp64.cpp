@@ -75,7 +75,9 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_round(double x) { return __spirv_ocl_round(x); }
 
 DEVICE_EXTERN_C_INLINE
-long int __devicelib_lround(double x) { return static_cast<long int>(__spirv_ocl_round(x));  }
+long int __devicelib_lround(double x) {
+  return static_cast<long int>(__spirv_ocl_round(x));
+}
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_floor(double x) { return __spirv_ocl_floor(x); }

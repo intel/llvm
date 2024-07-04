@@ -10,7 +10,7 @@
 #include <spirv/spirv.h>
 
 // Map the llvm intrinsic to an OpenCL function.
-#define __CLC_FUNCTION __clc___spirv_ocl_lround
+#define __CLC_FUNCTION __clc___spirv_ocl_round
 #define __CLC_INTRINSIC "llvm.round"
 #include <math/unary_intrin.inc>
 
