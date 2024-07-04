@@ -48,15 +48,15 @@ int main() {
 
   q.single_task<QueryKernel>([]() {}).wait();
 
-  static_assert(
-      std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, size_t>,
-      "recommended_num_work_groups_per_cu query must return size_t");
+  static_assert(std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, size_t>,
+                "recommended_num_work_groups_per_cu query must return size_t");
 
   std::cout << "recommended_num_work_groups_per_cu: " << maxWGsPerCU << '\n';
   // We must have at least one active group if we are below resource limits.
   if (WorkGroupSize < MaxWorkGroupSize &&
       LocalMemorySizeInBytes < MaxLocalMemorySizeInBytes) {
-    assert(maxWGsPerCU > 0 && "recommended_num_work_groups_per_cu query failed");
+    assert(maxWGsPerCU > 0 &&
+           "recommended_num_work_groups_per_cu query failed");
     NDEBUG_CHECK(maxWGsPerCU > 0)
   }
 
@@ -73,7 +73,8 @@ int main() {
 
     if (WorkGroupSize >= MaxWorkGroupSize &&
         LocalMemorySizeInBytes >= MaxLocalMemorySizeInBytes) {
-      assert(maxWGsPerCU == 0 && "recommended_num_work_groups_per_cu query failed");
+      assert(maxWGsPerCU == 0 &&
+             "recommended_num_work_groups_per_cu query failed");
       NDEBUG_CHECK(maxWGsPerCU == 0)
     }
   }
