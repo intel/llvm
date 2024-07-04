@@ -197,7 +197,7 @@ class handler {
   void ext_oneapi_enqueue_custom_operation(Func&& interopCallable);
 };
 ```
-Constraints: The Func must a C++ callable object which takes a single parameter
+Constraints: The `Func` must a C++ callable object which takes a single parameter
 of type `interop_handle`.
 
 
