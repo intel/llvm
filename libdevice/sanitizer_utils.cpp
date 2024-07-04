@@ -146,7 +146,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
   if (as == ADDRESS_SPACE_GLOBAL) {     // global
     if (addr & 0xFFFF000000000000ULL) { // Device USM
-      return __AsanShadowMemoryGlobalStart + 0x100000000000ULL +
+      return __AsanShadowMemoryGlobalStart + 0x80000000000ULL +
              ((addr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
     } else { // Host/Shared USM
       return __AsanShadowMemoryGlobalStart + (addr >> ASAN_SHADOW_SCALE);
@@ -179,7 +179,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
                       ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+      if (__asan_report_out_of_shadow_bounds()) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)shadow_offset);
       }
@@ -196,7 +196,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
     auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
+    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
 
     if (shadow_offset == 0) {
       return 0;
