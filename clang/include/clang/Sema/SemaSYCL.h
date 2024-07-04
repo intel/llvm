@@ -318,6 +318,7 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
+  void ProcessFreeFunction(FunctionDecl *FD);
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

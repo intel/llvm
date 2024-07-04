@@ -5,10 +5,10 @@
 
 // Test tracing of the code location data for queue.submit in case of failure
 // (exception generation)
-// First queue creation (id = 0) is queue created on line 15.
-// The second queue is a host queue created on first scheduler usage.
+// First queue creation (id = 0) is queue created on line 17.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   bool ExceptionCaught = false;
@@ -18,16 +18,10 @@ int main() {
     unsigned char *HostAllocDst = NULL;
     // CHECK: [SYCL] Queue create:
     // CHECK-DAG:        queue_handle : {{.*}}
-    // CHECK-DAG:        queue_id : 0
-    // CHECK-DAG:        is_inorder : false
-    // CHECK-DAG:        sycl_device : {{.*}}
-    // CHECK-DAG:        sycl_device_name : {{.*}}
-    // CHECK-DAG:        sycl_context : {{.*}}
-    // CHECK-NEXT: [SYCL] Queue create:
     // CHECK-DAG:        queue_id : 1
     // CHECK-DAG:        is_inorder : false
     // CHECK-DAG:        sycl_device : {{.*}}
-    // CHECK-DAG:        sycl_device_name : SYCL host device
+    // CHECK-DAG:        sycl_device_name : {{.*}}
     // CHECK-DAG:        sycl_context : {{.*}}
     // CHECK: [SYCL] Runtime reports:
     // CHECK-NEXT: what:  NULL pointer argument in memory copy operation. -30 (PI_ERROR_INVALID_VALUE)
@@ -43,6 +37,6 @@ int main() {
     sycl::free(HostAllocSrc, Q);
   }
   // CHECK-NEXT: [SYCL] Queue destroy:
-  // CHECK-DAG:        queue_id : 0
+  // CHECK-DAG:        queue_id : 1
   return !ExceptionCaught;
 }

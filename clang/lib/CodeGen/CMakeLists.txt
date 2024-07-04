@@ -29,6 +29,7 @@ set(LLVM_LINK_COMPONENTS
   ScalarOpts
   Support
   SYCLLowerIR
+  SYCLNativeCPUUtils
   Target
   TargetParser
   TransformUtils
@@ -106,6 +107,7 @@ add_clang_library(clangCodeGen
   ConstantInitBuilder.cpp
   CoverageMappingGen.cpp
   ItaniumCXXABI.cpp
+  LinkInModulesPass.cpp
   MacroPPCallbacks.cpp
   MicrosoftCXXABI.cpp
   ModuleBuilder.cpp

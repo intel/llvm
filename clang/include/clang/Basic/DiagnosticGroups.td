@@ -15,8 +15,6 @@ def Implicit : DiagGroup<"implicit", [
     ImplicitInt
 ]>;
 
-def DeprecatedStaticAnalyzerFlag : DiagGroup<"deprecated-static-analyzer-flag">;
-
 // Empty DiagGroups are recognized by clang but ignored.
 def ODR : DiagGroup<"odr">;
 def : DiagGroup<"abi">;
@@ -104,6 +102,7 @@ def EnumConversion : DiagGroup<"enum-conversion",
                                [EnumEnumConversion,
                                 EnumFloatConversion,
                                 EnumCompareConditional]>;
+def DeprecatedNoRelaxedTemplateTemplateArgs : DiagGroup<"deprecated-no-relaxed-template-template-args">;
 def ObjCSignedCharBoolImplicitIntConversion :
   DiagGroup<"objc-signed-char-bool-implicit-int-conversion">;
 def Shorten64To32 : DiagGroup<"shorten-64-to-32">;
@@ -230,6 +229,7 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedLiteralOperator,
                                           DeprecatedPragma,
                                           DeprecatedRegister,
+                                          DeprecatedNoRelaxedTemplateTemplateArgs,
                                           DeprecatedThisCapture,
                                           DeprecatedType,
                                           DeprecatedVolatile,
@@ -1470,6 +1470,10 @@ def FunctionMultiVersioning
 
 def NoDeref : DiagGroup<"noderef">;
 
+// -fbounds-safety and bounds annotation related warnings
+def BoundsSafetyCountedByEltTyUnknownSize :
+  DiagGroup<"bounds-safety-counted-by-elt-type-unknown-size">;
+
 // A group for cross translation unit static analysis related warnings.
 def CrossTU : DiagGroup<"ctu">;
 
@@ -1533,6 +1537,9 @@ def BranchProtection : DiagGroup<"branch-protection">;
 // HLSL diagnostic groups
 // Warnings for HLSL Clang extensions
 def HLSLExtension : DiagGroup<"hlsl-extensions">;
+
+// Warning for mix packoffset and non-packoffset.
+def HLSLMixPackOffset : DiagGroup<"mix-packoffset">;
 
 // Warnings for DXIL validation
 def DXILValidation : DiagGroup<"dxil-validation">;

@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: 15 Apr 2024
-    # Suppress various deprecation warnings on LLVM 17+
-    set(LLVMGenXIntrinsics_GIT_TAG cbf0b5d315d2a69fbdf32888e13ae4556890cda9)
+    # Date: 08 May 2024
+    # Fix warning from switch
+    set(LLVMGenXIntrinsics_GIT_TAG b2565a03eb3cac07f5e8000fde971f95dc782c75)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -44,8 +44,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  RecordSYCLAspectNames.cpp
   CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
+  ComputeModuleRuntimeInfo.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
@@ -55,8 +57,11 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
+  SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
+  SYCLKernelParamOptInfo.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
@@ -65,10 +70,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
-  PrepareSYCLNativeCPU.cpp
-  RenameKernelSYCLNativeCPU.cpp
-  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -87,10 +88,13 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMDemangle
   LLVMTargetParser
   LLVMTransformUtils
-  
+
   LINK_COMPONENTS
   Analysis
+  BitWriter
   Core
+  Demangle
+  IRPrinter
   Support
   ipo
   )

@@ -797,7 +797,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         Arg->claim();
         if (LegacySanitizeCoverage != 0 && DiagnoseErrors) {
           D.Diag(diag::warn_drv_deprecated_arg)
-              << Arg->getAsString(Args) << "-fsanitize-coverage=trace-pc-guard";
+              << Arg->getAsString(Args) << /*hasReplacement=*/true
+              << "-fsanitize-coverage=trace-pc-guard";
         }
         continue;
       }
@@ -833,11 +834,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     // enabled.
     if (CoverageFeatures & CoverageTraceBB)
       D.Diag(clang::diag::warn_drv_deprecated_arg)
-          << "-fsanitize-coverage=trace-bb"
+          << "-fsanitize-coverage=trace-bb" << /*hasReplacement=*/true
           << "-fsanitize-coverage=trace-pc-guard";
     if (CoverageFeatures & Coverage8bitCounters)
       D.Diag(clang::diag::warn_drv_deprecated_arg)
-          << "-fsanitize-coverage=8bit-counters"
+          << "-fsanitize-coverage=8bit-counters" << /*hasReplacement=*/true
           << "-fsanitize-coverage=trace-pc-guard";
   }
 
@@ -849,7 +850,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if ((CoverageFeatures & InsertionPointTypes) &&
       !(CoverageFeatures & InstrumentationTypes) && DiagnoseErrors) {
     D.Diag(clang::diag::warn_drv_deprecated_arg)
-        << "-fsanitize-coverage=[func|bb|edge]"
+        << "-fsanitize-coverage=[func|bb|edge]" << /*hasReplacement=*/true
         << "-fsanitize-coverage=[func|bb|edge],[trace-pc-guard|trace-pc],["
            "control-flow]";
   }
@@ -1159,6 +1160,13 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-globals=0");
+
+      if (!RecoverableSanitizers.empty())
+        CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +
+                                             toString(RecoverableSanitizers)));
+
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-mapping-scale=4");
     }
     return;
   }

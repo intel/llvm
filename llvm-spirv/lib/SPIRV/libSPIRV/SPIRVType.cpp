@@ -197,6 +197,10 @@ bool SPIRVType::isTypeSampler() const { return OpCode == OpTypeSampler; }
 
 bool SPIRVType::isTypeImage() const { return OpCode == OpTypeImage; }
 
+bool SPIRVType::isTypeSampledImage() const {
+  return OpCode == OpTypeSampledImage;
+}
+
 bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }

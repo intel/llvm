@@ -14,7 +14,6 @@
 
 #include "common.hpp"
 
-constexpr size_t SG_SZ = 16;
 constexpr size_t TN = 16;
 
 #include "joint_matrix_colA_rowB_colC_impl.hpp"

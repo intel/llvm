@@ -6,7 +6,7 @@
 
 // Test that "device_read_only" shared USM allocations are pooled.
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 
 using namespace std;
 using namespace sycl;

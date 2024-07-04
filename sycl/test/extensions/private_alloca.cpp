@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: %if asserts %{sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -spec-const=native -o %t.txt 2>&1 %}
+// RUN: %if asserts %{sycl-post-link -properties -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -properties -spec-const=native -o %t.txt 2>&1 %}
 // RUN: cat %t_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
 // RUN: llvm-spirv -o %t_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t_0.bc
 // RUN: llvm-spirv -o - --to-text %t_0.spv | FileCheck %s -check-prefixes=CHECK-SPV
@@ -7,13 +7,11 @@
 // Check SPIR-V code generation for 'sycl_ext_oneapi_private_alloca'. Each call
 // to the extension API is annotated as follows for future reference:
 //
-// <NAME>: storage_class=<sc>, element_type=<et>, alignment=<align>
+// <NAME>: element_type=<et>, alignment=<align>
 //
 // - <NAME>: Variable name in the test below. These will be the result of
 // bitcasting a variable to a different pointer type. We use this instead of the
 // variable due to FileCheck limitations.
-// - <sc>: 'generic' if <NAME> is casted to generic before being stored in the
-// multi_ptr or 'function' otherwise.
 // - <et>: element type. 'Bitcast X <NAME> Y' will originate value <NAME>, being
 // X a pointer to <et> and storage class function.
 // - <align>: alignment. <NAME> will appear in a 'Decorage <NAME> Aligment
@@ -44,17 +42,17 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
   keep(/*B0: storage_class=function, element_type=f32, alignment=4*/
        sycl::ext::oneapi::experimental::private_alloca<
            float, int8_id, sycl::access::decorated::yes>(kh),
-       /*B1: storage_class=generic, element_type=f64, alignment=8*/
+       /*B1: element_type=f64, alignment=8*/
        sycl::ext::oneapi::experimental::private_alloca<
            double, uint32_id, sycl::access::decorated::no>(kh),
-       /*B2: storage_class=function, element_type=i32, alignment=4*/
+       /*B2: element_type=i32, alignment=4*/
        sycl::ext::oneapi::experimental::private_alloca<
            int, int16_id, sycl::access::decorated::legacy>(kh),
-       /*B3: storage_class=generic, element_type=i64, alignment=16*/
+       /*B3: element_type=i64, alignment=16*/
        sycl::ext::oneapi::experimental::aligned_private_alloca<
            int64_t, alignof(int64_t) * 2, uint64_id,
            sycl::access::decorated::no>(kh),
-       /*B4: storage_class=function, element_type=composite, alignment=32*/
+       /*B4: element_type=composite, alignment=32*/
        sycl::ext::oneapi::experimental::aligned_private_alloca<
            composite, alignof(composite) * 8, int32_id,
            sycl::access::decorated::yes>(kh));
@@ -120,15 +118,13 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-SPV-DAG: Store {{.*}} [[#B0]]
 // CHECK-SPV-DAG: Variable [[#ARRF64PTRTY]] [[#V1:]] [[#FUNCTIONSTORAGE]]
 // CHECK-SPV-DAG: Bitcast [[#F64PTRTY]] [[#B1:]] [[#V1]]
-// CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G1:]] [[#B1]]
-// CHECK-SPV-DAG: Store {{.*}} [[#G1]]
+// CHECK-SPV-DAG: Store {{.*}} [[#B1]]
 // CHECK-SPV-DAG: Variable [[#ARRI32PTRTY]] [[#V2:]] [[#FUNCTIONSTORAGE]]
 // CHECK-SPV-DAG: Bitcast [[#I32PTRTY]] [[#B2:]] [[#V2]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B2]]
 // CHECK-SPV-DAG: Variable [[#ARRI64PTRTY]] [[#V3:]] [[#FUNCTIONSTORAGE]]
 // CHECK-SPV-DAG: Bitcast [[#I64PTRTY]] [[#B3:]] [[#V3]]
-// CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G3:]] [[#B3]]
-// CHECK-SPV-DAG: Store {{.*}} [[#G3]]
+// CHECK-SPV-DAG: Store {{.*}} [[#B3]]
 // CHECK-SPV-DAG: Variable [[#ARRCOMPPTRTY]] [[#V4:]] [[#FUNCTIONSTORAGE]]
 // CHECK-SPV-DAG: Bitcast [[#COMPPTRTY]] [[#B4:]] [[#V4]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B4]]

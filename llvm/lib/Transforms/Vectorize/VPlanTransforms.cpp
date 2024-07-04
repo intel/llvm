@@ -75,8 +75,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
           NewRecipe = new VPWidenGEPRecipe(GEP, Ingredient.operands());
         } else if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
           NewRecipe = new VPWidenCallRecipe(
-              *CI, drop_end(Ingredient.operands()),
-              getVectorIntrinsicIDForCall(CI, &TLI), CI->getDebugLoc());
+              CI, Ingredient.operands(), getVectorIntrinsicIDForCall(CI, &TLI),
+              CI->getDebugLoc());
         } else if (SelectInst *SI = dyn_cast<SelectInst>(Inst)) {
           NewRecipe = new VPWidenSelectRecipe(*SI, Ingredient.operands());
         } else if (auto *CI = dyn_cast<CastInst>(Inst)) {
@@ -452,8 +452,7 @@ static void removeRedundantCanonicalIVs(VPlan &Plan) {
   for (VPRecipeBase &Phi : HeaderVPBB->phis()) {
     auto *WidenOriginalIV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
 
-    if (!WidenOriginalIV || !WidenOriginalIV->isCanonical() ||
-        WidenOriginalIV->getScalarType() != WidenNewIV->getScalarType())
+    if (!WidenOriginalIV || !WidenOriginalIV->isCanonical())
       continue;
 
     // Replace WidenNewIV with WidenOriginalIV if WidenOriginalIV provides
@@ -936,6 +935,19 @@ static void simplifyRecipe(VPRecipeBase &R, VPTypeAnalysis &TypeInfo) {
 #endif
   }
 
+  // Simplify (X && Y) || (X && !Y) -> X.
+  // TODO: Split up into simpler, modular combines: (X && Y) || (X && Z) into X
+  // && (Y || Z) and (X || !X) into true. This requires queuing newly created
+  // recipes to be visited during simplification.
+  VPValue *X, *Y, *X1, *Y1;
+  if (match(&R,
+            m_c_BinaryOr(m_LogicalAnd(m_VPValue(X), m_VPValue(Y)),
+                         m_LogicalAnd(m_VPValue(X1), m_Not(m_VPValue(Y1))))) &&
+      X == X1 && Y == Y1) {
+    R.getVPSingleValue()->replaceAllUsesWith(X);
+    return;
+  }
+
   if (match(&R, m_CombineOr(m_Mul(m_VPValue(A), m_SpecificInt(1)),
                             m_Mul(m_SpecificInt(1), m_VPValue(A)))))
     return R.getVPSingleValue()->replaceAllUsesWith(A);
@@ -1306,8 +1318,16 @@ void VPlanTransforms::addActiveLaneMask(
 /// %NextEVLIV = add IVSize (cast i32 %VPEVVL to IVSize), %EVLPhi
 /// ...
 ///
-void VPlanTransforms::addExplicitVectorLength(VPlan &Plan) {
+bool VPlanTransforms::tryAddExplicitVectorLength(VPlan &Plan) {
   VPBasicBlock *Header = Plan.getVectorLoopRegion()->getEntryBasicBlock();
+  // The transform updates all users of inductions to work based on EVL, instead
+  // of the VF directly. At the moment, widened inductions cannot be updated, so
+  // bail out if the plan contains any.
+  if (any_of(Header->phis(), [](VPRecipeBase &Phi) {
+        return (isa<VPWidenIntOrFpInductionRecipe>(&Phi) ||
+                isa<VPWidenPointerInductionRecipe>(&Phi));
+      }))
+    return false;
   auto *CanonicalIVPHI = Plan.getCanonicalIV();
   VPValue *StartV = CanonicalIVPHI->getStartValue();
 
@@ -1341,8 +1361,6 @@ void VPlanTransforms::addExplicitVectorLength(VPlan &Plan) {
       auto *MemR = dyn_cast<VPWidenMemoryRecipe>(U);
       if (!MemR)
         continue;
-      assert(!MemR->isReverse() &&
-             "Reversed memory operations not supported yet.");
       VPValue *OrigMask = MemR->getMask();
       assert(OrigMask && "Unmasked widen memory recipe when folding tail");
       VPValue *NewMask = HeaderMask == OrigMask ? nullptr : OrigMask;
@@ -1367,6 +1385,7 @@ void VPlanTransforms::addExplicitVectorLength(VPlan &Plan) {
   CanonicalIVIncrement->setOperand(0, CanonicalIVPHI);
   // TODO: support unroll factor > 1.
   Plan.setUF(1);
+  return true;
 }
 
 void VPlanTransforms::dropPoisonGeneratingRecipes(
@@ -1405,7 +1424,7 @@ void VPlanTransforms::dropPoisonGeneratingRecipes(
         // for dependence analysis). Instead, replace it with an equivalent Add.
         // This is possible as all users of the disjoint OR only access lanes
         // where the operands are disjoint or poison otherwise.
-        if (match(RecWithFlags, m_Or(m_VPValue(A), m_VPValue(B))) &&
+        if (match(RecWithFlags, m_BinaryOr(m_VPValue(A), m_VPValue(B))) &&
             RecWithFlags->isDisjoint()) {
           VPBuilder Builder(RecWithFlags);
           VPInstruction *New = Builder.createOverflowingOp(

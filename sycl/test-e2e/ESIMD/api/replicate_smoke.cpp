@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
 //
 // UNSUPPORTED: gpu-intel-pvc
 // TODO: remove fno-fast-math option once the issue is investigated and the test
@@ -17,20 +15,13 @@
 //
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
 
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
-
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
-
+namespace syclex = sycl::ext::oneapi::experimental;
 template <class T> struct char_to_int {
   using type = typename std::conditional<
       sizeof(T) == 1,
@@ -186,6 +177,8 @@ int main(int argc, char **argv) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto dev = q.get_device();
   const bool doublesSupported = dev.has(sycl::aspect::fp64);
+  syclex::architecture arch =
+      dev.get_info<syclex::info::device::architecture>();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
   bool passed = true;
@@ -196,7 +189,8 @@ int main(int argc, char **argv) {
   passed &= test<short>(q);
   passed &= test<unsigned short>(q);
   passed &= test<int>(q);
-  passed &= test<uint64_t>(q);
+  if (arch > syclex::architecture::intel_gpu_dg1)
+    passed &= test<uint64_t>(q);
   passed &= test<float>(q);
 #ifdef USE_TF32
   passed &= test<tfloat32>(q);
