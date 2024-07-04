@@ -308,14 +308,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
         syclex::info::kernel_queue_specific::max_num_work_group_sync>(
         const queue &Queue) const {
   const auto &Device = Queue.get_device();
-  // Prevent out of launch resources for Cuda if this is used for calculating
-  // the total work group size for kernel launches, by restricting the max size
-  // to the kernel_device_specific maximum.
   const auto MaxWorkGroupSize =
-      (Device.get_backend() == backend::ext_oneapi_cuda)
-          ? get_info<info::kernel_device_specific::work_group_size>(Device)
-          : Device.get_info<info::device::max_work_group_size>();
-
+      get_info<info::kernel_device_specific::work_group_size>(Device);
   return ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_group_sync>(
       Queue, sycl::range{MaxWorkGroupSize, 1, 1},
