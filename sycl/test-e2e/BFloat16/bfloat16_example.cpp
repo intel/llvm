@@ -2,7 +2,7 @@
 /// Check if bfloat16 example works using fallback libraries
 ///
 
-// REQUIRES: opencl-aot, ocloc, gpu-intel-gen9
+// REQUIRES: opencl-aot, ocloc, gpu-intel-gen12
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 // UNSUPPORTED: accelerator
@@ -13,16 +13,16 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9" %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen12" %s -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device *" %s -o %t.out
 // RUN: %if gpu %{ %{run} %t.out %}
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen12" %s -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen12" %s -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -o %t.out
