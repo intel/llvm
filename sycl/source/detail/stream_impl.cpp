@@ -19,12 +19,6 @@ inline namespace _V1 {
 namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
-                         handler &CGH)
-    : stream_impl(BufferSize, MaxStatementSize, {}) {
-  (void)CGH;
-}
-
-stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
                          const property_list &PropList)
     : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize),
       PropList_(PropList), Buf_(range<1>(BufferSize + OffsetSize + 1)),
@@ -72,73 +66,43 @@ size_t stream_impl::get_work_item_buffer_size() const {
   return MaxStatementSize_;
 }
 
-size_t stream_impl::get_size() const { return BufferSize_; }
+void stream_impl::generateFlushCommand(handler &cgh) {
+  // Create accessor to the flush buffer even if not using it yet. Otherwise
+  // kernel will be a leaf for the flush buffer and scheduler will not be able
+  // to cleanup the kernel. TODO: get rid of finalize method by using host
+  // accessor to the flush buffer.
+  host_accessor<char, 1, access::mode::read_write> FlushBuffHostAcc(FlushBuf_,
+                                                                    cgh);
+  host_accessor<char, 1, access::mode::read_write> BufHostAcc(
+      Buf_, cgh, range<1>(BufferSize_), id<1>(OffsetSize));
 
-size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
-
-void stream_impl::initStreamHost(QueueImplPtr Queue) {
-  // Real size of full flush buffer is saved only in buffer_impl field of
-  // FlushBuf object.
-  size_t FlushBufSize = getSyclObjImpl(FlushBuf_)->size();
-
-  auto Q = createSyclObjFromImpl<queue>(Queue);
-  Q.submit([&](handler &cgh) {
-    auto FlushBufAcc = FlushBuf_.get_access<access::mode::discard_write,
-                                            access::target::host_buffer>(
-        cgh, range<1>(1), id<1>(0));
-    cgh.host_task([=] {
-      char *FlushBufPtr = FlushBufAcc.get_pointer();
-      std::memset(FlushBufPtr, 0, FlushBufSize);
-    });
+  cgh.host_task([=] {
+    if (!BufHostAcc.empty()) {
+      // SYCL 2020, 4.16:
+      // > If the totalBufferSize or workItemBufferSize limits are exceeded,
+      // > it is implementation-defined whether the streamed characters
+      // > exceeding the limit are output, or silently ignored/discarded, and
+      // > if output it is implementation-defined whether those extra
+      // > characters exceeding the workItemBufferSize limit count toward the
+      // > totalBufferSize limit. Regardless of this implementation defined
+      // > behavior of output exceeding the limits, no undefined or erroneous
+      // > behavior is permitted of an implementation when the limits are
+      // > exceeded.
+      //
+      // Defend against zero-sized buffers (although they'd have no practical
+      // use).
+      printf("%s", &(BufHostAcc[0]));
+    }
+    fflush(stdout);
   });
 }
 
-void stream_impl::flush(const EventImplPtr &LeadEvent) {
-  // We don't want stream flushing to be blocking operation that is why submit a
-  // host task to print stream buffer. It will fire up as soon as the kernel
-  // finishes execution.
-  auto Q = detail::createSyclObjFromImpl<queue>(
-      sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
-  event Event = Q.submit([&](handler &cgh) {
-    auto BufHostAcc =
-        Buf_.get_access<access::mode::read_write, access::target::host_buffer>(
-            cgh, range<1>(BufferSize_), id<1>(OffsetSize));
-    // Create accessor to the flush buffer even if not using it yet. Otherwise
-    // kernel will be a leaf for the flush buffer and scheduler will not be able
-    // to cleanup the kernel. TODO: get rid of finalize method by using host
-    // accessor to the flush buffer.
-    auto FlushBufHostAcc =
-        FlushBuf_
-            .get_access<access::mode::read_write, access::target::host_buffer>(
-                cgh);
-    cgh.host_task([=] {
-      if (!BufHostAcc.empty()) {
-        // SYCL 2020, 4.16:
-        // > If the totalBufferSize or workItemBufferSize limits are exceeded,
-        // > it is implementation-defined whether the streamed characters
-        // > exceeding the limit are output, or silently ignored/discarded, and
-        // > if output it is implementation-defined whether those extra
-        // > characters exceeding the workItemBufferSize limit count toward the
-        // > totalBufferSize limit. Regardless of this implementation defined
-        // > behavior of output exceeding the limits, no undefined or erroneous
-        // > behavior is permitted of an implementation when the limits are
-        // > exceeded.
-        //
-        // Defend against zero-sized buffers (although they'd have no practical
-        // use).
-        printf("%s", &(BufHostAcc[0]));
-      }
-      fflush(stdout);
-    });
-  });
-  if (LeadEvent) {
-    LeadEvent->attachEventToComplete(detail::getSyclObjImpl(Event));
-    LeadEvent->getSubmittedQueue()->registerStreamServiceEvent(
-        detail::getSyclObjImpl(Event));
-  }
-}
+// ABI break: remove
+void stream_impl::initStreamHost(QueueImplPtr) {}
 
-void stream_impl::flush() { flush(nullptr); }
+// ABI break: remove
+void stream_impl::flush(const EventImplPtr &) {}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

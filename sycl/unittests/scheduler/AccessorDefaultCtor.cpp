@@ -21,7 +21,8 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
 
   std::vector<detail::Command *> ToEnqueue;
 
-  MockHandlerCustomFinalize MockCGH(QueueDevImpl, false);
+  MockHandlerCustomFinalize MockCGH(QueueDevImpl, false,
+                                    /*CallerNeedsEvent=*/true);
 
   sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>
       B;
@@ -33,8 +34,8 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-  detail::Command *NewCmd =
-      MS.addCG(std::move(CmdGroup), QueueDevImpl, ToEnqueue);
+  detail::Command *NewCmd = MS.addCG(std::move(CmdGroup), QueueDevImpl,
+                                     ToEnqueue, /*EventNeeded=*/true);
 
   // if MDeps is empty, accessor built from default ctor does not affect
   // dependency graph in accordance with SYCL 2020

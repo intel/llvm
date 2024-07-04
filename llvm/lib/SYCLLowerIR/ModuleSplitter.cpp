@@ -29,6 +29,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -133,10 +134,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   }
 
   return false;
-}
-
-bool isESIMDFunction(const Function &F) {
-  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
 
 // Represents "dependency" or "use" graph of global objects (functions and
@@ -444,6 +441,10 @@ private:
 namespace llvm {
 namespace module_split {
 
+bool isESIMDFunction(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
 cl::OptionCategory &getModuleSplitCategory() {
   static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
   return ModuleSplitCategory;
@@ -643,6 +644,14 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
+// Predicate for Internalize pass.
+bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV))
+    if (!canBeImportedFunction(*F))
+      return false;
+  return true;
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -650,6 +659,8 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
+  if (SupportDynamicLinking)
+    MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.

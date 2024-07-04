@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 45c34290e192faebd160d3d6c3f697a9e15ede1e
-  # Merge: b854c86a 8bf55967
-  # Author: Callum Fare <callum@codeplay.com>
-  # Date:   Wed Jun 26 14:25:00 2024 +0100  
-  #     Merge pull request #1637 from yingcong-wu/yc/devicesan/fix-free-problems-0517    
-  #     [DeviceSanitizer] refactor options handling and fix use-after-free related problem
-  set(UNIFIED_RUNTIME_TAG 45c34290e192faebd160d3d6c3f697a9e15ede1e)
+  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
+  # Merge: 7b640455 abab204d
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jul 2 13:52:21 2024 +0100
+  #     Merge pull request #1696 from nrspruit/l0_windows_interop
+  #     [L0] Support for Bindless Image Import
+  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

@@ -71,9 +71,8 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 cl_device_id device::get() const { return impl->get(); }
 
 bool device::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost && "device::is_host should not be called in implementation.");
-  return IsHost;
+  assert(false && "device::is_host should not be called in implementation.");
+  return false;
 }
 
 bool device::is_cpu() const { return impl->is_cpu(); }
@@ -156,16 +155,9 @@ device::get_info_impl<info::device::aspects>() const {
 #undef __SYCL_ASPECT
   };
 
-  auto UnsupportedAspects = std::remove_if(
-      DeviceAspects.begin(), DeviceAspects.end(), [&](aspect Aspect) {
-        try {
-          return !impl->has(Aspect);
-        } catch (const runtime_error &ex) {
-          if (ex.get_cl_code() == PI_ERROR_INVALID_DEVICE)
-            return true;
-          throw;
-        }
-      });
+  auto UnsupportedAspects =
+      std::remove_if(DeviceAspects.begin(), DeviceAspects.end(),
+                     [&](aspect Aspect) { return !impl->has(Aspect); });
 
   DeviceAspects.erase(UnsupportedAspects, DeviceAspects.end());
 
