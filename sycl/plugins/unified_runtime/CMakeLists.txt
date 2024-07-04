@@ -99,8 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG aaron/specMotivatedRefactors)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e
+  # Merge: 022df8ac 2f121cd8
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Jul 4 10:37:58 2024 +0100
+  #     Merge pull request #1212 from aarongreig/aaron/specMotivatedRefactors
+  #     Batch adapter changes: spec motivated refactors
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
