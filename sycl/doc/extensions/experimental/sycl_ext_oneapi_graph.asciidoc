@@ -1442,7 +1442,7 @@ The alternative `queue_state::recording` state is used for graph construction.
 Instead of being scheduled for execution, command-groups submitted to the queue
 are recorded to a graph object as new nodes for each submission. After recording
 has finished and the queue returns to the executing state, the recorded commands are
-not then executed, they are transparent to any following queue operations. The state
+not executed, they are transparent to any following queue operations. The state
 of a queue can be queried with `queue::ext_oneapi_get_state()`.
 
 .Queue State Diagram
@@ -1453,7 +1453,18 @@ graph LR
     Recording -->|End Recording| Executing
 ....
 
-==== Queue Properties
+==== Implicit Queue Recording
+
+Submitting a command-group to a queue can implicitly change its state
+to `queue_state::recording`. This will occur when the command-group depends on
+an event that has been returned by a queue in the recording state.
+
+A queue whose state has been set to `queue_state::recording` using this
+mechanism, will behave as if it had been passed as an argument to
+`command_graph::begin_recording()`. In particular, its state will not
+change again until `command_graph::end_recording()` is called.
+
+==== Queue Properties;
 
 :queue-properties: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:queue-properties
 
