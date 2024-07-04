@@ -23,6 +23,7 @@
 #pragma once
 
 #include <cstddef>
+#include <sycl/detail/core.hpp>
 #include <type_traits>
 
 namespace syclcompat {
@@ -41,14 +42,57 @@ template <typename T> struct arith {
 };
 template <typename T> using arith_t = typename arith<T>::type;
 
-//TODO: naming
+// Traits to check device function signature matches args (with or without local
+// mem)
+// TODO: naming
 template <auto F, typename... Args>
-constexpr inline bool invocable = std::is_invocable<decltype(F), Args...>::value;
+constexpr inline bool invocable =
+    std::is_invocable<decltype(F), Args...>::value;
 
 template <auto F, typename... Args>
-constexpr inline bool lmem_invocable = std::is_invocable<decltype(F), Args..., char *>::value;
+constexpr inline bool lmem_invocable =
+    std::is_invocable<decltype(F), Args..., char *>::value;
 
 template <auto F, typename... Args>
-constexpr inline bool args_compatible = invocable<F, Args...> || lmem_invocable<F, Args...>;
+constexpr inline bool args_compatible =
+    invocable<F, Args...> || lmem_invocable<F, Args...>;
+
+namespace detail {
+// Trait for identifying sycl::range and sycl::nd_range.
+// Lifted from sycl/include/sycl/ext/oneapi/experimental/enqueue_functions.hpp
+template <typename RangeT> struct is_range_or_nd_range : std::false_type {};
+template <int Dimensions>
+struct is_range_or_nd_range<sycl::range<Dimensions>> : std::true_type {};
+template <int Dimensions>
+struct is_range_or_nd_range<sycl::nd_range<Dimensions>> : std::true_type {};
+
+template <typename RangeT>
+constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
+
+// Trait to extract dimension from range & nd_range
+template <typename T> struct range_dimension;
+
+template <template <int Dim> typename RangeT, int RangeDim>
+struct range_dimension<RangeT<RangeDim>> {
+  static_assert(is_range_or_nd_range_v<RangeT<RangeDim>>);
+  static constexpr int Dim = RangeDim;
+};
+
+template <typename RangeT>
+constexpr int range_dimension_v = range_dimension<RangeT>::Dim;
+
+// Trait range_to_item_t to convert nd_range -> nd_item, range -> item
+template <typename T> struct range_to_item_map;
+template <int Dim> struct range_to_item_map<sycl::nd_range<Dim>> {
+  using ItemT = sycl::nd_item<Dim>;
+};
+template <int Dim> struct range_to_item_map<sycl::range<Dim>> {
+  using ItemT = sycl::item<Dim>;
+};
+
+template <typename T>
+using range_to_item_t = typename range_to_item_map<T>::ItemT;
+
+} // namespace detail
 
 } // namespace syclcompat

@@ -40,22 +40,49 @@ namespace experimental {
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 // launch_strategy is constructed by the user & passed to `compat_exp::launch`
-template <typename RangeT, typename KProps, typename LProps>
+template <typename Range, typename KProps, typename LProps>
 struct launch_strategy {
   static_assert(sycl_exp::is_property_list_v<KProps>);
   static_assert(sycl_exp::is_property_list_v<LProps>);
+  static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
 
   using KPropsT = KProps;
+  using RangeT = Range;
+  static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
-  launch_strategy(RangeT range, KProps kprops, LProps lprops, size_t lmem_size)
+  // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
+  launch_strategy(Range range, KProps kprops, LProps lprops, size_t lmem_size)
       : range{range}, kernel_properties{kprops}, launch_properties{lprops},
         local_mem_size{lmem_size} {}
 
-  RangeT range;
+  // Ctor taking just dim3 global range (converts to sycl::range<3>)
+  launch_strategy(dim3 global_range, KProps kprops, LProps lprops,
+                  size_t lmem_size)
+      : range{global_range}, kernel_properties{kprops},
+        launch_properties{lprops}, local_mem_size{lmem_size} {}
+
+  // Ctor taking pair of dim3 (converts to sycl::nd_range<3>)
+  launch_strategy(dim3 global_range, dim3 work_group_range, KProps kprops,
+                  LProps lprops, size_t lmem_size)
+      : range{global_range, work_group_range}, kernel_properties{kprops},
+        launch_properties{lprops}, local_mem_size{lmem_size} {}
+
+  Range range;
   KProps kernel_properties;
   LProps launch_properties;
   size_t local_mem_size;
 };
+
+// Deduction guides for launch_strategy dim3 ctors
+template <typename KProps, typename LProps>
+launch_strategy(dim3 global_range, KProps kprops, LProps lprops,
+                size_t lmem_size)
+    -> launch_strategy<sycl::range<3>, KProps, LProps>;
+
+template <typename KProps, typename LProps>
+launch_strategy(dim3 global_range, dim3 work_group_range, KProps kprops,
+                LProps lprops, size_t lmem_size)
+    -> launch_strategy<sycl::nd_range<3>, KProps, LProps>;
 
 template <typename T> struct is_launch_strategy : std::false_type {};
 
@@ -65,13 +92,10 @@ struct is_launch_strategy<launch_strategy<RangeT, KProps, LProps>> : std::true_t
 template <typename T>
 inline constexpr bool is_launch_strategy_v = is_launch_strategy<T>::value;
 
-// TODO: assert RangeT is nd_range or range
-// TODO: ctors taking `dim3`, `dim3, dim3`
-
 
 namespace detail {
 
-template <auto F, typename KProps, typename... Args> struct KernelFunctor {
+template <auto F, typename Range, typename KProps, typename... Args> struct KernelFunctor {
   KernelFunctor(KProps kernel_props, Args... args)
       : kernel_properties{kernel_props},
         argument_tuple(std::make_tuple(args...)) {}
@@ -84,7 +108,7 @@ template <auto F, typename KProps, typename... Args> struct KernelFunctor {
   auto get(sycl_exp::properties_tag) { return kernel_properties; }
 
   __syclcompat_inline__ inline void
-  operator()(sycl::nd_item<1> it) const { // TODO: nd_item DIM template here
+  operator()(syclcompat::detail::range_to_item_t<Range> it) const {
     if constexpr (syclcompat::lmem_invocable<F, Args...>) {
       char *local_mem_ptr = static_cast<char *>(
           local_acc.get_multi_ptr<sycl::access::decorated::no>());
@@ -116,12 +140,14 @@ sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) 
                                                  cgh);
       sycl_exp::nd_launch(
           cgh, config,
-          KernelFunctor<F, typename LaunchStrategy::KPropsT, Args...>(
+          KernelFunctor<F, typename LaunchStrategy::RangeT,
+                        typename LaunchStrategy::KPropsT, Args...>(
               launch_strategy.kernel_properties, local_memory, args...));
     } else {
       sycl_exp::nd_launch(
           cgh, config,
-          KernelFunctor<F, typename LaunchStrategy::KPropsT, Args...>(
+          KernelFunctor<F, typename LaunchStrategy::RangeT,
+                        typename LaunchStrategy::KPropsT, Args...>(
               launch_strategy.kernel_properties, args...));
     }
   });

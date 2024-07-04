@@ -90,7 +90,8 @@ int test_basic_launch() {
 
   compat_exp::launch_strategy my_config(
       sycl::nd_range<1>{{32}, {32}},
-      sycl_exp::properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
+      sycl_exp::properties{sycl_exp::sub_group_size<32>,
+                           sycl_exp::use_root_sync, my_cache_config},
       sycl_exp::properties{}, 0);
 
   //TODO: deal with initializer list ctor here
@@ -145,6 +146,30 @@ int test_lmem_launch() {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
   }
   syclcompat::free(h_a);
+  return 0;
+}
+
+int test_dim3_launch_strategy() {
+
+  compat_exp::launch_strategy my_range_config(
+      syclcompat::dim3{32}, sycl_exp::properties{}, sycl_exp::properties{}, 0);
+
+  static_assert(
+      std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);
+
+  compat_exp::launch_strategy my_nd_range_config(
+      syclcompat::dim3{32}, syclcompat::dim3{32}, sycl_exp::properties{},
+      sycl_exp::properties{}, 0);
+
+  static_assert(
+      std::is_same_v<decltype(my_nd_range_config)::RangeT, sycl::nd_range<3>>);
+
+
+  compat_exp::launch<empty_kernel>(my_range_config).wait();
+  std::cout << "Launched 1 succesfully" << std::endl;
+  compat_exp::launch<empty_kernel>(my_nd_range_config).wait();
+  std::cout << "Launched 2 succesfully" << std::endl;
+
   return 0;
 }
 
