@@ -176,7 +176,7 @@ asynchronous memcpy submitted to the native queue obtained by
 dependencies, and therefore will only start once its dependent events have
 completed.
 
-By contrast, when using a `host_task`, it is guaranteed that the print statment
+By contrast, when using a `host_task`, it is guaranteed that the print statement
 will only happen once the host task's dependent events are observed to be
 complete on the host.
 
