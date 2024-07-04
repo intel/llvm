@@ -58,7 +58,7 @@ specification.*
 
 == Overview
 
-This extension is based on the kernel-queue-specific specific querying mechanism
+This extension is based on the kernel-queue-specific querying mechanism
 introduced by the sycl_ext_oneapi_launch_queries extension.
 
 The purpose of queries the to be added is to aid occupancy based calculations
