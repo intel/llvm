@@ -259,7 +259,7 @@ For more information about the usage of mentioned environment variables see `Env
 Mocking
 ---------------------
 A mock UR adapter can be accessed for test purposes by enabling it via
-${x}LoaderConfigSetMockingEnabled. 
+${x}LoaderConfigSetMockingEnabled.
 
 The default fallback behavior for entry points in the mock adapter is to simply
 return ``UR_RESULT_SUCCESS``. For entry points concerning handles, i.e. those

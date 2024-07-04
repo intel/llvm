@@ -122,18 +122,6 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     // forward to device-platform
     result = pfnAdapterRetain(hAdapter);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hAdapter = reinterpret_cast<ur_adapter_handle_t>(
-            ur_adapter_factory.getInstance(*hAdapter, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -615,18 +603,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     // forward to device-platform
     result = pfnRetain(hDevice);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hDevice = reinterpret_cast<ur_device_handle_t>(
-            ur_device_factory.getInstance(*hDevice, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -903,18 +879,6 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
     // forward to device-platform
     result = pfnRetain(hContext);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hContext = reinterpret_cast<ur_context_handle_t>(
-            ur_context_factory.getInstance(*hContext, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     return result;
 }
@@ -1221,18 +1185,6 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 
     // forward to device-platform
     result = pfnRetain(hMem);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hMem = reinterpret_cast<ur_mem_handle_t>(
-            ur_mem_factory.getInstance(*hMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     return result;
 }
@@ -1591,18 +1543,6 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 
     // forward to device-platform
     result = pfnRetain(hSampler);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hSampler = reinterpret_cast<ur_sampler_handle_t>(
-            ur_sampler_factory.getInstance(*hSampler, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     return result;
 }
@@ -2039,18 +1979,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     // forward to device-platform
     result = pfnPoolRetain(pPool);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
-            ur_usm_pool_factory.getInstance(*pPool, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -2438,18 +2366,6 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     // forward to device-platform
     result = pfnRetain(hPhysicalMem);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hPhysicalMem = reinterpret_cast<ur_physical_mem_handle_t>(
-            ur_physical_mem_factory.getInstance(*hPhysicalMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -2697,18 +2613,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 
     // forward to device-platform
     result = pfnRetain(hProgram);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hProgram = reinterpret_cast<ur_program_handle_t>(
-            ur_program_factory.getInstance(*hProgram, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     return result;
 }
@@ -3300,18 +3204,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     // forward to device-platform
     result = pfnRetain(hKernel);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hKernel = reinterpret_cast<ur_kernel_handle_t>(
-            ur_kernel_factory.getInstance(*hKernel, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -3759,18 +3651,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     // forward to device-platform
     result = pfnRetain(hQueue);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hQueue = reinterpret_cast<ur_queue_handle_t>(
-            ur_queue_factory.getInstance(*hQueue, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -4078,18 +3958,6 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 
     // forward to device-platform
     result = pfnRetain(hEvent);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hEvent = reinterpret_cast<ur_event_handle_t>(
-            ur_event_factory.getInstance(*hEvent, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     return result;
 }
@@ -6756,19 +6624,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     // forward to device-platform
     result = pfnRetainExp(hCommandBuffer);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *hCommandBuffer = reinterpret_cast<ur_exp_command_buffer_handle_t>(
-            ur_exp_command_buffer_factory.getInstance(*hCommandBuffer,
-                                                      dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -7513,12 +7368,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 
     // forward to device-platform
     result = pfnRetainCommandExp(hCommand);
-
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
-    // TODO: do we need to ref count the loader handles?
 
     return result;
 }

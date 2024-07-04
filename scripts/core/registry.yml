@@ -594,7 +594,7 @@ etors:
   value: '228'
 - name: LOADER_CONFIG_SET_MOCKING_ENABLED
   desc: Enumerator for $xLoaderConfigSetMockingEnabled
-  value: '231'
+  value: '229'
 ---
 type: enum
 desc: Defines structure types
