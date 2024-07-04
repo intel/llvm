@@ -9,7 +9,7 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Unified Runtime Experimental API for enqueuing work through native APIs"
+desc: "Intel $OneApi Unified Runtime Experimental API for mapping tensor objects"
 ordinal: "100"
 
 --- #--------------------------------------------------------------------------
@@ -125,7 +125,7 @@ params:
       desc: "[in] Array containing tensor size (number of elements) along each of the TensorRank dimensions."
     - type: const uint64_t*
       name: GlobalStrides
-      desc: "[in] Array containing stride size (in bytes) along each of the tensorRank - 1 dimensions."
+      desc: "[in] Array containing stride size (in bytes) along each of the TensorRank - 1 dimensions."
     - type: const int*
       name: PixelBoxLowerCorner
       desc: "[in] Array containing DHW dimensions of lower box corner."
@@ -140,7 +140,7 @@ params:
       desc: "[in] Number of pixels per column."
     - type: const uint32_t*
       name: ElementStrides
-      desc: "[in] Array containing traversal stride in each of the tensorRank dimensions."
+      desc: "[in] Array containing traversal stride in each of the TensorRank dimensions."
     - type: $x_exp_tensor_map_interleave_flags_t
       name: Interleave
       desc: "[in] Type of interleaved layout the tensor addresses"
@@ -152,10 +152,13 @@ params:
       desc: "[in] L2 promotion size."
     - type: $x_exp_tensor_map_oob_fill_flags_t
       name: OobFill
-      desc: "[in] Indicate whether zero or special NaN constant will be used to fill out-of-bound elements."
+      desc: "[in] Indicates whether zero or special NaN constant will be used to fill out-of-bounds elements."
     - type: $x_exp_tensor_map_handle_t*
       name: hTensorMap
       desc: "[out] Handle of the tensor map object."
+returns:
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+        - "`TensorRank < 3`"
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -182,13 +185,13 @@ params:
       desc: "[in] Array containing tensor size (number of elements) along each of the TensorRank dimensions."
     - type: const uint64_t*
       name: GlobalStrides
-      desc: "[in] Array containing stride size (in bytes) along each of the tensorRank - 1 dimensions."
+      desc: "[in] Array containing stride size (in bytes) along each of the TensorRank - 1 dimensions."
     - type: const uint32_t*
       name: BoxDim
-      desc: "[in] Array containing traversal box size (number of elments) along each of the tensorRank dimensions. Specifies how many elements to be traversed along each tensor dimension."
+      desc: "[in] Array containing traversal box size (number of elments) along each of the TensorRank dimensions. Specifies how many elements to be traversed along each tensor dimension."
     - type: const uint32_t*
       name: ElementStrides
-      desc: "[in] Array containing traversal stride in each of the tensorRank dimensions."
+      desc: "[in] Array containing traversal stride in each of the TensorRank dimensions."
     - type: $x_exp_tensor_map_interleave_flags_t
       name: Interleave
       desc: "[in] Type of interleaved layout the tensor addresses"
@@ -200,8 +203,11 @@ params:
       desc: "[in] L2 promotion size."
     - type: $x_exp_tensor_map_oob_fill_flags_t
       name: OobFill
-      desc: "[in] Indicate whether zero or special NaN constant will be used to fill out-of-bound elements."
+      desc: "[in] Indicates whether zero or special NaN constant will be used to fill out-of-bounds elements."
     - type: $x_exp_tensor_map_handle_t*
       name: hTensorMap
       desc: "[out] Handle of the tensor map object."
+returns:
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+        - "`TensorRank < 3`"
 
