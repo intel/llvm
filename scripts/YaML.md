@@ -625,7 +625,7 @@ class ur_name_t(Structure):
       - `range` is used for params that are array pointers to specify the valid range that the is valid to read
         + `start` and `end` must be an ISO-C standard identifier or literal
         + `start` is inclusive and `end` is exclusive
-      - `release` is used for params that are handles or pointers to handles where the function will destroy any backing memory associated with the handle(s)
+      - `release` is used for params that are handles or pointers to handles where the function will decrement the handle's reference count, potentially leaving it in an invalid state if the reference count reaches zero.
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
       - `bounds` is used for params that are memory objects or USM allocations. It specifies the range within the memory allocation represented by the param that will be accessed by the operation.
         + `offset` and `size` must be an ISO-C standard identifier or literal
