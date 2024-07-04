@@ -29,6 +29,7 @@ set(LLVM_LINK_COMPONENTS
   ScalarOpts
   Support
   SYCLLowerIR
+  SYCLNativeCPUUtils
   Target
   TargetParser
   TransformUtils
