@@ -22,12 +22,9 @@
   } while (false)
 
 #define CHECK_AND_EXIT(E)                                                      \
-  {                                                                            \
-    Error LocE = std::move(E);                                                 \
-    if (LocE) {                                                                \
-      logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
-      exit(1);                                                                 \
-    }                                                                          \
+  if (Error LocE = E) {                                                        \
+    logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));          \
+    exit(1);                                                                   \
   }
 
 namespace llvm {

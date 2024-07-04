@@ -1154,8 +1154,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD.releaseModulePtr()),
-                        std::move(EntryPointGroups[0]), MD.Props);
+    Result.emplace_back(MD.releaseModulePtr(), std::move(EntryPointGroups[0]),
+                        MD.Props);
     return Result;
   }
 
@@ -1164,8 +1164,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(
-          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1173,9 +1172,9 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // modules are expected to be linked back together after ESIMD functions
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
-      Result.emplace_back(std::move(extractCallGraph(
+      Result.emplace_back(extractCallGraph(
           MD, std::move(Group), CG,
-          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
 
