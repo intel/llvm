@@ -6,8 +6,11 @@
 #ifndef UR_VALIDATION_TEST_HELPERS_H
 #define UR_VALIDATION_TEST_HELPERS_H
 
+#include <atomic>
 #include <gtest/gtest.h>
+
 #include <ur_api.h>
+#include <ur_mock_helpers.hpp>
 
 struct urTest : ::testing::Test {
 
@@ -123,23 +126,47 @@ struct valAllDevicesTest : valPlatformTest {
     std::vector<ur_device_handle_t> devices;
 };
 
+// We use this to avoid segfaults in the mock adapter when we're doing stuff
+// like double releases in the leak detection tests.
+inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; };
+
+// This returns valid (non-null) handles that we can safely leak.
+inline ur_result_t fakeContext_urContextCreate(void *pParams) {
+    static std::atomic_int handle = 1;
+    auto params = *static_cast<ur_context_create_params_t *>(pParams);
+    **params.pphContext = reinterpret_cast<ur_context_handle_t>(handle++);
+    return UR_RESULT_SUCCESS;
+}
+
 struct valDeviceTest : valAllDevicesTest {
 
     void SetUp() override {
         valAllDevicesTest::SetUp();
         ASSERT_GE(devices.size(), 1);
         device = devices[0];
+        mock::getCallbacks().set_replace_callback("urContextRetain",
+                                                  &genericSuccessCallback);
+        mock::getCallbacks().set_replace_callback("urContextRelease",
+                                                  &genericSuccessCallback);
+        mock::getCallbacks().set_replace_callback("urContextCreate",
+                                                  &fakeContext_urContextCreate);
+    }
+
+    void TearDown() override {
+        mock::getCallbacks().resetCallbacks();
+        valAllDevicesTest::TearDown();
     }
     ur_device_handle_t device;
 };
 
 struct valDeviceTestMultithreaded : valDeviceTest,
                                     public ::testing::WithParamInterface<int> {
-
     void SetUp() override {
         valDeviceTest::SetUp();
+
         threadCount = GetParam();
     }
+
     int threadCount;
 };
 

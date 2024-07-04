@@ -1,16 +1,16 @@
 {{IGNORE}}
-[ RUN      ] urTest.testUrAdapterGetLeak
+[ RUN      ] adapterLeakTest.testUrAdapterGetLeak
 <VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
 <VALIDATION>[ERROR]: Retained 1 reference(s) to handle {{[0-9xa-fA-F]+}}
 <VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
 {{IGNORE}}
-[ RUN      ] urTest.testUrAdapterRetainLeak
+[ RUN      ] adapterLeakTest.testUrAdapterRetainLeak
 <VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
 <VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 2
 <VALIDATION>[ERROR]: Retained 2 reference(s) to handle {{[0-9xa-fA-F]+}}
 <VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
 {{IGNORE}}
-[ RUN      ] urTest.testUrAdapterRetainNonexistent
+[ RUN      ] adapterLeakTest.testUrAdapterRetainNonexistent
 <VALIDATION>[ERROR]: Attempting to retain nonexistent handle {{[0-9xa-fA-F]+}}
 {{IGNORE}}
 [ RUN      ] valDeviceTest.testUrContextCreateLeak
