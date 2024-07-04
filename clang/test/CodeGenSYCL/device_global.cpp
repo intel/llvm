@@ -139,7 +139,7 @@ device_global<int> same_name;
 // CHECK: [[ANN_private_copies:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:8}{private_copies:8}{{.*}}
 // CHECK: @counter = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.3" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS:[0-9]+]]
 // CHECK: @counter1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.4" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS1:[0-9]+]]
-// CHECK: [[ANN_max_replicates1:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{max_replicates:2}{{.*}} 
+// CHECK: [[ANN_max_replicates1:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{max_replicates:2}{{.*}}
 // CHECK: @counter2 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.5" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS2:[0-9]+]]
 // CHECK: [[ANN_bankwidth1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{bankwidth:2}{{.*}}
 // CHECK: @counter3 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.6" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS3:[0-9]+]]

@@ -5886,9 +5886,17 @@ void CodeGenModule::generateIntelFPGAAnnotation(
   }
 }
 
+/**
+ * Adds global Intel FPGA annotations for a given variable declaration.
+ * This function handles both simple global variables and fields within
+ * structs that are annotated with Intel FPGA attributes. For structs,
+ * it recursively visits all fields and base classes to collect annotations.
+ *
+ * @param VD The variable declaration to annotate.
+ * @param GV The LLVM GlobalValue corresponding to the variable declaration.
+ */
 void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
                                                  llvm::GlobalValue *GV) {
-
   SmallString<256> AnnotStr;
   // Handle annotations for fields within a device_global struct.
   if (VD->getType()->isRecordType()) {
@@ -5897,12 +5905,14 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
       const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getDecl());
       for (const auto *Field : RD->fields()) {
         generateIntelFPGAAnnotation(Field, AnnotStr);
-        if (const auto FT = Field->getType()
-                              ->getPointeeOrArrayElementType() // Strip pointers
-                              ->getAs<RecordType>())
+        if (const auto *FT =
+                Field->getType()
+                    ->getPointeeOrArrayElementType() // Strip pointers/arrays
+                    ->getAs<RecordType>())
           Gen(FT, Gen);
       }
-      for (const auto Base : RD->bases()) { // Make sure to visit bases
+      // Iterate over the base classes of the struct.
+      for (const auto Base : RD->bases()) {
         QualType BaseTy = Base.getType();
         if (const auto *BRT = BaseTy->getAs<RecordType>())
           Gen(BRT, Gen);
@@ -5933,7 +5943,6 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
     Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
   }
 }
-
 
 /// Pass IsTentative as true if you want to create a tentative definition.
 void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
