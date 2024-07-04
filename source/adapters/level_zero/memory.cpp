@@ -18,6 +18,7 @@
 #include "image.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
 // Default to using compute engine for fill operation, but allow to
@@ -314,7 +315,7 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
     // indirect access, that is why explicitly retain context to be sure
     // that it is released after all memory allocations in this context are
     // released.
-    UR_CALL(urContextRetain(UrContext));
+    UR_CALL(ur::level_zero::urContextRetain(UrContext));
   }
 
   ZeStruct<ze_host_mem_alloc_desc_t> ZeDesc;
@@ -473,7 +474,9 @@ static ur_result_t enqueueMemImageCommandHelper(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
+namespace ur::level_zero {
+
+ur_result_t urEnqueueMemBufferRead(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
@@ -507,7 +510,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                               true /* PreferCopyEngine */);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+ur_result_t urEnqueueMemBufferWrite(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
@@ -544,7 +547,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                               true /* PreferCopyEngine */);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
+ur_result_t urEnqueueMemBufferReadRect(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
@@ -589,7 +592,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
+ur_result_t urEnqueueMemBufferWriteRect(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
@@ -636,7 +639,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
       phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
+ur_result_t urEnqueueMemBufferCopy(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_mem_handle_t BufferSrc, ///< [in] handle of the src buffer object
     ur_mem_handle_t BufferDst, ///< [in] handle of the dest buffer object
@@ -687,7 +690,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
+ur_result_t urEnqueueMemBufferCopyRect(
     ur_queue_handle_t Queue,    ///< [in] handle of the queue object
     ur_mem_handle_t BufferSrc,  ///< [in] handle of the source buffer object
     ur_mem_handle_t BufferDst,  ///< [in] handle of the dest buffer object
@@ -745,7 +748,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
+ur_result_t urEnqueueMemBufferFill(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Buffer,  ///< [in] handle of the buffer object
     const void *Pattern,     ///< [in] pointer to the fill pattern
@@ -778,7 +781,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       Size, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
+ur_result_t urEnqueueMemImageRead(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Image,   ///< [in] handle of the image object
     bool BlockingRead, ///< [in] indicates blocking (true), non-blocking (false)
@@ -809,7 +812,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
       EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
+ur_result_t urEnqueueMemImageWrite(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Image,   ///< [in] handle of the image object
     bool
@@ -841,7 +844,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
       EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
+ur_result_t urEnqueueMemImageCopy(
     ur_queue_handle_t Queue,    ///< [in] handle of the queue object
     ur_mem_handle_t ImageSrc,   ///< [in] handle of the src image object
     ur_mem_handle_t ImageDst,   ///< [in] handle of the dest image object
@@ -880,7 +883,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
+ur_result_t urEnqueueMemBufferMap(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Buf,     ///< [in] handle of the buffer object
     bool BlockingMap, ///< [in] indicates blocking (true), non-blocking (false)
@@ -959,10 +962,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     if (NumEventsInWaitList > 0)
-      UR_CALL(urEventWait(NumEventsInWaitList, EventWaitList));
+      UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
     if (Queue->isInOrderQueue())
-      UR_CALL(urQueueFinish(Queue));
+      UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
@@ -1048,7 +1051,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
+ur_result_t urEnqueueMemUnmap(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Mem, ///< [in] handle of the memory (buffer or image) object
     void *MappedPtr,     ///< [in] mapped host address
@@ -1115,10 +1118,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     if (NumEventsInWaitList > 0)
-      UR_CALL(urEventWait(NumEventsInWaitList, EventWaitList));
+      UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
     if (Queue->isInOrderQueue())
-      UR_CALL(urQueueFinish(Queue));
+      UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     char *ZeHandleDst;
     UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
@@ -1175,7 +1178,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
+ur_result_t urEnqueueUSMMemcpy(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     bool Blocking,           ///< [in] blocking or non-blocking copy
     void *Dst,       ///< [in] pointer to the destination USM memory object
@@ -1214,7 +1217,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+ur_result_t urEnqueueUSMPrefetch(
     ur_queue_handle_t Queue,        ///< [in] handle of the queue object
     const void *Mem,                ///< [in] pointer to the USM memory object
     size_t Size,                    ///< [in] size in bytes to be fetched
@@ -1282,7 +1285,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+ur_result_t urEnqueueUSMAdvise(
     ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     const void *Mem,              ///< [in] pointer to the USM memory object
     size_t Size,                  ///< [in] size in bytes to be advised
@@ -1340,7 +1343,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
+ur_result_t urEnqueueUSMFill2D(
     ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
     void *Mem,               ///< [in] pointer to memory to be filled.
     size_t Pitch, ///< [in] the total width of the destination memory including
@@ -1375,7 +1378,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
+ur_result_t urEnqueueUSMMemcpy2D(
     ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
     bool Blocking, ///< [in] indicates if this operation should block the host.
     void *Dst,     ///< [in] pointer to memory where data will be copied.
@@ -1497,7 +1500,7 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
+ur_result_t urMemImageCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     const ur_image_format_t
@@ -1546,7 +1549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+ur_result_t urMemImageCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t Context,  ///< [in] handle of the context object.
     [[maybe_unused]] const ur_image_format_t
@@ -1574,7 +1577,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
+ur_result_t urMemBufferCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     size_t Size, ///< [in] size in bytes of the memory object to be allocated
@@ -1668,14 +1671,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(
+ur_result_t urMemRetain(
     ur_mem_handle_t Mem ///< [in] handle of the memory object to get access
 ) {
   Mem->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
+ur_result_t urMemRelease(
     ur_mem_handle_t Mem ///< [in] handle of the memory object to release
 ) {
   if (!Mem->RefCount.decrementAndTest())
@@ -1701,7 +1704,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
+ur_result_t urMemBufferPartition(
     ur_mem_handle_t
         Buffer,           ///< [in] handle of the buffer object to allocate from
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
@@ -1737,7 +1740,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
+ur_result_t urMemGetNativeHandle(
     ur_mem_handle_t Mem, ///< [in] handle of the mem.
     ur_device_handle_t,  ///< [in] handle of the device.
     ur_native_handle_t
@@ -1751,7 +1754,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+ur_result_t urMemBufferCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t Context,  ///< [in] handle of the context object.
     const ur_mem_native_properties_t
@@ -1818,7 +1821,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ContextsLock.lock();
     // Retain context to be sure that it is released after all memory
     // allocations in this context are released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
 
     Context->MemAllocs.emplace(std::piecewise_construct,
                                std::forward_as_tuple(Ptr),
@@ -1854,7 +1857,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
+ur_result_t urMemGetInfo(
     ur_mem_handle_t Memory, ///< [in] handle to the memory object being queried.
     ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
     size_t PropSize, ///< [in] the number of bytes of memory pointed to by
@@ -1890,7 +1893,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
+ur_result_t urMemImageGetInfo(
     ur_mem_handle_t Memory, ///< [in] handle to the image object being queried.
     ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
     size_t PropSize, ///< [in] the number of bytes of memory pointer to by
@@ -1913,6 +1916,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEnqueueUSMFill(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    void *Ptr,               ///< [in] pointer to USM memory object
+    size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
+                         ///< power of 2 and less than or equal to width.
+    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
+    size_t Size, ///< [in] size in bytes to be set. Must be a multiple of
+                 ///< patternSize.
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                       ///< pointer to a list of events that must be complete
+                       ///< before this command can be executed. If nullptr, the
+                       ///< numEventsInWaitList must be 0, indicating that this
+                       ///< command does not wait on any event to complete.
+    ur_event_handle_t *Event ///< [out][optional] return an event object that
+                             ///< identifies this particular command instance.
+) {
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+
+  return enqueueMemFillHelper(
+      // TODO: do we need a new command type for USM memset?
+      UR_COMMAND_MEM_BUFFER_FILL, Queue, Ptr,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumEventsInWaitList, EventWaitList, Event);
+}
+
+/// Host Pipes
+ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
+                                  ur_program_handle_t hProgram,
+                                  const char *pipe_symbol, bool blocking,
+                                  void *pDst, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pDst;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
+                                   ur_program_handle_t hProgram,
+                                   const char *pipe_symbol, bool blocking,
+                                   void *pSrc, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pSrc;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::level_zero
+
 // If indirect access tracking is enabled then performs reference counting,
 // otherwise just calls zeMemAllocDevice.
 static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
@@ -1932,7 +2008,7 @@ static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
     // indirect access, that is why explicitly retain context to be sure
     // that it is released after all memory allocations in this context are
     // released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
   }
 
   ze_device_mem_alloc_desc_t ZeDesc = {};
@@ -1992,8 +2068,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        UR_CALL(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size,
-                               reinterpret_cast<void **>(&ZeHandle)));
+        UR_CALL(ur::level_zero::urUSMHostAlloc(
+            UrContext, &USMDesc, Pool, Size,
+            reinterpret_cast<void **>(&ZeHandle)));
       } else {
         HostAllocation.ReleaseAction = allocation_t::free_native;
         UR_CALL(ZeHostMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
@@ -2051,8 +2128,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        UR_CALL(urUSMDeviceAlloc(UrContext, Device, &USMDesc, Pool, Size,
-                                 reinterpret_cast<void **>(&ZeHandle)));
+        UR_CALL(ur::level_zero::urUSMDeviceAlloc(
+            UrContext, Device, &USMDesc, Pool, Size,
+            reinterpret_cast<void **>(&ZeHandle)));
       } else {
         Allocation.ReleaseAction = allocation_t::free_native;
         UR_CALL(ZeDeviceMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
@@ -2115,8 +2193,8 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
             ur_usm_desc_t USMDesc{};
             USMDesc.align = getAlignment();
             ur_usm_pool_handle_t Pool{};
-            UR_CALL(
-                urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, &ZeHandleHost));
+            UR_CALL(ur::level_zero::urUSMHostAlloc(UrContext, &USMDesc, Pool,
+                                                   Size, &ZeHandleHost));
           } else {
             HostAllocation.ReleaseAction = allocation_t::free_native;
             UR_CALL(ZeHostMemAllocHelper(&ZeHandleHost, UrContext, Size));
@@ -2297,71 +2375,4 @@ size_t _ur_buffer::getAlignment() const {
   else
     Alignment = 1UL;
   return Alignment;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    void *Ptr,               ///< [in] pointer to USM memory object
-    size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
-                         ///< power of 2 and less than or equal to width.
-    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
-    size_t Size, ///< [in] size in bytes to be set. Must be a multiple of
-                 ///< patternSize.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t *
-        EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                       ///< pointer to a list of events that must be complete
-                       ///< before this command can be executed. If nullptr, the
-                       ///< numEventsInWaitList must be 0, indicating that this
-                       ///< command does not wait on any event to complete.
-    ur_event_handle_t *Event ///< [out][optional] return an event object that
-                             ///< identifies this particular command instance.
-) {
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-
-  return enqueueMemFillHelper(
-      // TODO: do we need a new command type for USM memset?
-      UR_COMMAND_MEM_BUFFER_FILL, Queue, Ptr,
-      Pattern,     // It will be interpreted as an 8-bit value,
-      PatternSize, // which is indicated with this pattern_size==1
-      Size, NumEventsInWaitList, EventWaitList, Event);
-}
-
-/// Host Pipes
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

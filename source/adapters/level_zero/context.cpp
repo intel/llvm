@@ -18,7 +18,9 @@
 #include "queue.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
+namespace ur::level_zero {
+
+ur_result_t urContextCreate(
     uint32_t DeviceCount, ///< [in] the number of devices given in phDevices
     const ur_device_handle_t
         *Devices, ///< [in][range(0, DeviceCount)] array of handle of devices.
@@ -53,7 +55,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(
+ur_result_t urContextRetain(
     ur_context_handle_t
         Context ///< [in] handle of the context to get a reference of.
 ) {
@@ -61,7 +63,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
+ur_result_t urContextRelease(
     ur_context_handle_t Context ///< [in] handle of the context to release.
 ) {
   ur_platform_handle_t Plt = Context->getPlatform();
@@ -85,7 +87,7 @@ static const bool UseMemcpy2DOperations = [] {
   return std::atoi(UseMemcpy2DOperationsFlag) > 0;
 }();
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
+ur_result_t urContextGetInfo(
     ur_context_handle_t Context,       ///< [in] handle of the context
     ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
     size_t PropSize,    ///< [in] the number of bytes of memory pointed to by
@@ -133,7 +135,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
+ur_result_t urContextGetNativeHandle(
     ur_context_handle_t Context,      ///< [in] handle of the context.
     ur_native_handle_t *NativeContext ///< [out] a pointer to the native
                                       ///< handle of the context.
@@ -142,7 +144,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
+ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t
         NativeContext, ///< [in] the native handle of the context.
     ur_adapter_handle_t, uint32_t NumDevices, const ur_device_handle_t *Devices,
@@ -166,7 +168,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
+ur_result_t urContextSetExtendedDeleter(
     ur_context_handle_t Context, ///< [in] handle of the context.
     ur_context_extended_deleter_t
         Deleter,   ///< [in] Function pointer to extended deleter.
@@ -180,6 +182,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+} // namespace ur::level_zero
 
 ur_result_t ur_context_handle_t_::initialize() {
 
