@@ -456,6 +456,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  if (DeviceType == info::device_type::host)
+    return Res;
 
   pi_uint32 NumDevices = 0;
   MPlugin->call<PiApiKind::piDevicesGet>(

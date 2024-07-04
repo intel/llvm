@@ -235,11 +235,12 @@ public:
 // The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
 // unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 template <bool supportAcc = false>
-const std::array<std::pair<std::string, info::device_type>, 5> &
+const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 5>
+  static const std::array<std::pair<std::string, info::device_type>, 6>
       SyclDeviceTypeMap = {
-          {{"cpu", info::device_type::cpu},
+          {{"host", info::device_type::host},
+           {"cpu", info::device_type::cpu},
            {"gpu", info::device_type::gpu},
            /* Duplicate entries are fine as this map is one-directional.*/
            {supportAcc ? "acc" : "fpga", info::device_type::accelerator},

@@ -60,6 +60,8 @@ std::string getDeviceTypeName(const device &Device) {
     return "cpu";
   case info::device_type::gpu:
     return "gpu";
+  case info::device_type::host:
+    return "host";
   case info::device_type::accelerator:
     return "fpga";
   default:
