@@ -57,7 +57,14 @@ struct launch_strategy {
   size_t local_mem_size;
 };
 
-// TODO: std::true_type etc inheritance to create `is_launch_strategy_v`
+template <typename T> struct is_launch_strategy : std::false_type {};
+
+template <typename RangeT, typename KProps, typename LProps>
+struct is_launch_strategy<launch_strategy<RangeT, KProps, LProps>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_launch_strategy_v = is_launch_strategy<T>::value;
+
 // TODO: assert RangeT is nd_range or range
 // TODO: ctors taking `dim3`, `dim3, dim3`
 
@@ -125,6 +132,7 @@ sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) 
 template <auto F, typename LaunchStrategy, typename... Args>
 std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
 launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
+  static_assert(is_launch_strategy_v<LaunchStrategy>);
   return detail::launch<F>(launch_strategy, q, args...);
 }
 
@@ -132,6 +140,7 @@ launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
 template <auto F, typename LaunchStrategy, typename... Args>
 std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
 launch(LaunchStrategy launch_strategy, Args... args) {
+  static_assert(is_launch_strategy_v<LaunchStrategy>);
   return launch<F>(launch_strategy, get_default_queue(), args...);
 }
 
