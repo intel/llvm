@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
-  # Merge: 7b640455 abab204d
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 2 13:52:21 2024 +0100
-  #     Merge pull request #1696 from nrspruit/l0_windows_interop
-  #     [L0] Support for Bindless Image Import
-  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
+  # commit 1baed0ba696d494a82769366f137e9ddd8af3001
+  # Merge: 00ca0daa e6dc6d9a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Wed Jul 3 13:48:27 2024 +0200
+  #     Merge pull request #1771 from igchor/level_zero_v2_dispatcher
+  #     [L0] Initial version of queue dispatcher
+  set(UNIFIED_RUNTIME_TAG 1baed0ba696d494a82769366f137e9ddd8af3001)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

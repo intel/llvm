@@ -381,7 +381,7 @@ protected:
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
   // stored here.
-  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint = 0;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
