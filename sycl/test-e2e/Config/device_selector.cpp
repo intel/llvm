@@ -14,8 +14,7 @@ int main() {
     sycl::device Device(RejectEverything);
   } catch (sycl::exception &E) {
     if (E.code() == sycl::errc::runtime &&
-        std::string(E.what()).find("No device of requested type available. -1 "
-                                   "(PI_ERROR_DEVICE_NOT_FOUND)") !=
+        std::string(E.what()).find("No device of requested type available.") !=
             std::string::npos) {
       return 0;
     }
