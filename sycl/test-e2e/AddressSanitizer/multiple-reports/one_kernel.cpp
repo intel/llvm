@@ -27,5 +27,6 @@ int main() {
   // CHECK: ====ERROR: DeviceSanitizer
   // CHECK-NOT: ====ERROR: DeviceSanitizer
 
+  sycl::free(array, Q);
   return 0;
 }
