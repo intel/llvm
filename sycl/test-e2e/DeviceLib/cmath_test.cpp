@@ -58,7 +58,7 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
-        res_access[i++] = sycl::lround(2.5f);
+        res_access[i++] = std::lround(2.5f);
         res_access[i++] = sycl::exp10(2.0f);
         res_access[i++] = sycl::rsqrt(4.0f);
         res_access[i++] = std::trunc(1.2f);

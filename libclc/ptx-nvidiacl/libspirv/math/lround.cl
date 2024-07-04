@@ -9,22 +9,40 @@
 #include <clcmacro.h>
 #include <spirv/spirv.h>
 
-#define __CLC_FUNCTION rint
-#define __CLC_BUILTIN __ocml_rint
+#include "../../include/libdevice.h"
+#include "utils.h"
+#include <math/math.h>
 
-float __ocml_rint_f32(float);
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+/// Define lround for float using __spirv_ocl_rint and casting the result to long
+_CLC_OVERLOAD _CLC_DEF long __spirv_ocl_lround(float x) {
+    return (long)__spirv_ocl_rint(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long, __spirv_ocl_lround, float);
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-double __ocml_rint_f64(double);
-#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+
+// Define lround for double using __spirv_ocl_rint and casting the result to long
+_CLC_OVERLOAD _CLC_DEF long __spirv_ocl_lround(double x) {
+    return (long)__spirv_ocl_rint(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long, __spirv_ocl_lround, double);
 #endif // cl_khr_fp64
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-half __ocml_rint_f16(half);
-#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
+
+// Define lround for half using __spirv_ocl_rint and casting the result to long
+_CLC_OVERLOAD _CLC_DEF long __spirv_ocl_lround(half x) {
+    float t = x;
+    return (long)__spirv_ocl_rint(t);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long, __spirv_ocl_lround, half);
 #endif // cl_khr_fp16
 
-#include <math/unary_builtin.inc>
+#undef __CLC_BUILTIN
+#undef __CLC_BUILTIN_F
+#undef __CLC_FUNCTION
