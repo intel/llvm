@@ -119,7 +119,7 @@ implementation supports.
 
 [source, c++]
 ----
-namespace ext::oneapi::experimental::info::kernel {
+namespace ext::oneapi::experimental::info::kernel_queue_specific {
 
 struct recommended_num_work_groups_per_cu;
 
