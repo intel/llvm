@@ -69,9 +69,6 @@ local memory (in bytes). The motivation behind is to aid the tuning of kernels,
 by being able to design the algorithm's implementation to maintain the highest
 possible occupancy in a portable way.
 
-List of currently planned queries.
-* recommended_num_work_groups_per_cu
-
 [source,c++]
 ----
 sycl::queue q{};
