@@ -190,8 +190,18 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     Command *Cmd = (Command *)MCommand;
     WaitEvent = Cmd->MTraceEvent ? static_cast<xpti_td *>(Cmd->MTraceEvent)
                                  : GSYCLGraphEvent;
-  } else
-    WaitEvent = GSYCLGraphEvent;
+  } else {
+    // If queue.wait() is used, we want to make sure the information about the
+    // queue is available with the eait events. We check to see if the
+    // TraceEvent is available in the Queue object.
+    void *TraceEvent;
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      TraceEvent = Queue->getTraceEvent();
+      WaitEvent =
+          (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
+    } else
+      WaitEvent = GSYCLGraphEvent;
+  }
   // Record the current instance ID for use by Epilog
   IId = xptiGetUniqueId();
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,

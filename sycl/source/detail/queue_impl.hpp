@@ -681,6 +681,8 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void *getTraceEvent() { return MTraceEvent; }
+
   void setExternalEvent(const event &Event) {
     std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     MInOrderExternalEvent = Event;
