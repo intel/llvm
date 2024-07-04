@@ -149,3 +149,7 @@ extra `sycl::range` and `size_t` parameters in addition to the `sycl::queue`.
 
 The Cuda, Hip and Level Zero backend adapters have the required infrastructure
 required to implement the extension.
+
+== Backend support status
+
+The extension is currently implemented for the CUDA and Level-Zero backends.
