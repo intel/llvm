@@ -1706,15 +1706,12 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
     unsigned getXDimVal() const {
-      assert(isa<ConstantExpr>(getXDim()));
       return cast<ConstantExpr>(getXDim())->getResultAsAPSInt().getExtValue();
     }
     unsigned getYDimVal() const {
-      assert(isa<ConstantExpr>(getYDim()));
       return cast<ConstantExpr>(getYDim())->getResultAsAPSInt().getExtValue();
     }
     unsigned getZDimVal() const {
-      assert(isa<ConstantExpr>(getZDim()));
       return cast<ConstantExpr>(getZDim())->getResultAsAPSInt().getExtValue();
     }
   }];
