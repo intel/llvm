@@ -275,7 +275,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
             << MWGPCU << 0;
       } else {
         // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minnctapersm", attrValue(MWGPCU->getValue()));
+        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
         HasMinWorkGroupPerCU = true;
       }
     }
