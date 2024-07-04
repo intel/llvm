@@ -1278,7 +1278,8 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+        F.hasFnAttribute(Attribute::SanitizeAddress)) {
       SpirFixupFuncs.emplace_back(&F);
     }
   }
@@ -1294,9 +1295,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       Types.push_back(I->getType());
     }
 
-    // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
-    // it can also be treated as a pointer point to the base address of private
-    // shadow memory
+    // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
     Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
@@ -1411,6 +1410,21 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
   if (Triple(M.getTargetTriple()).isSPIR()) {
+    bool HasESIMDKernel = false;
+
+    // ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    for (Function &F : M)
+      if (F.hasMetadata("sycl_explicit_simd")) {
+        F.removeFnAttr(Attribute::SanitizeAddress);
+        HasESIMDKernel = true;
+      }
+
+    // FIXME: we can't check if the kernel is ESIMD kernel at UR, so we
+    // have to disable ASan completely in this case
+    if (HasESIMDKernel)
+      return PreservedAnalyses::all();
+
     ExtendSpirKernelArgs(M, FAM);
   }
 

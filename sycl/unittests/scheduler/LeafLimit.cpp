@@ -36,8 +36,6 @@ TEST_F(SchedulerTest, LeafLimit) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
-  sycl::queue HQueue(detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl()));
   MockScheduler MS;
   std::vector<std::unique_ptr<MockCommand>> LeavesToAdd;
   std::unique_ptr<MockCommand> MockDepCmd;

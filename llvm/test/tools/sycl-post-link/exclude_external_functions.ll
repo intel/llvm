@@ -29,8 +29,8 @@
 ; and is included in the device image.
 ; Function __private starts with "__" and thus is included in the device image.
 ; CHECK-SYM-2: childB
-; CHECK-LL-2: define weak_odr spir_func void @internal() {
-; CHECK-LL-2: define weak_odr spir_func void @__private() #0 {
+; CHECK-LL-2: define internal spir_func void @internal() {
+; CHECK-LL-2: define internal spir_func void @__private() #0 {
 ; CHECK-LL-2: define weak_odr spir_func void @childB() #0 {
 ; CHECK-LL-2: attributes #0 = { "sycl-module-id"="a.cpp" }
 

@@ -103,19 +103,9 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This instance of kernel doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_KERNEL);
-    }
     getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
-
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  bool is_host() const { return MContext->is_host(); }
 
   const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
@@ -217,11 +207,6 @@ template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  if (is_host()) {
-    // TODO implement
-    assert(0 && "Not implemented");
-  }
-
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
@@ -248,9 +233,6 @@ kernel_impl::get_info(const device &Device) const {
           "is a built-in kernel.");
   }
 
-  if (is_host()) {
-    return get_kernel_device_specific_info_host<Param>(Device);
-  }
   return get_kernel_device_specific_info<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
       getPlugin());
@@ -260,10 +242,6 @@ template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device,
                       const sycl::range<3> &WGSize) const {
-  if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_ERROR_INVALID_DEVICE);
-  }
   return get_kernel_device_specific_info_with_input<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
       getPlugin());

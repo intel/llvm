@@ -99,9 +99,6 @@ filter_selector_impl::filter_selector_impl(const std::string &Input)
 }
 
 int filter_selector_impl::operator()(const device &Dev) const {
-  assert(!sycl::detail::getSyclObjImpl(Dev)->is_host() &&
-         "filter_selector_impl should not be used with host.");
-
   int Score = REJECT_DEVICE_SCORE;
 
   for (auto &Filter : mFilters) {

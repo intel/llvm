@@ -862,10 +862,6 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  if (CtxImpl->is_host()) {
-    throw sycl::exception(sycl::make_error_code(sycl::errc::memory_allocation),
-                          "Cannot allocate pitched memory on host!");
-  }
 
   pi_context PiContext = CtxImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();

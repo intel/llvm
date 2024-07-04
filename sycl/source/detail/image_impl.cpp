@@ -471,6 +471,8 @@ bool image_impl::checkImageFormat(
 }
 
 std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
+  if (!Context)
+    return {};
   return Context->get_info<info::context::devices>();
 }
 

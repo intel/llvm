@@ -56,10 +56,6 @@ TEST(PiMockTest, ConstructFromQueue) {
   sycl::unittest::PiMock Mock;
   queue MockQ{Mock.getPlatform().get_devices()[0]};
   queue NormalQ;
-  if (NormalQ.is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
 
   const auto &NormalPiPlugin =
       detail::getSyclObjImpl(NormalQ)->getPlugin()->getPiPlugin();

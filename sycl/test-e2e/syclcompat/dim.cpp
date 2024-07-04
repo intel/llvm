@@ -35,6 +35,33 @@ int main() {
     assert(d3.y == 1);
     assert(d3.z == 1);
   }
+  std::cout << "Testing Empty Construct" << std::endl;
+  {
+    syclcompat::dim3 d3;
+    assert(d3.x == 1);
+    assert(d3.y == 1);
+    assert(d3.z == 1);
+  }
+  std::cout << "Testing Empty Construct & Update" << std::endl;
+  {
+    syclcompat::dim3 d3;
+    d3.x = 1;
+    d3.y = 2;
+    d3.z = 3;
+
+    assert(d3.x == 1);
+    assert(d3.y == 2);
+    assert(d3.z == 3);
+  }
+  std::cout << "Testing Empty Construct & Update 2" << std::endl;
+  {
+    syclcompat::dim3 d3;
+    d3.x = 32;
+
+    assert(d3.x == 32);
+    assert(d3.y == 1);
+    assert(d3.z == 1);
+  }
   std::cout << "Testing Convert" << std::endl;
   {
     syclcompat::dim3 d3(512);

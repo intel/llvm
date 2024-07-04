@@ -14,6 +14,7 @@ add_llvm_component_library(LLVMScalarOpts
   EarlyCSE.cpp
   FlattenCFGPass.cpp
   Float2Int.cpp
+  FPBuiltinFnSelection.cpp
   GuardWidening.cpp
   GVN.cpp
   GVNHoist.cpp
@@ -97,4 +98,5 @@ add_llvm_component_library(LLVMScalarOpts
   InstCombine
   Support
   TransformUtils
+  TargetParser
   )

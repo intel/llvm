@@ -1,8 +1,12 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} %{embed-ir} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 // Test complete fusion using USM pointers.
+
+// The two kernels are fused, so only a single, fused kernel is launched.
+// CHECK-COUNT-1: piEnqueueKernelLaunch
+// CHECK-NOT: piEnqueueKernelLaunch
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>

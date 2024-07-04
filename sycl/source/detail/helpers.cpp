@@ -31,9 +31,7 @@ getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    if ((!SyclEventImplPtr->isContextInitialized() &&
-         !SyclEventImplPtr->is_host()) ||
-        SyclEventImplPtr->isNOP()) {
+    if (SyclEventImplPtr->isDefaultConstructed() || SyclEventImplPtr->isNOP()) {
       continue;
     }
     // The fusion command and its event are associated with a non-host context,
@@ -41,7 +39,7 @@ getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
     bool NoPiEvent =
         SyclEventImplPtr->MCommand &&
         !static_cast<Command *>(SyclEventImplPtr->MCommand)->producesPiEvent();
-    if (SyclEventImplPtr->is_host() ||
+    if (SyclEventImplPtr->isHost() ||
         SyclEventImplPtr->getContextImpl() != Context || NoPiEvent) {
       // Call wait, because the command for the event might not have been
       // enqueued when kernel fusion is happening.

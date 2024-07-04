@@ -130,10 +130,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
       customextUSMEnqueueMemset);
 
   sycl::platform Plt = Mock.getPlatform();
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    GTEST_SKIP();
-  }
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};

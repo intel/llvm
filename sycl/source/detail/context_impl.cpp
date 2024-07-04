@@ -33,9 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
       MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
-      MPropList(PropList),
-      MHostContext(detail::getSyclObjImpl(Device)->is_host()),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
 
@@ -43,7 +41,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList), MHostContext(false),
+      MContext(nullptr), MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
@@ -88,7 +86,7 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
       MDevices(DeviceList), MContext(PiContext), MPlatform(),
-      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+      MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
@@ -132,17 +130,10 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
 }
 
 cl_context context_impl::get() const {
-  if (MHostContext) {
-    throw invalid_object_error(
-        "This instance of context doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_CONTEXT);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call<PiApiKind::piContextRetain>(MContext);
   return pi::cast<cl_context>(MContext);
 }
-
-bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
   try {
@@ -160,10 +151,8 @@ context_impl::~context_impl() {
       assert(LibProg.second && "Null program must not be kept in the cache");
       getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
     }
-    if (!MHostContext) {
-      // TODO catch an exception and put it to list of asynchronous exceptions
-      getPlugin()->call<PiApiKind::piContextRelease>(MContext);
-    }
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    getPlugin()->call<PiApiKind::piContextRelease>(MContext);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
@@ -175,15 +164,10 @@ const async_handler &context_impl::get_async_handler() const {
 
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
-  if (is_host())
-    return 0;
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  if (is_host())
-    return createSyclObjFromImpl<platform>(
-        platform_impl::getHostPlatformImpl());
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
@@ -199,8 +183,6 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
       sycl::memory_order::relaxed, sycl::memory_order::acquire,
       sycl::memory_order::release, sycl::memory_order::acq_rel,
       sycl::memory_order::seq_cst};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<
       sycl::memory_order, info::device::atomic_memory_order_capabilities>(
@@ -216,8 +198,6 @@ context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
       sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
       sycl::memory_scope::work_group, sycl::memory_scope::device,
       sycl::memory_scope::system};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<
       sycl::memory_scope, info::device::atomic_memory_scope_capabilities>(
@@ -232,8 +212,6 @@ context_impl::get_info<info::context::atomic_fence_order_capabilities>() const {
       sycl::memory_order::relaxed, sycl::memory_order::acquire,
       sycl::memory_order::release, sycl::memory_order::acq_rel,
       sycl::memory_order::seq_cst};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<sycl::memory_order,
                                  info::device::atomic_fence_order_capabilities>(
@@ -248,8 +226,6 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
       sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
       sycl::memory_scope::work_group, sycl::memory_scope::device,
       sycl::memory_scope::system};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<sycl::memory_scope,
                                  info::device::atomic_fence_scope_capabilities>(
