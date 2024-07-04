@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG 764b75c9087930799963a30be726ac76fcf1ac11)
+  # commit 1baed0ba696d494a82769366f137e9ddd8af3001
+  # Merge: 00ca0daa e6dc6d9a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Wed Jul 3 13:48:27 2024 +0200
+  #     Merge pull request #1771 from igchor/level_zero_v2_dispatcher
+  #     [L0] Initial version of queue dispatcher
+  set(UNIFIED_RUNTIME_TAG 1baed0ba696d494a82769366f137e9ddd8af3001)
 
   fetch_adapter_source(level_zero
     https://github.com/nrspruit/unified-runtime.git
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")
