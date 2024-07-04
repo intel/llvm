@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
-  # Merge: 7b640455 abab204d
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 2 13:52:21 2024 +0100
-  #     Merge pull request #1696 from nrspruit/l0_windows_interop
-  #     [L0] Support for Bindless Image Import
-  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/martygrant/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG martin/loggerCallbackSink)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
