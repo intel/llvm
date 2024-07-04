@@ -50,6 +50,7 @@ math/log2.cl
 math/log10.cl
 math/log1p.cl
 math/logb.cl
+math/lround.cl
 math/modf.cl
 math/nextafter.cl
 math/pow.cl
