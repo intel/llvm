@@ -294,6 +294,7 @@ inline typename syclex::info::kernel_queue_specific::
 
   // Calculate max number of work-groups per compute unit
   const auto NumCUs = Device.get_info<info::device::max_compute_units>();
+  assert(NumCUs > 0 && "Attempted division by 0. 'NumCUs' cannot be 0.");
 
   pi_uint32 GroupCount{0};
   Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(

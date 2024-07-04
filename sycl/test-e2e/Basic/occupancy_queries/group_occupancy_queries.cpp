@@ -49,8 +49,8 @@ int main() {
   q.single_task<QueryKernel>([]() {}).wait();
 
   static_assert(
-      std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, uint32_t>,
-      "recommended_num_work_groups_per_cu query must return uint32_t");
+      std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, size_t>,
+      "recommended_num_work_groups_per_cu query must return size_t");
 
   // We must have at least one active group if we are below resource limits.
   if (WorkGroupSize < MaxWorkGroupSize &&
