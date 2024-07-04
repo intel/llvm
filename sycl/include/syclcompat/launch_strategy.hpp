@@ -126,6 +126,24 @@ template <auto F, typename Range, typename KProps, typename... Args> struct Kern
 };
 
 //====================================================================
+// This helper function avoids 2 nested `if constexpr` in detail::launch
+template <auto F, typename LaunchStrategy, typename... Args>
+auto build_kernel_functor(sycl::handler& cgh, LaunchStrategy launch_strategy,
+                          Args... args)
+    -> KernelFunctor<F, typename LaunchStrategy::RangeT,
+                     typename LaunchStrategy::KPropsT, Args...> {
+  if constexpr (syclcompat::lmem_invocable<F, Args...>) {
+    sycl::local_accessor<char, 1> local_memory(launch_strategy.local_mem_size,
+                                               cgh);
+    return KernelFunctor<F, typename LaunchStrategy::RangeT,
+                         typename LaunchStrategy::KPropsT, Args...>(
+        launch_strategy.kernel_properties, local_memory, args...);
+  } else {
+      return KernelFunctor<F, typename LaunchStrategy::RangeT,
+                        typename LaunchStrategy::KPropsT, Args...>(
+              launch_strategy.kernel_properties, args...);
+  }
+}
 
 template <auto F, typename LaunchStrategy, typename... Args>
 sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
@@ -135,20 +153,13 @@ sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) 
                                  launch_strategy.launch_properties);
 
   return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
-    if constexpr (syclcompat::lmem_invocable<F, Args...>) {
-      sycl::local_accessor<char, 1> local_memory(launch_strategy.local_mem_size,
-                                                 cgh);
-      sycl_exp::nd_launch(
-          cgh, config,
-          KernelFunctor<F, typename LaunchStrategy::RangeT,
-                        typename LaunchStrategy::KPropsT, Args...>(
-              launch_strategy.kernel_properties, local_memory, args...));
+    auto KernelFunctor = build_kernel_functor<F>(cgh, launch_strategy, args...);
+    if constexpr (syclcompat::detail::is_sycl_range<typename LaunchStrategy::RangeT>::value) { //TODO: template aliases for this
+      parallel_for(cgh, config, KernelFunctor);
     } else {
-      sycl_exp::nd_launch(
-          cgh, config,
-          KernelFunctor<F, typename LaunchStrategy::RangeT,
-                        typename LaunchStrategy::KPropsT, Args...>(
-              launch_strategy.kernel_properties, args...));
+      static_assert(
+          syclcompat::detail::is_sycl_nd_range<typename LaunchStrategy::RangeT>::value);
+      nd_launch(cgh, config, KernelFunctor);
     }
   });
 }

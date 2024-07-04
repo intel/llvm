@@ -59,15 +59,15 @@ constexpr inline bool args_compatible =
 
 namespace detail {
 // Trait for identifying sycl::range and sycl::nd_range.
-// Lifted from sycl/include/sycl/ext/oneapi/experimental/enqueue_functions.hpp
-template <typename RangeT> struct is_range_or_nd_range : std::false_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<sycl::range<Dimensions>> : std::true_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<sycl::nd_range<Dimensions>> : std::true_type {};
 
-template <typename RangeT>
-constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
+template <typename T> struct is_sycl_range : std::false_type{};
+template <int Dim> struct is_sycl_range<sycl::range<Dim>> : std::true_type {};
+
+template <typename T> struct is_sycl_nd_range : std::false_type{};
+template <int Dim> struct is_sycl_nd_range<sycl::nd_range<Dim>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_range_or_nd_range_v = std::disjunction_v<is_sycl_range<T>, is_sycl_nd_range<T>>;
 
 // Trait to extract dimension from range & nd_range
 template <typename T> struct range_dimension;
