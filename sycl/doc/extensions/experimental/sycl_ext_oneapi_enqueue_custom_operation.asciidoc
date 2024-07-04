@@ -64,7 +64,7 @@ warn you if this happens.
 
 This extension is derived from an experimental AdaptiveCpp extension, which is
 documented
-https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here]._
+https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here].
 
 The extension aims to integrate asynchronous interop work submitted through the
 backend API with the asynchrony of the SYCL runtime DAG. As such it is required
