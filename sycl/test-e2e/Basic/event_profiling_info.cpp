@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 // Fails there.
-// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
+// UNSUPPORTED: opencl && gpu && architecture-intel_gpu_pvc
 
 #include <cassert>
 #include <iostream>

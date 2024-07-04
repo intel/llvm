@@ -149,7 +149,6 @@ if lit_config.params.get("gpu-intel-dg1", False):
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
 if lit_config.params.get("gpu-intel-pvc", False):
-    config.available_features.add("gpu-intel-pvc")
     config.available_features.add(
         "matrix-fp16"
     )  # PVC implies the support of FP16 matrix
