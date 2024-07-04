@@ -4,11 +4,11 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC0:]] "main_l3"
-; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC1:]] "main_l6"
-; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC2:]] "main_l9"
-; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC3:]] "main_l13"
-; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC4:]] "main_l19"
+; CHECK-SPIRV: Name [[#FUNC0:]] "main_l3"
+; CHECK-SPIRV: Name [[#FUNC1:]] "main_l6"
+; CHECK-SPIRV: Name [[#FUNC2:]] "main_l9"
+; CHECK-SPIRV: Name [[#FUNC3:]] "main_l13"
+; CHECK-SPIRV: Name [[#FUNC4:]] "main_l19"
 
 ; CHECK-SPIRV: Decorate [[#FUNC0]] UserSemantic "num-thread-per-eu 4"
 ; CHECK-SPIRV: Decorate [[#FUNC1]] UserSemantic "num-thread-per-eu 8"
