@@ -1485,7 +1485,7 @@ auto e2 = q2.single_task(e1, ...);
 graph.end_recording();
 ----
 
-==== Queue Properties;
+==== Queue Properties
 
 :queue-properties: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:queue-properties
 
