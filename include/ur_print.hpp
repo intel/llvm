@@ -1541,8 +1541,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
         os << "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
         break;
-    case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-        os << "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+    case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        os << "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
         break;
     case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
         os << "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
@@ -2523,6 +2523,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_COMPOSITE_DEVICE:
         os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
+        break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+        os << "UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT";
         break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4005,6 +4008,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         ur::details::printPtr(os,
                               *tptr);
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
 
         os << ")";
     } break;
@@ -7855,9 +7870,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         printPtr(os, tptr);
     } break;
     case UR_KERNEL_INFO_NUM_ARGS: {
-        const size_t *tptr = (const size_t *)ptr;
-        if (sizeof(size_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";

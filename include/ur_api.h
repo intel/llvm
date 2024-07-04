@@ -481,7 +481,8 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 55,                            ///< [Validation] image format is not supported by the device
     UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 56,                               ///< [Validation] native binary is not supported by the device
     UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 57,                                 ///< [Validation] global variable is not found in the program
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 58,                               ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE = 58,                      ///< [Validation] function name is in the program but its address could not
+                                                                              ///< be determined
     UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 59,                        ///< [Validation] group size dimension is not valid for the kernel or
                                                                               ///< device
     UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 60,                      ///< [Validation] global width dimension is not valid for the kernel or
@@ -1597,6 +1598,9 @@ typedef enum ur_device_info_t {
                                                                      ///< this composite device.
     UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                           ///< [::ur_device_handle_t] The composite device containing this component
                                                                      ///< device.
+    UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT = 118,                    ///< [::ur_bool_t] return true if the device supports the
+                                                                     ///< `EnqueueDeviceGlobalVariableWrite` and
+                                                                     ///< `EnqueueDeviceGlobalVariableRead` entry points.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,       ///< [::ur_bool_t] Returns true if the device supports updating the kernel
@@ -2556,8 +2560,8 @@ typedef struct ur_image_desc_t {
     size_t arraySize;          ///< [in] image array size
     size_t rowPitch;           ///< [in] image row pitch
     size_t slicePitch;         ///< [in] image slice pitch
-    uint32_t numMipLevel;      ///< [in] number of MIP levels
-    uint32_t numSamples;       ///< [in] number of samples
+    uint32_t numMipLevel;      ///< [in] number of MIP levels, must be `0`
+    uint32_t numSamples;       ///< [in] number of samples, must be `0`
 
 } ur_image_desc_t;
 
@@ -2601,6 +2605,10 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && pImageDesc->numMipLevel != 0`
+///         + `pImageDesc && pImageDesc->numSamples != 0`
+///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
+///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -4355,8 +4363,8 @@ urProgramRelease(
 /// @details
 ///     - Retrieves a pointer to the functions with the given name and defined
 ///       in the given program.
-///     - ::UR_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function
-///       can not be obtained.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the
+///       function can not be obtained.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
@@ -4376,6 +4384,10 @@ urProgramRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFunctionName`
 ///         + `NULL == ppFunctionPointer`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
+///         + If `pFunctionName` couldn't be found in `hProgram`.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
+///         + If `pFunctionName` could be located, but its address couldn't be retrieved.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetFunctionPointer(
     ur_device_handle_t hDevice,   ///< [in] handle of the device to retrieve pointer for.
@@ -4777,7 +4789,7 @@ urKernelSetArgLocal(
 /// @brief Get Kernel object information
 typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< [char[]] Return null-terminated kernel function name.
-    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [size_t] Return Kernel number of arguments.
+    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [uint32_t] Return Kernel number of arguments.
     UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
                                         ///< The reference count returned should be considered immediately stale.
                                         ///< It is unsuitable for general use in applications. This feature is
