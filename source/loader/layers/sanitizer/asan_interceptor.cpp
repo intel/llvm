@@ -29,10 +29,10 @@ uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
 
 uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFFFF000000000000ULL) { // Device USM
-        return USM_SHADOW_BASE + 0x100000000000ULL +
-               ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
+        return USM_SHADOW_BASE + 0x80000000000ULL +
+               ((UPtr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
     } else { // Host/Shared USM
-        return USM_SHADOW_BASE + (UPtr >> 3);
+        return USM_SHADOW_BASE + (UPtr >> ASAN_SHADOW_SCALE);
     }
 }
 
