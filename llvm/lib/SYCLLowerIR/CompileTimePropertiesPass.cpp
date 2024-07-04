@@ -490,16 +490,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, AttrMDArgs));
   }
 
-  if (AttrKindStr == "sycl-max-work-group-size") {
-    uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(
-        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("max_work_group_size",
-                                            MDNode::get(Ctx, MD));
-  }
-
   return std::nullopt;
 }
 
