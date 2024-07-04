@@ -12,6 +12,7 @@ target_link_libraries(test-loader-handles
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::loader
+    ${PROJECT_NAME}::mock
     gmock
     GTest::gtest_main
 )

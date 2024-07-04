@@ -14,6 +14,7 @@ function(add_validation_test_executable name)
         ${PROJECT_NAME}::loader
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
+        ${PROJECT_NAME}::mock
         GTest::gtest_main)
 endfunction()
 

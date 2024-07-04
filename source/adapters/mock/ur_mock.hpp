@@ -25,13 +25,6 @@ class __urdlllocal context_t {
     ur_dditable_t urDdiTable = {};
     context_t();
     ~context_t() = default;
-
-    void *platform;
-
-    void *get() {
-        static uint64_t count = 0x80800000;
-        return reinterpret_cast<void *>(++count);
-    }
 };
 
 extern context_t d_context;

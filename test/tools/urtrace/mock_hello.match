@@ -9,5 +9,5 @@ urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries =
 urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
-Found a Null Device gpu.
+Found a Mock Device gpu.
 urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS;
