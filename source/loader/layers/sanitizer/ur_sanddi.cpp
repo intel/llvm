@@ -374,9 +374,9 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
     UR_CALL(pfnRetain(hContext));
 
-    if (auto ContextInfo = context.interceptor->getContextInfo(hContext)) {
-        ContextInfo->RefCount++;
-    }
+    auto ContextInfo = context.interceptor->getContextInfo(hContext);
+    UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    ContextInfo->RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -396,10 +396,9 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
     UR_CALL(pfnRelease(hContext));
 
-    if (auto ContextInfo = context.interceptor->getContextInfo(hContext)) {
-        if (--ContextInfo->RefCount != 0) {
-            return UR_RESULT_SUCCESS;
-        }
+    auto ContextInfo = context.interceptor->getContextInfo(hContext);
+    UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    if (--ContextInfo->RefCount == 0) {
         UR_CALL(context.interceptor->eraseContext(hContext));
     }
 
@@ -1167,9 +1166,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     UR_CALL(pfnRetain(hKernel));
 
-    if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
-        KernelInfo->RefCount++;
-    }
+    auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
+    UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    KernelInfo->RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1188,10 +1187,9 @@ __urdlllocal ur_result_t urKernelRelease(
     context.logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
-        if (--KernelInfo->RefCount != 0) {
-            return UR_RESULT_SUCCESS;
-        }
+    auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
+    UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    if (--KernelInfo->RefCount == 0) {
         UR_CALL(context.interceptor->eraseKernel(hKernel));
     }
 

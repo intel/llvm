@@ -156,7 +156,9 @@ SanitizerInterceptor::~SanitizerInterceptor() {
 
     if (!m_AllocationMap.empty()) {
         for (const auto &[_, AI] : m_AllocationMap) {
-            ReportMemoryLeak(AI);
+            if (!AI->IsReleased) {
+                ReportMemoryLeak(AI);
+            }
         }
         exit(1);
     }
