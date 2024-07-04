@@ -296,7 +296,6 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       }
     } else if (auto Attr = F->getFnAttribute("sycl-min-work-groups-per-cu");
                Attr.isValid()) {
-      // The value is guaranteed to be > 0, pass it to the metadata.
       int Value = 0;
       bool Error = Attr.getValueAsString().getAsInteger(10, Value);
       assert(!Error && "The attribute's value is not a number");
