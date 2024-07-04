@@ -159,16 +159,22 @@ template <> struct property_value<single_task_kernel_key> {
   using key_t = single_task_kernel_key;
 };
 
-template <uint32_t Size>
+template <size_t Dim0, size_t... Dims>
 struct property_value<max_work_group_size_key,
-                      std::integral_constant<uint32_t, Size>> {
+                      std::integral_constant<size_t, Dim0>,
+                      std::integral_constant<size_t, Dims>...> {
+  static_assert(sizeof...(Dims) + 1 <= 3,
+                "max_work_group_size property currently "
+                "only supports exactly three values.");
   static_assert(
-      Size != 0,
-      "max_work_group_size_key property must contain a non-zero value.");
+      detail::AllNonZero<Dim0, Dims...>::value,
+      "max_work_group_size property must only contain non-zero values.");
 
   using key_t = max_work_group_size_key;
-  using value_t = std::integral_constant<uint32_t, Size>;
-  static constexpr uint32_t value = Size;
+
+  constexpr size_t operator[](int Dim) const {
+    return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
+  }
 };
 
 template <uint32_t Size>
@@ -214,13 +220,16 @@ inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
 
 template <size_t Dim0, size_t... Dims>
-inline constexpr max_work_group_size_key::value_t<Dim0, Dims...> max_work_group_size;
+inline constexpr max_work_group_size_key::value_t<Dim0, Dims...>
+    max_work_group_size;
 
 template <uint32_t Size>
-inline constexpr min_work_groups_per_cu_key::value_t<Size> min_work_groups_per_cu;
+inline constexpr min_work_groups_per_cu_key::value_t<Size>
+    min_work_groups_per_cu;
 
 template <uint32_t Size>
-inline constexpr max_work_groups_per_mp_key::value_t<Size> max_work_groups_per_mp;
+inline constexpr max_work_groups_per_mp_key::value_t<Size>
+    max_work_groups_per_mp;
 
 struct work_group_progress_key
     : detail::compile_time_property_key<detail::PropKind::WorkGroupProgress> {
