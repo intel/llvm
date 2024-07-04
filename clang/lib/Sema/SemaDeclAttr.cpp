@@ -7538,18 +7538,10 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
-// This function checks if a given declaration (D) has valid FPGA memory attributes.
+// Checks if FPGA memory attributes apply on valid variables.
 // Returns true if an error occured.
 static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
   if (const auto *VD = dyn_cast<VarDecl>(D)) {
-    // Check if the declaration is not a FieldDecl and meets one of the following conditions:
-    // - It is not an ImplicitParamDecl or NonTypeTemplateParmDecl.
-    // - Its type is decorated with the SYCLDeviceGlobalAttr attribute.
-    // - Its type is const-qualified.
-    // - Its address space is the OpenCL constant address space.
-    // - It has static storage class or has local storage.
-    // If any of these conditions are true, the function returns true, indicating
-    // that the variable is a valid candidate for FPGA memory attributes.
     if (!(isa<FieldDecl>(D) ||
           (VD->getKind() != Decl::ImplicitParam &&
            VD->getKind() != Decl::NonTypeTemplateParm &&
@@ -7558,18 +7550,6 @@ static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
             VD->getType().isConstQualified() ||
             VD->getType().getAddressSpace() == LangAS::opencl_constant ||
             VD->getStorageClass() == SC_Static || VD->hasLocalStorage())))) {
-      return true;
-    }
-  } else if (const auto *FD = dyn_cast<FieldDecl>(D)) {
-    // Check if the FieldDecl's parent RecordDecl has the SYCLDeviceGlobalAttr attribute.
-    const RecordDecl *Parent = FD->getParent();
-    if (Parent && S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-                     QualType(Parent->getTypeForDecl(), 0))) {
-      return true;
-    }
-    // Check if the FieldDecl is part of a device_global variable.
-    if (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-                FD->getType())) {
       return true;
     }
   }

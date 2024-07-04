@@ -5886,127 +5886,30 @@ void CodeGenModule::generateIntelFPGAAnnotation(
   }
 }
 
-void CodeGenModule::generateIntelFPGAAnnotationForField(
-    const FieldDecl *Field, llvm::SmallString<256> &FieldAnnotStr) {
-  assert(Field && "Field declaration must not be null");
-  llvm::raw_svector_ostream Out(FieldAnnotStr);
-  if (Field->hasAttr<SYCLIntelRegisterAttr>())
-    Out << "{register:1}";
-  if (const auto *MA = Field->getAttr<SYCLIntelMemoryAttr>()) {
-    SYCLIntelMemoryAttr::MemoryKind Kind = MA->getKind();
-    Out << "{memory:";
-    switch (Kind) {
-    case SYCLIntelMemoryAttr::MLAB:
-    case SYCLIntelMemoryAttr::BlockRAM:
-      Out << SYCLIntelMemoryAttr::ConvertMemoryKindToStr(Kind);
-      break;
-    case SYCLIntelMemoryAttr::Default:
-      Out << "DEFAULT";
-      break;
-    }
-    Out << '}';
-    Out << "{sizeinfo:";
-    QualType ElementTy = Field->getType();
-    QualType TmpTy = ElementTy->isArrayType()
-                         ? getContext().getBaseElementType(ElementTy)
-                         : ElementTy;
-    Out << getContext().getTypeSizeInChars(TmpTy).getQuantity();
-    while (const auto *AT = getContext().getAsArrayType(ElementTy)) {
-      const auto *CAT = cast<ConstantArrayType>(AT);
-      Out << "," << CAT->getSize();
-      ElementTy = CAT->getElementType();
-    }
-    Out << '}';
-  }
-  if (Field->hasAttr<SYCLIntelSinglePumpAttr>())
-    Out << "{pump:1}";
-  if ( Field->hasAttr<SYCLIntelDoublePumpAttr>())
-    Out << "{pump:2}";
-  if (const auto *BWA =  Field->getAttr<SYCLIntelBankWidthAttr>()) {
-    llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
-  }
-  if (const auto *PCA =  Field->getAttr<SYCLIntelPrivateCopiesAttr>()) {
-    llvm::APSInt PCAInt = PCA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << PCA->getSpelling() << ':' << PCAInt << '}';
-  }
-  if (const auto *NBA = Field->getAttr<SYCLIntelNumBanksAttr>()) {
-    llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << NBA->getSpelling() << ':' << NBAInt << '}';
-  }
-  if (const auto *BBA = Field->getAttr<SYCLIntelBankBitsAttr>()) {
-    Out << '{' << BBA->getSpelling() << ':';
-    for (SYCLIntelBankBitsAttr::args_iterator I = BBA->args_begin(),
-                                              E = BBA->args_end();
-         I != E; ++I) {
-      if (I != BBA->args_begin())
-        Out << ',';
-      llvm::APSInt BBAInt = (*I)->EvaluateKnownConstInt(getContext());
-      Out << BBAInt;
-    }
-    Out << '}';
-  }
-  if (const auto *MRA = Field->getAttr<SYCLIntelMaxReplicatesAttr>()) {
-    llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
-  }
-  if (const auto *MA = Field->getAttr<SYCLIntelMergeAttr>()) {
-    Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
-        << MA->getDirection() << '}';
-  }
-  if (Field->hasAttr<SYCLIntelSimpleDualPortAttr>())
-    Out << "{simple_dual_port:1}";
-  if (const auto *FP2D = Field->getAttr<SYCLIntelForcePow2DepthAttr>()) {
-    llvm::APSInt FP2DInt =
-        FP2D->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << FP2D->getSpelling() << ':' << FP2DInt << '}';
-  }
-}
+void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
+                                                 llvm::GlobalValue *GV) {
 
-void CodeGenModule::emitFieldAnnotation(const FieldDecl *FD,
-		                        llvm::GlobalValue *GV) {
   SmallString<256> AnnotStr;
-  // Generate the annotation string for the field declaration.
-  generateIntelFPGAAnnotationForField(FD, AnnotStr);
-  if (!AnnotStr.empty()) {
-    // Emit the annotation string as a global constant.
-    llvm::Constant *AnnoGV = EmitAnnotationString(AnnotStr),
-    // Emit the compilation unit (source file) as a global constant.
-                   *UnitGV = EmitAnnotationUnit(FD->getLocation()),
-    // Emit the line number of the field declaration as a global constant.
-                   *LineNoCst = EmitAnnotationLineNo(FD->getLocation());
-
-    // Store the original global variable, adjusting its address space if necessary.
-    llvm::Constant *ASZeroGV = GV;
-    // Check if the global variable's address space is not the default.
-    if (GV->getAddressSpace() != getDataLayout().getDefaultGlobalsAddressSpace())
-      // Cast the global variable to the default address space.
-       ASZeroGV = llvm::ConstantExpr::getAddrSpaceCast(
-        GV, llvm::PointerType::get(
-                GV->getContext(),
-                getDataLayout().getDefaultGlobalsAddressSpace()));
-    // Concatenate the global variable's name with the field's name to create a unique identifier.
-    std::string FieldName = GV->getName().str() + "." + FD->getNameAsString();
-    // Emit the unique identifier as a global constant.
-    llvm::Constant *FieldNameGV = EmitAnnotationString(FieldName);
-
-    // Create a constant structure to represent the field annotation.
-    llvm::Constant *Fields[5] = {
-        ASZeroGV, // The global variable (possibly with adjusted address space).
-        llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy), // The annotation string.
-        llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy), // The source file.
-        LineNoCst, // The line number.
-        llvm::ConstantExpr::getBitCast(FieldNameGV, ConstGlobalsPtrTy)}; // The unique identifier.
-    // Add the constant structure to the list of annotations to be emitted.
-    Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
+  // Handle annotations for fields within a device_global struct.
+  if (VD->getType()->isRecordType()) {
+    auto RT = VD->getType()->getAs<RecordType>();
+    auto Gen = [&AnnotStr, this](const RecordType *Ty, auto &&Gen) -> void {
+      const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getDecl());
+      for (const auto *Field : RD->fields()) {
+        generateIntelFPGAAnnotation(Field, AnnotStr);
+        if (const auto FT = Field->getType()
+                              ->getPointeeOrArrayElementType() // Strip pointers
+                              ->getAs<RecordType>())
+          Gen(FT, Gen);
+      }
+      for (const auto Base : RD->bases()) { // Make sure to visit bases
+        QualType BaseTy = Base.getType();
+        if (const auto *BRT = BaseTy->getAs<RecordType>())
+          Gen(BRT, Gen);
+      }
+    };
+    Gen(RT, Gen);
   }
-}
-
-void CodeGenModule::emitGlobalAnnotation(const VarDecl *VD,
-                                         llvm::GlobalValue *GV) {
-  SmallString<256> AnnotStr;
-  // Generate the annotation string for the variable declaration.
-  // Emit the annotation string as a global constant.
   generateIntelFPGAAnnotation(VD, AnnotStr);
   if (!AnnotStr.empty()) {
     // Get the globals for file name, annotation, and the line number.
@@ -6022,37 +5925,15 @@ void CodeGenModule::emitGlobalAnnotation(const VarDecl *VD,
                   GV->getContext(),
                   getDataLayout().getDefaultGlobalsAddressSpace()));
 
-    // Create a constant structure to represent the global annotation.
-    // This includes the global variable (possibly with adjusted address space),
-    // the annotation string, the source file, the line number, and a null pointer as a placeholder.
+    // Create the ConstantStruct for the global annotation.
     llvm::Constant *Fields[5] = {
         ASZeroGV, llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
         llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy), LineNoCst,
         llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)};
-    // Add the constant structure to the list of annotations to be emitted.
     Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
   }
 }
 
-void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV) {
-  // Check if VD is a device_global.
-  if (SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-        VD->getType())) {
-      // Emit the global annotation for the variable declaration.
-      emitGlobalAnnotation(VD, GV);
-  }
-  // Handle annotations for fields within a device_global struct.
-  if (VD->getType()->isRecordType()) {
-    const RecordType *RT = VD->getType()->getAs<RecordType>();
-    const RecordDecl *RD = RT->getDecl();
-    // Iterate over the fields of the record declaration.
-    for (const auto *Field : RD->fields()) {
-       // For each field, call the updated emitFieldAnnotation function.
-       // This allows for field-specific annotations within a device_global struct.
-       emitFieldAnnotation(Field, GV);
-    }
-  }
-}
 
 /// Pass IsTentative as true if you want to create a tentative definition.
 void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
