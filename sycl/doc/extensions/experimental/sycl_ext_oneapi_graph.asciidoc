@@ -1943,6 +1943,16 @@ The kernels loaded using
 link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
 behave as normal when used in graph nodes.
 
+==== sycl_ext_oneapi_enqueue_custom_operation
+
+`ext_oneapi_enqueue_custom_operation`, defined in
+link:../experimental/sycl_ext_oneapi_enqueue_custom_operation.asciidoc[sycl_ext_oneapi_enqueue_custom_operation]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
 == Examples
 
 [NOTE]
