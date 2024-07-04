@@ -291,7 +291,7 @@ analogue:
     - "**clGetDeviceFunctionPointerINTEL**"
 details:
     - "Retrieves a pointer to the functions with the given name and defined in the given program."
-    - "$X_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function can not be obtained."
+    - "$X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the function can not be obtained."
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
 params:
@@ -313,6 +313,11 @@ params:
       name: ppFunctionPointer
       desc: |
             [out] Returns the pointer to the function if it is found in the program.
+returns:
+    - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
+        - "If `pFunctionName` couldn't be found in `hProgram`."
+    - $X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        - "If `pFunctionName` could be located, but its address couldn't be retrieved."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves a pointer to a device global variable."
