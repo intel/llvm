@@ -454,3 +454,46 @@ def generate_tools(path, section, namespace, tags, version, specs, meta):
     loc += _mako_info_hpp(infodir, namespace, tags, version, specs, meta)
 
     print("TOOLS Generated %s lines of code.\n" % loc)
+
+"""
+Entry-point:
+    generates API functions that accept queue for level_zero
+"""
+def generate_level_zero_queue_api(path, section, namespace, tags, version, specs, meta):
+    template = "queue_api.cpp.mako"
+    fin = os.path.join("templates", template)
+
+    name = "queue_api"
+    filename = "queue_api.cpp"
+    layer_dstpath = os.path.join(path, "adapters/level_zero")
+    os.makedirs(layer_dstpath, exist_ok=True)
+    fout = os.path.join(layer_dstpath, filename)
+
+    print("Generating %s..." % fout)
+
+    loc = util.makoWrite(
+            fin, fout,
+            ver=version,
+            name = name,
+            namespace=namespace,
+            tags=tags,
+            specs=specs,
+            meta=meta)
+
+    template = "queue_api.hpp.mako"
+    fin = os.path.join("templates", template)
+
+    filename = "queue_api.hpp"
+    fout = os.path.join(layer_dstpath, filename)
+
+    print("Generating %s..." % fout)
+
+    loc += util.makoWrite(
+            fin, fout,
+            ver=version,
+            name = name,
+            namespace=namespace,
+            tags=tags,
+            specs=specs,
+            meta=meta)
+    print("QUEUE Generated %s lines of code.\n" % loc)
