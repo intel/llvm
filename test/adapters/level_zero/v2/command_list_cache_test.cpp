@@ -5,11 +5,13 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "v2/context.hpp"
 
 #include "context.hpp"
 #include "device.hpp"
 
 #include "uur/fixtures.h"
+#include "uur/raii.h"
 
 #include <gtest/gtest.h>
 #include <map>
@@ -159,4 +161,98 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
             ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
         }
     }
+}
+
+TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
+    static constexpr int NumQueuesPerType = 5;
+    size_t NumUniqueQueueTypes = 0;
+
+    for (int I = 0; I < NumQueuesPerType; I++) {
+        NumUniqueQueueTypes = 0;
+
+        { // Queues scope
+            std::vector<uur::raii::Queue> Queues;
+            for (auto Priority :
+                 std::vector<uint32_t>{UR_QUEUE_FLAG_PRIORITY_LOW,
+                                       UR_QUEUE_FLAG_PRIORITY_HIGH, 0}) {
+                for (auto Index :
+                     std::vector<std::optional<int32_t>>{std::nullopt, 0}) {
+                    NumUniqueQueueTypes++;
+
+                    ur_queue_properties_t QueueProps{
+                        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+                    QueueProps.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+                    if (Priority) {
+                        QueueProps.flags |= Priority;
+                    }
+
+                    ur_queue_index_properties_t IndexProps{
+                        UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES, nullptr, 0};
+                    if (Index) {
+                        IndexProps.computeIndex = *Index;
+                        QueueProps.pNext = &IndexProps;
+                    }
+
+                    ur_queue_handle_t Queue;
+                    ASSERT_EQ(
+                        urQueueCreate(context, device, &QueueProps, &Queue),
+                        UR_RESULT_SUCCESS);
+
+                    Queues.emplace_back(Queue);
+                }
+            }
+
+            ASSERT_EQ(static_cast<v2::ur_context_handle_t>(context)
+                          ->commandListCache.getNumImmediateCommandLists(),
+                      0);
+            ASSERT_EQ(static_cast<v2::ur_context_handle_t>(context)
+                          ->commandListCache.getNumRegularCommandLists(),
+                      0);
+        } // Queues scope
+
+        ASSERT_EQ(static_cast<v2::ur_context_handle_t>(context)
+                      ->commandListCache.getNumImmediateCommandLists(),
+                  NumUniqueQueueTypes * 2); // * 2 for compute and copy
+        ASSERT_EQ(static_cast<v2::ur_context_handle_t>(context)
+                      ->commandListCache.getNumRegularCommandLists(),
+                  0);
+    }
+}
+
+TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
+    static constexpr int NumThreads = 10;
+    static constexpr int NumIters = 10;
+
+    std::vector<std::thread> Threads;
+    for (int I = 0; I < NumThreads; I++) {
+        Threads.emplace_back([I, this]() {
+            for (int J = 0; J < NumIters; J++) {
+                ur_queue_properties_t QueueProps{
+                    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+                QueueProps.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+                if (I < NumThreads / 2) {
+                    QueueProps.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
+                } else {
+                    QueueProps.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+                }
+
+                uur::raii::Queue Queue;
+                ASSERT_EQ(
+                    urQueueCreate(context, device, &QueueProps, Queue.ptr()),
+                    UR_RESULT_SUCCESS);
+
+                ASSERT_LE(static_cast<v2::ur_context_handle_t>(context)
+                              ->commandListCache.getNumImmediateCommandLists(),
+                          NumThreads * 2); // * 2 for compute and copy
+            }
+        });
+    }
+
+    for (auto &Thread : Threads) {
+        Thread.join();
+    }
+
+    ASSERT_LE(static_cast<v2::ur_context_handle_t>(context)
+                  ->commandListCache.getNumImmediateCommandLists(),
+              NumThreads * 2);
 }

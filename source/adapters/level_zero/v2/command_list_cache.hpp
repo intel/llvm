@@ -64,6 +64,10 @@ struct command_list_cache_t {
   getRegularCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
                         uint32_t Ordinal);
 
+  // For testing purposes
+  size_t getNumImmediateCommandLists();
+  size_t getNumRegularCommandLists();
+
 private:
   ze_context_handle_t ZeContext;
   std::unordered_map<command_list_descriptor_t,

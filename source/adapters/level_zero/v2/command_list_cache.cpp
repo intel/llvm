@@ -140,4 +140,25 @@ void command_list_cache_t::addCommandList(const command_list_descriptor_t &desc,
   auto [it, _] = ZeCommandListCache.try_emplace(desc);
   it->second.emplace(std::move(cmdList));
 }
+
+size_t command_list_cache_t::getNumImmediateCommandLists() {
+  std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
+  size_t NumLists = 0;
+  for (auto &Pair : ZeCommandListCache) {
+    if (std::holds_alternative<immediate_command_list_descriptor_t>(Pair.first))
+      NumLists += Pair.second.size();
+  }
+  return NumLists;
+}
+
+size_t command_list_cache_t::getNumRegularCommandLists() {
+  std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
+  size_t NumLists = 0;
+  for (auto &Pair : ZeCommandListCache) {
+    if (std::holds_alternative<regular_command_list_descriptor_t>(Pair.first))
+      NumLists += Pair.second.size();
+  }
+  return NumLists;
+}
+
 } // namespace v2

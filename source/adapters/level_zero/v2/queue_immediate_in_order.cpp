@@ -11,8 +11,49 @@
 #include "queue_immediate_in_order.hpp"
 
 namespace v2 {
+
+static int32_t getZeOrdinal(ur_device_handle_t hDevice, queue_group_type type) {
+  if (type == queue_group_type::MainCopy && hDevice->hasMainCopyEngine()) {
+    return hDevice->QueueGroup[queue_group_type::MainCopy].ZeOrdinal;
+  }
+  return hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
+}
+
+static std::optional<int32_t> getZeIndex(const ur_queue_properties_t *pProps) {
+  if (pProps && pProps->pNext) {
+    const ur_base_properties_t *extendedDesc =
+        reinterpret_cast<const ur_base_properties_t *>(pProps->pNext);
+    if (extendedDesc->stype == UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES) {
+      const ur_queue_index_properties_t *indexProperties =
+          reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
+      return indexProperties->computeIndex;
+    }
+  }
+  return std::nullopt;
+}
+
+static ze_command_queue_priority_t getZePriority(ur_queue_flags_t flags) {
+  if ((flags & UR_QUEUE_FLAG_PRIORITY_LOW) != 0)
+    return ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+  if ((flags & UR_QUEUE_FLAG_PRIORITY_HIGH) != 0)
+    return ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+  return ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
+}
+
+ur_command_list_handler_t::ur_command_list_handler_t(
+    v2::ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_queue_properties_t *pProps, queue_group_type type)
+    : commandList(hContext->commandListCache.getImmediateCommandList(
+          hDevice->ZeDevice, true, getZeOrdinal(hDevice, type),
+          ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
+          getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
+          getZeIndex(pProps))) {}
+
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
-    v2::ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t) {}
+    v2::ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_queue_properties_t *pProps)
+    : copyHandler(hContext, hDevice, pProps, queue_group_type::MainCopy),
+      computeHandler(hContext, hDevice, pProps, queue_group_type::Compute) {}
 
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
@@ -26,11 +67,16 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueRetain() {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  RefCount.increment();
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (!RefCount.decrementAndTest())
+    return UR_RESULT_SUCCESS;
+
+  delete this;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
