@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // Add "-options -vc-codegen" explicitly to workaround bug in dev igc package.
+// REQUIRES: ocloc
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -Xs "-options -vc-codegen" -o %t.out
 // RUN: %t.out
 // TODO: remove XFAIL when the fix in GPU RT for Windows is updated on CI
