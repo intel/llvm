@@ -249,6 +249,8 @@ long __nv_llrint(double);
 long __nv_llrintf(float);
 long __nv_llround(double);
 long __nv_llroundf(float);
+long __nv_lround(double);
+long __nv_lroundf(float);
 double __nv_log(double);
 double __nv_log10(double);
 float __nv_log10f(float);
