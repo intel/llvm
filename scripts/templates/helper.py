@@ -1604,3 +1604,35 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
         records.append(record)
 
     return records
+
+"""
+Public:
+    returns a list of objects representing functions that accept $x_queue_handle_t as a first param 
+"""
+def get_queue_related_functions(specs, namespace, tags):
+    funcs = []
+    for s in specs:
+        for obj in s['objects']:
+            if re.match(r"function", obj['type']):
+                if obj['params'] and obj['params'][0]['type'] == '$x_queue_handle_t':
+                    funcs.append(obj)
+    return funcs
+
+"""
+Public:
+    transform a queue related function using following rules:
+    - remove $x prefix
+    - make first letter lowercase
+    - remove first param (queue)
+"""
+def transform_queue_related_function_name(namespace, tags, obj, format = ["name", "type"]):
+    function_name = make_func_name(namespace, tags, obj).replace(namespace,'')
+    function_name=function_name[0].lower() + function_name[1:]
+
+    if obj['params'][0]['type'] != '$x_queue_handle_t':
+        raise ValueError('First parameter is not a queue handle')
+
+    params = make_param_lines(namespace, tags, obj, format=format)
+    params = params[1:]
+
+    return "{}({})".format(function_name, ", ".join(params))
