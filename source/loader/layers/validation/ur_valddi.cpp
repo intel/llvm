@@ -1082,6 +1082,22 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
+        if (pImageDesc && pImageDesc->numMipLevel != 0) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->numSamples != 0) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
         if (pHost == NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {

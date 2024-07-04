@@ -109,7 +109,7 @@ etors:
     - name: FUNCTION_NAME
       desc: "[char[]] Return null-terminated kernel function name."
     - name: NUM_ARGS
-      desc: "[size_t] Return Kernel number of arguments."
+      desc: "[uint32_t] Return Kernel number of arguments."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the kernel object.

@@ -1512,6 +1512,10 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && pImageDesc->numMipLevel != 0`
+///         + `pImageDesc && pImageDesc->numSamples != 0`
+///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
+///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -3221,8 +3225,8 @@ ur_result_t UR_APICALL urProgramRelease(
 /// @details
 ///     - Retrieves a pointer to the functions with the given name and defined
 ///       in the given program.
-///     - ::UR_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function
-///       can not be obtained.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the
+///       function can not be obtained.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
@@ -3242,6 +3246,10 @@ ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFunctionName`
 ///         + `NULL == ppFunctionPointer`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
+///         + If `pFunctionName` couldn't be found in `hProgram`.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
+///         + If `pFunctionName` could be located, but its address couldn't be retrieved.
 ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_device_handle_t
         hDevice, ///< [in] handle of the device to retrieve pointer for.
