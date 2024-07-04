@@ -469,6 +469,7 @@ returns:
       - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a bindless sampled image handle"
@@ -507,6 +508,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Copy image data Host to Device or Device to Host"
