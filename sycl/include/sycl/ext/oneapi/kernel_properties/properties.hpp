@@ -163,7 +163,7 @@ template <size_t Dim0, size_t... Dims>
 struct property_value<max_work_group_size_key,
                       std::integral_constant<size_t, Dim0>,
                       std::integral_constant<size_t, Dims>...> {
-  static_assert(sizeof...(Dims) + 1 <= 3,
+  static_assert(sizeof...(Dims) + 1 == 3,
                 "max_work_group_size property currently "
                 "only supports exactly three values.");
   static_assert(
