@@ -207,7 +207,7 @@ public:
 
   const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
     if (!Reqs.has_value())
-      Reqs = computeDeviceRequirements(*this);
+      Reqs = computeDeviceRequirements(getModule(), entries());
     return *Reqs;
   }
 
@@ -237,7 +237,7 @@ protected:
   Module &getInputModule() { return Input.getModule(); }
 
   std::unique_ptr<Module> releaseInputModule() {
-    return std::move(Input.releaseModulePtr());
+    return Input.releaseModulePtr();
   }
 
 public:
@@ -274,9 +274,9 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
+void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *msg = "", int Tab = 0);
+                     const char *Msg = "", int Tab = 0);
 #endif // NDEBUG
 
 struct SplitModule {
@@ -306,6 +306,7 @@ struct ModuleSplitterSettings {
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
+bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F);
 
 } // namespace module_split
