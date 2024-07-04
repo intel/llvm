@@ -78,18 +78,24 @@ those to learn to use the library.
 
 SYCLcompat provides a `dim3` class akin to that of CUDA or HIP programming
 models. `dim3` encapsulates other languages iteration spaces that are
-represented with coordinate letters (x, y, z).
+represented with coordinate letters (x, y, z). In SYCL, the fastest-moving
+dimension is the one with the highest index, e.g. in a SYCL 2D range iteration
+space, there are two dimensions, 0 and 1, and 1 will be the one that "moves
+faster". For CUDA/HIP, the convention is reversed: `x` is the dimension which
+moves fastest. `syclcompat::dim3` follows this convention, so that
+`syclcompat::dim3(32, 4)` is equivalent to `sycl::range<2>(4, 32)`, and
+`syclcompat::dim3(32, 4, 2)` is equivalent to `sycl::range<3>(2, 4, 32)`.
 
 ```cpp
 namespace syclcompat {
 
 class dim3 {
 public:
-  const size_t x, y, z;
+  unsigned int x, y, z;
   dim3(const sycl::range<3> &r);
   dim3(const sycl::range<2> &r);
   dim3(const sycl::range<1> &r);
-  constexpr dim3(size_t x, size_t y = 1, size_t z = 1);
+  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1);
 
   constexpr size_t size();
 
@@ -106,12 +112,10 @@ inline dim3 operator-(const dim3 &a, const dim3 &b);
 } // syclcompat
 ```
 
-In SYCL, the fastest-moving dimension is the one with the highest index, e.g. in
-a SYCL 2D range iteration space, there are two dimensions, 0 and 1, and 1 will
-be the one that "moves faster". The compatibility headers for SYCL offer a
-number of convenience functions that help the mapping between xyz-based
-coordinates to SYCL iteration spaces in the different scopes available. In
-addition to the global range, the following helper functions are also provided:
+The compatibility headers for SYCL offer a number of convenience functions that
+help the mapping between xyz-based coordinates to SYCL iteration spaces in the
+different scopes available. In addition to the global range, the following
+helper functions are also provided:
 
 ``` c++
 namespace syclcompat {

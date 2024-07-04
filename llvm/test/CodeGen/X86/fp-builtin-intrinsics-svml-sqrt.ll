@@ -271,7 +271,7 @@ declare <8 x half> @llvm.fpbuiltin.sqrt.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.sqrt.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.sqrt.v32f16(<32 x half>)
 
-attributes #0 = { "fpbuiltin-max-error"="0.6" }
+attributes #0 = { "fpbuiltin-max-error"="1.0" }
 attributes #1 = { "fpbuiltin-max-error"="4.0" }
 attributes #2 = { "fpbuiltin-max-error"="4096.0" }
 attributes #3 = { "fpbuiltin-max-error"="67108864.0" }
