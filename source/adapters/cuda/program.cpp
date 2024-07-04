@@ -503,7 +503,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     UR_CHECK_ERROR(Ret);
   if (Ret == CUDA_ERROR_NOT_FOUND) {
     *ppFunctionPointer = 0;
-    Result = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    Result = UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   }
 
   return Result;

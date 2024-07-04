@@ -439,6 +439,8 @@ etors:
       desc: "[$x_device_handle_t[]] The set of component devices contained by this composite device."
     - name: COMPOSITE_DEVICE
       desc: "[$x_device_handle_t] The composite device containing this component device."
+    - name: GLOBAL_VARIABLE_SUPPORT
+      desc: "[$x_bool_t] return true if the device supports the `EnqueueDeviceGlobalVariableWrite` and `EnqueueDeviceGlobalVariableRead` entry points."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

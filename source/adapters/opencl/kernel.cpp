@@ -61,8 +61,8 @@ static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
     return CL_KERNEL_PROGRAM;
   case UR_KERNEL_INFO_ATTRIBUTES:
     return CL_KERNEL_ATTRIBUTES;
+  // NUM_REGS doesn't have a CL equivalent
   case UR_KERNEL_INFO_NUM_REGS:
-    return CL_KERNEL_NUM_ARGS;
   default:
     return -1;
   }
@@ -73,33 +73,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  // We need this little bit of ugliness because the UR NUM_ARGS property is
-  // size_t whereas the CL one is cl_uint. We should consider changing that see
-  // #1038
-  if (propName == UR_KERNEL_INFO_NUM_ARGS) {
-    if (pPropSizeRet)
-      *pPropSizeRet = sizeof(size_t);
-    cl_uint NumArgs = 0;
-    CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                         mapURKernelInfoToCL(propName),
-                                         sizeof(NumArgs), &NumArgs, nullptr));
-    if (pPropValue) {
-      if (propSize != sizeof(size_t))
-        return UR_RESULT_ERROR_INVALID_SIZE;
-      *static_cast<size_t *>(pPropValue) = static_cast<size_t>(NumArgs);
-    }
-  } else {
-    size_t CheckPropSize = 0;
-    cl_int ClResult = clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                      mapURKernelInfoToCL(propName), propSize,
-                                      pPropValue, &CheckPropSize);
-    if (pPropValue && CheckPropSize != propSize) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    CL_RETURN_ON_FAILURE(ClResult);
-    if (pPropSizeRet) {
-      *pPropSizeRet = CheckPropSize;
-    }
+  // OpenCL doesn't have a way to support this.
+  if (propName == UR_KERNEL_INFO_NUM_REGS) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  size_t CheckPropSize = 0;
+  cl_int ClResult = clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                    mapURKernelInfoToCL(propName), propSize,
+                                    pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClResult);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
   }
 
   return UR_RESULT_SUCCESS;
