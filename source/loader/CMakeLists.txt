@@ -47,6 +47,7 @@ add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 
 target_include_directories(ur_loader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/layers
 )
 
@@ -59,6 +60,13 @@ target_link_libraries(ur_loader PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
 )
+
+if(UR_STATIC_ADAPTER_L0)
+    target_link_libraries(ur_loader PRIVATE
+        ur_adapter_level_zero
+    )
+    target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO)
+endif()
 
 if(UR_ENABLE_TRACING)
     target_link_libraries(ur_loader PRIVATE ${TARGET_XPTI})

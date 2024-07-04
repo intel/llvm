@@ -16,6 +16,7 @@
 #include "../device.hpp"
 #include "../platform.hpp"
 #include "../program.hpp"
+#include "../ur_interface_loader.hpp"
 
 ur_single_device_kernel_t::ur_single_device_kernel_t(ze_device_handle_t hDevice,
                                                      ze_kernel_handle_t hKernel,
@@ -36,7 +37,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
                                          const char *kernelName)
     : hProgram(hProgram),
       deviceKernels(hProgram->Context->getPlatform()->getNumDevices()) {
-  urProgramRetain(hProgram);
+  ur::level_zero::urProgramRetain(hProgram);
 
   for (auto [zeDevice, zeModule] : hProgram->ZeModuleMap) {
     ZeStruct<ze_kernel_desc_t> zeKernelDesc;
@@ -81,7 +82,7 @@ ur_result_t ur_kernel_handle_t_::release() {
     }
   }
 
-  UR_CALL_THROWS(urProgramRelease(hProgram));
+  UR_CALL_THROWS(ur::level_zero::urProgramRelease(hProgram));
 
   return UR_RESULT_SUCCESS;
 }
@@ -196,21 +197,22 @@ ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
   return hProgram;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
-               ur_kernel_handle_t *phKernel) {
+namespace ur::level_zero {
+ur_result_t urKernelCreate(ur_program_handle_t hProgram,
+                           const char *pKernelName,
+                           ur_kernel_handle_t *phKernel) {
   *phKernel = new ur_kernel_handle_t_(hProgram, pKernelName);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(
+ur_result_t urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
 ) {
   hKernel->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
+ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
 ) {
   if (!hKernel->RefCount.decrementAndTest())
@@ -222,7 +224,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
+ur_result_t urKernelSetArgValue(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t argSize,    ///< [in] size of argument type
@@ -235,7 +237,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+ur_result_t urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t
@@ -246,3 +248,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
 }
+} // namespace ur::level_zero

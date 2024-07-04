@@ -60,12 +60,14 @@ int ur_duplicate_fd(int pid, int fd_in);
 ///////////////////////////////////////////////////////////////////////////////
 #if defined(_WIN32)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
 #else
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
 #endif
+#define STATIC_LIBRARY_EXTENSION ".a"
 #endif
 
 inline std::string create_library_path(const char *name, const char *path) {

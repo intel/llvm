@@ -365,6 +365,10 @@ ${tbl['export']['name']}(
     // Load the device-platform DDI tables
     for( auto& platform : ur_loader::getContext()->platforms )
     {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr)
+            continue;
+
         if(platform.initStatus != ${X}_RESULT_SUCCESS)
             continue;
         auto getTable = reinterpret_cast<${tbl['pfn']}>(
