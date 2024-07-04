@@ -25,6 +25,7 @@ namespace ext::oneapi::experimental {
 void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
                          ur_image_format_t &urFormat, size_t pitch = 0) {
   urDesc = {};
+  urDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   urDesc.width = desc.width;
   urDesc.height = desc.height;
   urDesc.depth = desc.depth;
