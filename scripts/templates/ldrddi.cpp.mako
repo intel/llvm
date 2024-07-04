@@ -271,15 +271,17 @@ namespace ur_loader
         del add_local
         %>
         %for i, item in enumerate(epilogue):
-        %if 0 == i:
+        %if 0 == i and not item['release']:
         if( ${X}_RESULT_SUCCESS != result )
             return result;
 
         %endif
-        %if item['release']:
-        // release loader handle
-        ${item['factory']}.release( ${item['name']} );
-        %elif not '_native_object_' in item['obj']:
+        ## Before we can re-enable the releases we will need ref-counted object_t.
+        ## See unified-runtime github issue #1784
+        ##%if item['release']:
+        ##// release loader handle
+        ##${item['factory']}.release( ${item['name']} );
+        %if not item['release'] and not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
         try
         {
             %if 'typename' in item:

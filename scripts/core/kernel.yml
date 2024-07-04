@@ -309,7 +309,7 @@ details:
 params:
     - type: $x_kernel_handle_t
       name: hKernel
-      desc: "[in] handle for the Kernel to release"
+      desc: "[in][release] handle for the Kernel to release"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelSetArgPointer."
