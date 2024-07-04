@@ -34,7 +34,7 @@ inline ur_queue_handle_t createQueue(::ur_context_handle_t hContext,
   }
   // TODO: For now, always use immediate, in-order
   return new ur_queue_immediate_in_order_t(
-      static_cast<v2::ur_context_handle_t>(hContext), hDevice, pProps->flags);
+      static_cast<v2::ur_context_handle_t>(hContext), hDevice, pProps);
 }
 
 } // namespace v2

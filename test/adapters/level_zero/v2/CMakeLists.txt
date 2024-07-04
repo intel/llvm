@@ -9,6 +9,7 @@ function(add_unittest name)
         FIXTURE DEVICES
         ENVIRONMENT
             "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+            "UR_L0_USE_QUEUE_V2=1"
         SOURCES
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/common.cpp
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
