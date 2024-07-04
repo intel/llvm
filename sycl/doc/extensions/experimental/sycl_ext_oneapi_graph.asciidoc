@@ -1453,16 +1453,37 @@ graph LR
     Recording -->|End Recording| Executing
 ....
 
-==== Implicit Queue Recording
+==== Transitive Queue Recording
 
-Submitting a command-group to a queue can implicitly change its state
-to `queue_state::recording`. This will occur when the command-group depends on
-an event that has been returned by a queue in the recording state.
+Submitting a command-group to a queue in the executable state can implicitly
+change its state to `queue_state::recording`. This will occur when the
+command-group depends on an event that has been returned by a queue in the
+recording state. The change of state happens before the command-group is
+submitted (i.e. a new graph node will be created for that command-group).
 
 A queue whose state has been set to `queue_state::recording` using this
 mechanism, will behave as if it had been passed as an argument to
 `command_graph::begin_recording()`. In particular, its state will not
 change again until `command_graph::end_recording()` is called.
+
+===== Example
+
+[source,c++]
+----
+// q1 state is set to recording.
+graph.begin_recording(q1);
+
+// Node is added to the graph by submitting to a recording queue.
+auto e1 = q1.single_task(...);
+
+// Since there is a dependency on e1 which was created by a queue being
+// recorded, q2 immediately enters record mode, and a new node is created
+// with an edge between e1 and e2.
+auto e2 = q2.single_task(e1, ...);
+
+// Ends recording on q1 and q2.
+graph.end_recording();
+----
 
 ==== Queue Properties;
 
