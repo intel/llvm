@@ -10166,7 +10166,7 @@ urEnqueueNativeCommandExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Unified Runtime Experimental API for enqueuing work through native APIs
+// Intel 'oneAPI' Unified Runtime Experimental API for mapping tensor objects
 #if !defined(__GNUC__)
 #pragma region tensor map(experimental)
 #endif
@@ -10287,6 +10287,8 @@ typedef enum ur_exp_tensor_map_oob_fill_flag_t {
 ///         + `NULL == PixelBoxUpperCorner`
 ///         + `NULL == ElementStrides`
 ///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
 UR_APIEXPORT ur_result_t UR_APICALL
 urTensorMapEncodeIm2ColExp(
     ur_device_handle_t hDevice,                         ///< [in] Handle of the device object.
@@ -10296,18 +10298,18 @@ urTensorMapEncodeIm2ColExp(
     const uint64_t *GlobalDim,                          ///< [in] Array containing tensor size (number of elements) along each of
                                                         ///< the TensorRank dimensions.
     const uint64_t *GlobalStrides,                      ///< [in] Array containing stride size (in bytes) along each of the
-                                                        ///< tensorRank - 1 dimensions.
+                                                        ///< TensorRank - 1 dimensions.
     const int *PixelBoxLowerCorner,                     ///< [in] Array containing DHW dimensions of lower box corner.
     const int *PixelBoxUpperCorner,                     ///< [in] Array containing DHW dimensions of upper box corner.
     uint32_t ChannelsPerPixel,                          ///< [in] Number of channels per pixel.
     uint32_t PixelsPerColumn,                           ///< [in] Number of pixels per column.
-    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the tensorRank
+    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the TensorRank
                                                         ///< dimensions.
     ur_exp_tensor_map_interleave_flags_t Interleave,    ///< [in] Type of interleaved layout the tensor addresses
     ur_exp_tensor_map_swizzle_flags_t Swizzle,          ///< [in] Bank swizzling pattern inside shared memory
     ur_exp_tensor_map_l2_promotion_flags_t L2Promotion, ///< [in] L2 promotion size.
-    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicate whether zero or special NaN constant will be used to
-                                                        ///< fill out-of-bound elements.
+    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicates whether zero or special NaN constant will be used to
+                                                        ///< fill out-of-bounds elements.
     ur_exp_tensor_map_handle_t *hTensorMap              ///< [out] Handle of the tensor map object.
 );
 
@@ -10337,6 +10339,8 @@ urTensorMapEncodeIm2ColExp(
 ///         + `NULL == BoxDim`
 ///         + `NULL == ElementStrides`
 ///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
 UR_APIEXPORT ur_result_t UR_APICALL
 urTensorMapEncodeTiledExp(
     ur_device_handle_t hDevice,                         ///< [in] Handle of the device object.
@@ -10346,17 +10350,17 @@ urTensorMapEncodeTiledExp(
     const uint64_t *GlobalDim,                          ///< [in] Array containing tensor size (number of elements) along each of
                                                         ///< the TensorRank dimensions.
     const uint64_t *GlobalStrides,                      ///< [in] Array containing stride size (in bytes) along each of the
-                                                        ///< tensorRank - 1 dimensions.
+                                                        ///< TensorRank - 1 dimensions.
     const uint32_t *BoxDim,                             ///< [in] Array containing traversal box size (number of elments) along
-                                                        ///< each of the tensorRank dimensions. Specifies how many elements to be
+                                                        ///< each of the TensorRank dimensions. Specifies how many elements to be
                                                         ///< traversed along each tensor dimension.
-    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the tensorRank
+    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the TensorRank
                                                         ///< dimensions.
     ur_exp_tensor_map_interleave_flags_t Interleave,    ///< [in] Type of interleaved layout the tensor addresses
     ur_exp_tensor_map_swizzle_flags_t Swizzle,          ///< [in] Bank swizzling pattern inside shared memory
     ur_exp_tensor_map_l2_promotion_flags_t L2Promotion, ///< [in] L2 promotion size.
-    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicate whether zero or special NaN constant will be used to
-                                                        ///< fill out-of-bound elements.
+    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicates whether zero or special NaN constant will be used to
+                                                        ///< fill out-of-bounds elements.
     ur_exp_tensor_map_handle_t *hTensorMap              ///< [out] Handle of the tensor map object.
 );
 

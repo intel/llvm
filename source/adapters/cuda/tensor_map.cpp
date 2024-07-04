@@ -18,8 +18,8 @@ struct ur_exp_tensor_map_handle_t_ {
 };
 
 #define CONVERT(URTYPE, CUTYPE)                                                \
-  if (URTYPE & UrType)                                                         \
-    return CUTYPE;
+  if ((URTYPE)&UrType)                                                         \
+    return (CUTYPE);
 
 inline CUtensorMapDataType
 convertUrToCuDataType(ur_exp_tensor_map_data_type_flags_t UrType) {
@@ -71,7 +71,7 @@ convertUrToCuSwizzle(ur_exp_tensor_map_swizzle_flags_t UrType) {
 }
 
 CUtensorMapL2promotion
-convertUrToL2promotion(ur_exp_tensor_map_l2_promotion_flags_t UrType) {
+convertUrToCuL2Promotion(ur_exp_tensor_map_l2_promotion_flags_t UrType) {
   CONVERT(UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_NONE,
           CU_TENSOR_MAP_L2_PROMOTION_NONE);
   CONVERT(UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_64B,
@@ -84,7 +84,7 @@ convertUrToL2promotion(ur_exp_tensor_map_l2_promotion_flags_t UrType) {
 }
 
 CUtensorMapFloatOOBfill
-convertUrToCuOOBfill(ur_exp_tensor_map_oob_fill_flags_t UrType) {
+convertUrToCuOobFill(ur_exp_tensor_map_oob_fill_flags_t UrType) {
   CONVERT(UR_EXP_TENSOR_MAP_OOB_FILL_FLAG_NONE,
           CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE);
   CONVERT(UR_EXP_TENSOR_MAP_OOB_FILL_FLAG_REQUEST_ZERO_FMA,
@@ -111,7 +111,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
         GlobalAddress, GlobalDim, GlobalStrides, PixelBoxLowerCorner,
         PixelBoxUpperCorner, ChannelsPerPixel, PixelsPerColumn, ElementStrides,
         convertUrToCuInterleave(Interleave), convertUrToCuSwizzle(Swizzle),
-        convertUrToL2promotion(L2Promotion), convertUrToCuOOBfill(OobFill)));
+        convertUrToCuL2Promotion(L2Promotion), convertUrToCuOobFill(OobFill)));
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -134,7 +134,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
         &(*hTensorMap)->Map, convertUrToCuDataType(TensorMapType), TensorRank,
         GlobalAddress, GlobalDim, GlobalStrides, BoxDim, ElementStrides,
         convertUrToCuInterleave(Interleave), convertUrToCuSwizzle(Swizzle),
-        convertUrToL2promotion(L2Promotion), convertUrToCuOOBfill(OobFill)));
+        convertUrToCuL2Promotion(L2Promotion), convertUrToCuOobFill(OobFill)));
   } catch (ur_result_t Err) {
     return Err;
   }
