@@ -51,13 +51,19 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
     // (FAction). FAction should be a literal (i.e. not a pointer). The
     // structure of the header file ensures that there is exactly one such
     // instruction.
+    bool CallFound = false;
     for (Instruction &I : instructions(FCaller)) {
       if (auto *CI = dyn_cast<CallInst>(&I);
           CI && (Intrinsic::IndependentIntrinsics::not_intrinsic ==
                  CI->getIntrinsicID())) {
+        assert(
+            !CallFound &&
+            "The call_if_on_device_conditionally function must have only one "
+            "call instruction (w/o taking into account any calls to various "
+            "intrinsics).");
         FCallersToFActions.push_back(
             std::make_pair(FCaller, CI->getCalledFunction()));
-        break;
+        CallFound = true;
       }
     }
   }
