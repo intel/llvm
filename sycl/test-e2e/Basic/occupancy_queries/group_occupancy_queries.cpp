@@ -43,14 +43,14 @@ int main() {
 
   sycl::range<3> wgRange{WorkGroupSize, 1, 1};
   auto maxWGsPerCU = kernel.ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_group_occupancy_per_cu>(
+      syclex::info::kernel_queue_specific::recommended_num_work_groups_per_cu>(
       q, wgRange, LocalMemorySizeInBytes);
 
   q.single_task<QueryKernel>([]() {}).wait();
 
   static_assert(
       std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, uint32_t>,
-      "max_num_work_group_occupancy_per_cu query must return uint32_t");
+      "recommended_num_work_groups_per_cu query must return uint32_t");
 
   // We must have at least one active group if we are below resource limits.
   if (WorkGroupSize < MaxWorkGroupSize &&
@@ -67,7 +67,7 @@ int main() {
     wgRange = sycl::range{WorkGroupSize, 1, 1};
     maxWGsPerCU =
         kernel.ext_oneapi_get_info<syclex::info::kernel_queue_specific::
-                                       max_num_work_group_occupancy_per_cu>(
+                                       recommended_num_work_groups_per_cu>(
             q, wgRange, LocalMemorySizeInBytes);
 
     if (WorkGroupSize >= MaxWorkGroupSize &&
