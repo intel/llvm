@@ -196,10 +196,10 @@
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
 // 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
-// 15.56 Changed the signature of piextMemImageCopy to take 2 image and format
+// 16.56 Changed the signature of piextMemImageCopy to take 2 image and format
 //       descriptors.
 
-#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MAJOR 16
 #define _PI_H_VERSION_MINOR 56
 
 #define _PI_STRING_HELPER(a) #a

@@ -1393,7 +1393,7 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcImageDesc = PiDesc;
   MImpl->MDestImageDesc = PiDesc;
 
-  // Fill the descriptor row pitch and host extent based on the type of copy
+  // Fill the descriptor row pitch and host extent based on the type of copy.
   if (MImpl->MImageCopyFlags ==
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE) {
     MImpl->MDestImageDesc.image_row_pitch = DeviceRowPitch;
