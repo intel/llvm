@@ -118,7 +118,8 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
 
     auto Composite = Dev.get_info<
         sycl::ext::oneapi::experimental::info::device::composite_device>();
-    if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
+    if (std::find(Composites.begin(), Composites.end(), Composite) ==
+        Composites.end())
       Composites.push_back(Composite);
   }
   for (const auto &Composite : Composites) {
