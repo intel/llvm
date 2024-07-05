@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/nd_item.hpp>
@@ -26,13 +26,6 @@ struct max_num_work_group_sync {
   using return_type = size_t;
 };
 } // namespace info::kernel_queue_specific
-
-struct use_root_sync_key
-    : detail::compile_time_property_key<detail::PropKind::UseRootSync> {
-  using value_t = property_value<use_root_sync_key>;
-};
-
-inline constexpr use_root_sync_key::value_t use_root_sync;
 
 template <int Dimensions> class root_group {
 public:
@@ -79,16 +72,6 @@ private:
   sycl::nd_item<Dimensions> it;
 };
 
-template <int Dimensions>
-group<Dimensions> get_child_group(root_group<Dimensions> g) {
-  (void)g;
-  return this_group<Dimensions>();
-}
-
-template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
-  (void)g;
-  return this_sub_group();
-}
 namespace this_work_item {
 template <int Dimensions> root_group<Dimensions> get_root_group() {
   return sycl::ext::oneapi::this_work_item::get_nd_item<Dimensions>()
@@ -118,7 +101,7 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
   // workaround that's not intended to reduce the bar for SPIR-V modules
   // acceptance, but rather make a pessimistic case work until we have full
   // support for the device barrier built-in from backends.
-  const auto ChildGroup = ext::oneapi::experimental::get_child_group(G);
+  const auto ChildGroup = ext::oneapi::experimental::this_group<dimensions>();
   if (ChildGroup.get_group_linear_range() == 1) {
     group_barrier(ChildGroup);
   } else {

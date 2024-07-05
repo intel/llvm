@@ -4,8 +4,8 @@
 #include <complex>
 #include <numeric>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
-#include <sycl/sycl.hpp>
 
 template <typename T> struct UserDefinedSum {
   T operator()(T a, T b) { return a + b; }
@@ -134,7 +134,7 @@ void test(queue q, InputContainer input, OutputContainer output,
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
             const InputT *first =
-                in.template get_multi_ptr<access::decorated::no>();
+                in.template get_multi_ptr<access::decorated::no>().get();
             const InputT *last = first + N;
             // check reduce_over_group w/o init
             out[0] = sycl::ext::oneapi::experimental::reduce_over_group(

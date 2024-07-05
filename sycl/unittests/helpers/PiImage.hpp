@@ -392,7 +392,7 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
                                 PiPropertySet &Set) {
   PiArray<PiProperty> Value;
   for (const std::string &N : Names)
-    Value.push_back({N, {4, 0}, PI_PROPERTY_TYPE_UINT32});
+    Value.push_back({N, {0, 0, 0, 0}, PI_PROPERTY_TYPE_UINT32});
   Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
 }
 

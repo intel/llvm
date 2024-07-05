@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_KERNEL_H
 
 #include "DynArray.h"
+#include "sycl/detail/string.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -327,7 +328,7 @@ private:
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
-  DynString Name;
+  sycl::detail::string Name;
 
   SYCLArgumentDescriptor Args;
 

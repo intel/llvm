@@ -244,6 +244,7 @@ tools.extend(
         "sanstats",
         "llvm-remarkutil",
         "spirv-to-ir-wrapper",
+        "sycl-module-split",
     ]
 )
 
@@ -308,6 +309,9 @@ def enable_ptxas(ptxas_executable):
             (11, 8),
             (12, 0),
             (12, 1),
+            (12, 2),
+            (12, 3),
+            (12, 4),
         ]
 
         def version_int(ver):
@@ -616,3 +620,6 @@ if "MemoryWithOrigins" in config.llvm_use_sanitizer:
 # "OBJECT_MODE" to 'any' by default on AIX OS.
 if "system-aix" in config.available_features:
     config.environment["OBJECT_MODE"] = "any"
+
+if config.has_logf128:
+    config.available_features.add("has_logf128")

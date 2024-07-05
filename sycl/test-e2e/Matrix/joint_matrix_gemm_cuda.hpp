@@ -1,10 +1,19 @@
+//===---joint_matrix_gemm_cuda.hpp - DPC++ joint_matrix--------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // This tests the latest unified matrix extension interfaces.
 // Specifying the sm version via the --cuda-gpu-arch flag is necessary
 // for the Nvidia case.  DPC++ JIT compilation is not
 // supported for the Nvidia matrix extension, although some JIT optimizations
 // are performed at the level of the PTX assembly code.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -220,7 +229,8 @@ void test(queue &q) {
         auto res_device =
             matrix_ref_mn<Big_N, Big_K, Big_M, layout_A, layout_B>(m, n, A, B,
                                                                    C);
-        assert(fabs(2 * (D[index_D] - res_device)) / (D[index_D] + res_device) <
+        assert(sycl::fabs(2 * (D[index_D] - res_device)) /
+                   (D[index_D] + res_device) <
                bf16_eps * 2);
       } else {
         assert((D[index_D] ==

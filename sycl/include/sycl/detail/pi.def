@@ -100,6 +100,7 @@ _PI_API(piEventRetain)
 _PI_API(piEventRelease)
 _PI_API(piextEventGetNativeHandle)
 _PI_API(piextEventCreateWithNativeHandle)
+_PI_API(piEnqueueTimestampRecordingExp)
 // Sampler
 _PI_API(piSamplerCreate)
 _PI_API(piSamplerGetInfo)
@@ -205,11 +206,28 @@ _PI_API(piextMemMipmapFree)
 
 // Interop
 _PI_API(piextMemImportOpaqueFD)
+_PI_API(piextImportExternalMemory)
 _PI_API(piextMemReleaseInterop)
 _PI_API(piextMemMapExternalArray)
 _PI_API(piextImportExternalSemaphoreOpaqueFD)
+_PI_API(piextImportExternalSemaphore)
 _PI_API(piextDestroyExternalSemaphore)
 _PI_API(piextWaitExternalSemaphore)
 _PI_API(piextSignalExternalSemaphore)
+
+// Virtual memory
+_PI_API(piextVirtualMemGranularityGetInfo)
+_PI_API(piextPhysicalMemCreate)
+_PI_API(piextPhysicalMemRetain)
+_PI_API(piextPhysicalMemRelease)
+_PI_API(piextVirtualMemReserve)
+_PI_API(piextVirtualMemFree)
+_PI_API(piextVirtualMemMap)
+_PI_API(piextVirtualMemUnmap)
+_PI_API(piextVirtualMemSetAccess)
+_PI_API(piextVirtualMemGetInfo)
+
+// Enqueue native command
+_PI_API(piextEnqueueNativeCommand)
 
 #undef _PI_API

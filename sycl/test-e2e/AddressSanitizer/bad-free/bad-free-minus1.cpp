@@ -5,7 +5,7 @@
 // RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
 // RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t
 // RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t N = 64;
 

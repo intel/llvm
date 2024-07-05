@@ -5,7 +5,10 @@
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_opportunistic_group
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

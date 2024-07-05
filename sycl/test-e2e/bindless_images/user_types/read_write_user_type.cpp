@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
@@ -14,7 +13,6 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 template <typename MyType, int NElems, typename OutType,
-          sycl::image_channel_order ChannelOrder,
           sycl::image_channel_type ChannelType, typename KernelName>
 bool run_test() {
 
@@ -48,8 +46,7 @@ bool run_test() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
 
-    syclexp::image_descriptor desc(sycl::range<2>{16, 16}, ChannelOrder,
-                                   ChannelType);
+    syclexp::image_descriptor desc(sycl::range<2>{16, 16}, NElems, ChannelType);
 
     syclexp::image_mem imgMemoryIn1(desc, q);
     syclexp::image_mem imgMemoryIn2(desc, q);
@@ -133,56 +130,46 @@ int main() {
   // User-defined float structs
   printTestName("Running my_float4");
   validated &= run_test<my_float4, 4, sycl::vec<float, 4>,
-                        sycl::image_channel_order::rgba,
                         sycl::image_channel_type::fp32, class myfloat_4>();
   printTestName("Running my_float2");
-  validated &=
-      run_test<my_float2, 2, sycl::vec<float, 2>, sycl::image_channel_order::rg,
-               sycl::image_channel_type::fp32, class myfloat_2>();
+  validated &= run_test<my_float2, 2, sycl::vec<float, 2>,
+                        sycl::image_channel_type::fp32, class myfloat_2>();
 
   // User-defined uint structs
   printTestName("Running my_uint4");
   validated &=
       run_test<my_uint4, 4, sycl::vec<uint32_t, 4>,
-               sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int32, class myuint_4>();
   printTestName("Running my_uint2");
   validated &=
       run_test<my_uint2, 2, sycl::vec<uint32_t, 2>,
-               sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int32, class myuint_2>();
 
   printTestName("Running my_ushort4");
   validated &=
       run_test<my_ushort4, 4, sycl::vec<uint16_t, 4>,
-               sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int16, class myushort_4>();
 
   printTestName("Running my_ushort2");
   validated &=
       run_test<my_ushort2, 2, sycl::vec<uint16_t, 2>,
-               sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int16, class myushort_2>();
 
   printTestName("Running my_uchar4");
   validated &=
       run_test<my_uchar4, 4, sycl::vec<uint8_t, 4>,
-               sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int8, class myuchar_4>();
   printTestName("Running my_uchar2");
   validated &=
       run_test<my_uchar2, 2, sycl::vec<uint8_t, 2>,
-               sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int8, class myuchar_2>();
 
   // User-defined sycl::half structs
   printTestName("Running my_half4");
   validated &= run_test<my_half4, 4, sycl::vec<sycl::half, 4>,
-                        sycl::image_channel_order::rgba,
                         sycl::image_channel_type::fp16, class myhalf_4>();
   printTestName("Running my_half2");
   validated &= run_test<my_half2, 2, sycl::vec<sycl::half, 2>,
-                        sycl::image_channel_order::rg,
                         sycl::image_channel_type::fp16, class myhalf_2>();
 
   if (validated) {

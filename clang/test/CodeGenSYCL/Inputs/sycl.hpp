@@ -178,29 +178,16 @@ struct DecoratedType<ElementType, access::address_space::constant_space> {
 #endif
 };
 
-// Equivalent to std::conditional
-template <bool B, class T, class F>
-struct conditional { using type = T; };
-
-template <class T, class F>
-struct conditional<false, T, F> { using type = F; };
-
-template <bool B, class T, class F>
-using conditional_t = typename conditional<B, T, F>::type;
-
 template <typename T, access::address_space AS,
           access::decorated DecorateAddress = access::decorated::legacy>
 class __SYCL_TYPE(multi_ptr) multi_ptr {
-  static constexpr bool is_decorated =
-      DecorateAddress == access::decorated::yes;
-
   using decorated_type = typename DecoratedType<T, AS>::type;
 
   static_assert(DecorateAddress != access::decorated::legacy);
   static_assert(AS != access::address_space::constant_space);
 
 public:
-  using pointer = conditional_t<is_decorated, decorated_type *, T *>;
+  using pointer = decorated_type *;
 
   multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
     : m_Pointer((pointer)(Ptr)) {} // #MultiPtrConstructor
@@ -486,11 +473,15 @@ namespace experimental {
 #endif
 template <typename... Args>
 int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
 #else
+  return __builtin_printf(__format, args...);
+#endif // (defined(__SPIR__) || defined(__SPIRV__))
+#else
   return ::printf(__format, args...);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#endif // defined(__SYCL_DEVICE_ONLY__) 
 }
 
 template <typename T, typename... Props>

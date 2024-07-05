@@ -29,32 +29,26 @@
 // CREATE_IMAGE_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
 // CREATE_IMAGE_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
 // CREATE_IMAGE_PHASES: 2: compiler, {1}, ir, (device-sycl)
-// CREATE_IMAGE_PHASES: 3: input, "{{.*libsycl-itt-user-wrappers.o.*}}", object
-// CREATE_IMAGE_PHASES: 4: clang-offload-unbundler, {3}, object
-// CREATE_IMAGE_PHASES: 5: offload, " (spir64_gen-unknown-unknown)" {4}, object
-// CREATE_IMAGE_PHASES: 6: input, "{{.*libsycl-itt-compiler-wrappers.o.*}}", object
-// CREATE_IMAGE_PHASES: 7: clang-offload-unbundler, {6}, object
-// CREATE_IMAGE_PHASES: 8: offload, " (spir64_gen-unknown-unknown)" {7}, object
-// CREATE_IMAGE_PHASES: 9: input, "{{.*libsycl-itt-stubs.o.*}}", object
-// CREATE_IMAGE_PHASES: 10: clang-offload-unbundler, {9}, object
-// CREATE_IMAGE_PHASES: 11: offload, " (spir64_gen-unknown-unknown)" {10}, object
-// CREATE_IMAGE_PHASES: 12: linker, {5, 8, 11}, ir, (device-sycl)
-// CREATE_IMAGE_PHASES: 13: linker, {2, 12}, ir, (device-sycl)
-// CREATE_IMAGE_PHASES: 14: sycl-post-link, {13}, tempfiletable, (device-sycl)
-// CREATE_IMAGE_PHASES: 15: file-table-tform, {14}, tempfilelist, (device-sycl)
-// CREATE_IMAGE_PHASES: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
-// CREATE_IMAGE_PHASES: 17: backend-compiler, {16}, image, (device-sycl)
-// CREATE_IMAGE_PHASES: 18: file-table-tform, {14, 17}, tempfiletable, (device-sycl)
-// CREATE_IMAGE_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CREATE_IMAGE_PHASES: 20: offload, "device-sycl (spir64_gen-unknown-unknown)" {19}, object
-// CREATE_IMAGE_PHASES: 21: input, "[[INPUT]]", c++, (host-sycl)
-// CREATE_IMAGE_PHASES: 22: append-footer, {21}, c++, (host-sycl)
-// CREATE_IMAGE_PHASES: 23: preprocessor, {22}, c++-cpp-output, (host-sycl)
-// CREATE_IMAGE_PHASES: 24: offload, "host-sycl (x86_64-unknown-linux-gnu)" {23}, "device-sycl (spir64_gen-unknown-unknown)" {19}, c++-cpp-output
-// CREATE_IMAGE_PHASES: 25: compiler, {24}, ir, (host-sycl)
-// CREATE_IMAGE_PHASES: 26: backend, {25}, assembler, (host-sycl)
-// CREATE_IMAGE_PHASES: 27: assembler, {26}, object, (host-sycl)
-// CREATE_IMAGE_PHASES: 28: clang-offload-bundler, {20, 27}, object, (host-sycl)
+// CREATE_IMAGE_PHASES: 3: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl)
+// CREATE_IMAGE_PHASES: 4: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl)
+// CREATE_IMAGE_PHASES: 5: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl)
+// CREATE_IMAGE_PHASES: 6: linker, {3, 4, 5}, ir, (device-sycl)
+// CREATE_IMAGE_PHASES: 7: linker, {2, 6}, ir, (device-sycl)
+// CREATE_IMAGE_PHASES: 8: sycl-post-link, {7}, tempfiletable, (device-sycl)
+// CREATE_IMAGE_PHASES: 9: file-table-tform, {8}, tempfilelist, (device-sycl)
+// CREATE_IMAGE_PHASES: 10: llvm-spirv, {9}, tempfilelist, (device-sycl)
+// CREATE_IMAGE_PHASES: 11: backend-compiler, {10}, image, (device-sycl)
+// CREATE_IMAGE_PHASES: 12: file-table-tform, {8, 11}, tempfiletable, (device-sycl)
+// CREATE_IMAGE_PHASES: 13: clang-offload-wrapper, {12}, object, (device-sycl)
+// CREATE_IMAGE_PHASES: 14: offload, "device-sycl (spir64_gen-unknown-unknown)" {13}, object
+// CREATE_IMAGE_PHASES: 15: input, "[[INPUT]]", c++, (host-sycl)
+// CREATE_IMAGE_PHASES: 16: append-footer, {15}, c++, (host-sycl)
+// CREATE_IMAGE_PHASES: 17: preprocessor, {16}, c++-cpp-output, (host-sycl)
+// CREATE_IMAGE_PHASES: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {17}, "device-sycl (spir64_gen-unknown-unknown)" {13}, c++-cpp-output
+// CREATE_IMAGE_PHASES: 19: compiler, {18}, ir, (host-sycl)
+// CREATE_IMAGE_PHASES: 20: backend, {19}, assembler, (host-sycl)
+// CREATE_IMAGE_PHASES: 21: assembler, {20}, object, (host-sycl)
+// CREATE_IMAGE_PHASES: 22: clang-offload-bundler, {14, 21}, object, (host-sycl)
 
 // Use of -fno-sycl-rdc -c with non-AOT should not perform the device link.
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64 \
@@ -88,32 +82,26 @@
 // JIT_AOT_PHASES: 4: input, "[[INPUT]]", c++, (device-sycl)
 // JIT_AOT_PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
 // JIT_AOT_PHASES: 6: compiler, {5}, ir, (device-sycl)
-// JIT_AOT_PHASES: 7: input, "{{.*libsycl-itt-user-wrappers.o.*}}", object
-// JIT_AOT_PHASES: 8: clang-offload-unbundler, {7}, object
-// JIT_AOT_PHASES: 9: offload, " (spir64_gen-unknown-unknown)" {8}, object
-// JIT_AOT_PHASES: 10: input, "{{.*libsycl-itt-compiler-wrappers.o.*}}", object
-// JIT_AOT_PHASES: 11: clang-offload-unbundler, {10}, object
-// JIT_AOT_PHASES: 12: offload, " (spir64_gen-unknown-unknown)" {11}, object
-// JIT_AOT_PHASES: 13: input, "{{.*libsycl-itt-stubs.o.*}}", object
-// JIT_AOT_PHASES: 14: clang-offload-unbundler, {13}, object
-// JIT_AOT_PHASES: 15: offload, " (spir64_gen-unknown-unknown)" {14}, object
-// JIT_AOT_PHASES: 16: linker, {9, 12, 15}, ir, (device-sycl)
-// JIT_AOT_PHASES: 17: linker, {6, 16}, ir, (device-sycl)
-// JIT_AOT_PHASES: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// JIT_AOT_PHASES: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// JIT_AOT_PHASES: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// JIT_AOT_PHASES: 21: backend-compiler, {20}, image, (device-sycl)
-// JIT_AOT_PHASES: 22: file-table-tform, {18, 21}, tempfiletable, (device-sycl)
-// JIT_AOT_PHASES: 23: clang-offload-wrapper, {22}, object, (device-sycl)
-// JIT_AOT_PHASES: 24: offload, "device-sycl (spir64_gen-unknown-unknown)" {23}, object
-// JIT_AOT_PHASES: 25: input, "[[INPUT]]", c++, (host-sycl)
-// JIT_AOT_PHASES: 26: append-footer, {25}, c++, (host-sycl)
-// JIT_AOT_PHASES: 27: preprocessor, {26}, c++-cpp-output, (host-sycl)
-// JIT_AOT_PHASES: 28: offload, "host-sycl (x86_64-unknown-linux-gnu)" {27}, "device-sycl (spir64_gen-unknown-unknown)" {23}, c++-cpp-output
-// JIT_AOT_PHASES: 29: compiler, {28}, ir, (host-sycl)
-// JIT_AOT_PHASES: 30: backend, {29}, assembler, (host-sycl)
-// JIT_AOT_PHASES: 31: assembler, {30}, object, (host-sycl)
-// JIT_AOT_PHASES: 32: clang-offload-bundler, {3, 24, 31}, object, (host-sycl)
+// JIT_AOT_PHASES: 7: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl)
+// JIT_AOT_PHASES: 8: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl)
+// JIT_AOT_PHASES: 9: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl)
+// JIT_AOT_PHASES: 10: linker, {7, 8, 9}, ir, (device-sycl)
+// JIT_AOT_PHASES: 11: linker, {6, 10}, ir, (device-sycl)
+// JIT_AOT_PHASES: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
+// JIT_AOT_PHASES: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
+// JIT_AOT_PHASES: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
+// JIT_AOT_PHASES: 15: backend-compiler, {14}, image, (device-sycl)
+// JIT_AOT_PHASES: 16: file-table-tform, {12, 15}, tempfiletable, (device-sycl)
+// JIT_AOT_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// JIT_AOT_PHASES: 18: offload, "device-sycl (spir64_gen-unknown-unknown)" {17}, object
+// JIT_AOT_PHASES: 19: input, "[[INPUT]]", c++, (host-sycl)
+// JIT_AOT_PHASES: 20: append-footer, {19}, c++, (host-sycl)
+// JIT_AOT_PHASES: 21: preprocessor, {20}, c++-cpp-output, (host-sycl)
+// JIT_AOT_PHASES: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {21}, "device-sycl (spir64_gen-unknown-unknown)" {17}, c++-cpp-output
+// JIT_AOT_PHASES: 23: compiler, {22}, ir, (host-sycl)
+// JIT_AOT_PHASES: 24: backend, {23}, assembler, (host-sycl)
+// JIT_AOT_PHASES: 25: assembler, {24}, object, (host-sycl)
+// JIT_AOT_PHASES: 26: clang-offload-bundler, {3, 18, 25}, object, (host-sycl)
 
 // Consume object and library that contain final device images.
 // RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \

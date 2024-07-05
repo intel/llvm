@@ -18,7 +18,6 @@
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
-#include <sycl/types.hpp>                      // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
@@ -33,7 +32,7 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-
+template <typename Type, int NumElements> class vec;
 namespace detail {
 
 namespace sub_group {
@@ -205,64 +204,6 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_NumSubgroups();
 #else
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  using EnableIfIsScalarArithmetic =
-      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value, T>;
-
-  /* --- one-input shuffles --- */
-  /* indices in [0 , sub_group size) */
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle(T x, id_type local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::Shuffle(*this, x, local_id);
-#else
-    (void)x;
-    (void)local_id;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_down(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleDown(*this, x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_up(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleUp(*this, x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_xor(T x, id_type value) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleXor(*this, x, value);
-#else
-    (void)x;
-    (void)value;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
 #endif
@@ -643,125 +584,6 @@ struct sub_group {
                           "Sub-groups are not supported on host.");
 #endif
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES__
-  /* --- deprecated collective functions --- */
-  template <typename T>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::broadcast instead.")
-  EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
-#else
-    (void)x;
-    (void)local_id;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return op(init, reduce(x, op));
-#else
-    (void)x;
-    (void)init;
-    (void)op;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
-                                               BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    T scan = exclusive_scan(x, op);
-    if (get_local_id().get(0) == 0) {
-      scan = init;
-    }
-    return scan;
-#else
-    (void)x;
-    (void)init;
-    (void)op;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                               T init) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    return inclusive_scan(x, op);
-#else
-    (void)x;
-    (void)op;
-    (void)init;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES__
 
   linear_id_type get_group_linear_range() const {
 #ifdef __SYCL_DEVICE_ONLY__

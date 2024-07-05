@@ -37,7 +37,7 @@ using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 // The class serves as a base for all SYCL memory objects.
-class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
+class SYCLMemObjT : public SYCLMemObjI {
 
   // The check for output iterator is commented out as it blocks set_final_data
   // with void * argument to be used.

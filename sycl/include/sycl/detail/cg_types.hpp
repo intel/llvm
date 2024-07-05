@@ -19,7 +19,6 @@
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
 #include <sycl/id.hpp>                         // for id
-#include <sycl/interop_handle.hpp>             // for interop_handle
 #include <sycl/item.hpp>                       // for item
 #include <sycl/kernel_handler.hpp>             // for kernel_handler
 #include <sycl/nd_item.hpp>                    // for nd_item
@@ -33,7 +32,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+class interop_handle;
+class handler;
 namespace detail {
+class HostTask;
 
 // The structure represents kernel argument.
 class ArgDesc {
@@ -228,34 +230,6 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
-};
-
-class HostTask {
-  std::function<void()> MHostTask;
-  std::function<void(interop_handle)> MInteropTask;
-
-public:
-  HostTask() : MHostTask([]() {}) {}
-  HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
-  HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
-
-  bool isInteropTask() const { return !!MInteropTask; }
-
-  void call(HostProfilingInfo *HPI) {
-    if (HPI)
-      HPI->start();
-    MHostTask();
-    if (HPI)
-      HPI->end();
-  }
-
-  void call(HostProfilingInfo *HPI, interop_handle handle) {
-    if (HPI)
-      HPI->start();
-    MInteropTask(handle);
-    if (HPI)
-      HPI->end();
-  }
 };
 
 // Class which stores specific lambda object.

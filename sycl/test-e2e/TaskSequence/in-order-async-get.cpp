@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// FIXME: failure in post-commit, re-enable when fixed:
-// UNSUPPORTED: linux
+// FIXME: compfail, see https://github.com/intel/llvm/issues/14284, re-enable
+// when fixed:
+// UNSUPPORTED: linux, windows
 
 // REQUIRES: aspect-ext_intel_fpga_task_sequence
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
@@ -33,7 +34,7 @@ int main() {
   // test data
   for (int i = 0; i < kNumInputs; ++i) {
     values[i] = (static_cast<double>(-kNumInputs / 2.0 + i) / 1000);
-    golden[i] = 1 / (1 + exp(-values[i]));
+    golden[i] = 1 / (1 + std::exp(-values[i]));
   }
 
   {
@@ -65,7 +66,7 @@ int main() {
 
   // verification
   for (int i = 0; i < kNumInputs; ++i) {
-    assert(abs(results[i] - golden[i]) < 0.001);
+    assert(std::abs(results[i] - golden[i]) < 0.001);
   }
 
   return 0;

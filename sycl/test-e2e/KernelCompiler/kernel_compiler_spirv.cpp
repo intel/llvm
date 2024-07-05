@@ -20,7 +20,8 @@
 #include <cassert>
 #include <fstream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 sycl::kernel_bundle<sycl::bundle_state::executable>
 loadKernelsFromFile(sycl::queue &q, std::string file_name) {
@@ -174,9 +175,7 @@ void testKernelsFromSpvFile(std::string kernels_file,
         return bundle.ext_oneapi_get_kernel(name);
       };
 
-  sycl::device d;
-  sycl::context ctx{d};
-  sycl::queue q{ctx, d};
+  sycl::queue q;
   auto bundle = loadKernelsFromFile(q, kernels_file);
 
   // Test simple kernel.

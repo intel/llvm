@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple spir64 | FileCheck %s
 
 // The test checks AST of [[intel::max_global_work_dim()]] attribute.
 
@@ -19,7 +19,7 @@ queue q;
 // Test that checks template parameter support on member function of class template.
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
-// CHECK: TemplateArgument integral 2
+// CHECK: TemplateArgument integral '2'
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
@@ -40,7 +40,7 @@ int kernel() {
 
 // Test that checks template parameter support on function.
 // CHECK: FunctionDecl {{.*}} {{.*}} func1 'void ()'
-// CHECK: TemplateArgument integral 3
+// CHECK: TemplateArgument integral '3'
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 3

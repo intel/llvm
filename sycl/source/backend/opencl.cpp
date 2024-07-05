@@ -22,34 +22,6 @@ namespace opencl {
 using namespace detail;
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<platform>
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  return detail::make_platform(NativeHandle, backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<device>
-__SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
-  return detail::make_device(NativeHandle, backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<context>
-__SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
-  return detail::make_context(NativeHandle, detail::defaultAsyncHandler,
-                              backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<queue>
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, 0, Context, nullptr, false, {},
-                            ContextImpl->get_async_handler(), backend::opencl);
-}
-
-//----------------------------------------------------------------------------
 // Free functions to query OpenCL backend extensions
 __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
                                  const std::string &Extension) {

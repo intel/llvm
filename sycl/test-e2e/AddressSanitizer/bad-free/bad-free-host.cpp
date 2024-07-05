@@ -1,7 +1,7 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck %s
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t N = 64;
 

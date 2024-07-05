@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO: Enable half precision when atan2 is implemented
-#if __CLC_FPSIZE > 16
 
 #if __CLC_FPSIZE == 64
 #define __CLC_CONST(x) x
@@ -22,5 +20,3 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_asin(__CLC_GENTYPE x) {
 }
 
 #undef __CLC_CONST
-
-#endif

@@ -73,8 +73,10 @@ public:
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerDefaultContextReleaseHandler();
+  static void registerEarlyShutdownHandler();
 
+  bool isOkToDefer() const;
+  void endDeferredRelease();
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
@@ -91,7 +93,11 @@ private:
   void *GSYCLCallEvent = nullptr;
 #endif
 
-  friend void shutdown();
+  bool OkToDefer = true;
+
+  friend void shutdown_win();
+  friend void shutdown_early();
+  friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;

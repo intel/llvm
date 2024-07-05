@@ -953,12 +953,19 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is 1.
-      int LocID = 0;
+      int IsRuntimeAligned = 0;
       if (!isa<MDString>(RuntimeAligned->getOperand(ArgNo)) &&
           !isa<MDNode>(RuntimeAligned->getOperand(ArgNo)))
-        LocID = getMDOperandAsInt(RuntimeAligned, ArgNo);
-      if (LocID == 1)
-        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL, LocID);
+        IsRuntimeAligned = getMDOperandAsInt(RuntimeAligned, ArgNo);
+      if (IsRuntimeAligned == 1) {
+        // TODO: to replace non-conformant to the spec decoration generation
+        // with:
+        // BM->addExtension(ExtensionID::SPV_INTEL_runtime_aligned);
+        // BM->addCapability(CapabilityRuntimeAlignedAttributeINTEL);
+        // BA->addAttr(FunctionParameterAttributeRuntimeAlignedINTEL);
+        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL,
+                        IsRuntimeAligned);
+      }
     }
   }
   if (Attrs.hasRetAttr(Attribute::ZExt))
@@ -1076,7 +1083,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target);
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target);
 
 void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
                                                 Function *F) {
@@ -1212,7 +1219,10 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   auto *BM = BF->getModule();
   if (!BM->preserveAuxData())
     return;
-  BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+    BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  else
+    BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
   const auto &FnAttrs = F->getAttributes().getFnAttrs();
   for (const auto &Attr : FnAttrs) {
     std::vector<SPIRVWord> Ops;
@@ -1470,7 +1480,12 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
          "Invalid SPIRV BB");
 
   auto *BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
-  if (!BV || !transDecoration(V, BV))
+  if (!BV)
+    return nullptr;
+  // Only translate decorations for non-forward instructions.  Forward
+  // instructions will have their decorations translated when the actual
+  // instruction is seen and rewritten to a real SPIR-V instruction.
+  if (!BV->isForward() && !transDecoration(V, BV))
     return nullptr;
   StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
@@ -2758,7 +2773,7 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
                               ErrStr);
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
   SPIRVErrorLog &ErrLog = Target->getErrorLog();
 
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
@@ -2777,6 +2792,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
     const size_t NumOperands = DecoMD->getNumOperands();
     switch (static_cast<size_t>(DecoKind)) {
+    case DecorationAlignment: {
+      // Handle Alignment via SPIRVValue::setAlignment() to avoid duplicate
+      // Alignment decorations.
+      auto *Alignment =
+          mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Alignment, SPIRVEC_InvalidLlvmModule,
+                        "Alignment operand must be an integer.");
+      Target->setAlignment(Alignment->getZExtValue());
+      break;
+    }
+
       ONE_STRING_DECORATION_CASE(MemoryINTEL, spv)
       ONE_STRING_DECORATION_CASE(UserSemantic, spv)
       ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv, SPIRVId)
@@ -3036,7 +3062,9 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     auto Opcode = BVF->getOpcode();
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem) {
+        Opcode == Instruction::FRem ||
+        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp) &&
+         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
       if (FMF.isFast())
@@ -4395,24 +4423,28 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         BM->addIntegerType(VecTy->getElementType()->getIntegerBitWidth());
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
+                                        Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
-                                      Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_fadd:
   case Intrinsic::vector_reduce_fmul: {
@@ -4422,17 +4454,22 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *StartingSVal = transValue(II->getArgOperand(0), BB);
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+      }
+      SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(),
+                                        StartingSVal, Extracts[0], BB);
+      for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
+        V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx],
+                              BB);
+      }
+      return V;
     }
-    SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(), StartingSVal,
-                                      Extracts[0], BB);
-    for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
-      V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx], BB);
-    }
-    return V;
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_smax:
   case Intrinsic::vector_reduce_smin:
@@ -4466,27 +4503,31 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
     SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
-                                             Extracts[(Idx << 1) + 1], BB);
-        Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
+                                               Extracts[(Idx << 1) + 1], BB);
+          Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
+                                             Extracts[VecSize - 1], BB);
+        Extracts[0] =
+            BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
-                                           Extracts[VecSize - 1], BB);
-      Extracts[0] =
-          BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
@@ -5501,7 +5542,7 @@ void LLVMToSPIRVBase::mutateFuncArgType(
       auto CastF = M->getOrInsertFunction(SPCV_CAST, I.second, OrigTy);
       std::vector<Value *> Args;
       Args.push_back(Arg);
-      auto *Cast = CallInst::Create(CastF, Args, "", Call);
+      auto *Cast = CallInst::Create(CastF, Args, "", Call->getIterator());
       Call->replaceUsesOfWith(Arg, Cast);
       SPIRVDBG(dbgs() << "[mutate arg type] -> " << *Cast << '\n');
     }
@@ -5586,7 +5627,7 @@ static auto stablePreDominatorTraversal(Function &F, const DominatorTree &DT) {
                                     std::forward_iterator_tag, BasicBlock> {
 
     // The passed DominatorTree; may be unset for end iterators.
-    const DominatorTree *DT;
+    const DominatorTree *DT = nullptr;
 
     // The set of basic blocks already visited in this traversal.
     SmallPtrSet<const BasicBlock *, 4> VisitedBBs;
@@ -5767,7 +5808,12 @@ void LLVMToSPIRVBase::oclGetMutatedArgumentTypesByBuiltin(
   StringRef Demangled;
   if (!oclIsBuiltin(F->getName(), Demangled))
     return;
-  if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos)
+  // Note: kSPIRVName::ConvertHandleToSampledImageINTEL contains
+  // kSPIRVName::SampledImage as a substring, but we still want to return in
+  // this case.
+  if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos ||
+      Demangled.find(kSPIRVName::ConvertHandleToSampledImageINTEL) !=
+          std::string::npos)
     return;
   if (FT->getParamType(1)->isIntegerTy())
     ChangedType[1] = getSPIRVType(OpTypeSampler, true);
@@ -6160,6 +6206,15 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   // Moreover, OpAtomicCompareExchangeWeak has been deprecated.
   if (OC == OpAtomicCompareExchangeWeak)
     OC = OpAtomicCompareExchange;
+
+  // We should do this replacement only for SPIR-V 1.5, as OpLessOrGreater is
+  // deprecated there. However we do such replacement for the usual pipeline
+  // (not via SPIR-V friendly calls) without minding the version, so we can do
+  // such thing here as well.
+  if (OC == OpLessOrGreater &&
+      BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_5))
+    OC = OpFOrdNotEqual;
+
   if (isGroupOpCode(OC))
     BM->addCapability(CapabilityGroups);
   switch (static_cast<size_t>(OC)) {
@@ -6727,6 +6782,8 @@ VersionNumber getVersionFromTriple(const Triple &TT, SPIRVErrorLog &ErrorLog) {
     return VersionNumber::SPIRV_1_3;
   case Triple::SPIRVSubArch_v14:
     return VersionNumber::SPIRV_1_4;
+  case Triple::SPIRVSubArch_v15:
+    return VersionNumber::SPIRV_1_5;
   default:
     ErrorLog.checkError(false, SPIRVEC_InvalidSubArch, TT.getArchName().str());
     return VersionNumber::MaximumVersion;

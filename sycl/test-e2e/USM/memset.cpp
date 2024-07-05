@@ -127,7 +127,7 @@ int main() {
     q.submit([&](handler &cgh) { cgh.memset(nullptr, 0, N * sizeof(char)); });
     q.wait_and_throw();
     assert(false && "Expected error from writing to nullptr");
-  } catch (runtime_error e) {
+  } catch (exception e) {
   }
 
   // Filling to nullptr is skipped if the number of bytes to fill is 0.

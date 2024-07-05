@@ -468,21 +468,17 @@ detectIdenticalParameter(std::vector<Param> &Params, ArgDesc Arg) {
   return Params.end();
 }
 
-template <typename T, typename F = typename std::remove_const_t<
-                          typename std::remove_reference_t<T>>>
-F *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
-  ArgStorage.emplace_back(sizeof(T));
-  auto Storage = reinterpret_cast<F *>(ArgStorage.back().data());
-  *Storage = Arg;
-  return Storage;
-}
-
 void *storePlainArgRaw(std::vector<std::vector<char>> &ArgStorage, void *ArgPtr,
                        size_t ArgSize) {
   ArgStorage.emplace_back(ArgSize);
   void *Storage = ArgStorage.back().data();
   std::memcpy(Storage, ArgPtr, ArgSize);
   return Storage;
+}
+
+template <typename T>
+void *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
+  return storePlainArgRaw(ArgStorage, &Arg, sizeof(T));
 }
 
 static ParamIterator preProcessArguments(
@@ -648,10 +644,10 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                                                          Req, Promotion::Local)
                                          : 0;
       range<3> AccessRange{1, 1, LocalSize};
-      auto *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
+      void *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
       // Use all-zero as the offset
       id<3> AcessOffset{0, 0, 0};
-      auto *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
+      void *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
 
       // Override the arguments.
       // 1. Override the pointer with a std-layout argument with 'nullptr' as
@@ -911,10 +907,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
-  using ::jit_compiler::View;
   auto FusionResult = FuseKernelsHandle(
-      View{InputKernelInfo}, FusedKernelName.c_str(), View(ParamIdentities),
-      BarrierFlags, View(InternalizeParams), View(JITConstants));
+      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
