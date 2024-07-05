@@ -25,6 +25,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # Build Options
+option(UR_BUILD_EXAMPLES "Build example applications." ON)
 option(UR_BUILD_TESTS "Build unit tests." ON)
 option(UR_BUILD_TOOLS "build ur tools" ON)
 option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
@@ -75,16 +76,13 @@ include(Assertions)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-if(MSVC)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
-endif()
 
 # Define rpath for libraries so that adapters can be found automatically
 set(CMAKE_BUILD_RPATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 
 # Define a path for custom commands to work around MSVC
 set(CUSTOM_COMMAND_BINARY_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-if(MSVC)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows AND NOT CMAKE_GENERATOR STREQUAL Ninja)
     # MSVC implicitly adds $<CONFIG> to the output path
     set(CUSTOM_COMMAND_BINARY_DIR ${CUSTOM_COMMAND_BINARY_DIR}/$<CONFIG>)
 endif()
@@ -258,7 +256,9 @@ install(
     EXPORT ${PROJECT_NAME}-targets)
 
 add_subdirectory(source)
-add_subdirectory(examples)
+if(UR_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 if(UR_BUILD_TESTS)
     add_subdirectory(test)
 endif()

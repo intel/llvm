@@ -99,6 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 
   try {
     ur_sampler_handle_t_ *UrSampler = new ur_sampler_handle_t_(ZeSampler);
+    UrSampler->ZeSamplerDesc = ZeSamplerDesc;
     *Sampler = reinterpret_cast<ur_sampler_handle_t>(UrSampler);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

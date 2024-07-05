@@ -15,10 +15,6 @@ struct NDRangeUpdateTest
         UUR_RETURN_ON_FATAL_FAILURE(
             urUpdatableCommandBufferExpExecutionTest::SetUp());
 
-        if (!updatable_execution_range_support) {
-            GTEST_SKIP() << "Execution range update is not supported.";
-        }
-
         ur_device_usm_access_capability_flags_t shared_usm_flags;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -32,7 +28,7 @@ struct NDRangeUpdateTest
         ASSERT_NE(shared_ptr, nullptr);
         std::memset(shared_ptr, 0, allocation_size);
 
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &shared_ptr));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
 
         // Add a 3 dimension kernel command to command-buffer and close
         // command-buffer

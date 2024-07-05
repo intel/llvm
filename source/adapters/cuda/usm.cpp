@@ -150,15 +150,27 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
-                               ur_device_handle_t Device,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+                               ur_device_handle_t CommandDevice,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
-    ScopedContext Active(Device);
+    ScopedContext Active(CommandDevice);
     UR_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)ResultPtr, Size,
                                      CU_MEM_ATTACH_GLOBAL));
+    if (getAttribute(CommandDevice,
+                     CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)*ResultPtr, Size,
+                                 CU_MEM_ADVISE_SET_ACCESSED_BY,
+                                 CommandDevice->get()));
+    }
+    for (const auto &Dev : Context->getDevices()) {
+      if (getAttribute(Dev, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+        UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)*ResultPtr, Size,
+                                   CU_MEM_ADVISE_SET_ACCESSED_BY, Dev->get()));
+      }
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -258,16 +270,13 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                                            CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
                                            (CUdeviceptr)pMem));
 
-      // currently each device is in its own platform, so find the platform at
-      // the same index
-      std::vector<ur_platform_handle_t> Platforms;
-      Platforms.resize(DeviceIndex + 1);
+      // cuda backend has only one platform containing all devices
+      ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, DeviceIndex + 1,
-                             Platforms.data(), nullptr);
+      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
 
       // get the device from the platform
-      ur_device_handle_t Device = Platforms[DeviceIndex]->Devices[0].get();
+      ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
       return ReturnValue(Device);
     }
     case UR_USM_ALLOC_INFO_POOL: {

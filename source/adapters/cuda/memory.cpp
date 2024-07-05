@@ -12,6 +12,7 @@
 
 #include "common.hpp"
 #include "context.hpp"
+#include "enqueue.hpp"
 #include "memory.hpp"
 
 /// Creates a UR Memory object using a CUDA memory allocation.
@@ -55,9 +56,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
     auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
         new ur_mem_handle_t_{hContext, flags, AllocMode, HostPtr, size});
-    if (URMemObj == nullptr) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
 
     // First allocation will be made at urMemBufferCreate if context only
     // has one device
@@ -73,6 +71,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     MemObj = URMemObj.release();
   } catch (ur_result_t Err) {
     return Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -101,14 +101,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    // make sure hMem is released in case checkErrorUR throws
+    // Call destructor
     std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
-
-    if (hMem->isSubBuffer()) {
-      return UR_RESULT_SUCCESS;
-    }
-
-    UR_CHECK_ERROR(hMem->clear());
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -136,6 +130,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
                      ur_native_handle_t *phNativeMem) {
+  UR_ASSERT(Device != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   try {
     *phNativeMem = reinterpret_cast<ur_native_handle_t>(
         std::get<BufferMem>(hMem->Mem).getPtr(Device));
@@ -211,44 +206,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
   UR_ASSERT(pImageDesc->stype == UR_STRUCTURE_TYPE_IMAGE_DESC,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_BUFFER,
+  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_ARRAY,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->numMipLevel == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->numSamples == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  if (!pHost) {
-    UR_ASSERT(pImageDesc->rowPitch == 0,
-              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-    UR_ASSERT(pImageDesc->slicePitch == 0,
-              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  }
 
   // We only support RBGA channel order
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
-            UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
-
-  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
-      new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});
+            UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
   try {
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, flags, *pImageFormat, *pImageDesc, pHost});
+    UR_ASSERT(std::get<SurfaceMem>(URMemObj->Mem).PixelTypeSizeBytes,
+              UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
+
     if (PerformInitialCopy) {
       for (const auto &Device : hContext->getDevices()) {
-        UR_CHECK_ERROR(migrateMemoryToDeviceIfNeeded(URMemObj.get(), Device));
+        // Synchronous behaviour is best in this case
+        ScopedContext Active(Device);
+        CUstream Stream{0}; // Use default stream
+        UR_CHECK_ERROR(enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(),
+                                                            Device, Stream));
+        UR_CHECK_ERROR(cuStreamSynchronize(Stream));
       }
-    }
-
-    if (URMemObj == nullptr) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     *phMem = URMemObj.release();
   } catch (ur_result_t Err) {
-    (*phMem)->clear();
     return Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    (*phMem)->clear();
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
@@ -429,11 +417,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                            const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
+  auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
   if (Mem->isBuffer()) {
     auto &Buffer = std::get<BufferMem>(Mem->Mem);
-    auto &DevPtr = Buffer.Ptrs[hDevice->getIndex() % Buffer.Ptrs.size()];
+    auto &DevPtr = Buffer.Ptrs[DeviceIdx];
 
     // Allocation has already been made
     if (DevPtr != BufferMem::native_type{0}) {
@@ -456,11 +445,11 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
       // Allocation has already been made
-      if (Image.Arrays[hDevice->getIndex() % Image.Arrays.size()]) {
+      if (Image.Arrays[DeviceIdx]) {
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &Image.ArrayDesc));
-      Image.Arrays[hDevice->getIndex() % Image.Arrays.size()] = ImageArray;
+      Image.Arrays[DeviceIdx] = ImageArray;
 
       // CUDA_RESOURCE_DESC is a union of different structs, shown here
       // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
@@ -475,7 +464,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       ImageResDesc.flags = 0;
 
       UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
-      Image.SurfObjs[hDevice->getIndex() % Image.SurfObjs.size()] = Surface;
+      Image.SurfObjs[DeviceIdx] = Surface;
     } catch (ur_result_t Err) {
       if (ImageArray) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
@@ -492,27 +481,28 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
 }
 
 namespace {
-ur_result_t migrateBufferToDevice(ur_mem_handle_t Mem,
-                                  ur_device_handle_t hDevice) {
+ur_result_t enqueueMigrateBufferToDevice(ur_mem_handle_t Mem,
+                                         ur_device_handle_t hDevice,
+                                         CUstream Stream) {
   auto &Buffer = std::get<BufferMem>(Mem->Mem);
-  if (Mem->LastEventWritingToMemObj == nullptr) {
+  if (Mem->LastQueueWritingToMemObj == nullptr) {
     // Device allocation being initialized from host for the first time
     if (Buffer.HostPtr) {
-      UR_CHECK_ERROR(
-          cuMemcpyHtoD(Buffer.getPtr(hDevice), Buffer.HostPtr, Buffer.Size));
+      UR_CHECK_ERROR(cuMemcpyHtoDAsync(Buffer.getPtr(hDevice), Buffer.HostPtr,
+                                       Buffer.Size, Stream));
     }
-  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
-             hDevice) {
-    UR_CHECK_ERROR(cuMemcpyDtoD(
+  } else if (Mem->LastQueueWritingToMemObj->getDevice() != hDevice) {
+    UR_CHECK_ERROR(cuMemcpyDtoDAsync(
         Buffer.getPtr(hDevice),
-        Buffer.getPtr(Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
-        Buffer.Size));
+        Buffer.getPtr(Mem->LastQueueWritingToMemObj->getDevice()), Buffer.Size,
+        Stream));
   }
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
-                                 ur_device_handle_t hDevice) {
+ur_result_t enqueueMigrateImageToDevice(ur_mem_handle_t Mem,
+                                        ur_device_handle_t hDevice,
+                                        CUstream Stream) {
   auto &Image = std::get<SurfaceMem>(Mem->Mem);
   // When a dimension isn't used image_desc has the size set to 1
   size_t PixelSizeBytes = Image.PixelTypeSizeBytes *
@@ -543,40 +533,42 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
     CpyDesc3D.Depth = Image.ImageDesc.depth;
   }
 
-  if (Mem->LastEventWritingToMemObj == nullptr) {
+  if (Mem->LastQueueWritingToMemObj == nullptr) {
     if (Image.HostPtr) {
       if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
-        UR_CHECK_ERROR(
-            cuMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
+        UR_CHECK_ERROR(cuMemcpyHtoAAsync(ImageArray, 0, Image.HostPtr,
+                                         ImageSizeBytes, Stream));
       } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
         CpyDesc2D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         CpyDesc2D.srcHost = Image.HostPtr;
-        UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
+        UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc2D, Stream));
       } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
         CpyDesc3D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         CpyDesc3D.srcHost = Image.HostPtr;
-        UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
+        UR_CHECK_ERROR(cuMemcpy3DAsync(&CpyDesc3D, Stream));
       }
     }
-  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
-             hDevice) {
+  } else if (Mem->LastQueueWritingToMemObj->getDevice() != hDevice) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
+      // Blocking wait needed
+      UR_CHECK_ERROR(urQueueFinish(Mem->LastQueueWritingToMemObj));
       // FIXME: 1D memcpy from DtoD going through the host.
       UR_CHECK_ERROR(cuMemcpyAtoH(
           Image.HostPtr,
-          Image.getArray(
-              Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice()),
           0 /*srcOffset*/, ImageSizeBytes));
       UR_CHECK_ERROR(
           cuMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
-      CpyDesc2D.srcArray = Image.getArray(
-          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
-      UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
+      CpyDesc2D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+      CpyDesc2D.srcArray =
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice());
+      UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc2D, Stream));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
-      CpyDesc3D.srcArray = Image.getArray(
-          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
-      UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
+      CpyDesc3D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+      CpyDesc3D.srcArray =
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice());
+      UR_CHECK_ERROR(cuMemcpy3DAsync(&CpyDesc3D, Stream));
     }
   }
   return UR_RESULT_SUCCESS;
@@ -585,26 +577,52 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
 
 // If calling this entry point it is necessary to lock the memoryMigrationMutex
 // beforehand
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
-                                          const ur_device_handle_t hDevice) {
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(
+    ur_mem_handle_t Mem, const ur_device_handle_t hDevice, CUstream Stream) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Device allocation has already been initialized with most up to date
   // data in buffer
-  if (Mem->HaveMigratedToDeviceSinceLastWrite
-          [hDevice->getIndex() %
-           Mem->HaveMigratedToDeviceSinceLastWrite.size()]) {
+  if (Mem->HaveMigratedToDeviceSinceLastWrite[Mem->getContext()->getDeviceIndex(
+          hDevice)]) {
     return UR_RESULT_SUCCESS;
   }
 
   ScopedContext Active(hDevice);
   if (Mem->isBuffer()) {
-    UR_CHECK_ERROR(migrateBufferToDevice(Mem, hDevice));
+    UR_CHECK_ERROR(enqueueMigrateBufferToDevice(Mem, hDevice, Stream));
   } else {
-    UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
+    UR_CHECK_ERROR(enqueueMigrateImageToDevice(Mem, hDevice, Stream));
   }
 
-  Mem->HaveMigratedToDeviceSinceLastWrite
-      [hDevice->getIndex() % Mem->HaveMigratedToDeviceSinceLastWrite.size()] =
-      true;
+  Mem->HaveMigratedToDeviceSinceLastWrite[Mem->getContext()->getDeviceIndex(
+      hDevice)] = true;
   return UR_RESULT_SUCCESS;
+}
+
+BufferMem::native_type
+BufferMem::getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return reinterpret_cast<native_type>(
+      reinterpret_cast<uint8_t *>(
+          Ptrs[OuterMemStruct->getContext()->getDeviceIndex(Device)]) +
+      Offset);
+}
+
+CUarray SurfaceMem::getArray(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return Arrays[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
 }

@@ -142,16 +142,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, uint32_t numDevices,
-    const ur_device_handle_t *phDevices,
-    const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
-  std::ignore = hNativeContext;
-  std::ignore = numDevices;
-  std::ignore = phDevices;
-  std::ignore = pProperties;
-  std::ignore = phContext;
-
+    [[maybe_unused]] ur_native_handle_t hNativeContext,
+    [[maybe_unused]] uint32_t numDevices,
+    [[maybe_unused]] const ur_device_handle_t *phDevices,
+    [[maybe_unused]] const ur_context_native_properties_t *pProperties,
+    [[maybe_unused]] ur_context_handle_t *phContext) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

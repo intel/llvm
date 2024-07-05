@@ -204,3 +204,38 @@ public:
   /// UR object.
   void dismiss() { Captive = nullptr; }
 };
+
+// Helper method to return a (non-null) pointer's attributes, or std::nullopt in
+// the case that the pointer is unknown to the HIP subsystem.
+inline static std::optional<hipPointerAttribute_t>
+getPointerAttributes(const void *pMem) {
+  // do not throw if hipPointerGetAttributes returns hipErrorInvalidValue
+  hipPointerAttribute_t hipPointerAttributes;
+  hipError_t Ret = hipPointerGetAttributes(&hipPointerAttributes, pMem);
+  if (Ret == hipErrorInvalidValue && pMem) {
+    // pointer non-null but not known to the HIP subsystem
+    return std::nullopt;
+  }
+  // Direct usage of the function, instead of UR_CHECK_ERROR, so we can get
+  // the line offset.
+  checkErrorUR(Ret, __func__, __LINE__ - 7, __FILE__);
+  // ROCm 6.0.0 introduces hipMemoryTypeUnregistered in the hipMemoryType
+  // enum to mark unregistered allocations (i.e., via system allocators).
+#if HIP_VERSION_MAJOR >= 6
+  if (hipPointerAttributes.type == hipMemoryTypeUnregistered) {
+    // pointer not known to the HIP subsystem
+    return std::nullopt;
+  }
+#endif
+  return hipPointerAttributes;
+}
+
+// Helper method to abstract away the fact that retrieving a pointer's memory
+// type differs depending on the version of HIP.
+inline static unsigned getMemoryType(hipPointerAttribute_t hipPointerAttrs) {
+#if HIP_VERSION >= 50600000
+  return hipPointerAttrs.type;
+#else
+  return hipPointerAttrs.memoryType;
+#endif
+}

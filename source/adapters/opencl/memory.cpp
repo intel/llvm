@@ -123,9 +123,6 @@ cl_image_desc mapURImageDescToCL(const ur_image_desc_t *PImageDesc) {
       cl_adapter::cast<cl_mem_object_type>(PImageDesc->type);
 
   switch (PImageDesc->type) {
-  case UR_MEM_TYPE_BUFFER:
-    CLImageDesc.image_type = CL_MEM_OBJECT_BUFFER;
-    break;
   case UR_MEM_TYPE_IMAGE2D:
     CLImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D;
     break;
@@ -140,9 +137,6 @@ cl_image_desc mapURImageDescToCL(const ur_image_desc_t *PImageDesc) {
     break;
   case UR_MEM_TYPE_IMAGE1D_ARRAY:
     CLImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_ARRAY;
-    break;
-  case UR_MEM_TYPE_IMAGE1D_BUFFER:
-    CLImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_BUFFER;
     break;
   default:
     CLImageDesc.image_type = -1;

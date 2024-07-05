@@ -14,46 +14,55 @@
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
                 ur_sampler_handle_t *phSampler) {
-  std::unique_ptr<ur_sampler_handle_t_> Sampler{
-      new ur_sampler_handle_t_(hContext)};
+  try {
+    std::unique_ptr<ur_sampler_handle_t_> Sampler{
+        new ur_sampler_handle_t_(hContext)};
 
-  if (pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
-    Sampler->Props |= static_cast<uint32_t>(pDesc->normalizedCoords);
-    Sampler->Props |= pDesc->filterMode << 1;
-    Sampler->Props |= pDesc->addressingMode << 2;
-  } else {
-    // Set default values
-    Sampler->Props |= true; // Normalized Coords
-    Sampler->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
-  }
-
-  void *pNext = const_cast<void *>(pDesc->pNext);
-  while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc =
-        reinterpret_cast<const ur_base_desc_t *>(pNext);
-    if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES) {
-      const ur_exp_sampler_mip_properties_t *SamplerMipProperties =
-          reinterpret_cast<const ur_exp_sampler_mip_properties_t *>(pNext);
-      Sampler->MaxMipmapLevelClamp = SamplerMipProperties->maxMipmapLevelClamp;
-      Sampler->MinMipmapLevelClamp = SamplerMipProperties->minMipmapLevelClamp;
-      Sampler->MaxAnisotropy = SamplerMipProperties->maxAnisotropy;
-      Sampler->Props |= SamplerMipProperties->mipFilterMode << 11;
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES) {
-      const ur_exp_sampler_addr_modes_t *SamplerAddrModes =
-          reinterpret_cast<const ur_exp_sampler_addr_modes_t *>(pNext);
-      Sampler->Props |= SamplerAddrModes->addrModes[0] << 2;
-      Sampler->Props |= SamplerAddrModes->addrModes[1] << 5;
-      Sampler->Props |= SamplerAddrModes->addrModes[2] << 8;
-    } else if (BaseDesc->stype ==
-               UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES) {
-      const ur_exp_sampler_cubemap_properties_t *SamplerCubemapProperties =
-          reinterpret_cast<const ur_exp_sampler_cubemap_properties_t *>(pNext);
-      Sampler->Props |= SamplerCubemapProperties->cubemapFilterMode << 12;
+    if (pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
+      Sampler->Props |= static_cast<uint32_t>(pDesc->normalizedCoords);
+      Sampler->Props |= pDesc->filterMode << 1;
+      Sampler->Props |= pDesc->addressingMode << 2;
+    } else {
+      // Set default values
+      Sampler->Props |= true; // Normalized Coords
+      Sampler->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
     }
-    pNext = const_cast<void *>(BaseDesc->pNext);
-  }
 
-  *phSampler = Sampler.release();
+    void *pNext = const_cast<void *>(pDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          reinterpret_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES) {
+        const ur_exp_sampler_mip_properties_t *SamplerMipProperties =
+            reinterpret_cast<const ur_exp_sampler_mip_properties_t *>(pNext);
+        Sampler->MaxMipmapLevelClamp =
+            SamplerMipProperties->maxMipmapLevelClamp;
+        Sampler->MinMipmapLevelClamp =
+            SamplerMipProperties->minMipmapLevelClamp;
+        Sampler->MaxAnisotropy = SamplerMipProperties->maxAnisotropy;
+        Sampler->Props |= SamplerMipProperties->mipFilterMode << 11;
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES) {
+        const ur_exp_sampler_addr_modes_t *SamplerAddrModes =
+            reinterpret_cast<const ur_exp_sampler_addr_modes_t *>(pNext);
+        Sampler->Props |= SamplerAddrModes->addrModes[0] << 2;
+        Sampler->Props |= SamplerAddrModes->addrModes[1] << 5;
+        Sampler->Props |= SamplerAddrModes->addrModes[2] << 8;
+      } else if (BaseDesc->stype ==
+                 UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES) {
+        const ur_exp_sampler_cubemap_properties_t *SamplerCubemapProperties =
+            reinterpret_cast<const ur_exp_sampler_cubemap_properties_t *>(
+                pNext);
+        Sampler->Props |= SamplerCubemapProperties->cubemapFilterMode << 12;
+      }
+      pNext = const_cast<void *>(BaseDesc->pNext);
+    }
+
+    *phSampler = Sampler.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
   return UR_RESULT_SUCCESS;
 }
 

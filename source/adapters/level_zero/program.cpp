@@ -570,7 +570,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     // exists
     ClResult.pop_back();
     if (is_in_separated_string(ClResult, ';', std::string(FunctionName)))
-      return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+      return UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE;
 
     return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   }

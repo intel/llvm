@@ -21,6 +21,9 @@
 
 #include <umf_helpers.hpp>
 
+usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
+    InitializeDisjointPoolConfig();
+
 ur_result_t umf2urResult(umf_result_t umfResult) {
   if (umfResult == UMF_RESULT_SUCCESS)
     return UR_RESULT_SUCCESS;
@@ -1026,7 +1029,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
     // If not shared of any type, we can import the ptr
     if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle = Context->getPlatform()->ZeDriver;
+      ze_driver_handle_t driverHandle =
+          Context->getPlatform()->ZeDriverHandleExpTranslated;
       ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
     }
   }
@@ -1039,6 +1043,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
 
   // Release the imported memory.
   if (ZeUSMImport.Supported && HostPtr != nullptr)
-    ZeUSMImport.doZeUSMRelease(Context->getPlatform()->ZeDriver, HostPtr);
+    ZeUSMImport.doZeUSMRelease(
+        Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
   return UR_RESULT_SUCCESS;
 }

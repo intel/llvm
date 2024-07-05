@@ -17,67 +17,44 @@ namespace ur_sanitizer_layer {
 
 namespace cpu {
 
-// Based on "compiler-rt/lib/asan/asan_mapping.h"
-// Typical shadow mapping on Linux/x86_64 with SHADOW_OFFSET == 0x00007fff8000:
-constexpr uptr LOW_SHADOW_BEGIN = 0x00007fff8000ULL;
-constexpr uptr LOW_SHADOW_END = 0x00008fff6fffULL;
-constexpr uptr SHADOW_GAP_BEGIN = 0x00008fff7000ULL;
-constexpr uptr SHADOW_GAP_END = 0x02008fff6fffULL;
-constexpr uptr HIGH_SHADOW_BEGIN = 0x02008fff7000ULL;
-constexpr uptr HIGH_SHADOW_END = 0x10007fff7fffULL;
-constexpr uptr LOW_SHADOW_SIZE = LOW_SHADOW_END - LOW_SHADOW_BEGIN;
-constexpr uptr SHADOW_GAP_SIZE = SHADOW_GAP_END - SHADOW_GAP_BEGIN;
-constexpr uptr HIGH_SHADOW_SIZE = HIGH_SHADOW_END - HIGH_SHADOW_BEGIN;
+constexpr size_t SHADOW_SIZE = 0x80000000000ULL;
+uptr SHADOW_BEGIN;
+uptr SHADOW_END;
 
-bool IsShadowMemInited;
+bool IsShadowMemInited = false;
 
 ur_result_t SetupShadowMemory(uptr &ShadowBegin, uptr &ShadowEnd) {
     static ur_result_t Result = []() {
-        if (!MmapFixedNoReserve(LOW_SHADOW_BEGIN, LOW_SHADOW_SIZE)) {
+        SHADOW_BEGIN = MmapNoReserve(0, SHADOW_SIZE);
+        if (SHADOW_BEGIN == 0) {
             return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
-        if (!MmapFixedNoReserve(HIGH_SHADOW_BEGIN, HIGH_SHADOW_SIZE)) {
-            return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
-        if (!MmapFixedNoAccess(SHADOW_GAP_BEGIN, SHADOW_GAP_SIZE)) {
-            return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
+        SHADOW_END = SHADOW_BEGIN + SHADOW_SIZE;
         IsShadowMemInited = true;
         return UR_RESULT_SUCCESS;
     }();
-    ShadowBegin = LOW_SHADOW_BEGIN;
-    ShadowEnd = HIGH_SHADOW_END;
+    ShadowBegin = SHADOW_BEGIN;
+    ShadowEnd = SHADOW_END;
     return Result;
 }
 
 ur_result_t DestroyShadowMemory() {
-    static ur_result_t Result = []() {
-        if (!IsShadowMemInited) {
-            return UR_RESULT_SUCCESS;
-        }
-        if (!Munmap(LOW_SHADOW_BEGIN, LOW_SHADOW_SIZE)) {
-            return UR_RESULT_ERROR_UNKNOWN;
-        }
-        if (!Munmap(HIGH_SHADOW_BEGIN, HIGH_SHADOW_SIZE)) {
-            return UR_RESULT_ERROR_UNKNOWN;
-        }
-        if (!Munmap(SHADOW_GAP_BEGIN, SHADOW_GAP_SIZE)) {
-            return UR_RESULT_ERROR_UNKNOWN;
-        }
+    if (!IsShadowMemInited) {
         return UR_RESULT_SUCCESS;
-    }();
-    return Result;
+    }
+    if (!Munmap(SHADOW_BEGIN, SHADOW_SIZE)) {
+        return UR_RESULT_ERROR_UNKNOWN;
+    }
+    return UR_RESULT_SUCCESS;
 }
 
 } // namespace cpu
 
 namespace pvc {
 
-/// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
-///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
-///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
-///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
-constexpr size_t SHADOW_SIZE = 1ULL << 46;
+///   Host/Shared USM : 0x0              ~ 0x07ff_ffff_ffff
+///   Device USM      : 0x0800_0000_0000 ~ 0x17ff_ffff_ffff
+constexpr size_t SHADOW_SIZE = 0x180000000000ULL;
 
 uptr LOW_SHADOW_BEGIN;
 uptr HIGH_SHADOW_END;

@@ -1,9 +1,6 @@
 urProgramBuildTest.BuildFailure/AMD_HIP_BACKEND___{{.*}}_
 # HIP hasn't implemented urProgramCreateWithNativeHandleTest
 {{OPT}}urProgramCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urProgramGetBuildInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_BINARY_TYPE
-# This test flakily fails
-{{OPT}}urProgramGetBuildInfoSingleTest.LogIsNullTerminated/AMD_HIP_BACKEND___{{.*}}_
 # HIP doesn't expose kernel numbers or names
 urProgramGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_NUM_KERNELS
 urProgramGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES

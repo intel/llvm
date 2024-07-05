@@ -2,7 +2,6 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#include <map>
 #include <uur/fixtures.h>
 
 struct urContextGetInfoTestWithInfoParam
@@ -14,9 +13,7 @@ struct urContextGetInfoTestWithInfoParam
 
         ctx_info_size_map = {
             {UR_CONTEXT_INFO_NUM_DEVICES, sizeof(uint32_t)},
-            {UR_CONTEXT_INFO_DEVICES,
-             sizeof(ur_device_handle_t) *
-                 uur::DevicesEnvironment::instance->devices.size()},
+            {UR_CONTEXT_INFO_DEVICES, sizeof(ur_device_handle_t)},
             {UR_CONTEXT_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
             {UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool)},
             {UR_CONTEXT_INFO_USM_FILL2D_SUPPORT, sizeof(bool)},

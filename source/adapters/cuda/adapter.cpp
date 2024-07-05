@@ -36,8 +36,12 @@ public:
 
   ~ur_legacy_sink() = default;
 };
+
+// FIXME: Remove the default log level when querying logging info is supported
+// through UR entry points. See #1330.
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("cuda")) {
+    : logger(logger::get_logger("cuda",
+                                /*default_log_level*/ logger::Level::ERR)) {
 
   if (std::getenv("UR_LOG_CUDA") != nullptr)
     return;

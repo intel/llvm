@@ -132,7 +132,7 @@ analogue:
 params:
     - type: $x_sampler_handle_t
       name: hSampler
-      desc: "[in] handle of the sampler object to release"
+      desc: "[in][release] handle of the sampler object to release"
 returns:
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

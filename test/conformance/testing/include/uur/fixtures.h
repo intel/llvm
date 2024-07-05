@@ -406,7 +406,7 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     }
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 template <class T>
@@ -1098,6 +1098,11 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
+template <>
+std::string deviceTestWithParamPrinter<ur_image_format_t>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, ur_image_format_t>> &info);
+
 // Helper struct to allow bool param tests with meaningful names.
 struct BoolTestParam {
     std::string name;
@@ -1481,6 +1486,13 @@ struct urGlobalVariableTest : uur::urKernelExecutionTest {
                              UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
                              metadataData.size(), metadata_value});
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+        bool global_var_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT,
+            sizeof(global_var_support), &global_var_support, nullptr));
+        if (!global_var_support) {
+            GTEST_SKIP() << "Global variable access is not supported";
+        }
     }
 
     /* We pad the first 8 bytes of the metadata since they are ignored */

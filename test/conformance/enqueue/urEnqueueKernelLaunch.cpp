@@ -364,7 +364,7 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
     size_t global_size = alloc_size / sizeof(uint32_t);
     uint32_t fill_val = 42;
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &virtual_ptr));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, virtual_ptr));
     ASSERT_SUCCESS(
         urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
 
@@ -480,7 +480,7 @@ struct urEnqueueKernelLaunchUSMLinkedList
     const int num_nodes = 4;
     bool use_pool = false;
     ur_usm_pool_handle_t pool = nullptr;
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 UUR_TEST_SUITE_P(
@@ -516,7 +516,7 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
     }
 
     // Run kernel which will iterate the list and modify the values
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &list_head));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, list_head));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
                                          &global_size, nullptr, 0, nullptr,
                                          nullptr));

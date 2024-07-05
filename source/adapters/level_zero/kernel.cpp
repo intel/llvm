@@ -27,16 +27,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(hQueue, hKernel, &ZeKernel));
+  UR_CALL(getZeKernel(Legacy(hQueue), hKernel, &ZeKernel));
 
-  UR_CALL(getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D,
+  UR_CALL(getSuggestedLocalWorkSize(Legacy(hQueue), ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
 
   std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getZeKernel(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
+ur_result_t getZeKernel(ur_queue_handle_legacy_t hQueue,
+                        ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
   auto ZeDevice = hQueue->Device->ZeDevice;
 
@@ -54,7 +55,7 @@ ur_result_t getZeKernel(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
+ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_legacy_t hQueue,
                                       ze_kernel_handle_t hZeKernel,
                                       size_t GlobalWorkSize3D[3],
                                       uint32_t SuggestedLocalWorkSize3D[3]) {
@@ -100,8 +101,7 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueKernelLaunch(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
                       ///< the global and work-group work-items
@@ -130,6 +130,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  auto Queue = this;
+
   ze_kernel_handle_t ZeKernel{};
   UR_CALL(getZeKernel(Queue, Kernel, &ZeKernel));
 
@@ -306,8 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueCooperativeKernelLaunchExp(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
                       ///< the global and work-group work-items
@@ -336,6 +337,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  auto Queue = this;
   auto ZeDevice = Queue->Device->ZeDevice;
 
   ze_kernel_handle_t ZeKernel{};
@@ -567,8 +569,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
-    ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
+ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableWrite(
     ur_program_handle_t Program, ///< [in] handle of the program containing the
                                  ///< device global variable.
     const char
@@ -589,6 +590,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         *Event ///< [in,out][optional] return an event object that identifies
                ///< this particular kernel execution instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Find global variable pointer
@@ -616,28 +618,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
                               EventWaitList, Event, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
-    ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
-    ur_program_handle_t Program, ///< [in] handle of the program containing the
-                                 ///< device global variable.
-    const char
-        *Name, ///< [in] the unique identifier for the device global variable.
+ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableRead(
+    ur_program_handle_t Program, ///< [in] handle of the program containing
+                                 ///< the device global variable.
+    const char *Name,  ///< [in] the unique identifier for the device global
+                       ///< variable.
     bool BlockingRead, ///< [in] indicates if this operation should block.
     size_t Count,      ///< [in] the number of bytes to copy.
-    size_t Offset, ///< [in] the byte offset into the device global variable to
-                   ///< start copying.
-    void *Dst,     ///< [in] pointer to where the data must be copied to.
+    size_t Offset,     ///< [in] the byte offset into the device global variable
+                       ///< to start copying.
+    void *Dst,         ///< [in] pointer to where the data must be copied to.
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list.
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
+                        ///< pointer to a list of events that must be
+                        ///< complete before the kernel execution. If
+                        ///< nullptr, the numEventsInWaitList must be 0,
+                        ///< indicating that no wait event.
     ur_event_handle_t
-        *Event ///< [in,out][optional] return an event object that identifies
-               ///< this particular kernel execution instance.
+        *Event ///< [in,out][optional] return an event object that
+               ///< identifies this particular kernel execution instance.
 ) {
+  auto Queue = this;
 
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -998,8 +1000,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
 ) {
   std::ignore = Properties;
 
+  // KernelSetArgValue is expecting a pointer to the argument
   UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), nullptr,
-                              ArgValue));
+                              &ArgValue));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1197,5 +1200,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
   std::ignore = SpecConstants;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_handle_legacy_t_::enqueueKernelLaunchCustomExp(
+    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_exp_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hKernel;
+  std::ignore = workDim;
+  std::ignore = pGlobalWorkSize;
+  std::ignore = pLocalWorkSize;
+  std::ignore = numPropsInLaunchPropList;
+  std::ignore = launchPropList;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

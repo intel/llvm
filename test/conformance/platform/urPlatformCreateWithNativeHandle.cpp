@@ -20,8 +20,8 @@ TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
         // We can however convert the native_handle back into a unified-runtime
         // handle and perform some query on it to verify that it works.
         ur_platform_handle_t plat = nullptr;
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urPlatformCreateWithNativeHandle(native_handle, nullptr, &plat));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urPlatformCreateWithNativeHandle(
+            native_handle, adapters[0], nullptr, &plat));
         ASSERT_NE(plat, nullptr);
 
         std::string input_platform_name = uur::GetPlatformName(platform);
@@ -45,8 +45,8 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
         ur_platform_native_properties_t props = {
             UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES, nullptr, true};
         ur_platform_handle_t plat = nullptr;
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urPlatformCreateWithNativeHandle(native_handle, &props, &plat));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urPlatformCreateWithNativeHandle(
+            native_handle, adapters[0], &props, &plat));
         ASSERT_NE(plat, nullptr);
 
         std::string input_platform_name = uur::GetPlatformName(platform);
@@ -70,8 +70,8 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
         ur_platform_native_properties_t props = {
             UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES, nullptr, false};
         ur_platform_handle_t plat = nullptr;
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urPlatformCreateWithNativeHandle(native_handle, &props, &plat));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urPlatformCreateWithNativeHandle(
+            native_handle, adapters[0], &props, &plat));
         ASSERT_NE(plat, nullptr);
 
         std::string input_platform_name = uur::GetPlatformName(platform);
@@ -84,8 +84,8 @@ TEST_F(urPlatformCreateWithNativeHandleTest, InvalidNullPointerPlatform) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = nullptr;
         ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
-        ASSERT_EQ_RESULT(
-            UR_RESULT_ERROR_INVALID_NULL_POINTER,
-            urPlatformCreateWithNativeHandle(native_handle, nullptr, nullptr));
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                         urPlatformCreateWithNativeHandle(
+                             native_handle, adapters[0], nullptr, nullptr));
     }
 }

@@ -17,6 +17,7 @@
 #include "event.hpp"
 #include "image.hpp"
 #include "logger/ur_logger.hpp"
+#include "queue.hpp"
 #include "ur_level_zero.hpp"
 
 // Default to using compute engine for fill operation, but allow to
@@ -45,7 +46,7 @@ bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr) {
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
-                                 ur_queue_handle_t Queue, void *Dst,
+                                 ur_queue_handle_legacy_t Queue, void *Dst,
                                  ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
@@ -98,12 +99,13 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyRectHelper(
-    ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
-    void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
-    ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent, bool PreferCopyEngine) {
+    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
+    const void *SrcBuffer, void *DstBuffer, ur_rect_offset_t SrcOrigin,
+    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
+    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
+    ur_bool_t Blocking, uint32_t NumEventsInWaitList,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
+    bool PreferCopyEngine) {
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
   _ur_ze_event_list_t TmpWaitList;
@@ -183,9 +185,9 @@ ur_result_t enqueueMemCopyRectHelper(
 
 // PI interfaces must have queue's and buffer's mutexes locked on entry.
 static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
-                                        ur_queue_handle_t Queue, void *Ptr,
-                                        const void *Pattern, size_t PatternSize,
-                                        size_t Size,
+                                        ur_queue_handle_legacy_t Queue,
+                                        void *Ptr, const void *Pattern,
+                                        size_t PatternSize, size_t Size,
                                         uint32_t NumEventsInWaitList,
                                         const ur_event_handle_t *EventWaitList,
                                         ur_event_handle_t *OutEvent) {
@@ -322,7 +324,7 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
 // PI interfaces must have queue's and destination image's mutexes locked for
 // exclusive use and source image's mutex locked for shared use on entry.
 static ur_result_t enqueueMemImageCommandHelper(
-    ur_command_t CommandType, ur_queue_handle_t Queue,
+    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
     const void *Src, // image or ptr
     void *Dst,       // image or ptr
     ur_bool_t IsBlocking, ur_rect_offset_t *SrcOrigin,
@@ -459,8 +461,7 @@ static ur_result_t enqueueMemImageCommandHelper(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferRead(
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,     ///< [in] offset in bytes in the buffer object
@@ -478,6 +479,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
+  auto Queue = this;
   ur_mem_handle_t_ *Src = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Src->Mutex, std::defer_lock);
@@ -493,8 +495,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                               true /* PreferCopyEngine */);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWrite(
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
         blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
@@ -514,6 +515,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
+  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -530,8 +532,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                               true /* PreferCopyEngine */);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferReadRect(
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
@@ -559,6 +560,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
+  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Buffer->Mutex, std::defer_lock);
@@ -575,8 +577,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWriteRect(
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
         blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
@@ -606,6 +607,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
+  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -622,8 +624,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
       phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferCopy(
     ur_mem_handle_t BufferSrc, ///< [in] handle of the src buffer object
     ur_mem_handle_t BufferDst, ///< [in] handle of the dest buffer object
     size_t SrcOffset, ///< [in] offset into hBufferSrc to begin copying from
@@ -641,6 +642,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -673,8 +675,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
-    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
+ur_result_t
+ur_queue_handle_legacy_t_::enqueueMemBufferCopyRect( ///< [in] handle of the
+                                                     ///< queue object
     ur_mem_handle_t BufferSrc,  ///< [in] handle of the source buffer object
     ur_mem_handle_t BufferDst,  ///< [in] handle of the dest buffer object
     ur_rect_offset_t SrcOrigin, ///< [in] 3D offset in the source buffer
@@ -701,6 +704,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -731,12 +735,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Buffer,  ///< [in] handle of the buffer object
-    const void *Pattern,     ///< [in] pointer to the fill pattern
-    size_t PatternSize,      ///< [in] size in bytes of the pattern
-    size_t Offset,           ///< [in] offset into the buffer
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferFill(
+    ur_mem_handle_t Buffer, ///< [in] handle of the buffer object
+    const void *Pattern,    ///< [in] pointer to the fill pattern
+    size_t PatternSize,     ///< [in] size in bytes of the pattern
+    size_t Offset,          ///< [in] offset into the buffer
     size_t Size, ///< [in] fill size in bytes, must be a multiple of patternSize
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
@@ -750,6 +753,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Buffer->Mutex);
 
@@ -764,9 +768,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       Size, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Image,   ///< [in] handle of the image object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageRead(
+    ur_mem_handle_t Image, ///< [in] handle of the image object
     bool BlockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
                              ///< the 1D, 2D, or 3D image
@@ -787,6 +790,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -795,9 +799,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
       EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Image,   ///< [in] handle of the image object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageWrite(
+    ur_mem_handle_t Image, ///< [in] handle of the image object
     bool
         BlockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
@@ -819,6 +822,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -827,8 +831,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
       EventWaitList, OutEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
-    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
+ur_result_t
+ur_queue_handle_legacy_t_::enqueueMemImageCopy( ///< [in] handle of
+                                                ///< the queue object
     ur_mem_handle_t ImageSrc,   ///< [in] handle of the src image object
     ur_mem_handle_t ImageDst,   ///< [in] handle of the dest image object
     ur_rect_offset_t SrcOrigin, ///< [in] defines the (x,y,z) offset in pixels
@@ -849,6 +854,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::shared_lock<ur_shared_mutex> SrcLock(ImageSrc->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
@@ -866,9 +872,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Buf,     ///< [in] handle of the buffer object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
+    ur_mem_handle_t Buf, ///< [in] handle of the buffer object
     bool BlockingMap, ///< [in] indicates blocking (true), non-blocking (false)
     ur_map_flags_t MapFlags, ///< [in] flags for read, write, readwrite mapping
     size_t Offset, ///< [in] offset in bytes of the buffer region being mapped
@@ -887,7 +892,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     void **RetMap  ///< [in,out] return mapped pointer.  TODO: move it before
                    ///< numEventsInWaitList?
 ) {
-
+  auto Queue = this;
   auto Buffer = ur_cast<_ur_buffer *>(Buf);
 
   UR_ASSERT(!Buffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1035,8 +1040,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
     ur_mem_handle_t Mem, ///< [in] handle of the memory (buffer or image) object
     void *MappedPtr,     ///< [in] mapped host address
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
@@ -1051,6 +1055,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   UR_ASSERT(!Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   auto Buffer = ur_cast<_ur_buffer *>(Mem);
@@ -1128,8 +1133,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
 
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine,
-      NumEventsInWaitList, EventWaitList));
+      reinterpret_cast<ur_queue_handle_legacy_t>(Queue), CommandList,
+      UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
   (*Event)->RefCount.increment();
@@ -1162,37 +1167,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemset(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    void *Ptr,                    ///< [in] pointer to USM memory object
-    int8_t ByteValue,             ///< [in] byte value to fill
-    size_t Count,                 ///< [in] size in bytes to be set
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t *Event ///< [in,out][optional] return an event object that
-                             ///< identifies this particular command instance.
-) {
-  std::ignore = Queue;
-  std::ignore = Ptr;
-  std::ignore = ByteValue;
-  std::ignore = Count;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    bool Blocking,           ///< [in] blocking or non-blocking copy
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy(
+    bool Blocking,   ///< [in] blocking or non-blocking copy
     void *Dst,       ///< [in] pointer to the destination USM memory object
     const void *Src, ///< [in] pointer to the source USM memory object
     size_t Size,     ///< [in] size in bytes to be copied
@@ -1208,6 +1184,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Device to Device copies are found to execute slower on copy engine
@@ -1223,8 +1200,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
-    ur_queue_handle_t Queue,        ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMPrefetch(
     const void *Mem,                ///< [in] pointer to the USM memory object
     size_t Size,                    ///< [in] size in bytes to be fetched
     ur_usm_migration_flags_t Flags, ///< [in] USM prefetch flags
@@ -1240,6 +1216,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   std::ignore = Flags;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
@@ -1291,8 +1268,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMAdvise(
     const void *Mem,              ///< [in] pointer to the USM memory object
     size_t Size,                  ///< [in] size in bytes to be advised
     ur_usm_advice_flags_t Advice, ///< [in] USM memory advice
@@ -1300,6 +1276,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  auto Queue = this;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1349,9 +1326,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
-    void *Mem,               ///< [in] pointer to memory to be filled.
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill2D(
+    void *Mem,    ///< [in] pointer to memory to be filled.
     size_t Pitch, ///< [in] the total width of the destination memory including
                   ///< padding.
     size_t PatternSize,  ///< [in] the size in bytes of the pattern.
@@ -1369,7 +1345,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
-  std::ignore = Queue;
   std::ignore = Mem;
   std::ignore = Pitch;
   std::ignore = PatternSize;
@@ -1384,41 +1359,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemset2D(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
-    void *Mem,               ///< [in] pointer to memory to be filled.
-    size_t Pitch,  ///< [in] the total width of the destination memory including
-                   ///< padding.
-    int Value,     ///< [in] the value to fill into the region in pMem.
-    size_t Width,  ///< [in] the width in bytes of each row to set.
-    size_t Height, ///< [in] the height of the columns to set.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular kernel execution instance.
-) {
-  std::ignore = Queue;
-  std::ignore = Mem;
-  std::ignore = Pitch;
-  std::ignore = Value;
-  std::ignore = Width;
-  std::ignore = Height;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = OutEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy2D(
     bool Blocking, ///< [in] indicates if this operation should block the host.
     void *Dst,     ///< [in] pointer to memory where data will be copied.
     size_t DstPitch, ///< [in] the total width of the source memory including
@@ -1439,7 +1380,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         *Event ///< [in,out][optional] return an event object that identifies
                ///< this particular kernel execution instance.
 ) {
-
+  auto Queue = this;
   ur_rect_offset_t ZeroOffset{0, 0, 0};
   ur_rect_region_t Region{Width, Height, 0};
 
@@ -1483,14 +1424,14 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      logger::error("urMemImageCreate: unexpected data type Size");
-      return UR_RESULT_ERROR_INVALID_VALUE;
+      logger::error("urMemImageCreate: unexpected data type Size\n");
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
     break;
   }
   default:
     logger::error("format layout = {}", ImageFormat->channelOrder);
-    die("urMemImageCreate: unsupported image format layout\n");
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     break;
   }
 
@@ -1519,7 +1460,7 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     break;
   default:
     logger::error("urMemImageCreate: unsupported image type");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
 
   ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
@@ -1651,7 +1592,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     // If not shared of any type, we can import the ptr
     if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle = Context->getPlatform()->ZeDriver;
+      ze_driver_handle_t driverHandle =
+          Context->getPlatform()->ZeDriverHandleExpTranslated;
       ZeUSMImport.doZeUSMImport(driverHandle, Host, Size);
       HostPtrImported = true;
     }
@@ -2235,7 +2177,8 @@ ur_result_t _ur_buffer::free() {
       UR_CALL(ZeMemFreeHelper(UrContext, ZeHandle));
       break;
     case allocation_t::unimport:
-      ZeUSMImport.doZeUSMRelease(UrContext->getPlatform()->ZeDriver, ZeHandle);
+      ZeUSMImport.doZeUSMRelease(
+          UrContext->getPlatform()->ZeDriverHandleExpTranslated, ZeHandle);
       break;
     default:
       die("_ur_buffer::free(): Unhandled release action");
@@ -2334,9 +2277,8 @@ size_t _ur_buffer::getAlignment() const {
   return Alignment;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    void *Ptr,               ///< [in] pointer to USM memory object
+ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill(
+    void *Ptr,           ///< [in] pointer to USM memory object
     size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
                          ///< power of 2 and less than or equal to width.
     const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
@@ -2352,6 +2294,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_event_handle_t *Event ///< [out][optional] return an event object that
                              ///< identifies this particular command instance.
 ) {
+  auto Queue = this;
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
   return enqueueMemFillHelper(
@@ -2363,12 +2306,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
 }
 
 /// Host Pipes
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
+ur_result_t ur_queue_handle_legacy_t_::enqueueReadHostPipe(
+    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
+    void *pDst, size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hProgram;
   std::ignore = pipe_symbol;
   std::ignore = blocking;
@@ -2382,12 +2323,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
+ur_result_t ur_queue_handle_legacy_t_::enqueueWriteHostPipe(
+    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
+    void *pSrc, size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hProgram;
   std::ignore = pipe_symbol;
   std::ignore = blocking;

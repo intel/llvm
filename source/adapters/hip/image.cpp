@@ -113,9 +113,10 @@ urBindlessImagesMipmapFreeExp([[maybe_unused]] ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice, [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_exp_external_mem_type_t memHandleType,
     [[maybe_unused]] ur_exp_interop_mem_desc_t *pInteropMemDesc,
     [[maybe_unused]] ur_exp_interop_mem_handle_t *phInteropMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -138,10 +139,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] ur_exp_external_semaphore_type_t semHandleType,
     [[maybe_unused]] ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     [[maybe_unused]] ur_exp_interop_semaphore_handle_t *phInteropSemaphore) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -157,6 +158,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     [[maybe_unused]] ur_queue_handle_t hQueue,
     [[maybe_unused]] ur_exp_interop_semaphore_handle_t hSemaphore,
+    [[maybe_unused]] bool hasValue, [[maybe_unused]] uint64_t waitValue,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {
@@ -166,6 +168,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     [[maybe_unused]] ur_queue_handle_t hQueue,
     [[maybe_unused]] ur_exp_interop_semaphore_handle_t hSemaphore,
+    [[maybe_unused]] bool hasValue, [[maybe_unused]] uint64_t signalValue,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {

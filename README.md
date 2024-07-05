@@ -118,6 +118,7 @@ List of options provided by CMake:
 
 | Name | Description | Values | Default |
 | - | - | - | - |
+| UR_BUILD_EXAMPLES | Build example applications | ON/OFF | ON |
 | UR_BUILD_TESTS | Build the tests | ON/OFF | ON |
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |

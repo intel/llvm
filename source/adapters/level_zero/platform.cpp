@@ -123,6 +123,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         NativePlatform, ///< [in] the native handle of the platform.
+    ur_adapter_handle_t,
     const ur_platform_native_properties_t
         *Properties, ///< [in][optional] pointer to native platform properties
                      ///< struct.

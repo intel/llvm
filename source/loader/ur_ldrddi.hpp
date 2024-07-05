@@ -49,10 +49,6 @@ using ur_queue_object_t = object_t<ur_queue_handle_t>;
 using ur_queue_factory_t =
     singleton_factory_t<ur_queue_object_t, ur_queue_handle_t>;
 
-using ur_native_object_t = object_t<ur_native_handle_t>;
-using ur_native_factory_t =
-    singleton_factory_t<ur_native_object_t, ur_native_handle_t>;
-
 using ur_sampler_object_t = object_t<ur_sampler_handle_t>;
 using ur_sampler_factory_t =
     singleton_factory_t<ur_sampler_object_t, ur_sampler_handle_t>;

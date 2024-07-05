@@ -42,7 +42,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessHost) {
                                   &allocation));
     ASSERT_NE(allocation, nullptr);
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
     ASSERT_SUCCESS(
         urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
@@ -60,7 +60,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessDevice) {
                                     allocation_size, &allocation));
     ASSERT_NE(allocation, nullptr);
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
     ASSERT_SUCCESS(
         urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
@@ -87,7 +87,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessShared) {
                                     allocation_size, &allocation));
     ASSERT_NE(allocation, nullptr);
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
     ASSERT_SUCCESS(
         urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
@@ -138,16 +138,16 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgPointerNegativeTest);
 
 TEST_P(urKernelSetArgPointerNegativeTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urKernelSetArgPointer(nullptr, 0, nullptr, &allocation));
+                     urKernelSetArgPointer(nullptr, 0, nullptr, allocation));
 }
 
 TEST_P(urKernelSetArgPointerNegativeTest, InvalidKernelArgumentIndex) {
-    size_t num_kernel_args = 0;
+    uint32_t num_kernel_args = 0;
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,
                                    nullptr));
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                      urKernelSetArgPointer(kernel, num_kernel_args + 1, nullptr,
-                                           &allocation));
+                                           allocation));
 }

@@ -99,8 +99,8 @@ static auto getUrResultString = [](ur_result_t Result) {
     return "UR_RESULT_ERROR_INVALID_IMAGE_SIZE";
   case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
     return "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-    return "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
+  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
+    return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
     return "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
   case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
@@ -141,14 +141,12 @@ static auto getUrResultString = [](ur_result_t Result) {
     return "UR_RESULT_ERROR_INVALID_ENUMERATION";
   case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
     return "UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
-  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
   case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
     return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
   case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
     return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    return "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+    return "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
   case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
     return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
   case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
@@ -325,6 +323,14 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
+  }
+
+// Trace a call to Level-Zero RT, throw on error
+#define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
+  {                                                                            \
+    ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+      throw ze2urResult(Result);                                               \
   }
 
 // Perform traced call to L0 without checking for errors
