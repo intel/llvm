@@ -101,20 +101,12 @@ public:
   /// Get a valid OpenCL kernel handle
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
-  /// cl_kernel will be returned. If this kernel is a host kernel,
-  /// an invalid_object_error exception will be thrown.
+  /// cl_kernel will be returned.
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
   cl_kernel get() const;
 #endif
-
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Get the context that this kernel is defined for.
   ///

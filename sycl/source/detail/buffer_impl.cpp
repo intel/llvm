@@ -23,7 +23,7 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                                void *HostPtr,
                                sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && !Context) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
