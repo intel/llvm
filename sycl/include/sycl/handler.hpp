@@ -33,6 +33,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -464,9 +465,9 @@ private:
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
-  /// TODO: Unused. Remove with ABI break.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool /*Unused*/);
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -476,36 +477,12 @@ private:
   /// \param PrimaryQueue is the primary SYCL queue of the submission.
   /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
   ///        is null if no secondary queue is associated with the submission.
-  /// TODO: Unused. Remove with ABI break.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool /* Unused */);
-
-  /// Constructs SYCL handler from queue.
-  ///
-  /// \param Queue is a SYCL queue.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
-  /// \param CallerNeedsEvent indicates if the event resulting from this handler
-  ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          bool /* ABI break: remove */, bool CallerNeedsEvent);
-
-  /// Constructs SYCL handler from the associated queue and the submission's
-  /// primary and secondary queue.
-  ///
-  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
-  ///        SecondaryQueue.
-  /// \param PrimaryQueue is the primary SYCL queue of the submission.
-  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
-  ///        is null if no secondary queue is associated with the submission.
-  /// \param IsHost indicates if this handler is created for SYCL host device.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool /* ABI break: remove */, bool CallerNeedsEvent);
+          bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -520,6 +497,14 @@ private:
     CGData.MArgsStorage.emplace_back(sizeof(T));
     void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
     std::memcpy(Storage, &Arg, sizeof(T));
+    return Storage;
+  }
+
+  void *
+  storeRawArg(const sycl::ext::oneapi::experimental::raw_kernel_arg &RKA) {
+    CGData.MArgsStorage.emplace_back(RKA.MArgSize);
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, RKA.MArgData, RKA.MArgSize);
     return Storage;
   }
 
@@ -643,9 +628,6 @@ private:
 
   ~handler() = default;
 
-  // TODO: Private and unusued. Remove when ABI break is allowed.
-  bool is_host() { return false; }
-
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device
@@ -758,6 +740,14 @@ private:
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
+  // setArgHelper for the raw_kernel_arg extension type.
+  void setArgHelper(int ArgIndex,
+                    sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    auto StoredArg = storeRawArg(Arg);
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
+                       Arg.MArgSize, ArgIndex);
+  }
+
   /// Registers a dynamic parameter with the handler for later association with
   /// the node being created
   /// @param DynamicParamBase
@@ -766,12 +756,6 @@ private:
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
       int ArgIndex);
-
-  // TODO: Unusued. Remove when ABI break is allowed.
-  void verifyKernelInvoc(const kernel &Kernel) {
-    std::ignore = Kernel;
-    return;
-  }
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
    * its argument. Since esimd plugin directly invokes the kernel (doesn’t use
@@ -1093,7 +1077,6 @@ private:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
-  // ABI break: to remove whole method
   template <typename TSrc, int DimSrc, access::mode ModeSrc,
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
@@ -1103,81 +1086,6 @@ private:
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst>) {
     return false;
   }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  // ABI break: to remove whole method
-  /// Copies the content of memory object accessed by Src into the memory
-  /// pointed by Dst.
-  ///
-  /// \param Src is a source SYCL accessor.
-  /// \param Dst is a pointer to destination memory.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<(Dim > 0)>
-  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
-                   TDst *Dst) {
-    range<Dim> Range = Src.get_range();
-    parallel_for<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        Range, [=](id<Dim> Index) {
-          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          using TSrcNonConst = typename std::remove_const_t<TSrc>;
-          (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
-  /// pointed by Dst.
-  ///
-  /// \param Src is a source SYCL accessor.
-  /// \param Dst is a pointer to destination memory.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<Dim == 0>
-  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
-                   TDst *Dst) {
-    single_task<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        [=]() {
-          using TSrcNonConst = typename std::remove_const_t<TSrc>;
-          *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies the memory pointed by Src into the memory accessed by Dst.
-  ///
-  /// \param Src is a pointer to source memory.
-  /// \param Dst is a destination SYCL accessor.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<(Dim > 0)>
-  copyPtrToAccHost(TSrc *Src,
-                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    range<Dim> Range = Dst.get_range();
-    parallel_for<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        Range, [=](id<Dim> Index) {
-          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
-        });
-  }
-
-  // ABI break: to remove whole method
-  /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
-  /// accessor Dst.
-  ///
-  /// \param Src is a pointer to source memory.
-  /// \param Dst is a destination SYCL accessor.
-  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  std::enable_if_t<Dim == 0>
-  copyPtrToAccHost(TSrc *Src,
-                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
-        [=]() {
-          *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
-        });
-  }
-#endif // __SYCL_DEVICE_ONLY__
 
   constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::device ||
@@ -2045,6 +1953,11 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for the raw_kernel_arg extension type.
+  void set_arg(int argIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    setArgHelper(argIndex, std::move(Arg));
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
@@ -3403,8 +3316,6 @@ private:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
-
-  bool MIsHost = false; // ABI break: to remove
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

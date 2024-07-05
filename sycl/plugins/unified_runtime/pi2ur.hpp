@@ -122,7 +122,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_BINARY;
   case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
     return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
     return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
   case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
     return PI_ERROR_INVALID_WORK_DIMENSION;
@@ -2447,18 +2447,8 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    size_t NumArgs = 0;
-    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
-                                  sizeof(NumArgs), &NumArgs, nullptr));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = sizeof(uint32_t);
-    }
-    if (ParamValue) {
-      if (ParamValueSize != sizeof(uint32_t))
-        return PI_ERROR_INVALID_BUFFER_SIZE;
-      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
-    }
-    return PI_SUCCESS;
+    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
+    break;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;
