@@ -39,9 +39,9 @@ namespace experimental {
 
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-// launch_strategy is constructed by the user & passed to `compat_exp::launch`
+// launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps>
-struct launch_strategy {
+struct launch_policy {
   static_assert(sycl_exp::is_property_list_v<KProps>);
   static_assert(sycl_exp::is_property_list_v<LProps>);
   static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
@@ -50,20 +50,20 @@ struct launch_strategy {
   using RangeT = Range;
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
-  launch_strategy() = delete;
+  launch_policy() = delete;
   // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
-  launch_strategy(Range range, KProps kprops, LProps lprops, size_t lmem_size)
+  launch_policy(Range range, KProps kprops, LProps lprops, size_t lmem_size)
       : range{range}, kernel_properties{kprops}, launch_properties{lprops},
         local_mem_size{lmem_size} {}
 
   // Ctor taking just dim3 global range (converts to sycl::range<3>)
-  launch_strategy(dim3 global_range, KProps kprops, LProps lprops,
+  launch_policy(dim3 global_range, KProps kprops, LProps lprops,
                   size_t lmem_size)
       : range{global_range}, kernel_properties{kprops},
         launch_properties{lprops}, local_mem_size{lmem_size} {}
 
   // Ctor taking pair of dim3 (converts to sycl::nd_range<3>)
-  launch_strategy(dim3 global_range, dim3 work_group_range, KProps kprops,
+  launch_policy(dim3 global_range, dim3 work_group_range, KProps kprops,
                   LProps lprops, size_t lmem_size)
       : range{global_range, work_group_range}, kernel_properties{kprops},
         launch_properties{lprops}, local_mem_size{lmem_size} {}
@@ -74,24 +74,24 @@ struct launch_strategy {
   size_t local_mem_size;
 };
 
-// Deduction guides for launch_strategy dim3 ctors
+// Deduction guides for launch_policy dim3 ctors
 template <typename KProps, typename LProps>
-launch_strategy(dim3 global_range, KProps kprops, LProps lprops,
+launch_policy(dim3 global_range, KProps kprops, LProps lprops,
                 size_t lmem_size)
-    -> launch_strategy<sycl::range<3>, KProps, LProps>;
+    -> launch_policy<sycl::range<3>, KProps, LProps>;
 
 template <typename KProps, typename LProps>
-launch_strategy(dim3 global_range, dim3 work_group_range, KProps kprops,
+launch_policy(dim3 global_range, dim3 work_group_range, KProps kprops,
                 LProps lprops, size_t lmem_size)
-    -> launch_strategy<sycl::nd_range<3>, KProps, LProps>;
+    -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
 
-template <typename T> struct is_launch_strategy : std::false_type {};
+template <typename T> struct is_launch_policy : std::false_type {};
 
 template <typename RangeT, typename KProps, typename LProps>
-struct is_launch_strategy<launch_strategy<RangeT, KProps, LProps>> : std::true_type {};
+struct is_launch_policy<launch_policy<RangeT, KProps, LProps>> : std::true_type {};
 
 template <typename T>
-inline constexpr bool is_launch_strategy_v = is_launch_strategy<T>::value;
+inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
 
 
 namespace detail {
@@ -129,32 +129,32 @@ template <auto F, typename Range, typename KProps, typename... Args> struct Kern
 //====================================================================
 // This helper function avoids 2 nested `if constexpr` in detail::launch
 template <auto F, typename LaunchStrategy, typename... Args>
-auto build_kernel_functor(sycl::handler& cgh, LaunchStrategy launch_strategy,
+auto build_kernel_functor(sycl::handler& cgh, LaunchStrategy launch_policy,
                           Args... args)
     -> KernelFunctor<F, typename LaunchStrategy::RangeT,
                      typename LaunchStrategy::KPropsT, Args...> {
   if constexpr (syclcompat::lmem_invocable<F, Args...>) {
-    sycl::local_accessor<char, 1> local_memory(launch_strategy.local_mem_size,
+    sycl::local_accessor<char, 1> local_memory(launch_policy.local_mem_size,
                                                cgh);
     return KernelFunctor<F, typename LaunchStrategy::RangeT,
                          typename LaunchStrategy::KPropsT, Args...>(
-        launch_strategy.kernel_properties, local_memory, args...);
+        launch_policy.kernel_properties, local_memory, args...);
   } else {
       return KernelFunctor<F, typename LaunchStrategy::RangeT,
                         typename LaunchStrategy::KPropsT, Args...>(
-              launch_strategy.kernel_properties, args...);
+              launch_policy.kernel_properties, args...);
   }
 }
 
 template <auto F, typename LaunchStrategy, typename... Args>
-sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
+sycl::event launch(LaunchStrategy launch_policy, sycl::queue q, Args... args) {
   static_assert(syclcompat::args_compatible<F, Args...>);
 
-  sycl_exp::launch_config config(launch_strategy.range,
-                                 launch_strategy.launch_properties);
+  sycl_exp::launch_config config(launch_policy.range,
+                                 launch_policy.launch_properties);
 
   return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
-    auto KernelFunctor = build_kernel_functor<F>(cgh, launch_strategy, args...);
+    auto KernelFunctor = build_kernel_functor<F>(cgh, launch_policy, args...);
     if constexpr (syclcompat::detail::is_sycl_range<typename LaunchStrategy::RangeT>::value) { //TODO: template aliases for this
       parallel_for(cgh, config, KernelFunctor);
     } else {
@@ -169,17 +169,17 @@ sycl::event launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) 
 
 template <auto F, typename LaunchStrategy, typename... Args>
 std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
-launch(LaunchStrategy launch_strategy, sycl::queue q, Args... args) {
-  static_assert(is_launch_strategy_v<LaunchStrategy>);
-  return detail::launch<F>(launch_strategy, q, args...);
+launch(LaunchStrategy launch_policy, sycl::queue q, Args... args) {
+  static_assert(is_launch_policy_v<LaunchStrategy>);
+  return detail::launch<F>(launch_policy, q, args...);
 }
 
 
 template <auto F, typename LaunchStrategy, typename... Args>
 std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
-launch(LaunchStrategy launch_strategy, Args... args) {
-  static_assert(is_launch_strategy_v<LaunchStrategy>);
-  return launch<F>(launch_strategy, get_default_queue(), args...);
+launch(LaunchStrategy launch_policy, Args... args) {
+  static_assert(is_launch_policy_v<LaunchStrategy>);
+  return launch<F>(launch_policy, get_default_queue(), args...);
 }
 
 

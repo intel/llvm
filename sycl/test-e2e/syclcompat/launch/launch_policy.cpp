@@ -32,7 +32,7 @@
 #include <sycl/group_barrier.hpp>
 
 //#include <syclcompat/launch.hpp>
-#include <syclcompat/launch_strategy.hpp>
+#include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
 
 
@@ -84,14 +84,14 @@ int test_basic_launch() {
 
   sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; // constructed at runtime
 
-  compat_exp::launch_strategy my_config(
+  compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{32}, {32}},
       sycl_exp::properties{sycl_exp::sub_group_size<32>,
                            sycl_exp::use_root_sync, my_cache_config},
       sycl_exp::properties{}, 0);
 
   //TODO: deal with initializer list ctor here
-  // compat_exp::launch_strategy my_init_config{
+  // compat_exp::launch_policy my_init_config{
   //     sycl::nd_range<1>{{32}, {32}},
   //     sycl_exp::properties{sycl_exp::sub_group_size<32>,
   //                          sycl_exp::use_root_sync, my_cache_config},
@@ -123,7 +123,7 @@ int test_lmem_launch() {
   T *h_a = (T *)syclcompat::malloc_host(local_mem_size);
   T *d_a = (T *)syclcompat::malloc(local_mem_size);
 
-  compat_exp::launch_strategy my_config(
+  compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{256}, {256}},
       sycl_exp::properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
       sycl_exp::properties{}, local_mem_size);
@@ -145,15 +145,15 @@ int test_lmem_launch() {
   return 0;
 }
 
-int test_dim3_launch_strategy() {
+int test_dim3_launch_policy() {
 
-  compat_exp::launch_strategy my_range_config(
+  compat_exp::launch_policy my_range_config(
       syclcompat::dim3{32}, sycl_exp::properties{}, sycl_exp::properties{}, 0);
 
   static_assert(
       std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);
 
-  compat_exp::launch_strategy my_nd_range_config(
+  compat_exp::launch_policy my_nd_range_config(
       syclcompat::dim3{32}, syclcompat::dim3{32}, sycl_exp::properties{},
       sycl_exp::properties{}, 0);
 
