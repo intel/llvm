@@ -39,12 +39,13 @@
 // in this pass as a common functionality for both versions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
+
+#define DEBUG_TYPE "spvtocl"
 
 namespace SPIRV {
 

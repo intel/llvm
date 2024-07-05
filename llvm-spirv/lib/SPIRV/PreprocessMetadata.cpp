@@ -36,7 +36,6 @@
 // further translation to SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "clmdtospv"
 
 #include "PreprocessMetadata.h"
 #include "OCLUtil.h"
@@ -50,6 +49,8 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TargetParser/Triple.h"
+
+#define DEBUG_TYPE "clmdtospv"
 
 using namespace llvm;
 using namespace SPIRV;

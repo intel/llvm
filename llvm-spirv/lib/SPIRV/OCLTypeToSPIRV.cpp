@@ -38,7 +38,6 @@
 // propagates the mapping to the uses of the kernel arguments.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "cltytospv"
 
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
@@ -49,6 +48,8 @@
 
 #include <iterator>
 #include <set>
+
+#define DEBUG_TYPE "cltytospv"
 
 using namespace llvm;
 using namespace SPIRV;
