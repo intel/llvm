@@ -10391,8 +10391,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativePlatform = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativePlatform));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativePlatform)));
 
     os << ", ";
     os << ".hAdapter = ";
@@ -10588,8 +10588,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeContext = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeContext));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeContext)));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10798,8 +10798,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeEvent = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeEvent));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeEvent)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11392,8 +11392,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeProgram = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeProgram));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeProgram)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11612,8 +11612,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeKernel = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeKernel));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeKernel)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12061,8 +12061,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeQueue = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeQueue));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeQueue)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12235,8 +12235,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeSampler = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeSampler));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeSampler)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12439,8 +12439,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12471,8 +12471,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -17221,8 +17221,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeDevice = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeDevice));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeDevice)));
 
     os << ", ";
     os << ".hPlatform = ";
