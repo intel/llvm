@@ -37,24 +37,24 @@ int main() {
   const size_t MaxWorkGroupSize = dev.get_info<max_work_group_size>();
   const size_t MaxLocalMemorySizeInBytes = dev.get_info<local_mem_size>();
 
-  size_t WorkGroupSize =
+  size_t workGroupSize =
       std::min(MaxWorkGroupSize / 2, kernel.get_info<work_group_size>(dev));
-  size_t LocalMemorySizeInBytes = (WorkGroupSize / 2) * sizeof(float);
+  size_t localMemorySizeInBytes = (workGroupSize / 2) * sizeof(float);
 
-  sycl::range<3> wgRange{WorkGroupSize, 1, 1};
+  sycl::range<3> workGroupRange{workGroupSize, 1, 1};
   auto maxWGsPerCU = kernel.ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::recommended_num_work_groups>(
-      q, wgRange, LocalMemorySizeInBytes);
+      q, workGroupRange, localMemorySizeInBytes);
 
   q.single_task<QueryKernel>([]() {}).wait();
 
+  // Test the return type is as specified in the extension document.
   static_assert(std::is_same_v<std::remove_cv_t<decltype(maxWGsPerCU)>, size_t>,
                 "recommended_num_work_groups query must return size_t");
 
-  std::cout << "recommended_num_work_groups: " << maxWGsPerCU << '\n';
   // We must have at least one active group if we are below resource limits.
-  if (WorkGroupSize < MaxWorkGroupSize &&
-      LocalMemorySizeInBytes < MaxLocalMemorySizeInBytes) {
+  if (workGroupSize < MaxWorkGroupSize &&
+      localMemorySizeInBytes < MaxLocalMemorySizeInBytes) {
     assert(maxWGsPerCU > 0 && "recommended_num_work_groups query failed");
     NDEBUG_CHECK(maxWGsPerCU > 0)
   }
@@ -62,15 +62,15 @@ int main() {
   // In Cuda there cannot be any active groups for this kernel launch when all
   // the device resources maxed out, so ensure it, at least for Cuda.
   if (dev.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    WorkGroupSize = MaxWorkGroupSize;
-    LocalMemorySizeInBytes = MaxLocalMemorySizeInBytes;
-    wgRange = sycl::range{WorkGroupSize, 1, 1};
+    workGroupSize = MaxWorkGroupSize;
+    localMemorySizeInBytes = MaxLocalMemorySizeInBytes;
+    workGroupRange[0] = workGroupSize;
     maxWGsPerCU = kernel.ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::recommended_num_work_groups>(
-        q, wgRange, LocalMemorySizeInBytes);
+        q, workGroupRange, localMemorySizeInBytes);
 
-    if (WorkGroupSize >= MaxWorkGroupSize &&
-        LocalMemorySizeInBytes >= MaxLocalMemorySizeInBytes) {
+    if (workGroupSize >= MaxWorkGroupSize &&
+        localMemorySizeInBytes >= MaxLocalMemorySizeInBytes) {
       assert(maxWGsPerCU == 0 && "recommended_num_work_groups query failed");
       NDEBUG_CHECK(maxWGsPerCU == 0)
     }
