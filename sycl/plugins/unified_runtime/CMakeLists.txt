@@ -100,17 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e
-  # Merge: 022df8ac 2f121cd8
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 4 10:37:58 2024 +0100
-  #     Merge pull request #1212 from aarongreig/aaron/specMotivatedRefactors
-  #     Batch adapter changes: spec motivated refactors
+  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
+  # Merge: 40300808 665d4a68
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Jul 5 09:44:30 2024 +0100
+  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
+  #     [L0] Fix immediate command list use in Command Queues
   set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
-    https://github.com/nrspruit/unified-runtime.git
-    665d4a689f534474d9eaca53fc46fd771a7a570b
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
