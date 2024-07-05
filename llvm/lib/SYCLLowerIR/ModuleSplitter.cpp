@@ -443,6 +443,19 @@ private:
 namespace llvm {
 namespace module_split {
 
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
+  static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
+                                                {"source", SPLIT_PER_TU},
+                                                {"auto", SPLIT_AUTO},
+                                                {"none", SPLIT_NONE}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
+
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
