@@ -145,7 +145,7 @@ struct first_symbol_in_high_order_bits_key {
 
 enum class protocol_name : /* unspecified */ {
   avalon_streaming = 0,
-  implement_in_csr = 1,
+  avalon_mm = 1,
   axi_streaming = 2
 };
 
@@ -272,7 +272,7 @@ This property only applies to the externally visible end of the pipe, and only v
 the valid signal is driven externally from the kernel, i.e., on a host-to-kernel or IO-to-kernel pipe.
 
 This property is only valid when the `protocol` property is *avalon_streaming*
-or *implement_in_csr*.
+or *avalon_mm*.
 
 |`uses_ready`
 | Ready values: `true` or `false`
@@ -301,16 +301,16 @@ order.
 This property only applies to the externally visible end of the pipe.
 
 This property is only valid when the `protocol` property is *avalon_streaming*
-or *implement_in_csr*.
+or *avalon_mm*.
 
 |`protocol`
 | Specifies the protocol for the pipe interface. Currently, the protocols supported
-are: *avalon_streaming*, *implement_in_csr*, and *axi_streaming*.
+are: *avalon_streaming*, *avalon_mm*, and *axi_streaming*.
 *avalon_streaming*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
-*implement_in_csr*
+*avalon_mm*
 
 Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
