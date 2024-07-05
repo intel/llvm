@@ -16,16 +16,18 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace cuda {
-template <int Dim>
+template <std::size_t Dim>
 struct cluster_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
           ::sycl::ext::oneapi::experimental::detail::ClusterLaunch> {
   cluster_size(const range<Dim> &size) : size(size) {}
   sycl::range<Dim> get_cluster_size() { return size; }
+
+private:
   range<Dim> size;
 };
 
-template <int Dim> using cluster_size_key = cluster_size<Dim>;
+template <std::size_t Dim> using cluster_size_key = cluster_size<Dim>;
 
 } // namespace cuda
 
@@ -68,9 +70,23 @@ struct is_property_value_of<cuda::cluster_size_key<3>, O>
     : is_property_key_of<cuda::cluster_size_key<3>, O> {};
 
 namespace detail {
-template <typename PropertiesT, int Dim> constexpr bool hasClusterDim() {
-  return PropertiesT::template has_property<
-      sycl::ext::oneapi::experimental::cuda::cluster_size_key<Dim>>();
+template <typename PropertiesT> constexpr std::size_t getClusterDim() {
+  if constexpr (PropertiesT::template has_property<
+                    sycl::ext::oneapi::experimental::cuda::cluster_size_key<
+                        1>>()) {
+    return 1;
+  }
+  if constexpr (PropertiesT::template has_property<
+                    sycl::ext::oneapi::experimental::cuda::cluster_size_key<
+                        2>>()) {
+    return 2;
+  }
+  if constexpr (PropertiesT::template has_property<
+                    sycl::ext::oneapi::experimental::cuda::cluster_size_key<
+                        3>>()) {
+    return 3;
+  }
+  return 0;
 }
 } // namespace detail
 } // namespace ext::oneapi::experimental

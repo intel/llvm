@@ -962,21 +962,12 @@ private:
   template <typename Properties>
   void checkAndSetClusterRange(const Properties &Props) {
     namespace syclex = sycl::ext::oneapi::experimental;
-    if constexpr (syclex::detail::hasClusterDim<Properties, 1>()) {
-      setKernelUsesClusterLaunch();
+    constexpr std::size_t cluster_dim =
+        syclex::detail::getClusterDim<Properties>();
+    if constexpr (cluster_dim > 0) {
       MNDRDesc.setClusterDimensions(
-          Props.template get_property<syclex::cuda::cluster_size_key<1>>()
-              .get_cluster_size());
-    } else if constexpr (syclex::detail::hasClusterDim<Properties, 2>()) {
-      setKernelUsesClusterLaunch();
-      MNDRDesc.setClusterDimensions(
-          Props.template get_property<syclex::cuda::cluster_size_key<2>>()
-              .get_cluster_size());
-    } else if constexpr (syclex::detail::hasClusterDim<Properties, 3>()) {
-      setKernelUsesClusterLaunch();
-      MNDRDesc.setClusterDimensions(
-          Props.template get_property<syclex::cuda::cluster_size_key<3>>()
-              .get_cluster_size());
+          Props.template get_property<
+              syclex::cuda::cluster_size_key<cluster_dim>>());
     }
   }
 
