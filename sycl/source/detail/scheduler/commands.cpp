@@ -2241,7 +2241,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR,
     WGSize = {1, 1, 1};
   }
   NDR = sycl::detail::NDRDescT{nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize),
-                               NDR.Dims};
+                               static_cast<int>(NDR.Dims)};
 }
 
 // We have the following mapping between dimensions with SPIR-V builtins:
