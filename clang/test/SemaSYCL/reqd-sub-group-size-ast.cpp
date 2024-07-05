@@ -35,7 +35,7 @@ public:
 // CHECK-NEXT: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func 'void ()'
-// CHECK-NEXT: TemplateArgument integral 12
+// CHECK-NEXT: TemplateArgument integral '12'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
