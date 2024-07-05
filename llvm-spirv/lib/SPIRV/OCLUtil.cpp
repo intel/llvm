@@ -35,7 +35,6 @@
 // This file implements OCL utility functions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "oclutil"
 
 #include "OCLUtil.h"
 #include "SPIRVEntry.h"
@@ -49,6 +48,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "oclutil"
 
 using namespace llvm;
 using namespace SPIRV;

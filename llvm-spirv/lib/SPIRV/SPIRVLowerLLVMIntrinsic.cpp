@@ -27,7 +27,6 @@
 // into basic LLVM operations.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spv-lower-llvm_intrinsic"
 
 #include "SPIRVLowerLLVMIntrinsic.h"
 #include "LLVMBitreverse.h"
@@ -43,6 +42,8 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/SourceMgr.h"
+
+#define DEBUG_TYPE "spv-lower-llvm_intrinsic"
 
 using namespace llvm;
 using namespace SPIRV;
