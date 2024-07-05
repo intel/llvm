@@ -121,10 +121,10 @@ void foo() {
 // CHECK-NEXT: 408 |   void * MSrcPtr
 // CHECK-NEXT: 416 |   void * MDstPtr
 // CHECK-NEXT: 424 |   size_t MLength
-// CHECK-NEXT: 432 |   class std::vector<char> MPattern
-// CHECK-NEXT: 432 |     struct std::_Vector_base<char, class std::allocator<char> > (base)
-// CHECK-NEXT: 432 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
-// CHECK-NEXT: 432 |         class std::allocator<char> (base) (empty)
+// CHECK-NEXT: 432 |   class std::vector<unsigned char> MPattern
+// CHECK-NEXT: 432 |     struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> > (base)
+// CHECK-NEXT: 432 |       struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> >::_Vector_impl _M_impl
+// CHECK-NEXT: 432 |         class std::allocator<unsigned char> (base) (empty)
 // CHECK:      432 |           pointer _M_start
 // CHECK-NEXT: 440 |           pointer _M_finish
 // CHECK-NEXT: 448 |           pointer _M_end_of_storage
@@ -190,3 +190,4 @@ void foo() {
 // CHECK-NEXT: 600 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:     | [sizeof=608, dsize=608, align=8,
 // CHECK-NEXT:     |  nvsize=608, nvalign=8]
+

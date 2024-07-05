@@ -196,11 +196,12 @@
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
 // 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
-// 15.56 Added mappings to UR launch properties extension
+// 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
 
-#define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 56
+#define _PI_H_VERSION_MAJOR 16
+#define _PI_H_VERSION_MINOR 57
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -2208,22 +2209,22 @@ __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
 /// \param ptr is the memory to be freed
 __SYCL_EXPORT pi_result piextUSMFree(pi_context context, void *ptr);
 
-/// USM Memset API
+/// USM Fill API
 ///
 /// \param queue is the queue to submit to
-/// \param ptr is the ptr to memset
-/// \param value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// \param count is the size in bytes to memset
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                              pi_int32 value, size_t count,
-                                              pi_uint32 num_events_in_waitlist,
-                                              const pi_event *events_waitlist,
-                                              pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                            const void *pattern,
+                                            size_t patternSize, size_t count,
+                                            pi_uint32 num_events_in_waitlist,
+                                            const pi_event *events_waitlist,
+                                            pi_event *event);
 
 /// USM Memcpy API
 ///
