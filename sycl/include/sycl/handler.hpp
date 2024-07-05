@@ -966,8 +966,10 @@ private:
         syclex::detail::getClusterDim<Properties>();
     if constexpr (cluster_dim > 0) {
       MNDRDesc.setClusterDimensions(
-          Props.template get_property<
-              syclex::cuda::cluster_size_key<cluster_dim>>().get_cluster_size());
+          Props
+              .template get_property<
+                  syclex::cuda::cluster_size_key<cluster_dim>>()
+              .get_cluster_size());
     }
   }
 
