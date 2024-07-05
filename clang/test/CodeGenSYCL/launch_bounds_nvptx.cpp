@@ -83,4 +83,4 @@ int main() {
 // CHECK: ![[MWGPM]] = !{i32 4}
 // CHECK: ![[MWGS]] = !{i32 8, i32 4, i32 2}
 // CHECK: ![[MWGPC_MWGPM]] = !{i32 6}
-// CHECK: ![[MWGS_2]] = !{i32 8, i32 8, i32 6}
+// CHECK: ![[MWGS_2]] = !{i32 8, i32 4, i32 6}
