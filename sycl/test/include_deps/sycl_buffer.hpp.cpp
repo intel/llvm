@@ -16,12 +16,12 @@
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: detail/pi.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: detail/pi.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: aspects.hpp
