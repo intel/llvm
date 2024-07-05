@@ -1101,7 +1101,7 @@ public:
   ///
   /// @return A reference to the UID of the tracepoint.
   ///
-  uint64_t uid64() { return MData->event()->uid64(); }
+  uint64_t uid64() { return MData->uid64(); }
 
   /// @brief Returns the payload of the tracepoint.
   ///
@@ -1755,3 +1755,52 @@ private:
 
 } // namespace framework
 } // namespace xpti
+
+/// @def XPTI_LW_TRACE(streamId, traceEvent)
+/// @brief A macro that creates a lightweight trace scope and sends a scoped
+/// notification.
+///
+/// This macro creates an instance of xpti::framework::notify_scope_t and calls
+/// its scopedNotify method. The scopedNotify method sends a notification to
+/// subscribers when entering and exiting the scope.
+///
+/// @param streamId The ID of the stream.
+/// @param traceEvent The trace event for which notifications are desired.
+///
+#define XPTI_LW_TRACE(streamId, traceEvent)                                    \
+  xpti::framework::notify_scope_t LWTrace(streamId, traceEvent,                \
+                                          __builtin_FUNCTION())                \
+      .scopedNotify();
+
+/// @def XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType, traceEv)
+/// @brief A macro that sets a trace scope and sends a scoped notification.
+///
+/// This macro creates an instance of xpti::framework::tracepoint_scope_t and
+/// calls its scopedNotify method. The scopedNotify method sends a notification
+/// to subscribers when entering and exiting the scope. In this case, a new
+/// scope is created using the code location information. The payload containing
+/// the code location information is registered and an associated trace event
+/// created which will be used for the scoped notification calls
+///
+/// @param fileN The name of the file.
+/// @param funcN The name of the function.
+/// @param lineN The line number.
+/// @param colN The column number.
+/// @param traceType The type of the trace event.
+/// @param traceEv The trace event data.
+///
+#define XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType)             \
+  xpti::framework::tracepoint_scope_t TP(fileN, funcN, lineN, colN)            \
+      .scopedNotify(traceType, static_cast<const void *>(funcN))
+
+/// @def XPTI_USE_TRACE_SCOPE(self)
+/// @brief A macro that creates a trace scope for the current function and sends
+/// a scoped notification.
+///
+/// This macro creates an instance of xpti::framework::tracepoint_scope_t and
+/// sends a scoped notification to subscribers with the user data for the
+/// notifications set to the name of the current function.
+///
+/// @param self A pointer to the current function.
+///
+#define XPTI_USE_TRACE_SCOPE() xpti::framework::tracepoint_scope_t TP(true);
