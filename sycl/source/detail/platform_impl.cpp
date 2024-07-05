@@ -109,7 +109,7 @@ static bool IsBannedPlatform(platform Platform) {
 // id into each plugin, which is used for device counting.
 std::vector<platform> platform_impl::get_platforms() {
 
-  // Get the vector of platforms supported by a given PI plugin
+  // Get the vector of platforms supported by a given UR plugin
   // replace uses of this with with a helper in plugin object, the plugin
   // objects will own the ur adapter handles and they'll need to pass them to
   // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper

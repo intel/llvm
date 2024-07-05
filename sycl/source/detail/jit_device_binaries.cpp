@@ -1,4 +1,4 @@
-//==- jit_device_binaries.cpp - Runtime construction of PI device binaries -==//
+//==- jit_device_binaries.cpp - Runtime construction of UR device binaries -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -53,10 +53,10 @@ PropertySetContainer::PropertySetContainer(const std::string &Name)
 
 void PropertySetContainer::addProperty(PropertyContainer &&Prop) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIPropertySet(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIProperties.push_back(Prop.getPIProperty());
   Properties.push_back(std::move(Prop));
 }
@@ -70,20 +70,20 @@ _pi_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
 
 void DeviceBinaryContainer::addOffloadEntry(OffloadEntryContainer &&Cont) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceBinary(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIOffloadEntries.push_back(Cont.getPIOffloadEntry());
   OffloadEntries.push_back(std::move(Cont));
 }
 
 void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceBinary(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIPropertySets.push_back(Cont.getPIPropertySet());
   PropertySets.push_back(std::move(Cont));
 }
@@ -118,10 +118,10 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
                                                const char *TargetSpec,
                                                pi_device_binary_type Format) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceStruct(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIBinaries.push_back(
       Cont.getPIDeviceBinary(BinaryStart, BinarySize, TargetSpec, Format));
   Binaries.push_back(std::move(Cont));

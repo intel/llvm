@@ -69,7 +69,7 @@ private:
   // Indicate availability of the JIT compiler
   bool Available;
 
-  // Manages the lifetime of the PI structs for device binaries.
+  // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION

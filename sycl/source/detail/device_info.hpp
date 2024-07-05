@@ -110,7 +110,7 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
   }
 }
 
-// Mapping expected SYCL return types to those returned by PI calls
+// Mapping expected SYCL return types to those returned by UR calls
 template <typename T> struct sycl_to_pi {
   using type = T;
 };
@@ -259,7 +259,7 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   }
 };
 
-// Specialization for atomic_memory_order_capabilities, PI returns a bitfield
+// Specialization for atomic_memory_order_capabilities, UR returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
@@ -273,7 +273,7 @@ struct get_device_info_impl<std::vector<memory_order>,
   }
 };
 
-// Specialization for atomic_fence_order_capabilities, PI returns a bitfield
+// Specialization for atomic_fence_order_capabilities, UR returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
@@ -287,7 +287,7 @@ struct get_device_info_impl<std::vector<memory_order>,
   }
 };
 
-// Specialization for atomic_memory_scope_capabilities, PI returns a bitfield
+// Specialization for atomic_memory_scope_capabilities, UR returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
@@ -302,7 +302,7 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for atomic_fence_scope_capabilities, PI returns a bitfield
+// Specialization for atomic_fence_scope_capabilities, UR returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
@@ -504,7 +504,7 @@ struct get_device_info_impl<info::partition_property,
         urDeviceGetInfo, Dev->getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
         PropertiesSize, PartitionProperties.data(), nullptr);
-    // The old PI implementation also just checked the first element, is that
+    // The old UR implementation also just checked the first element, is that
     // correct?
     return info::ConvertPartitionProperty(PartitionProperties[0].type);
   }
@@ -1259,7 +1259,7 @@ struct get_device_info_impl<
         (Err == UR_RESULT_SUCCESS && ResultSize == 0))
       return {};
 
-    // Otherwise, if there was an error from PI it is unexpected and we should
+    // Otherwise, if there was an error from UR it is unexpected and we should
     // handle it accordingly.
     Dev->getPlugin()->checkUrResult(Err);
 

@@ -42,11 +42,11 @@ public:
   explicit device_impl(ur_native_handle_t, const PluginPtr &Plugin);
 
   /// Constructs a SYCL device instance using the provided
-  /// PI device instance.
+  /// UR device instance.
   explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
 
   /// Constructs a SYCL device instance using the provided
-  /// PI device instance.
+  /// UR device instance.
   explicit device_impl(ur_device_handle_t Device, const PluginPtr &Plugin);
 
   ~device_impl();
@@ -57,11 +57,11 @@ public:
   /// requirements described in 4.3.1.
   cl_device_id get() const;
 
-  /// Get reference to PI device
+  /// Get reference to UR device
   ///
   /// For host device an exception is thrown
   ///
-  /// \return non-constant reference to PI device
+  /// \return non-constant reference to UR device
   ur_device_handle_t &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
@@ -70,11 +70,11 @@ public:
     return MUrDevice;
   }
 
-  /// Get constant reference to PI device
+  /// Get constant reference to UR device
   ///
   /// For host device an exception is thrown
   ///
-  /// \return constant reference to PI device
+  /// \return constant reference to UR device
   const ur_device_handle_t &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",

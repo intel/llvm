@@ -111,7 +111,7 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
   return Program;
 }
 
-// TODO replace this with a new PI API function
+// TODO replace this with a new UR API function
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         pi_device_binary_type Format) {
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
@@ -223,7 +223,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-    // associate the PI program with the image it was created for
+    // associate the UR program with the image it was created for
     NativePrograms[Res] = &Img;
   }
 
@@ -689,8 +689,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
     if (ContextImpl->getPlatformImpl()->supports_usm()) {
-      // Some PI Plugins (like OpenCL) require this call to enable USM
-      // For others, PI will turn this into a NOP.
+      // Some UR Plugins (like OpenCL) require this call to enable USM
+      // For others, UR will turn this into a NOP.
       const ur_bool_t UrTrue = true;
       Plugin->call(urKernelSetExecInfo, Kernel,
                    UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),

@@ -506,7 +506,7 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   // Some events might not have a native handle underneath even at this point,
-  // e.g. those produced by memset with 0 size (no PI call is made).
+  // e.g. those produced by memset with 0 size (no UR call is made).
   if (MIsFlushed || !MEvent)
     return;
 

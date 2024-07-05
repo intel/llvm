@@ -737,7 +737,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   if (SyclEventImplPtr->getContextImpl() != Context)
     return false;
 
-  // A nullptr here means that the commmand does not produce a PI event or it
+  // A nullptr here means that the commmand does not produce a UR event or it
   // hasn't been enqueued yet.
   return SyclEventImplPtr->getHandleRef() != nullptr;
 }

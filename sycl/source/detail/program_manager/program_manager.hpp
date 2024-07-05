@@ -104,14 +104,14 @@ public:
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const context &Context,
                                       const device &Device);
-  /// Creates a PI program using either a cached device code binary if present
+  /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image to find a cached device code binary for or
-  ///        create the PI program with.
-  /// \param Context The context to find or create the PI program with.
-  /// \param Device The device to find or create the PI program for.
+  ///        create the UR program with.
+  /// \param Context The context to find or create the UR program with.
+  /// \param Device The device to find or create the UR program for.
   /// \param CompileAndLinkOptions The compile and linking options to be used
-  ///        for building the PI program. These options must appear in the
+  ///        for building the UR program. These options must appear in the
   ///        mentioned order. This parameter is used as a partial key in the
   ///        cache and has no effect if no cached device code binary is found in
   ///        the persistent cache.
@@ -119,7 +119,7 @@ public:
   ///        image. This parameter is used  as a partial key in the cache and
   ///        has no effect if no cached device code binary is found in the
   ///        persistent cache.
-  /// \return A pair consisting of the PI program created with the corresponding
+  /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
   std::pair<ur_program_handle_t, bool>
@@ -181,7 +181,7 @@ public:
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
-  /// \param NativePrg the PI program associated with the kernel.
+  /// \param NativePrg the UR program associated with the kernel.
   /// \param KernelName the name of the kernel.
   const KernelArgMask *
   getEliminatedKernelArgMask(ur_program_handle_t NativePrg,

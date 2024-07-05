@@ -667,7 +667,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
 
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
-                          "Failed to add kernel to PI command-buffer");
+                          "Failed to add kernel to UR command-buffer");
   }
 
   return NewSyncPoint;
@@ -749,7 +749,7 @@ void exec_graph_impl::createCommandBuffers(
   Res = Plugin->call_nocheck(urCommandBufferFinalizeExp, OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
-                          "Failed to finalize PI command-buffer");
+                          "Failed to finalize UR command-buffer");
   }
 }
 

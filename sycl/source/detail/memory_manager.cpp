@@ -173,7 +173,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
   // C-style cast is required for MSVC
   uintptr_t MemObjID = (uintptr_t)(Mem);
   uintptr_t Ptr = 0;
-  // Do not make unnecessary PI calls without instrumentation enabled
+  // Do not make unnecessary UR calls without instrumentation enabled
   if (xptiTraceEnabled()) {
     ur_native_handle_t PtrHandle = 0;
     // When doing buffer interop we don't know what device the memory should be
@@ -843,7 +843,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // We don't have any backend implementations that support enqueueing a fill
-    // on non-buffer mem objects like this. The old PI function was a stub with
+    // on non-buffer mem objects like this. The old UR function was a stub with
     // an abort.
     throw runtime_error("Fill operation not supported for the given mem object",
                         UR_RESULT_ERROR_INVALID_OPERATION);
@@ -1199,7 +1199,7 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
         "NULL pointer argument in 2D memory memset operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  // TODO: Implement this in terms of urEnqueueUSMFill2D? The old PI entry
+  // TODO: Implement this in terms of urEnqueueUSMFill2D? The old UR entry
   // point for this was never implemented anywhere (pi2ur.hpp simply hit an
   // abort if it was called).
   throw runtime_error("2D memset is not current supported by any backends.",

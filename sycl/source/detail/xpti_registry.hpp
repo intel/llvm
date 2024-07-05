@@ -29,7 +29,7 @@ namespace detail {
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
 // Stream name being used for traces generated from the SYCL plugin layer
 inline constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
-// Stream name being used for traces generated from PI calls. This stream
+// Stream name being used for traces generated from UR calls. This stream
 // contains information about function arguments.
 inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =

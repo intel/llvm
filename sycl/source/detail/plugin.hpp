@@ -66,65 +66,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GPICallEvent;
-extern xpti::trace_event_data_t *GPIArgCallEvent;
-extern uint8_t PiCallStreamID;
-extern uint8_t PiDebugCallStreamID;
-#endif
-
-template <PiApiKind Kind, size_t Idx, typename... Args>
-struct array_fill_helper;
-
-template <PiApiKind Kind> struct PiApiArgTuple;
-
-#define _PI_API(api)                                                           \
-  template <> struct PiApiArgTuple<PiApiKind::api> {                           \
-    using type = typename function_traits<decltype(api)>::args_type;           \
-  };
-
-#include <sycl/detail/pi.def>
-#undef _PI_API
-
-template <PiApiKind Kind, size_t Idx, typename T>
-struct array_fill_helper<Kind, Idx, T> {
-  static void fill(unsigned char *Dst, T &&Arg) {
-    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
-    // C-style cast is required here.
-    auto RealArg = (std::tuple_element_t<Idx, ArgsTuple>)(Arg);
-    *(std::remove_cv_t<std::tuple_element_t<Idx, ArgsTuple>> *)Dst = RealArg;
-  }
-};
-
-template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
-struct array_fill_helper<Kind, Idx, T, Args...> {
-  static void fill(unsigned char *Dst, const T &&Arg, Args &&...Rest) {
-    using ArgsTuple = typename PiApiArgTuple<Kind>::type;
-    // C-style cast is required here.
-    auto RealArg = (std::tuple_element_t<Idx, ArgsTuple>)(Arg);
-    *(std::remove_cv_t<std::tuple_element_t<Idx, ArgsTuple>> *)Dst = RealArg;
-    array_fill_helper<Kind, Idx + 1, Args...>::fill(
-        Dst + sizeof(decltype(RealArg)), std::forward<Args>(Rest)...);
-  }
-};
-
-template <typename... Ts>
-constexpr size_t totalSize(const std::tuple<Ts...> &) {
-  return (sizeof(Ts) + ...);
-}
-
-template <PiApiKind Kind, typename... ArgsT>
-auto packCallArguments(ArgsT &&...Args) {
-  using ArgsTuple = typename PiApiArgTuple<Kind>::type;
-
-  constexpr size_t TotalSize = totalSize(ArgsTuple{});
-
-  std::array<unsigned char, TotalSize> ArgsData;
-  array_fill_helper<Kind, 0, ArgsT...>::fill(ArgsData.data(),
-                                             std::forward<ArgsT>(Args)...);
-
-  return ArgsData;
-}
 
 /// The plugin class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
@@ -147,7 +88,7 @@ public:
 
   ~plugin() = default;
 
-  /// Checks return value from PI calls.
+  /// Checks return value from UR calls.
   ///
   /// \throw Exception if ur_result_t is not a UR_RESULT_SUCCESS.
   template <typename Exception = sycl::runtime_error>
@@ -263,7 +204,7 @@ public:
     // return sycl::detail::pi::unloadPlugin(MLibraryHandle);
   }
 
-  // return the index of PiPlatforms.
+  // Return the index of a UR platform.
   // If not found, add it and return its index.
   // The function is expected to be called in a thread safe manner.
   int getPlatformId(ur_platform_handle_t Platform) {

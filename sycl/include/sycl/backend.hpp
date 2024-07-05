@@ -1,4 +1,4 @@
-//==---------------- backend.hpp - SYCL PI backends ------------------------==//
+//==---------------- backend.hpp - SYCL UR backends ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -64,7 +64,7 @@ namespace detail {
 // but the details for this are not fully specified yet
 enum class backend_errc : unsigned int {};
 
-// Convert from PI backend to SYCL backend enum
+// Convert from UR backend to SYCL backend enum
 backend convertUrBackend(ur_platform_backend_t UrBackend);
 backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
