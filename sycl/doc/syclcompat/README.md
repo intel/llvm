@@ -101,10 +101,9 @@ defined as:
 4. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat_major.minor.0`.
 5. Increment the `patch` version in `sycl` branch to `1`.
 
-## Changelog
+### Changelog
 
-TODO: Point the user to the fact that SYCLcompat changelog is in the main DPC++
-changelog with tags [SYCL][COMPAT].
+Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](/sycl/ReleaseNotes.md).
 
 ## Features
 
