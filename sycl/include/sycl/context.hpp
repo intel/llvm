@@ -196,7 +196,10 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept
+  {
+    return getPropList().template has_property<propertyT>();
+  }
 
   /// Gets the specified property of this context.
   ///
@@ -204,7 +207,10 @@ public:
   /// of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const
+  {
+    return getPropList().template get_property<propertyT>();
+  }
 
   /// Gets OpenCL interoperability context.
   ///
@@ -250,6 +256,8 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  const property_list &getPropList() const;
 };
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
