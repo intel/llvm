@@ -60,12 +60,16 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
             !CallFound &&
             "The call_if_on_device_conditionally function must have only one "
             "call instruction (w/o taking into account any calls to various "
-            "intrinsics).");
+            "intrinsics). More than one found.");
         FCallersToFActions.push_back(
             std::make_pair(FCaller, CI->getCalledFunction()));
         CallFound = true;
       }
     }
+    assert(CallFound &&
+           "The call_if_on_device_conditionally function must have a "
+           "call instruction (w/o taking into account any calls to various "
+           "intrinsics). Call not found.");
   }
 
   int FCallerIndex = 1;
