@@ -72,6 +72,16 @@ public:
                     const uint32_t *ElementStrides, interleave Interleave,
                     swizzle Swizzle, l2_promotion L2Promotion,
                     oob_fill OobFill);
+
+#ifdef __NVPTX__
+  using Ret = CUTensorMap;
+#else
+  using Ret = struct alignas(64) { char bytes[128]; };
+#endif
+
+  // This returned const ref struct is to be used on device in some manner.
+  // This may need to change.
+  const Ret &get_map() { return *reinterpret_cast<Ret *>(Map); }
 };
 
 } // namespace sycl::ext::oneapi::experimental::tensor_map
