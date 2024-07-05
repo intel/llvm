@@ -238,7 +238,7 @@ environment:
 The following features are only set if you pass an argument to `llvm-lit` (see
 section below). All these features are related to HW detection and they should
 be considered deprecated, because we have HW auto-detection functionality in
-place. No new tests should use those features:
+place. No new tests should use these features:
 
  * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
