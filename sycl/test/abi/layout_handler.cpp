@@ -7,9 +7,7 @@
 
 void foo() {
   sycl::queue Q;
-  Q.submit([](sycl::handler &CGH) {
-    CGH.single_task<class Test>([]() {});
-  });
+  Q.submit([](sycl::handler &CGH) { CGH.single_task<class Test>([]() {}); });
 }
 
 // clang-format off
