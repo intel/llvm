@@ -51,27 +51,24 @@ TEST(Mock, DefaultBehavior) {
     ASSERT_EQ(urDeviceRelease(device), UR_RESULT_SUCCESS);
 }
 
-void checkPreInitAdapter(ur_adapter_handle_t adapter) {
-    ur_adapter_handle_t preInitAdapter =
-        reinterpret_cast<ur_adapter_handle_t>(0xF00DCAFE);
-    ASSERT_EQ(adapter, preInitAdapter);
-}
-
 ur_result_t beforeUrAdapterGet(void *pParams) {
     auto params = reinterpret_cast<ur_adapter_get_params_t *>(pParams);
-    checkPreInitAdapter(**params->pphAdapters);
+    ur_adapter_handle_t preInitAdapter =
+        reinterpret_cast<ur_adapter_handle_t>(uintptr_t(0xF00DCAFE));
+    EXPECT_EQ(**params->pphAdapters, preInitAdapter);
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t replaceUrAdapterGet(void *pParams) {
     auto params = reinterpret_cast<ur_adapter_get_params_t *>(pParams);
-    **params->pphAdapters = reinterpret_cast<ur_adapter_handle_t>(0xDEADBEEF);
+    **params->pphAdapters =
+        reinterpret_cast<ur_adapter_handle_t>(uintptr_t(0xDEADBEEF));
     return UR_RESULT_SUCCESS;
 }
 
 void checkPostInitAdapter(ur_adapter_handle_t adapter) {
     ur_adapter_handle_t postInitAdapter =
-        reinterpret_cast<ur_adapter_handle_t>(0xDEADBEEF);
+        reinterpret_cast<ur_adapter_handle_t>(uintptr_t(0xDEADBEEF));
     ASSERT_EQ(adapter, postInitAdapter);
 }
 
@@ -102,6 +99,6 @@ TEST(Mock, Callbacks) {
     mock::getCallbacks().set_after_callback("urAdapterGet", &afterUrAdapterGet);
 
     ur_adapter_handle_t adapter =
-        reinterpret_cast<ur_adapter_handle_t>(0xF00DCAFE);
+        reinterpret_cast<ur_adapter_handle_t>(uintptr_t(0xF00DCAFE));
     ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
 }
