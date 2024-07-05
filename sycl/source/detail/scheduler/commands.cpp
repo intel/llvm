@@ -666,6 +666,8 @@ void Command::emitEdgeEventForEventDependence(
     // this occasion is an OCL event; so we build a virtual node in the graph
     // with the event as the metadata for the node
     std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
+    std::cerr << "emitEdgeEventForEventDependence() " << NodeName << std::endl;
+
     // Node name is "virtual_node[<event_addr>]"
     xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
     uint64_t VNodeInstanceNo;
@@ -2026,6 +2028,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
     // create the hash
     Payload = xpti::payload_t(KernelName.c_str());
   }
+
   uint64_t CGKernelInstanceNo;
   // Create event using the payload
   xpti_td *CmdTraceEvent =
@@ -2034,11 +2037,6 @@ void instrumentationFillCommonData(const std::string &KernelName,
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
-    // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in this case, we will skip sending a notification to create a
-    // node as this node has already been created.
-    if (CGKernelInstanceNo > 1)
-      return;
 
     addDeviceMetadata(CmdTraceEvent, Queue);
     if (!KernelName.empty()) {

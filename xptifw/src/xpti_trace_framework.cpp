@@ -149,28 +149,30 @@ struct PayloadReferenceImpl : xpti_payload_t {
     // Need to determine if setting uid.p3 to instance will help
   }
 
-  const char *name() const {
+  const char *name() const override {
     return MPayload.name ? MPayload.name : "<unknown>";
   }
-  const char *source_file() const {
+  const char *source_file() const override {
     return MPayload.source_file ? MPayload.source_file : "<unknown-file>";
   }
-  uint32_t line_no() const { return MPayload.line_no; }
-  uint32_t column_no() const { return MPayload.column_no; }
-  uint64_t payload_flags() const { return MPayload.flags; }
-  uint64_t uid64() const { return MPayload.internal; }
-  int32_t name_string_id() const {
+  uint32_t line_no() const override { return MPayload.line_no; }
+  uint32_t column_no() const override { return MPayload.column_no; }
+  uint64_t payload_flags() const override { return MPayload.flags; }
+  uint64_t uid64() const override { return MPayload.internal; }
+  int32_t name_string_id() const override {
     return (int32_t)(MPayload.uid.p2 & 0x00000000ffffffff);
   }
-  int32_t file_string_id() const { return (int32_t)(MPayload.uid.p1 >> 32); }
-  bool is_valid() const {
+  int32_t file_string_id() const override {
+    return (int32_t)(MPayload.uid.p1 >> 32);
+  }
+  bool is_valid() const override {
     return (MPayload.flags != 0) &&
            ((MPayload.flags &
                  static_cast<uint64_t>(payload_flag_t::SourceFileAvailable) ||
              (MPayload.flags &
               static_cast<uint64_t>(payload_flag_t::NameAvailable))));
   }
-  xpti::payload_t *payload_ref() { return &MPayload; }
+  xpti::payload_t *payload_ref() override { return &MPayload; }
 };
 
 /// @class TracePointImpl
@@ -254,60 +256,64 @@ struct TracePointImpl : xpti_payload_t,
         static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
   }
 
-  const char *name() const {
+  const char *name() const override {
     return MPayload.name ? MPayload.name : "<unknown>";
   }
-  const char *source_file() const {
+  const char *source_file() const override {
     return MPayload.source_file ? MPayload.source_file : "<unknown-file>";
   }
-  uint32_t line_no() const { return MPayload.line_no; }
-  uint32_t column_no() const { return MPayload.column_no; }
-  uint64_t payload_flags() const { return MPayload.flags; }
-  int32_t name_string_id() const { return MFuncID; }
-  int32_t file_string_id() const { return MFileID; }
-  uint64_t uid64() const { return MPayload.internal; }
-  bool is_valid() const {
+  uint32_t line_no() const override { return MPayload.line_no; }
+  uint32_t column_no() const override { return MPayload.column_no; }
+  uint64_t payload_flags() const override { return MPayload.flags; }
+  int32_t name_string_id() const override { return MFuncID; }
+  int32_t file_string_id() const override { return MFileID; }
+  uint64_t uid64() const override { return MPayload.internal; }
+  bool is_valid() const override {
     return (xpti::is_valid_uid(MUId) && xpti::is_valid_payload(&MPayload) &&
             xpti::is_valid_event(&MEvent));
   }
-  xpti::payload_t *payload_ref() { return &MPayload; }
+  xpti::payload_t *payload_ref() override { return &MPayload; }
 
-  uint64_t instance() const { return MUId.instance; }
+  uint64_t instance() const override { return MUId.instance; }
 
   // Methods for accessing base class interfaces.
-  xpti_payload_t *payload() { return static_cast<xpti_payload_t *>(this); }
-  xpti_metadata_t *metadata() { return static_cast<xpti_metadata_t *>(this); }
-  xpti_trace_event_t *event() {
+  xpti_payload_t *payload() override {
+    return static_cast<xpti_payload_t *>(this);
+  }
+  xpti_metadata_t *metadata() override {
+    return static_cast<xpti_metadata_t *>(this);
+  }
+  xpti_trace_event_t *event() override {
     return static_cast<xpti_trace_event_t *>(this);
   }
 
-  uint16_t event_type() const { return MEvent.event_type; }
-  uint16_t activity_type() const { return MEvent.activity_type; }
-  uint64_t source_uid64() const { return MEvent.source_id; }
-  uint64_t target_uid64() const { return MEvent.target_id; }
-  uint64_t event_flags() const { return MEvent.flags; }
-  void set_activity_type(xpti::trace_activity_type_t type) {
+  uint16_t event_type() const override { return MEvent.event_type; }
+  uint16_t activity_type() const override { return MEvent.activity_type; }
+  uint64_t source_uid64() const override { return MEvent.source_id; }
+  uint64_t target_uid64() const override { return MEvent.target_id; }
+  uint64_t event_flags() const override { return MEvent.flags; }
+  void set_activity_type(xpti::trace_activity_type_t type) override {
     MEvent.activity_type = (uint16_t)type;
   }
-  void set_event_type(uint16_t type) { MEvent.event_type = type; }
+  void set_event_type(uint16_t type) override { MEvent.event_type = type; }
 
-  xpti::trace_event_data_t *event_ref() { return &MEvent; }
+  xpti::trace_event_data_t *event_ref() override { return &MEvent; }
 
   // Methods for iterating and manipulating metadata items.
-  xpti::result_t first_item(char **key, xpti::object_id_t &value) {
+  xpti::result_t first_item(char **key, xpti::object_id_t &value) override {
     MCurr = MEvent.reserved.metadata.begin();
     if (MCurr != MEvent.reserved.metadata.end()) {
-      *key = (char *)xptiLookupString(MCurr->first);
+      *key = const_cast<char *>(xptiLookupString(MCurr->first));
       value = MCurr->second;
       return xpti::result_t::XPTI_RESULT_SUCCESS;
     }
 
     return xpti::result_t::XPTI_RESULT_FALSE;
   }
-  xpti::result_t next_item(char **key, xpti::object_id_t &value) {
+  xpti::result_t next_item(char **key, xpti::object_id_t &value) override {
     MCurr++;
     if (MCurr != MEvent.reserved.metadata.end()) {
-      *key = (char *)xptiLookupString(MCurr->first);
+      *key = const_cast<char *>(xptiLookupString(MCurr->first));
       value = MCurr->second;
       return xpti::result_t::XPTI_RESULT_SUCCESS;
     }
@@ -315,10 +321,10 @@ struct TracePointImpl : xpti_payload_t,
     return xpti::result_t::XPTI_RESULT_FALSE;
   }
 
-  xpti::result_t add_item(const char *key, xpti::object_id_t value) {
+  xpti::result_t add_item(const char *key, xpti::object_id_t value) override {
     return xpti::addMetadata(&MEvent, key, value);
   }
-  size_t count() { return MEvent.reserved.metadata.size(); }
+  size_t count() override { return MEvent.reserved.metadata.size(); }
 };
 
 /// @class Subscribers

@@ -155,7 +155,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // information
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_STREAM_NAME, "queue.memset");
+                          SYCL_STREAM_NAME, "memory_transfer_node::memset");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(MDevice->getHandleRef()));
@@ -203,7 +203,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   // pointer.
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_STREAM_NAME, "queue.memcpy");
+                          SYCL_STREAM_NAME, "memory_transfer_node::memcpy");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(MDevice->getHandleRef()));
