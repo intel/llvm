@@ -8461,7 +8461,7 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
   Flags<[NoArgumentUnused]>,
   Visibility<[ClangOption, CC1Option, CLOption]>,
   HelpText<"SYCL language standard to compile for.">,
-  Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
+  Values<"2020">,
   ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 
 def fsycl_default_sub_group_size
