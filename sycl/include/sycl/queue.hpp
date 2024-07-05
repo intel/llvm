@@ -318,11 +318,6 @@ public:
       ext::oneapi::experimental::graph_state::modifiable>
   ext_oneapi_get_graph() const;
 
-  /// \return true if this queue is a SYCL host queue.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.

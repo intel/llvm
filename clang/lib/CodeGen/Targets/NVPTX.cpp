@@ -32,8 +32,8 @@ public:
   ABIArgInfo classifyArgumentType(QualType Ty) const;
 
   void computeInfo(CGFunctionInfo &FI) const override;
-  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                    QualType Ty) const override;
+  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
+                   AggValueSlot Slot) const override;
   bool isUnsupportedType(QualType T) const;
   ABIArgInfo coerceToIntArrayWithLimit(QualType Ty, unsigned MaxSize) const;
 };
@@ -213,8 +213,8 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   FI.setEffectiveCallingConvention(getRuntimeCC());
 }
 
-Address NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                                QualType Ty) const {
+RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                               QualType Ty, AggValueSlot Slot) const {
   llvm_unreachable("NVPTX does not support varargs");
 }
 
@@ -252,13 +252,13 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
     bool HasMaxWorkGroupSize = false;
     bool HasMinWorkGroupPerCU = false;
     if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      auto MaxThreads = (*MWGS->getZDimVal()).getExtValue() *
-                        (*MWGS->getYDimVal()).getExtValue() *
-                        (*MWGS->getXDimVal()).getExtValue();
-      if (MaxThreads > 0) {
-        addNVVMMetadata(F, "maxntidx", MaxThreads);
-        HasMaxWorkGroupSize = true;
-      }
+      HasMaxWorkGroupSize = true;
+      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
+      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
+      // fastest-moving dimension.
+      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
+      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
+      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
     }
 
     auto attrValue = [&](Expr *E) {

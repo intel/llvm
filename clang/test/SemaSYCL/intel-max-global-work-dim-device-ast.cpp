@@ -19,7 +19,7 @@ queue q;
 // Test that checks template parameter support on member function of class template.
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
-// CHECK: TemplateArgument integral 2
+// CHECK: TemplateArgument integral '2'
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
@@ -40,7 +40,7 @@ int kernel() {
 
 // Test that checks template parameter support on function.
 // CHECK: FunctionDecl {{.*}} {{.*}} func1 'void ()'
-// CHECK: TemplateArgument integral 3
+// CHECK: TemplateArgument integral '3'
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 3
