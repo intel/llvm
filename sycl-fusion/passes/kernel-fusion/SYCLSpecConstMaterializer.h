@@ -25,7 +25,7 @@ class SYCLSpecConstDataInserter
 public:
   SYCLSpecConstDataInserter(const unsigned char *SpecConstData,
                             size_t SpecConstDataSize)
-      : SpecConstData(SpecConstData), SpecConstDataSize(SpecConstDataSize) {};
+      : SpecConstData(SpecConstData), SpecConstDataSize(SpecConstDataSize){};
 
   SYCLSpecConstDataInserter() {
     SpecConstDataSize = 255;
@@ -103,21 +103,12 @@ private:
   // Type of the specialization constant and the offset into the SpecConstBlob,
   // at which the value is located.
   using TypeAtOffset = std::pair<Type *, uint64_t>;
-  // Helper allowing sorting of TypeAtOffset containers.
-  struct TypeAtOffsetCmp {
-    bool operator()(const TypeAtOffset &LHS, const TypeAtOffset &RHS) const {
-      if (std::get<0>(LHS) == std::get<0>(RHS))
-        return std::get<1>(LHS) < std::get<1>(RHS);
-      return std::get<0>(LHS) < std::get<0>(RHS);
-    }
-  };
 
   // Unique uses of spec const (type and offset).
-  std::set<TypeAtOffset, TypeAtOffsetCmp> TypesAndOffsets{};
+  std::set<TypeAtOffset> TypesAndOffsets{};
   // A map from type and offset to a specialization constant blob to a
   // GlobalVariable containing its value.
-  std::map<TypeAtOffset, GlobalVariable *, TypeAtOffsetCmp>
-      TypesAndOffsetsToBlob{};
+  std::map<TypeAtOffset, GlobalVariable *> TypesAndOffsetsToBlob{};
   // A map of load instruction to its type and offset to a specialization
   // constant blob.
   std::map<LoadInst *, TypeAtOffset> LoadsToTypes{};

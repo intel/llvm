@@ -39,9 +39,12 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-
+class CGExecKernel;
 class buffer_impl;
 class context_impl;
+class queue_impl;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
+class RTDeviceBinaryImage;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
@@ -254,6 +257,10 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
+
+std::tuple<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
+retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+                     CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 
 } // namespace _V1

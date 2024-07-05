@@ -54,7 +54,6 @@ entry:
   %extract1 = extractvalue [2 x i32] %load2, 0
   %extract2 = extractvalue [2 x i32] %load2, 1
 
-  ; See the TODO above, this should be const propagated
   ;CHECK-MATERIALIZER: load %"struct.std::array", ptr addrspace(4) @SpecConsBlob___test_kernel_1, align 1
   %gep3 = getelementptr i8, ptr %0, i32 18
   %bc3 = bitcast ptr %gep3 to ptr

@@ -32,7 +32,8 @@ public:
   /// Run the necessary passes in a custom pass pipeline to perform
   /// materialization of kernel specialization constants.
   static bool runMaterializerPasses(llvm::Module &Mod,
-                                    std::vector<unsigned char> &SpecConstBlob);
+                                    const unsigned char *SpecConstData,
+                                    size_t SpecConstDataSize);
 };
 } // namespace fusion
 } // namespace jit_compiler

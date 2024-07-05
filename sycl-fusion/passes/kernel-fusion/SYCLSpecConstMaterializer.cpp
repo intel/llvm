@@ -10,6 +10,7 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
+#include <llvm/ADT/StringRef.h>
 
 #define DEBUG_TYPE "sycl-spec-const-materializer"
 
@@ -33,19 +34,19 @@ const bool SYCLSpecConstMaterializer::IsDebug =
       LLVM_DEBUG(X);                                                           \
   } while (false)
 
-#define SPEC_CONST_DATA_NODE_NAME "SYCL_SpecConst_data"
+constexpr llvm::StringLiteral SPEC_CONST_DATA_NODE_NAME{"SYCL_SpecConst_data"};
 
 PreservedAnalyses SYCLSpecConstDataInserter::run(Module &M,
                                                  ModuleAnalysisManager &) {
   if (M.getNamedMetadata(SPEC_CONST_DATA_NODE_NAME))
-    llvm_unreachable("Did not expecte the node to be present.");
+    llvm_unreachable("Did not expect the node to be present.");
 
   auto &Context = M.getContext();
-  auto *SYCLMD = M.getOrInsertNamedMetadata(SPEC_CONST_DATA_NODE_NAME);
+  auto *SpecConstMD = M.getOrInsertNamedMetadata(SPEC_CONST_DATA_NODE_NAME);
   auto *StringMD = MDString::get(
-      Context, std::string{(const char *)SpecConstData, SpecConstDataSize});
+      Context, StringRef{(const char *)SpecConstData, SpecConstDataSize});
   auto *TupleMD = MDTuple::get(Context, {StringMD});
-  SYCLMD->addOperand(TupleMD);
+  SpecConstMD->addOperand(TupleMD);
 
   return PreservedAnalyses::all();
 }
@@ -110,11 +111,10 @@ void SYCLSpecConstMaterializer::allocateSpecConstant(StringRef KernelName) {
     auto *Initializer = getConstantOfType(&ValPtr, I.value().first);
     // AMD's CONSTANT_ADDRESS and Nvidia's ADDRESS_SPACE_CONST happen to have
     // the same value.
-    const unsigned AS = 4;
+    constexpr unsigned AS = 4;
     auto *SpecConstGlobal = new GlobalVariable(
         *Mod, Ty, /*isConstant*/ true, GlobalValue::WeakODRLinkage, Initializer,
-        Twine("SpecConsBlob_" + std::string(KernelName) + "_" +
-              std::to_string(I.index())),
+        Twine("SpecConsBlob_" + KernelName + "_" + Twine(I.index())),
         /*InsertBefore*/ nullptr, GlobalValue::NotThreadLocal, AS,
         /*isExternallyInitialized*/ false);
     TypesAndOffsetsToBlob[I.value()] = SpecConstGlobal;
@@ -282,13 +282,9 @@ bool SYCLSpecConstMaterializer::readMetadata() {
   if (!NamedMD || NamedMD->getNumOperands() != 1)
     return false;
 
-  auto *MDN = dyn_cast<MDTuple>(NamedMD->getOperand(0));
-  if (!MDN || MDN->getNumOperands() != 1)
-    llvm_unreachable("Malformed data node.");
-
-  auto *MDS = dyn_cast<MDString>(MDN->getOperand(0));
-  if (!MDS)
-    llvm_unreachable("Malformed string node.");
+  auto *MDN = cast<MDTuple>(NamedMD->getOperand(0));
+  assert(MDN->getNumOperands() != 1 && "Malformed data node.");
+  auto *MDS = cast<MDString>(MDN->getOperand(0));
 
   SpecConstData = MDS->getString().bytes_begin();
   SpecConstDataSize = MDS->getString().size();

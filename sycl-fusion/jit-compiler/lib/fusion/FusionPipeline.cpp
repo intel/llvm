@@ -143,8 +143,9 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   return std::make_unique<SYCLModuleInfo>(std::move(*NewModInfo.ModuleInfo));
 }
 
-bool FusionPipeline::runMaterializerPasses(
-    llvm::Module &Mod, std::vector<unsigned char> &SpecConstBlob) {
+bool FusionPipeline::runMaterializerPasses(llvm::Module &Mod,
+                                           const unsigned char *SpecConstData,
+                                           size_t SpecConstDataSize) {
   PassBuilder PB;
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -162,8 +163,7 @@ bool FusionPipeline::runMaterializerPasses(
   // Register inserter and materializer passes.
   {
     FunctionPassManager FPM;
-    MPM.addPass(
-        SYCLSpecConstDataInserter{SpecConstBlob.data(), SpecConstBlob.size()});
+    MPM.addPass(SYCLSpecConstDataInserter{SpecConstData, SpecConstDataSize});
     FPM.addPass(SYCLSpecConstMaterializer{});
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }

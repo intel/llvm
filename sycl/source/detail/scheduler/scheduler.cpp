@@ -638,18 +638,16 @@ void Scheduler::cancelFusion(QueueImplPtr Queue) {
 }
 
 sycl::detail::pi::PiKernel Scheduler::completeSpecConstMaterialization(
-    QueueImplPtr Queue, RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob) {
+    [[maybe_unused]] QueueImplPtr Queue,
+    [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
+    [[maybe_unused]] const std::string &KernelName,
+    [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   return detail::jit_compiler::get_instance().materializeSpecConstants(
       Queue, BinImage, KernelName, SpecConstBlob);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
   printFusionWarning(
       "Materialization of spec constants not supported by this build");
-  (void)Queue;
-  (void)BinImage;
-  (void)KernelName;
-  (void)SpecConstBlob;
   return nullptr;
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
 }

@@ -24,8 +24,8 @@ using namespace jit_compiler;
 using FusedFunction = helper::FusionHelper::FusedFunction;
 using FusedFunctionList = std::vector<FusedFunction>;
 
-static FusionResult errorToFusionResult(llvm::Error &&Err,
-                                        const std::string &Msg) {
+static JITResult errorToFusionResult(llvm::Error &&Err,
+                                     const std::string &Msg) {
   std::stringstream ErrMsg;
   ErrMsg << Msg << "\nDetailed information:\n";
   llvm::handleAllErrors(std::move(Err),
@@ -34,7 +34,7 @@ static FusionResult errorToFusionResult(llvm::Error &&Err,
                           // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return FusionResult{ErrMsg.str().c_str()};
+  return JITResult{ErrMsg.str().c_str()};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -70,18 +70,19 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" FusionResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-    std::vector<unsigned char> &SpecConstBlob, const std::string &TargetCPU,
-    const std::string &TargetFeatures) {
+extern "C" JITResult
+materializeSpecConstants(const char *KernelName,
+                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+                         const View<unsigned char> &SpecConstBlob,
+                         const char *TargetCPU, const char *TargetFeatures) {
   auto &JITCtx = JITContext::getInstance();
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
   BinaryFormat TargetFormat = TargetInfo.getFormat();
   if (TargetFormat != BinaryFormat::PTX &&
       TargetFormat != BinaryFormat::AMDGCN) {
-    return FusionResult(
-        "Fusion output target format not supported by this build");
+    return JITResult("Output target format not supported by this build. "
+                     "Available targets are: PTX or AMDGCN.");
   }
 
   ::jit_compiler::SYCLKernelInfo KernelInfo{
@@ -89,7 +90,7 @@ extern "C" FusionResult materializeSpecConstants(
       ::jit_compiler::NDRange{}, BinInfo};
   SYCLModuleInfo ModuleInfo;
   ModuleInfo.kernels().insert(ModuleInfo.kernels().end(), KernelInfo);
-  // Load all input kernels from their respective SPIR-V modules into a single
+  // Load all input kernels from their respective modules into a single
   // LLVM IR module.
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
       translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
@@ -98,9 +99,10 @@ extern "C" FusionResult materializeSpecConstants(
     return errorToFusionResult(std::move(Error), "Failed to load kernels");
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
-  if (!fusion::FusionPipeline::runMaterializerPasses(*NewMod, SpecConstBlob) ||
+  if (!fusion::FusionPipeline::runMaterializerPasses(
+          *NewMod, SpecConstBlob.begin(), SpecConstBlob.size()) ||
       !NewMod->getFunction(KernelName)) {
-    return FusionResult{"Materializer passes should not fail"};
+    return JITResult{"Materializer passes should not fail"};
   }
 
   SYCLKernelInfo &MaterializerKernelInfo = *ModuleInfo.getKernelFor(KernelName);
@@ -111,14 +113,15 @@ extern "C" FusionResult materializeSpecConstants(
                                "Translation to output format failed");
   }
 
-  return FusionResult{MaterializerKernelInfo};
+  return JITResult{MaterializerKernelInfo};
 }
 
-extern "C" FusionResult
-fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
-            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
-            View<ParameterInternalization> Internalization,
-            View<jit_compiler::JITConstant> Constants) {
+extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                                 const char *FusedKernelName,
+                                 View<ParameterIdentity> Identities,
+                                 BarrierFlags BarriersFlags,
+                                 View<ParameterInternalization> Internalization,
+                                 View<jit_compiler::JITConstant> Constants) {
 
   std::vector<std::string> KernelsToFuse;
   llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
@@ -137,8 +140,7 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
   }
 
   if (!isTargetFormatSupported(TargetFormat)) {
-    return FusionResult(
-        "Fusion output target format not supported by this build");
+    return JITResult("Fusion output target format not supported by this build");
   }
 
   auto &JITCtx = JITContext::getInstance();
@@ -161,7 +163,7 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
         // before returning the kernel info to the runtime.
         CachedKernel->NDR = FusedNDR->getNDR();
       }
-      return FusionResult{*CachedKernel, /*Cached*/ true};
+      return JITResult{*CachedKernel, /*Cached*/ true};
     }
     helper::printDebugMessage(
         "Compiling new kernel, no suitable cached kernel found");
@@ -209,13 +211,13 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
                                               BarriersFlags);
 
   if (!NewMod->getFunction(FusedKernelName)) {
-    return FusionResult{"Kernel fusion failed"};
+    return JITResult{"Kernel fusion failed"};
   }
 
   // Get the updated kernel info for the fused kernel and add the information to
   // the existing KernelInfo.
   if (!NewModInfo->hasKernelFor(FusedKernelName)) {
-    return FusionResult{"No KernelInfo for fused kernel"};
+    return JITResult{"No KernelInfo for fused kernel"};
   }
 
   SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
@@ -232,7 +234,7 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
     JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
   }
 
-  return FusionResult{FusedKernelInfo};
+  return JITResult{FusedKernelInfo};
 }
 
 extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }

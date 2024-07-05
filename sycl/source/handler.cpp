@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/detail/helpers.hpp"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -293,10 +294,12 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          detail::RTDeviceBinaryImage *BinImage = nullptr;
-          if (detail::SYCLConfig<detail::SYCL_JIT_KERNELS>::get())
-            BinImage = detail::retrieveAMDGCNOrNVPTXKernelBinary(
-                MQueue->getDeviceImplPtr(), MKernelName.c_str());
+          const detail::RTDeviceBinaryImage *BinImage = nullptr;
+          if (detail::SYCLConfig<detail::SYCL_JIT_KERNELS>::get()) {
+            std::tie(BinImage, std::ignore) =
+                detail::retrieveKernelBinary(MQueue, MKernelName.c_str());
+            assert(BinImage && "Failed to obtain a binary image.");
+          }
 
           Result = enqueueImpKernel(
               MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
