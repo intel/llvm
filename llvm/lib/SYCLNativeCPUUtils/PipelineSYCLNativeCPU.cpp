@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
