@@ -192,9 +192,6 @@ jobs:
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
-         # TODO: testing is flaky on windows-2022 in Release mode
-         - os: 'windows-2022'
-           build_type: Release
 
         build_type: [Debug, Release]
         compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
