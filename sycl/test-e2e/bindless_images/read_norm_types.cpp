@@ -7,7 +7,7 @@
 #include <limits>
 #include <sycl/detail/core.hpp>
 
-#include "bindless_helpers.hpp"
+#include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information

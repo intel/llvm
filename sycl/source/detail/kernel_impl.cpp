@@ -9,7 +9,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <memory>
 
@@ -20,31 +19,11 @@ namespace detail {
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : kernel_impl(Kernel, Context,
-                  std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
-  // Enable USM indirect access for interoperability kernels.
-  // Some UR Plugins (like OpenCL) require this call to enable USM
-  // For others, UR will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm())
-    getPlugin()->call(urKernelSetExecInfo, MURKernel,
-                      UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                      sizeof(ur_bool_t), nullptr, &PI_TRUE);
-
-  // This constructor is only called in the interoperability kernel constructor.
-  MIsInterop = true;
-}
-
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-                         KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask)
-    : MURKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramImpl->getHandleRef()),
-      MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask} {
-
+    : MKernel(Kernel), MContext(ContextImpl),
+      MProgram(ProgramManager::getInstance().getPiProgramFromPiKernel(
+          Kernel, ContextImpl)),
+      MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
@@ -54,7 +33,13 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
         "Input context must be the same as the context of cl_kernel",
         UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  MIsInterop = ProgramImpl->isInterop();
+  // Enable USM indirect access for interoperability kernels.
+  // Some UR Plugins (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
+  if (Context->getPlatformImpl()->supports_usm())
+    getPlugin()->call(urKernelSetExecInfo, MURKernel,
+                      UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
+                      sizeof(ur_bool_t), nullptr, &PI_TRUE);
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
@@ -69,13 +54,12 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
-
 kernel_impl::~kernel_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host()) {
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin()->call(urKernelRelease, MURKernel);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
 }
 

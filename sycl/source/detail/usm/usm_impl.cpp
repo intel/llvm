@@ -73,64 +73,48 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     return nullptr;
 
   std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  if (CtxImpl->is_host()) {
-    if (!Alignment) {
-      // worst case default
-      Alignment = 128;
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  const PluginPtr &Plugin = CtxImpl->getPlugin();
+  ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
+
+  switch (Kind) {
+  case alloc::host: {
+    ur_usm_desc_t UsmDesc{};
+    UsmDesc.align = Alignment;
+
+    ur_usm_alloc_location_desc_t UsmLocationDesc{};
+    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+
+    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                  buffer_location>() &&
+        Ctxt.get_platform().has_extension(
+            "cl_intel_mem_alloc_buffer_location")) {
+      UsmLocationDesc.location = static_cast<uint32_t>(
+          PropList
+              .get_property<sycl::ext::intel::experimental::property::usm::
+                                buffer_location>()
+              .get_buffer_location());
+      UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    aligned_allocator<char> Alloc(Alignment);
-    try {
-      RetVal = Alloc.allocate(Size);
-    } catch (const std::bad_alloc &) {
-      // Conform with Specification behavior
-      RetVal = nullptr;
-    }
-  } else {
-    ur_context_handle_t C = CtxImpl->getHandleRef();
-    const PluginPtr &Plugin = CtxImpl->getPlugin();
-    ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
-    ;
+    Error = Plugin->call_nocheck(urUSMHostAlloc, C, &UsmDesc,
+                                 /* pool= */ nullptr, Size, &RetVal);
 
-    switch (Kind) {
-    case alloc::host: {
-      ur_usm_desc_t UsmDesc{};
-      UsmDesc.align = Alignment;
-
-      ur_usm_alloc_location_desc_t UsmLocationDesc{};
-      UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
-      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                    buffer_location>() &&
-          Ctxt.get_platform().has_extension(
-              "cl_intel_mem_alloc_buffer_location")) {
-        UsmLocationDesc.location = static_cast<uint32_t>(
-            PropList
-                .get_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>()
-                .get_buffer_location());
-        UsmDesc.pNext = &UsmLocationDesc;
-      }
-
-      Error = Plugin->call_nocheck(urUSMHostAlloc, C, &UsmDesc,
-                                   /* pool= */ nullptr, Size, &RetVal);
-
-      break;
-    }
-    case alloc::device:
-    case alloc::shared:
-    case alloc::unknown: {
-      RetVal = nullptr;
-      Error = UR_RESULT_ERROR_INVALID_VALUE;
-      break;
-    }
-    }
-
-    // Error is for debugging purposes.
-    // The spec wants a nullptr returned, not an exception.
-    if (Error != UR_RESULT_SUCCESS)
-      return nullptr;
+    break;
   }
+  case alloc::device:
+  case alloc::shared:
+  case alloc::unknown: {
+    RetVal = nullptr;
+    Error = UR_RESULT_ERROR_INVALID_VALUE;
+    break;
+  }
+  }
+
+  // Error is for debugging purposes.
+  // The spec wants a nullptr returned, not an exception.
+  if (Error != UR_RESULT_SUCCESS)
+    return nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
@@ -156,105 +140,86 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
   if (Size == 0)
     return nullptr;
 
-  if (CtxImpl->is_host()) {
-    if (Kind == alloc::unknown) {
-      RetVal = nullptr;
-    } else {
-      if (!Alignment) {
-        // worst case default
-        Alignment = 128;
-      }
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  const PluginPtr &Plugin = CtxImpl->getPlugin();
+  ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
+  ur_device_handle_t Dev;
 
-      aligned_allocator<char> Alloc(Alignment);
-      try {
-        RetVal = Alloc.allocate(Size);
-      } catch (const std::bad_alloc &) {
-        // Conform with Specification behavior
-        RetVal = nullptr;
-      }
-    }
-  } else {
-    ur_context_handle_t C = CtxImpl->getHandleRef();
-    const PluginPtr &Plugin = CtxImpl->getPlugin();
-    ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
-    ur_device_handle_t Dev;
+  switch (Kind) {
+  case alloc::device: {
+    Dev = DevImpl->getHandleRef();
 
-    switch (Kind) {
-    case alloc::device: {
-      Dev = DevImpl->getHandleRef();
+    ur_usm_desc_t UsmDesc{};
+    UsmDesc.align = Alignment;
 
-      ur_usm_desc_t UsmDesc{};
-      UsmDesc.align = Alignment;
+    ur_usm_alloc_location_desc_t UsmLocationDesc{};
+    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
-      ur_usm_alloc_location_desc_t UsmLocationDesc{};
-      UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
-      // Buffer location is only supported on FPGA devices
-      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                    buffer_location>() &&
-          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
-        UsmLocationDesc.location = static_cast<uint32_t>(
-            PropList
-                .get_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>()
-                .get_buffer_location());
-        UsmDesc.pNext = &UsmLocationDesc;
-      }
-
-      Error = Plugin->call_nocheck(urUSMDeviceAlloc, C, Dev, &UsmDesc,
-                                   /*pool=*/nullptr, Size, &RetVal);
-
-      break;
-    }
-    case alloc::shared: {
-      Dev = DevImpl->getHandleRef();
-
-      ur_usm_desc_t UsmDesc{};
-      UsmDesc.align = Alignment;
-
-      ur_usm_alloc_location_desc_t UsmLocationDesc{};
-      UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
-
-      ur_usm_device_desc_t UsmDeviceDesc{};
-      UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
-      UsmDeviceDesc.flags = 0;
-
-      UsmDesc.pNext = &UsmDeviceDesc;
-
-      if (PropList.has_property<
-              sycl::ext::oneapi::property::usm::device_read_only>()) {
-        UsmDeviceDesc.flags &= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-      }
-
-      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                    buffer_location>() &&
-          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
-        UsmLocationDesc.location = static_cast<uint32_t>(
-            PropList
-                .get_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>()
-                .get_buffer_location());
-        UsmDeviceDesc.pNext = &UsmLocationDesc;
-      }
-
-      Error = Plugin->call_nocheck(urUSMSharedAlloc, C, Dev, &UsmDesc,
-                                   /*pool=*/nullptr, Size, &RetVal);
-
-      break;
-    }
-    case alloc::host:
-    case alloc::unknown: {
-      RetVal = nullptr;
-      Error = UR_RESULT_ERROR_INVALID_VALUE;
-      break;
-    }
+    // Buffer location is only supported on FPGA devices
+    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                  buffer_location>() &&
+        DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
+      UsmLocationDesc.location = static_cast<uint32_t>(
+          PropList
+              .get_property<sycl::ext::intel::experimental::property::usm::
+                                buffer_location>()
+              .get_buffer_location());
+      UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    // Error is for debugging purposes.
-    // The spec wants a nullptr returned, not an exception.
-    if (Error != UR_RESULT_SUCCESS)
-      return nullptr;
+    Error = Plugin->call_nocheck(urUSMDeviceAlloc, C, Dev, &UsmDesc,
+                                 /*pool=*/nullptr, Size, &RetVal);
+
+    break;
   }
+  case alloc::shared: {
+    Dev = DevImpl->getHandleRef();
+
+    ur_usm_desc_t UsmDesc{};
+    UsmDesc.align = Alignment;
+
+    ur_usm_alloc_location_desc_t UsmLocationDesc{};
+    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+
+    ur_usm_device_desc_t UsmDeviceDesc{};
+    UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
+    UsmDeviceDesc.flags = 0;
+
+    UsmDesc.pNext = &UsmDeviceDesc;
+
+    if (PropList.has_property<
+            sycl::ext::oneapi::property::usm::device_read_only>()) {
+      UsmDeviceDesc.flags &= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+    }
+
+    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                  buffer_location>() &&
+        DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
+      UsmLocationDesc.location = static_cast<uint32_t>(
+          PropList
+              .get_property<sycl::ext::intel::experimental::property::usm::
+                                buffer_location>()
+              .get_buffer_location());
+      UsmDeviceDesc.pNext = &UsmLocationDesc;
+    }
+
+    Error = Plugin->call_nocheck(urUSMSharedAlloc, C, Dev, &UsmDesc,
+                                 /*pool=*/nullptr, Size, &RetVal);
+
+    break;
+  }
+  case alloc::host:
+  case alloc::unknown: {
+    RetVal = nullptr;
+    Error = UR_RESULT_ERROR_INVALID_VALUE;
+    break;
+  }
+  }
+
+  // Error is for debugging purposes.
+  // The spec wants a nullptr returned, not an exception.
+  if (Error != UR_RESULT_SUCCESS)
+    return nullptr;
   return RetVal;
 }
 
@@ -293,14 +258,9 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
-  if (CtxImpl->is_host()) {
-    // need to use alignedFree here for Windows
-    detail::OSUtil::alignedFree(Ptr);
-  } else {
-    ur_context_handle_t C = CtxImpl->getHandleRef();
-    const PluginPtr &Plugin = CtxImpl->getPlugin();
-    Plugin->call(urUSMFree, C, Ptr);
-  }
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  const PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call(urUSMFree, C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -587,10 +547,6 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
 
-  // Everything on a host device is just system malloc so call it host
-  if (CtxImpl->is_host())
-    return alloc::host;
-
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_usm_type_t AllocTy;
 
@@ -638,10 +594,6 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
                         UR_RESULT_ERROR_INVALID_VALUE);
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-
-  // Just return the host device in the host context
-  if (CtxImpl->is_host())
-    return Ctxt.get_devices()[0];
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {

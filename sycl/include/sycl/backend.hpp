@@ -76,8 +76,6 @@ public:
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
-
-  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>
@@ -274,7 +272,8 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend);
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
-                                   backend Backend);
+                                   backend Backend, bool KeepOwnership,
+                                   const std::vector<device> &DeviceList = {});
 __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                int32_t nativeHandleDesc,
                                const context &TargetContext,
@@ -340,8 +339,8 @@ make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
     const async_handler &Handler = {}) {
-  return detail::make_context(
-      detail::ur::cast<ur_native_handle_t>(BackendObject), Handler, Backend);
+  return detail::make_context(detail::ur::cast<ur_native_handle_t>(BackendObject),
+                              Handler, Backend, false /* KeepOwnership */);
 }
 
 template <backend Backend>

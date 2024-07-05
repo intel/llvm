@@ -18,11 +18,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-device_impl::device_impl()
-    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()),
-      // assert is natively supported by host
-      MIsAssertFailSupported(true) {}
-
 device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
                          const PluginPtr &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
@@ -40,9 +35,7 @@ device_impl::device_impl(ur_device_handle_t Device, const PluginPtr &Plugin)
 device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
                          ur_device_handle_t Device, PlatformImplPtr Platform,
                          const PluginPtr &Plugin)
-    : MUrDevice(Device), MIsHostDevice(false),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
-
+    : MUrDevice(Device), MDeviceHostBaseTime(std::make_pair(0, 0)) {
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
     assert(InteropDeviceHandle);
@@ -83,12 +76,10 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  if (!MIsHostDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    const PluginPtr &Plugin = getPlugin();
-    ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MUrDevice);
-    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
-  }
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  const PluginPtr &Plugin = getPlugin();
+  ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MUrDevice);
+  __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
 }
 
 bool device_impl::is_affinity_supported(
@@ -99,11 +90,6 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice) {
-    throw invalid_object_error(
-        "This instance of device doesn't support OpenCL interoperability.",
-        UR_RESULT_ERROR_INVALID_DEVICE);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urDeviceRetain, MUrDevice);
   return ur::cast<cl_device_id>(getNative());
@@ -115,9 +101,6 @@ platform device_impl::get_platform() const {
 
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
-  if (is_host()) {
-    return get_device_info_host<Param>();
-  }
   return get_device_info<Param>(
       MPlatform->getOrMakeDeviceImpl(MUrDevice, MPlatform));
 }
@@ -178,9 +161,6 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 }
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  if (MIsHostDevice)
-    // TODO: implement extension management for host device;
-    return false;
   std::string AllExtensionNames =
       get_device_info_string(UR_DEVICE_INFO_EXTENSIONS);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
@@ -221,8 +201,6 @@ std::vector<device> device_impl::create_sub_devices(
 }
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw sycl::feature_not_supported(
         "Device does not support "
@@ -252,8 +230,6 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw sycl::feature_not_supported(
         "Device does not support "
@@ -299,8 +275,6 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
 
 std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
     throw sycl::feature_not_supported(
@@ -334,8 +308,6 @@ std::vector<device> device_impl::create_sub_devices(
 }
 
 std::vector<device> device_impl::create_sub_devices() const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(
           info::partition_property::ext_intel_partition_by_cslice)) {
     throw sycl::feature_not_supported(
@@ -374,7 +346,8 @@ bool device_impl::has(aspect Aspect) const {
 
   switch (Aspect) {
   case aspect::host:
-    return is_host();
+    // Deprecated
+    return false;
   case aspect::cpu:
     return is_cpu();
   case aspect::gpu:
@@ -383,7 +356,7 @@ bool device_impl::has(aspect Aspect) const {
     return is_accelerator();
   case aspect::custom:
     return false;
-  // TODO: Implement this for FPGA and ESIMD emulators.
+  // TODO: Implement this for FPGA emulator.
   case aspect::emulated:
     return false;
   case aspect::host_debuggable:
@@ -392,8 +365,6 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
-  case aspect::ext_oneapi_bfloat16_math_functions:
-    return get_info<info::device::ext_oneapi_bfloat16_math_functions>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
@@ -415,16 +386,14 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_mem_channel:
     return get_info<info::device::ext_intel_mem_channel>();
   case aspect::usm_atomic_host_allocations:
-    return is_host() ||
-           (get_device_info_impl<ur_device_usm_access_capability_flags_t,
+    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
                                  info::device::usm_host_allocations>::
                 get(MPlatform->getDeviceImpl(MUrDevice)) &
             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return is_host() ||
-           (get_device_info_impl<ur_device_usm_access_capability_flags_t,
+    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
                                  info::device::usm_shared_allocations>::
                 get(MPlatform->getDeviceImpl(MUrDevice)) &
             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
@@ -731,15 +700,12 @@ bool device_impl::has(aspect Aspect) const {
     return components.size() >= 2;
   }
   case aspect::ext_oneapi_is_component: {
-    if (getBackend() != backend::ext_oneapi_level_zero)
-      return false;
-
     typename sycl_to_ur<device>::type Result;
     bool CallSuccessful = getPlugin()->call_nocheck(
         urDeviceGetInfo, getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::composite_device>::value,
-        sizeof(Result), &Result, nullptr);
+        sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
 
     return CallSuccessful && Result != nullptr;
   }
@@ -789,16 +755,17 @@ bool device_impl::has(aspect Aspect) const {
             &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_virtual_mem: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getPlugin()->call_nocheck(urDeviceGetInfo,
+            MUrDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
   }
-  throw runtime_error("This device aspect has not been implemented yet.",
-                      UR_RESULT_ERROR_INVALID_DEVICE);
-}
+  }
 
-std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
-  static std::shared_ptr<device_impl> HostImpl =
-      std::make_shared<device_impl>();
-
-  return HostImpl;
+  return false; // This device aspect has not been implemented yet.
 }
 
 bool device_impl::isAssertFailSupported() const {
@@ -837,9 +804,6 @@ uint64_t device_impl::getCurrentDeviceTime() {
   uint64_t HostTime =
       duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
           .count();
-  if (MIsHostDevice) {
-    return HostTime;
-  }
 
   // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
@@ -894,7 +858,8 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
 bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
-    return is_source_kernel_bundle_supported(getBackend(), Language);
+    return sycl::ext::oneapi::experimental::detail::
+        is_source_kernel_bundle_supported(getBackend(), Language);
   } catch (sycl::exception &) {
     return false;
   }

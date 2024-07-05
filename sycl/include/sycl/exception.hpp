@@ -10,7 +10,6 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/backend_types.hpp>             // for backend
 #include <sycl/detail/cl.h>                   // for cl_int
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
@@ -31,6 +30,7 @@ inline namespace _V1 {
 
 // Forward declaration
 class context;
+class exception;
 
 enum class errc : unsigned int {
   success = 0,
@@ -50,8 +50,6 @@ enum class errc : unsigned int {
   backend_mismatch = 14,
 };
 
-template <backend B> using errc_for = typename backend_traits<B>::errc;
-
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 
@@ -69,6 +67,9 @@ public:
   const char *name() const noexcept override { return "sycl"; }
   std::string message(int) const override { return "SYCL Error"; }
 };
+
+// Forward declare to declare as a friend in sycl::excepton.
+__SYCL_EXPORT int32_t get_pi_error(const exception &e);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -113,9 +114,6 @@ public:
 
   context get_context() const;
 
-  __SYCL2020_DEPRECATED("use sycl::exception.code() instead.")
-  cl_int get_cl_code() const;
-
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
@@ -130,33 +128,23 @@ private:
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code Ec, const char *Msg, const int32_t PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, std::string(Msg), PIErr, Context) {}
+  exception(std::error_code Ec, const char *Msg, const int32_t PIErr)
+      : exception(Ec, std::string(Msg), PIErr) {}
 
-  exception(std::error_code Ec, const std::string &Msg, const int32_t PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, Context, Msg + " " + detail::codeToString(PIErr)) {
+  exception(std::error_code Ec, const std::string &Msg, const int32_t PIErr)
+      : exception(Ec, nullptr, Msg + " " + detail::codeToString(PIErr)) {
     MPIErr = PIErr;
   }
 
-  exception(const std::string &Msg)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr){}
-#else
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {
-  }
-#endif
-
-        // base constructor for all SYCL 2020 constructors
-        // exception(context *ctxPtr, std::error_code Ec, const std::string
-        // &what_arg);
-        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-                  const std::string &what_arg)
-      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
-  }
+  // base constructor for all SYCL 2020 constructors
+  // exception(context *, std::error_code, const std::string);
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
+
+  friend __SYCL_EXPORT int32_t detail::get_pi_error(const exception &);
 };
 
 class __SYCL2020_DEPRECATED(
@@ -178,32 +166,6 @@ protected:
   runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
-class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
-                            "errc::kernel_argument instead.") kernel_error
-    : public runtime_error {
-public:
-  kernel_error() : runtime_error(make_error_code(errc::kernel)) {}
-
-  kernel_error(const char *Msg, int32_t Err)
-      : kernel_error(std::string(Msg), Err) {}
-
-  kernel_error(const std::string &Msg, int32_t Err)
-      : runtime_error(make_error_code(errc::kernel), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::accessor instead.") accessor_error
-    : public runtime_error {
-public:
-  accessor_error() : runtime_error(make_error_code(errc::accessor)) {}
-
-  accessor_error(const char *Msg, int32_t Err)
-      : accessor_error(std::string(Msg), Err) {}
-
-  accessor_error(const std::string &Msg, int32_t Err)
-      : runtime_error(make_error_code(errc::accessor), Msg, Err) {}
-};
-
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
@@ -215,19 +177,6 @@ public:
 
   nd_range_error(const std::string &Msg, int32_t Err)
       : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::event instead.") event_error
-    : public runtime_error {
-public:
-  event_error() : runtime_error(make_error_code(errc::event)) {}
-
-  event_error(const char *Msg, int32_t Err)
-      : event_error(std::string(Msg), Err) {}
-
-  event_error(const std::string &Msg, int32_t Err)
-      : runtime_error(make_error_code(errc::event), Msg, Err) {}
 };
 
 class __SYCL2020_DEPRECATED(
@@ -278,19 +227,6 @@ public:
 
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
-    link_program_error : public device_error {
-public:
-  link_program_error() : device_error(make_error_code(errc::build)) {}
-
-  link_program_error(const char *Msg, int32_t Err)
-      : link_program_error(std::string(Msg), Err) {}
-
-  link_program_error(const std::string &Msg, int32_t Err)
-      : device_error(make_error_code(errc::build), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
     invalid_object_error : public device_error {
 public:
   invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
@@ -300,46 +236,6 @@ public:
 
   invalid_object_error(const std::string &Msg, int32_t Err)
       : device_error(make_error_code(errc::invalid), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::memory_allocation instead.")
-    memory_allocation_error : public device_error {
-public:
-  memory_allocation_error()
-      : device_error(make_error_code(errc::memory_allocation)) {}
-
-  memory_allocation_error(const char *Msg, int32_t Err)
-      : memory_allocation_error(std::string(Msg), Err) {}
-
-  memory_allocation_error(const std::string &Msg, int32_t Err)
-      : device_error(make_error_code(errc::memory_allocation), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::platform instead.") platform_error
-    : public device_error {
-public:
-  platform_error() : device_error(make_error_code(errc::platform)) {}
-
-  platform_error(const char *Msg, int32_t Err)
-      : platform_error(std::string(Msg), Err) {}
-
-  platform_error(const std::string &Msg, int32_t Err)
-      : device_error(make_error_code(errc::platform), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::profiling instead.") profiling_error
-    : public device_error {
-public:
-  profiling_error() : device_error(make_error_code(errc::profiling)) {}
-
-  profiling_error(const char *Msg, int32_t Err)
-      : profiling_error(std::string(Msg), Err) {}
-
-  profiling_error(const std::string &Msg, int32_t Err)
-      : device_error(make_error_code(errc::profiling), Msg, Err) {}
 };
 
 class __SYCL2020_DEPRECATED(

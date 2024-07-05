@@ -10,19 +10,17 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/array.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
@@ -46,6 +44,8 @@ inline namespace _V1 {
 
 class handler;
 class queue;
+class context;
+class event;
 template <int dimensions> class range;
 
 template <typename DataT>
@@ -67,8 +67,8 @@ class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt = {},
-                   bool OwnNativeHandle = true) {
+make_buffer_helper(pi_native_handle Handle, const context &Ctx,
+                   const event &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
 }
@@ -111,9 +111,9 @@ protected:
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool IsConstPtr);
 
-  buffer_plain(ur_native_handle_t MemObject, context SyclContext,
+  buffer_plain(ur_native_handle_t MemObject, const context &SyclContext,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
-               bool OwnNativeHandle, event AvailableEvent);
+               bool OwnNativeHandle, const event &AvailableEvent);
 
   buffer_plain(const std::shared_ptr<detail::buffer_impl> &impl) : impl(impl) {}
 
@@ -473,7 +473,13 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() { buffer_plain::handleRelease(); }
+  ~buffer() {
+    try {
+      buffer_plain::handleRelease();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~buffer", e);
+    }
+  }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -725,7 +731,8 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
+  detail::make_buffer_helper(pi_native_handle, const context &, const event &,
+                             bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
   // NOTE: These members are required for reconstructing the buffer, but are not
@@ -740,12 +747,12 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         bool OwnNativeHandle, event AvailableEvent = {},
+         bool OwnNativeHandle, const event &AvailableEvent,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(MemObject, SyclContext,
                      std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
-                     OwnNativeHandle, std::move(AvailableEvent)),
+                     OwnNativeHandle, AvailableEvent),
         Range{0} {
 
     Range[0] = buffer_plain::getSize() / sizeof(T);

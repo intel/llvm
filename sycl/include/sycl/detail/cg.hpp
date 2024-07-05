@@ -528,32 +528,41 @@ public:
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
   ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
+  std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
-                  CG::StorageInitHelper CGData, detail::code_location loc = {})
+  CGSemaphoreWait(
+      ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
+  }
 
   ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
   ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
+  std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
-                    CG::StorageInitHelper CGData,
-                    detail::code_location loc = {})
+  CGSemaphoreSignal(
+      ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle),
+        MSignalValue(SignalValue) {}
 
   ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
+  std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };
 
 /// "Execute command-buffer" command group class.

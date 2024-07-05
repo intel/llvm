@@ -24,54 +24,10 @@
 namespace sycl {
 inline namespace _V1 {
 namespace opencl {
-// Implementation of various "make" functions resides in SYCL RT because
-// creating SYCL objects requires knowing details not accessible here.
-// Note that they take opaque ur_native_handle_t that real OpenCL handles
-// are casted to.
-//
-__SYCL_EXPORT platform make_platform(ur_native_handle_t NativeHandle);
-__SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle);
-__SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle);
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               ur_native_handle_t InteropHandle);
-
 __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
                                  const std::string &Extension);
 __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
                                  const std::string &Extension);
-
-// Construction of SYCL platform.
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, platform>> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
-T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_platform(detail::ur::cast<ur_native_handle_t>(Interop));
-}
-
-// Construction of SYCL device.
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, device>> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
-T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_device(detail::ur::cast<ur_native_handle_t>(Interop));
-}
-
-// Construction of SYCL context.
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, context>> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
-T make(typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_context(detail::ur::cast<ur_native_handle_t>(Interop));
-}
-
-// Construction of SYCL queue.
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, queue>> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(const context &Context,
-       typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_queue(Context, detail::ur::cast<ur_native_handle_t>(Interop));
-}
 } // namespace opencl
 } // namespace _V1
 } // namespace sycl
