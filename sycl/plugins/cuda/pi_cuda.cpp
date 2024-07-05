@@ -1298,6 +1298,79 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
                                        ParamValueSizeRet);
 }
 
+pi_result
+piextVirtualMemGranularityGetInfo(pi_context context, pi_device device,
+                                  pi_virtual_mem_granularity_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret) {
+  return pi2ur::piextVirtualMemGranularityGetInfo(context, device, param_name,
+                                                  param_value_size, param_value,
+                                                  param_value_size_ret);
+}
+
+pi_result piextPhysicalMemCreate(pi_context context, pi_device device,
+                                 size_t mem_size,
+                                 pi_physical_mem *ret_physical_mem) {
+  return pi2ur::piextPhysicalMemCreate(context, device, mem_size,
+                                       ret_physical_mem);
+}
+
+pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem) {
+  return pi2ur::piextPhysicalMemRetain(physical_mem);
+}
+
+pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem) {
+  return pi2ur::piextPhysicalMemRelease(physical_mem);
+}
+
+pi_result piextVirtualMemReserve(pi_context context, const void *start,
+                                 size_t range_size, void **ret_ptr) {
+  return pi2ur::piextVirtualMemReserve(context, start, range_size, ret_ptr);
+}
+
+pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                              size_t range_size) {
+  return pi2ur::piextVirtualMemFree(context, ptr, range_size);
+}
+
+pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                             size_t range_size, pi_physical_mem physical_mem,
+                             size_t offset, pi_virtual_access_flags flags) {
+  return pi2ur::piextVirtualMemMap(context, ptr, range_size, physical_mem,
+                                   offset, flags);
+}
+
+pi_result piextVirtualMemUnmap(pi_context context, const void *ptr,
+                               size_t range_size) {
+  return pi2ur::piextVirtualMemUnmap(context, ptr, range_size);
+}
+
+pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
+                                   size_t range_size,
+                                   pi_virtual_access_flags flags) {
+  return pi2ur::piextVirtualMemSetAccess(context, ptr, range_size, flags);
+}
+
+pi_result piextVirtualMemGetInfo(pi_context context, const void *ptr,
+                                 size_t range_size,
+                                 pi_virtual_mem_info param_name,
+                                 size_t param_value_size, void *param_value,
+                                 size_t *param_value_size_ret) {
+  return pi2ur::piextVirtualMemGetInfo(context, ptr, range_size, param_name,
+                                       param_value_size, param_value,
+                                       param_value_size_ret);
+}
+
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
+}
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
