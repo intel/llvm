@@ -17036,6 +17036,49 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 #endif
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_lround(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_lround(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_lround(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_lround(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_lround(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_lround(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_lround(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_lround(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_lround(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_lround(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_lround(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_lround(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_lround(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_lround(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_lround(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_lround(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_lround(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_lround(__clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_rsqrt(__clc_fp32_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ocl_rsqrt(__clc_vec2_fp32_t);
