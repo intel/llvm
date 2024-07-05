@@ -666,7 +666,6 @@ void Command::emitEdgeEventForEventDependence(
     // this occasion is an OCL event; so we build a virtual node in the graph
     // with the event as the metadata for the node
     std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
-    std::cerr << "emitEdgeEventForEventDependence() " << NodeName << std::endl;
 
     // Node name is "virtual_node[<event_addr>]"
     xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
