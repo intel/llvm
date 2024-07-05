@@ -41,15 +41,10 @@ public:
 
   size_t get_work_item_buffer_size() const;
 
-  template <typename propertyT> bool has_property() const noexcept {
-    return PropList_.has_property<propertyT>();
-  }
-
-  template <typename propertyT> propertyT get_property() const {
-    return PropList_.get_property<propertyT>();
-  }
-
   void generateFlushCommand(handler &cgh);
+
+  // Property list
+  property_list PropList_;
 
 private:
   // Size of the stream buffer
@@ -58,9 +53,6 @@ private:
   // Maximum number of symbols which could be streamed from the beginning of a
   // statement till the semicolon
   unsigned MaxStatementSize_;
-
-  // Property list
-  property_list PropList_;
 
   // It's fine to store the buffers in the stream_impl itself since the
   // underlying buffer_impls are relased in a deferred manner by scheduler.
