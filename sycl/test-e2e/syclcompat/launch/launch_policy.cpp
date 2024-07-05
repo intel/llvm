@@ -84,11 +84,16 @@ int test_basic_launch() {
 
   sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; // constructed at runtime
 
+  compat_exp::kernel_properties my_k_props{
+      sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config};
+
+  compat_exp::launch_properties my_l_props{sycl_exp::use_root_sync}; //TODO: this isn't a launch property!
+
   compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{32}, {32}},
-      sycl_exp::properties{sycl_exp::sub_group_size<32>,
+      compat_exp::kernel_properties{sycl_exp::sub_group_size<32>,
                            sycl_exp::use_root_sync, my_cache_config},
-      sycl_exp::properties{}, 0);
+      compat_exp::launch_properties{}, compat_exp::local_mem_size{0});
 
   //TODO: deal with initializer list ctor here
   // compat_exp::launch_policy my_init_config{
@@ -125,8 +130,8 @@ int test_lmem_launch() {
 
   compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{256}, {256}},
-      sycl_exp::properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
-      sycl_exp::properties{}, local_mem_size);
+      compat_exp::kernel_properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
+      compat_exp::launch_properties{}, local_mem_size);
 
   compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
@@ -148,7 +153,8 @@ int test_lmem_launch() {
 int test_dim3_launch_policy() {
 
   compat_exp::launch_policy my_range_config(
-      syclcompat::dim3{32}, sycl_exp::properties{}, sycl_exp::properties{}, 0);
+      syclcompat::dim3{32}, compat_exp::kernel_properties{},
+      compat_exp::launch_properties{}, compat_exp::local_mem_size{0});
 
   static_assert(
       std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);

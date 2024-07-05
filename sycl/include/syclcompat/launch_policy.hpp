@@ -39,6 +39,28 @@ namespace experimental {
 
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
+template <typename Properties> struct kernel_properties {
+  template<typename ...Props>
+  kernel_properties(Props... properties) : props{properties...} {}
+  Properties props;
+};
+
+template <typename... Props>
+kernel_properties(Props... props) -> kernel_properties<decltype(sycl_exp::properties(props...))>;
+
+template <typename Properties> struct launch_properties {
+  template<typename ...Props>
+  launch_properties(Props... properties) : props{properties...} {}
+  Properties props;
+};
+
+template <typename... Props>
+launch_properties(Props... props) -> launch_properties<decltype(sycl_exp::properties(props...))>;
+
+struct local_mem_size {
+  size_t size;
+};
+
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps>
 struct launch_policy {
@@ -69,20 +91,20 @@ struct launch_policy {
         launch_properties{lprops}, local_mem_size{lmem_size} {}
 
   Range range;
-  KProps kernel_properties;
-  LProps launch_properties;
-  size_t local_mem_size;
+  kernel_properties<KProps> kernel_properties;
+  launch_properties<LProps> launch_properties;
+  local_mem_size local_mem_size;
 };
 
 // Deduction guides for launch_policy dim3 ctors
 template <typename KProps, typename LProps>
-launch_policy(dim3 global_range, KProps kprops, LProps lprops,
-                size_t lmem_size)
+launch_policy(dim3 global_range, kernel_properties<KProps> kprops, launch_properties<LProps> lprops,
+                local_mem_size lmem_size)
     -> launch_policy<sycl::range<3>, KProps, LProps>;
 
 template <typename KProps, typename LProps>
-launch_policy(dim3 global_range, dim3 work_group_range, KProps kprops,
-                LProps lprops, size_t lmem_size)
+launch_policy(dim3 global_range, dim3 work_group_range, kernel_properties<KProps> kprops,
+                launch_properties<LProps> lprops, local_mem_size lmem_size)
     -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
