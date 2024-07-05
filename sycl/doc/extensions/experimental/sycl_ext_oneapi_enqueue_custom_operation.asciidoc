@@ -95,9 +95,9 @@ q.submit([&](sycl::handler &cgh) {
 q.wait();
 ```
 
-Provided that the correct dependencies are handled in the SYCL runtime, there
-is no need to do any further synchronization within the backend API in the user
-submitted lambda.
+Provided that the correct dependencies are handled by the user within the SYCL
+API, there is no need to do any further synchronization within the backend API
+in the user submitted lambda.
 
 
 == Specification
