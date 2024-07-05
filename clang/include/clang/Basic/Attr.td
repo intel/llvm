@@ -1705,20 +1705,14 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    std::optional<llvm::APSInt> getXDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
-        return CE->getResultAsAPSInt();
-      return std::nullopt;
+    unsigned getXDimVal() const {
+      return cast<ConstantExpr>(getXDim())->getResultAsAPSInt().getExtValue();
     }
-    std::optional<llvm::APSInt> getYDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
-        return CE->getResultAsAPSInt();
-      return std::nullopt;
+    unsigned getYDimVal() const {
+      return cast<ConstantExpr>(getYDim())->getResultAsAPSInt().getExtValue();
     }
-    std::optional<llvm::APSInt> getZDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
-        return CE->getResultAsAPSInt();
-      return std::nullopt;
+    unsigned getZDimVal() const {
+      return cast<ConstantExpr>(getZDim())->getResultAsAPSInt().getExtValue();
     }
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
@@ -2973,9 +2967,12 @@ def Convergent : InheritableAttr {
 def NoInline : DeclOrStmtAttr {
   let Spellings = [CustomKeyword<"__noinline__">, GCC<"noinline">,
                    CXX11<"clang", "noinline">, C23<"clang", "noinline">,
+                   CXX11<"msvc", "noinline">, C23<"msvc", "noinline">,
                    Declspec<"noinline">];
-  let Accessors = [Accessor<"isClangNoInline", [CXX11<"clang", "noinline">,
-                                                C23<"clang", "noinline">]>];
+  let Accessors = [Accessor<"isStmtNoInline", [CXX11<"clang", "noinline">,
+                                               C23<"clang", "noinline">,
+                                               CXX11<"msvc", "noinline">,
+                                               C23<"msvc", "noinline">]>];
   let Documentation = [NoInlineDocs];
   let Subjects = SubjectList<[Function, Stmt], WarnDiag,
                              "functions and statements">;
@@ -3205,7 +3202,8 @@ def TypeNullUnspecified : TypeAttr {
 def CountedBy : DeclOrTypeAttr {
   let Spellings = [Clang<"counted_by">];
   let Subjects = SubjectList<[Field], ErrorDiag>;
-  let Args = [ExprArgument<"Count">, IntArgument<"NestedLevel">];
+  let Args = [ExprArgument<"Count">, IntArgument<"NestedLevel", 1>];
+  let LateParsed = LateAttrParseExperimentalExt;
   let ParseArgumentsAsUnevaluated = 1;
   let Documentation = [CountedByDocs];
   let LangOpts = [COnly];

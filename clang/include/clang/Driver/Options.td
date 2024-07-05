@@ -3060,6 +3060,10 @@ def fms_compatibility : Flag<["-"], "fms-compatibility">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option, CLOption]>,
   HelpText<"Enable full Microsoft Visual C++ compatibility">,
   MarshallingInfoFlag<LangOpts<"MSVCCompat">>;
+def fms_define_stdc : Flag<["-"], "fms-define-stdc">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option, CLOption]>,
+  HelpText<"Define '__STDC__' to '1' in MSVC Compatibility mode">,
+  MarshallingInfoFlag<LangOpts<"MSVCEnableStdcMacro">>;
 def fms_extensions : Flag<["-"], "fms-extensions">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option, CLOption]>,
   HelpText<"Accept some non-standard constructs supported by the Microsoft compiler">,
@@ -4047,6 +4051,10 @@ def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable check for libspirv">;
+def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
+  Visibility<[ClangOption, CLOption]>, Flags<[HelpHidden]>, HelpText<"Use the SPIR-V backend for SPIR-V code generation. "
+  "Has effect only for SPIR-based targets. It is off by default and "
+  "the SPIR-V LLVM Translator is used for SPIR-V code generation. (experimental)">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
   Flags<[NoArgumentUnused]>, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Specify C++ compiler binary to perform host "
@@ -6405,14 +6413,10 @@ def mavx512cd : Flag<["-"], "mavx512cd">, Group<m_x86_Features_Group>;
 def mno_avx512cd : Flag<["-"], "mno-avx512cd">, Group<m_x86_Features_Group>;
 def mavx512dq : Flag<["-"], "mavx512dq">, Group<m_x86_Features_Group>;
 def mno_avx512dq : Flag<["-"], "mno-avx512dq">, Group<m_x86_Features_Group>;
-def mavx512er : Flag<["-"], "mavx512er">, Group<m_x86_Features_Group>;
-def mno_avx512er : Flag<["-"], "mno-avx512er">, Group<m_x86_Features_Group>;
 def mavx512fp16 : Flag<["-"], "mavx512fp16">, Group<m_x86_Features_Group>;
 def mno_avx512fp16 : Flag<["-"], "mno-avx512fp16">, Group<m_x86_Features_Group>;
 def mavx512ifma : Flag<["-"], "mavx512ifma">, Group<m_x86_Features_Group>;
 def mno_avx512ifma : Flag<["-"], "mno-avx512ifma">, Group<m_x86_Features_Group>;
-def mavx512pf : Flag<["-"], "mavx512pf">, Group<m_x86_Features_Group>;
-def mno_avx512pf : Flag<["-"], "mno-avx512pf">, Group<m_x86_Features_Group>;
 def mavx512vbmi : Flag<["-"], "mavx512vbmi">, Group<m_x86_Features_Group>;
 def mno_avx512vbmi : Flag<["-"], "mno-avx512vbmi">, Group<m_x86_Features_Group>;
 def mavx512vbmi2 : Flag<["-"], "mavx512vbmi2">, Group<m_x86_Features_Group>;
@@ -6503,8 +6507,6 @@ def mpopcnt : Flag<["-"], "mpopcnt">, Group<m_x86_Features_Group>;
 def mno_popcnt : Flag<["-"], "mno-popcnt">, Group<m_x86_Features_Group>;
 def mprefetchi : Flag<["-"], "mprefetchi">, Group<m_x86_Features_Group>;
 def mno_prefetchi : Flag<["-"], "mno-prefetchi">, Group<m_x86_Features_Group>;
-def mprefetchwt1 : Flag<["-"], "mprefetchwt1">, Group<m_x86_Features_Group>;
-def mno_prefetchwt1 : Flag<["-"], "mno-prefetchwt1">, Group<m_x86_Features_Group>;
 def mprfchw : Flag<["-"], "mprfchw">, Group<m_x86_Features_Group>;
 def mno_prfchw : Flag<["-"], "mno-prfchw">, Group<m_x86_Features_Group>;
 def mptwrite : Flag<["-"], "mptwrite">, Group<m_x86_Features_Group>;
@@ -8721,6 +8723,9 @@ def _SLASH_vd : CLJoined<"vd">, HelpText<"Control vtordisp placement">,
   Alias<vtordisp_mode_EQ>;
 def _SLASH_X : CLFlag<"X">,
   HelpText<"Do not add %INCLUDE% to include search path">, Alias<nostdlibinc>;
+def _SLASH_Zc___STDC__ : CLFlag<"Zc:__STDC__">,
+  HelpText<"Define __STDC__">,
+  Alias<fms_define_stdc>;
 def _SLASH_Zc_sizedDealloc : CLFlag<"Zc:sizedDealloc">,
   HelpText<"Enable C++14 sized global deallocation functions">,
   Alias<fsized_deallocation>;

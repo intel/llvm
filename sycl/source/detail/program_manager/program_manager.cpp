@@ -1223,7 +1223,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
         nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2118,7 +2119,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
         /*user_data=*/nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }

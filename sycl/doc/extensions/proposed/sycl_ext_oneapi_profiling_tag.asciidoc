@@ -162,10 +162,10 @@ Implementations are encouraged to transition the event directly from the
 "submitted" status to the "complete" status and are encouraged to set the
 "command_start" timestamp to the same value as the "command_end" timestamp.
 
-_Throws:_ A synchronous `exception` with the `errc::invalid` error code if the
-queue was not constructed with the `property::queue::enable_profiling` property
-and if the queue's device does not have the aspect
-`ext_oneapi_queue_profiling_tag`.
+_Throws:_ A synchronous `exception` with the `errc::invalid` error code if
+the queue's device does not have the aspect `ext_oneapi_queue_profiling_tag`
+and the queue was not constructed with the `property::queue::enable_profiling`
+property.
 
 [_Note:_ In order to understand why the "command_start" and "command_end"
 timestamps are encouraged to be the same, think of the barrier as an empty

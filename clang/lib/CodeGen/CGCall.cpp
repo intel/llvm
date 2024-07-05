@@ -1881,9 +1881,9 @@ static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
 }
 
 static int32_t convertFPAccuracyToAspect(StringRef FPAccuracyStr) {
-  assert(FPAccuracyStr.equals("high") || FPAccuracyStr.equals("medium") ||
-         FPAccuracyStr.equals("low") || FPAccuracyStr.equals("sycl") ||
-         FPAccuracyStr.equals("cuda"));
+  assert(FPAccuracyStr == "high" || FPAccuracyStr == "medium" ||
+         FPAccuracyStr == "low" || FPAccuracyStr == "sycl" ||
+         FPAccuracyStr == "cuda");
   return llvm::StringSwitch<int32_t>(FPAccuracyStr)
       .Case("high", SYCLInternalAspect::fp_intrinsic_accuracy_high)
       .Case("medium", SYCLInternalAspect::fp_intrinsic_accuracy_medium)

@@ -786,9 +786,27 @@ public:
                           detail::ConvertToOpenCLType_t<vec_data_t<convertT>>>,
       vec<convertT, NumElements>>
   convert() const {
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
     static_assert(std::is_integral_v<vec_data_t<convertT>> ||
-                      detail::is_floating_point<convertT>::value,
+                      detail::is_floating_point<convertT>::value ||
+                      // Conversion to BF16 available only for float.
+                      (std::is_same_v<convertT, bfloat16> &&
+                       std::is_same_v<DataT, float>),
                   "Unsupported convertT");
+
+    // Currently, for float ---> bfloat16 conversion, we only support
+    // Round-to-even rounding mode.
+    constexpr bool isFloatToBF16Conv =
+        std::is_same_v<convertT, bfloat16> && std::is_same_v<DataT, float>;
+    constexpr bool isBF16ToFloatConv =
+        std::is_same_v<DataT, bfloat16> && std::is_same_v<convertT, float>;
+    if constexpr (isFloatToBF16Conv) {
+      static_assert(roundingMode == rounding_mode::automatic ||
+                        roundingMode == rounding_mode::rte,
+                    "Currently, we only supoort round-to-even rounding mode \
+                      for float ---> bfloat16 conversion.");
+    }
+
     using T = vec_data_t<DataT>;
     using R = vec_data_t<convertT>;
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
@@ -828,10 +846,19 @@ public:
     {
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
-        Result.setValue(
-            I, vec_data<convertT>::get(
-                   detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                       vec_data<DataT>::get(getValue(I)))));
+        // For float -> bf16.
+        if constexpr (isFloatToBF16Conv) {
+          Result[I] = bfloat16((*this)[I]);
+        } else
+          // For bf16 -> float.
+          if constexpr (isBF16ToFloatConv) {
+            Result[I] = (float)((*this)[I]);
+          } else {
+            Result.setValue(I, vec_data<convertT>::get(
+                                   detail::convertImpl<T, R, roundingMode, 1,
+                                                       OpenCLT, OpenCLR>(
+                                       vec_data<DataT>::get(getValue(I)))));
+          }
       }
     }
 
@@ -958,6 +985,11 @@ public:
         MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
+  void load(size_t Offset, const DataT *Ptr) {
+    for (int I = 0; I < NumElements; ++I)
+      setValue(I, Ptr[Offset * NumElements + I]);
+  }
+
   template <access::address_space Space, access::decorated DecorateAddress>
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
@@ -976,6 +1008,10 @@ public:
     multi_ptr<DataT, detail::TargetToAS<Target>::AS, access::decorated::yes>
         MultiPtr(Acc);
     store(Offset, MultiPtr);
+  }
+  void store(size_t Offset, DataT *Ptr) const {
+    for (int I = 0; I < NumElements; ++I)
+      Ptr[Offset * NumElements + I] = getValue(I);
   }
 
   void ConvertToDataT() {

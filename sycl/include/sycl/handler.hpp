@@ -33,7 +33,9 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -464,7 +466,31 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
+  /// TODO: Unused. Remove with ABI break.
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool /*Unused*/);
+
+  /// Constructs SYCL handler from the associated queue and the submission's
+  /// primary and secondary queue.
+  ///
+  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
+  ///        SecondaryQueue.
+  /// \param PrimaryQueue is the primary SYCL queue of the submission.
+  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
+  ///        is null if no secondary queue is associated with the submission.
+  /// TODO: Unused. Remove with ABI break.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          bool /* Unused */);
+
+  /// Constructs SYCL handler from queue.
+  ///
+  /// \param Queue is a SYCL queue.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          bool /* ABI break: remove */, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -475,9 +501,12 @@ private:
   /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
   ///        is null if no secondary queue is associated with the submission.
   /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+          std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          bool /* ABI break: remove */, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -488,12 +517,18 @@ private:
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 
   /// Stores copy of Arg passed to the CGData.MArgsStorage.
-  template <typename T, typename F = typename std::remove_const_t<
-                            typename std::remove_reference_t<T>>>
-  F *storePlainArg(T &&Arg) {
+  template <typename T> void *storePlainArg(T &&Arg) {
     CGData.MArgsStorage.emplace_back(sizeof(T));
-    auto Storage = reinterpret_cast<F *>(CGData.MArgsStorage.back().data());
-    *Storage = Arg;
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, &Arg, sizeof(T));
+    return Storage;
+  }
+
+  void *
+  storeRawArg(const sycl::ext::oneapi::experimental::raw_kernel_arg &RKA) {
+    CGData.MArgsStorage.emplace_back(RKA.MArgSize);
+    void *Storage = static_cast<void *>(CGData.MArgsStorage.back().data());
+    std::memcpy(Storage, RKA.MArgData, RKA.MArgSize);
     return Storage;
   }
 
@@ -576,6 +611,16 @@ private:
   /// \return a SYCL event object representing the command group
   event finalize();
 
+  /// Constructs CG object of specific type, passes it to Scheduler and
+  /// returns sycl::event object representing the command group.
+  /// It's expected that the method is the latest method executed before
+  /// object destruction.
+  /// \param CallerNeedsEvent Specifies if the caller needs an event
+  /// representing the work related to this handler.
+  ///
+  /// \return a SYCL event object representing the command group
+  event finalize(bool CallerNeedsEvent);
+
   /// Saves streams associated with this handler.
   ///
   /// Streams are then forwarded to command group and flushed in the scheduler.
@@ -608,7 +653,7 @@ private:
   ~handler() = default;
 
   // TODO: Private and unusued. Remove when ABI break is allowed.
-  bool is_host() { return MIsHost; }
+  bool is_host() { return false; }
 
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
@@ -690,7 +735,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -702,7 +747,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
+    void *StoredArg = storePlainArg(Arg);
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
@@ -720,6 +765,14 @@ private:
     // Register the dynamic parameter with the handler for later association
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
+  }
+
+  // setArgHelper for the raw_kernel_arg extension type.
+  void setArgHelper(int ArgIndex,
+                    sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    auto StoredArg = storeRawArg(Arg);
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
+                       Arg.MArgSize, ArgIndex);
   }
 
   /// Registers a dynamic parameter with the handler for later association with
@@ -887,12 +940,6 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    if (IsCallableWithKernelHandler && MIsHost) {
-      throw sycl::feature_not_supported(
-          "kernel_handler is not yet supported by host device.",
-          PI_ERROR_INVALID_OPERATION);
-    }
-
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
@@ -962,6 +1009,10 @@ private:
                  sycl::ext::intel::experimental::fp_control_key>() &&
              KI::isESIMD()),
         "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1037,8 +1088,7 @@ private:
   std::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
-    if (!MIsHost &&
-        IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
+    if (IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
       return false;
 
     range<1> LinearizedRange(Src.size());
@@ -1060,23 +1110,19 @@ private:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
+  // ABI break: to remove whole method
   template <typename TSrc, int DimSrc, access::mode ModeSrc,
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
   std::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
-  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
-                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
-    if (!MIsHost)
-      return false;
-
-    single_task<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                              ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
-        [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
-    return true;
+  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc>,
+                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst>) {
+    return false;
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
+  // ABI break: to remove whole method
   /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
@@ -1096,6 +1142,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
   /// pointed by Dst.
   ///
@@ -1113,6 +1160,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies the memory pointed by Src into the memory accessed by Dst.
   ///
   /// \param Src is a pointer to source memory.
@@ -1130,6 +1178,7 @@ private:
         });
   }
 
+  // ABI break: to remove whole method
   /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
   /// accessor Dst.
   ///
@@ -1180,6 +1229,8 @@ private:
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
   }
+
+  bool eventNeeded() const;
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
@@ -2013,6 +2064,11 @@ public:
     setArgHelper(argIndex, dynamicParam);
   }
 
+  // set_arg for the raw_kernel_arg extension type.
+  void set_arg(int argIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    setArgHelper(argIndex, std::move(Arg));
+  }
+
   /// Sets arguments for OpenCL interoperability kernels.
   ///
   /// Registers pack of arguments(Args) with indexes starting from 0.
@@ -2240,7 +2296,7 @@ public:
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2277,7 +2333,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(false);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2317,7 +2373,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(false);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2356,7 +2412,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
     setNDRangeUsed(true);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2683,14 +2739,6 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForSourceAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      // TODO: Temporary implementation for host. Should be handled by memory
-      // manager.
-      copyAccToPtrHost(Src, Dst);
-      return;
-    }
-#endif
     setType(detail::CG::CopyAccToPtr);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
@@ -2727,14 +2775,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // TODO: Add static_assert with is_device_copyable when vec is
     // device-copyable.
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      // TODO: Temporary implementation for host. Should be handled by memory
-      // manager.
-      copyPtrToAccHost(Src, Dst);
-      return;
-    }
-#endif
+
     setType(detail::CG::CopyPtrToAcc);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2848,8 +2889,6 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
-    assert(!MIsHost && "fill() should no longer be callable on a host device.");
-
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
 
@@ -3291,22 +3330,48 @@ public:
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
 
-  /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Submit a non-blocking device-side wait on an external
+  //  semaphore to the queue.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
-  /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// commands submitted to the queue have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
   void ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle
-          SemaphoreHandle);
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+
+  /// Instruct the queue to set the state of the external semaphore to
+  /// \p SignalValue once all previous commands submitted to the queue have
+  /// completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      uint64_t SignalValue);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
@@ -3361,7 +3426,7 @@ private:
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
 
-  bool MIsHost = false;
+  bool MIsHost = false; // ABI break: to remove
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

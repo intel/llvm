@@ -52,15 +52,13 @@ int main() {
   }
 
   {
-    struct exception : public sycl::exception {};
-
     std::cout << "wait_and_throw() check" << std::endl;
     bool failed = true;
     auto handler = [&](sycl::exception_list l) { failed = false; };
 
     sycl::queue queue(handler);
     sycl::event e = queue.submit([&](sycl::handler &cgh) {
-      cgh.host_task([=]() { throw exception{}; });
+      cgh.host_task([=]() { throw sycl::exception{sycl::errc::runtime}; });
     });
     e.wait_and_throw();
     assert(failed == false);

@@ -22,13 +22,13 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 66
+#define TEST_NUM 70
 
-float ref[TEST_NUM] = {0,   -2, 1,   2, 1, 1, 0, 1, 1, 0, 0, 0,   0,   0,
-                       1,   1,  0.5, 0, 0, 1, 0, 2, 0, 0, 0, 0,   0,   1,
-                       0,   1,  2,   0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN,
-                       NAN, 2,  0,   0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0,
-                       0,   0,  0,   0, 0, 0, 0, 0, 0, 0};
+float ref[TEST_NUM] = {100, 0.5, 1.0, 0,   0,   -2, 1,   2, 1, 1, 0, 1, 1, 0,
+                       0,   0,   0,   0,   1,   1,  0.5, 0, 0, 1, 0, 2, 0, 0,
+                       0,   0,   0,   1,   0,   1,  2,   0, 1, 2, 5, 0, 0, 0,
+                       0,   0.5, 0.5, NAN, NAN, 2,  0,   0, 0, 0, 0, 0, 0, 0,
+                       0,   0,   0,   0,   0,   0,  0,   0, 0, 0, 0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -58,6 +58,10 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
+        res_access[i++] = sycl::exp10(2.0f);
+        res_access[i++] = sycl::rsqrt(4.0f);
+        res_access[i++] = std::trunc(1.2f);
+        res_access[i++] = sycl::sinpi(0.0f);
         res_access[i++] = sycl::cospi(0.5f);
         res_access[i++] = std::copysign(2.0f, -10.0f);
         res_access[i++] = sycl::min(2.0f, 1.0f);

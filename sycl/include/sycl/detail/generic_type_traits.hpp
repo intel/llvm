@@ -17,6 +17,8 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
@@ -253,6 +255,16 @@ inline constexpr bool is_genfloatptr_marray_v =
      IsDecorated == access::decorated::no);
 
 template <typename T>
+using is_byte = typename
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::is_same<T, std::byte>;
+#else
+    std::false_type;
+#endif
+
+template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
+
+template <typename T>
 using make_floating_point_t = make_type_t<T, gtl::scalar_floating_list>;
 
 template <typename T>
@@ -332,6 +344,8 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
     // we use the "else" version only. I suspect that's an issues with
     // non-uniform groups implementation.
@@ -340,6 +354,10 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     else
       return static_cast<typename MatchingVec::vector_t>(
           x.template as<MatchingVec>());
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
     return x.template as<MatchingVec>();
 #endif
@@ -370,7 +388,13 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (is_bfloat16_v<no_ref>) {
+    // On host, don't interpret BF16 as uint16.
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    return sycl::bit_cast<OpenCLType>(x);
+#else
     return std::forward<T>(x);
+#endif
   } else if constexpr (std::is_floating_point_v<no_ref>) {
     static_assert(std::is_same_v<no_ref, float> ||
                       std::is_same_v<no_ref, double>,

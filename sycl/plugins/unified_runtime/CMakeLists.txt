@@ -104,13 +104,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8e47ab5057458c5522ce5d86f7996b2882020220
-    # Merge: b816fe82 3d3aba65
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:28:43 2024 +0100
-    #     Merge pull request #1694 from Bensuo/ewan/L0_update_query
-    #     Set minimum L0 device support to support UR kernel update
-    8e47ab5057458c5522ce5d86f7996b2882020220
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -120,13 +114,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0e38fda02ca00aaab28018240eb526da7dd08f56
-    # Merge: f4968809 b7c8ac18
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 14:18:15 2024 +0100
-    #     Merge pull request #1552 from mmoadeli/atomic-access-on-host-malloc
-    #     [CUDA] Remove the support of concurrent atomic access to host allocated pinned memory.
-    0e38fda02ca00aaab28018240eb526da7dd08f56
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
@@ -136,13 +124,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
-    # Merge: ab151e98 53e43466
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 14:10:39 2024 +0100
-    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
-    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
-    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
@@ -294,7 +276,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

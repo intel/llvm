@@ -244,6 +244,7 @@ tools.extend(
         "sanstats",
         "llvm-remarkutil",
         "spirv-to-ir-wrapper",
+        "sycl-module-split",
     ]
 )
 

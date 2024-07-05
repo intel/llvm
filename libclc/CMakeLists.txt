@@ -32,7 +32,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   r600/libspirv/SOURCES;
   spirv/lib/SOURCES;
   spirv64/lib/SOURCES
-  x86_64-unknown-linux/libspirv/SOURCES
+  native_cpu-unknown-linux/libspirv/SOURCES
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -41,6 +41,9 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
+
+set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
+  CACHE STRING "Semicolon-separated list of compiler flags for x86_64 libclc target.")
 
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
@@ -156,6 +159,12 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
   set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
+
+if( LIBCLC_NATIVECPU_HOST_TARGET )
+  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
+endif()
+
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
 # Verify that the user hasn't requested mesa3d targets without an available
@@ -195,6 +204,7 @@ set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
 # TODO: Does this need to be set for each possible triple?
 set( x86_64-unknown-linux-gnu_devices none )
+set( aarch64-unknown-linux-gnu_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -272,6 +282,8 @@ else(LIBCLC_STANDALONE_BUILD)
 endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
 
+set(NATIVECPU_SUPPORTED_ARCH "x86_64;aarch64")
+
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
   string( REPLACE "-" ";" TRIPLE  ${t} )
@@ -295,6 +307,18 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ptx )
   else()
     set( DARCH ${ARCH} )
+  endif()
+
+  set(IS_NATIVE_CPU_ARCH FALSE)
+  if( ARCH IN_LIST NATIVECPU_SUPPORTED_ARCH )
+    set(IS_NATIVE_CPU_ARCH TRUE)
+  endif()
+
+  if( IS_NATIVE_CPU_ARCH AND OS STREQUAL linux)
+    LIST( APPEND dirs native_cpu-unknown-linux )
+  elseif( IS_NATIVE_CPU_ARCH AND NOT OS STREQUAL linux )
+    message(WARNING "libclc is being built for an unsupported ARCH/OS"
+      " configuration, some SYCL programs may fail to build.")
   endif()
 
   set( lib_files )
@@ -332,11 +356,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
         list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
-      elseif( ARCH  STREQUAL x86_64)
-        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-        list( APPEND flags -Xclang -target-feature -Xclang +avx
-            -Xclang -fsycl-is-native-cpu
-            -Xclang -target-feature -Xclang +avx512f)
+      elseif( IS_NATIVE_CPU_ARCH )
+        list( APPEND flags -Xclang -fsycl-is-native-cpu )
+        if( ARCH  STREQUAL x86_64 )
+          list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
+        endif()
       endif()
     endif()
 
@@ -369,8 +393,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( has_distinct_generic_addrspace FALSE )
     elseif( ARCH STREQUAL amdgcn )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
-    elseif( ARCH STREQUAL x86_64)
-      set( opt_flags )
+    elseif( IS_NATIVE_CPU_ARCH )
+      set( opt_flags -O3 )
       set( has_distinct_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
@@ -391,6 +415,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
       "+cl_khr_3d_image_writes")
+    if( ARCH STREQUAL "aarch64")
+      string( APPEND CL_3_0_EXTENSIONS ",+cl_clang_storage_class_specifiers,+__opencl_c_fp64,+cl_khr_int64_base_atomics" )
+    endif()
     if( supports_generic_addrspace )
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
       if( has_distinct_generic_addrspace )
