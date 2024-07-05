@@ -58,11 +58,6 @@ enum TraceLevel {
 // Return true if we want to trace UR related activities.
 bool trace(TraceLevel level);
 
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
-
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
-
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              ur_context_extended_deleter_t func,
                                              void *user_data);
@@ -78,9 +73,6 @@ int unloadOsLibrary(void *Library);
 // Function to get Address of a symbol defined in the shared
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
-
-// Want all the needed casts be explicit, do not define conversion operators.
-template <class To, class From> To cast(From value);
 
 // Performs UR one-time initialization.
 std::vector<PluginPtr> &initializeUr();

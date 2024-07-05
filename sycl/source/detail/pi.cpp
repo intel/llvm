@@ -220,20 +220,6 @@ getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
-  std::terminate();
-}
-
-void assertion(bool Condition, const char *Message) {
-  if (!Condition)
-    die(Message);
-}
-
 // Reads an integer value from ELF data.
 template <typename ResT>
 static ResT readELFValue(const unsigned char *Data, size_t NumBytes,
