@@ -40,6 +40,9 @@ DEVICE_EXTERN_C_INLINE
 float fminf(float x, float y) { return __devicelib_fminf(x, y); }
 
 DEVICE_EXTERN_C_INLINE
+double lround(float x) { return __devicelib_lround(x); }
+
+DEVICE_EXTERN_C_INLINE
 float truncf(float x) { return __devicelib_truncf(x); }
 
 DEVICE_EXTERN_C_INLINE
