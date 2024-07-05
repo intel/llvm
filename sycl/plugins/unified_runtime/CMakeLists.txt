@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1baed0ba696d494a82769366f137e9ddd8af3001
-  # Merge: 00ca0daa e6dc6d9a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Wed Jul 3 13:48:27 2024 +0200
-  #     Merge pull request #1771 from igchor/level_zero_v2_dispatcher
-  #     [L0] Initial version of queue dispatcher
-  set(UNIFIED_RUNTIME_TAG 1baed0ba696d494a82769366f137e9ddd8af3001)
+  # commit 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e
+  # Merge: 022df8ac 2f121cd8
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Jul 4 10:37:58 2024 +0100
+  #     Merge pull request #1212 from aarongreig/aaron/specMotivatedRefactors
+  #     Batch adapter changes: spec motivated refactors
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     https://github.com/nrspruit/unified-runtime.git

@@ -37,11 +37,6 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-bool event::is_host() const {
-  assert(false && "event::is_host should not be called in implementation.");
-  return false;
-}
-
 void event::wait() { impl->wait(impl); }
 
 void event::wait(const std::vector<event> &EventList) {
