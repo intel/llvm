@@ -277,7 +277,13 @@ inline typename syclex::info::kernel_queue_specific::
   pi_uint32 GroupCount{0};
   Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
       Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
-  return GroupCount / NumCUs;
+  if (GroupCount == 0) {
+    // A kernel cannot be submitted with 0 work-groups, hence return 0.
+    return 0;
+  }
+  // This is a round-down division for safety of not exceeding work-group sizes.
+  const auto GroupCountPerCU = GroupCount >= NumCUs ? GroupCount / NumCUs : 1;
+  return GroupCountPerCU;
 }
 
 template <>
