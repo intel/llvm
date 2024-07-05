@@ -170,9 +170,6 @@
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
-// CHECK-NEXT: detail/cg.hpp
-// CHECK-NEXT: kernel.hpp
-// CHECK-NEXT: kernel_bundle.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
@@ -182,4 +179,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
+// CHECK-NEXT: kernel.hpp
+// CHECK-NEXT: kernel_bundle.hpp
 // CHECK-EMPTY:

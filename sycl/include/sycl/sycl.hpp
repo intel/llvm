@@ -10,8 +10,6 @@
 
 #include <sycl/detail/core.hpp>
 
-#include <sycl/detail/host_task_impl.hpp>
-
 #include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>

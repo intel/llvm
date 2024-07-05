@@ -2,7 +2,7 @@
 
 #include "../graph_common.hpp"
 
-#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   queue Queue{};

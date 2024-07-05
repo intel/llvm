@@ -110,6 +110,8 @@ inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
 class MockHandler : public sycl::handler {
 
 public:
+  using sycl::handler::impl;
+
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
       : sycl::handler(Queue, /*CallerNeedsEvent*/ true) {}
 
@@ -117,14 +119,14 @@ public:
     auto CGH = static_cast<sycl::handler *>(this);
     std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
-    case sycl::detail::CG::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
-          std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(MImpl->MKernelBundle),
-          std::move(CGH->CGData), std::move(CGH->MArgs),
+          std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
+          std::move(CGH->MKernel), std::move(impl->MKernelBundle),
+          std::move(impl->CGData), std::move(impl->MArgs),
           CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
-          std::move(MImpl->MAuxiliaryResources), CGH->MCGType, {},
-          MImpl->MKernelIsCooperative, CGH->MCodeLoc));
+          std::move(impl->MAuxiliaryResources), getType(), {},
+          impl->MKernelIsCooperative, CGH->MCodeLoc));
       break;
     }
     default:
@@ -134,6 +136,7 @@ public:
 
     return CommandGroup;
   }
+  
 };
 
 const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(

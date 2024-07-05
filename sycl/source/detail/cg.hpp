@@ -46,41 +46,91 @@ class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
-// If there's a need to add new members to CG classes without breaking ABI
-// compatibility, we can bring back the extended members mechanism. See
-// https://github.com/intel/llvm/pull/6759
+// The structure represents kernel argument.
+class ArgDesc {
+public:
+  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
+          int Index)
+      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
+
+  sycl::detail::kernel_param_kind_t MType;
+  void *MPtr;
+  int MSize;
+  int MIndex;
+};
+
+// The structure represents NDRange - global, local sizes, global offset and
+// number of dimensions.
+class NDRDescT {
+  template <int Dims> static sycl::range<3> PadRange(sycl::range<Dims> Range) {
+    if constexpr (Dims == 3) {
+      return Range;
+    } else {
+      sycl::range<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Range[I];
+      return Res;
+    }
+  }
+
+  template <int Dims> static sycl::id<3> PadId(sycl::id<Dims> Id) {
+    if constexpr (Dims == 3) {
+      return Id;
+    } else {
+      sycl::id<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Id[I];
+      return Res;
+    }
+  }
+public:
+  NDRDescT() = default;
+  NDRDescT(const NDRDescT &Desc) = default;
+  NDRDescT(NDRDescT &&Desc) = default;
+
+  NDRDescT(sycl::range<3> N, bool SetNumWorkGroups, int Dims)
+      : GlobalSize{SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N},
+        NumWorkGroups{SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0}},
+        Dims{size_t(Dims)} {}
+
+  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int Dims)
+      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(Dims)} {}
+
+  NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
+           sycl::id<3> Offset, int Dims)
+      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
+        Dims{size_t(Dims)} {}
+
+  template <int Dims_>
+  NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int Dims)
+      : NDRDescT(PadRange(ExecutionRange.get_global_range()),
+                 PadRange(ExecutionRange.get_local_range()),
+                 PadId(ExecutionRange.get_offset()), size_t(Dims)) {}
+
+  template <int Dims>
+  NDRDescT(sycl::nd_range<Dims> ExecutionRange)
+      : NDRDescT(ExecutionRange, Dims) {}
+
+  template <int Dims>
+  NDRDescT(sycl::range<Dims> Range)
+      : NDRDescT(PadRange(Range), /*SetNumWorkGroups=*/false, Dims) {}
+
+  NDRDescT &operator=(const NDRDescT &Desc) = default;
+  NDRDescT &operator=(NDRDescT &&Desc) = default;
+
+  sycl::range<3> GlobalSize{0, 0, 0};
+  sycl::range<3> LocalSize{0, 0, 0};
+  sycl::id<3> GlobalOffset{0, 0, 0};
+  /// Number of workgroups, used to record the number of workgroups from the
+  /// simplest form of parallel_for_work_group. If set, all other fields must be
+  /// zero
+  sycl::range<3> NumWorkGroups{0, 0, 0};
+  size_t Dims = 0;
+};
+
 /// Base class for all types of command groups.
 class CG {
 public:
-  /// Type of the command group.
-  enum CGTYPE : unsigned int {
-    None = 0,
-    Kernel = 1,
-    CopyAccToPtr = 2,
-    CopyPtrToAcc = 3,
-    CopyAccToAcc = 4,
-    Barrier = 5,
-    BarrierWaitlist = 6,
-    Fill = 7,
-    UpdateHost = 8,
-    CopyUSM = 10,
-    FillUSM = 11,
-    PrefetchUSM = 12,
-    CodeplayHostTask = 14,
-    AdviseUSM = 15,
-    Copy2DUSM = 16,
-    Fill2DUSM = 17,
-    Memset2DUSM = 18,
-    CopyToDeviceGlobal = 19,
-    CopyFromDeviceGlobal = 20,
-    ReadWriteHostPipe = 21,
-    ExecCommandBuffer = 22,
-    CopyImage = 23,
-    SemaphoreWait = 24,
-    SemaphoreSignal = 25,
-    ProfilingTag = 26,
-  };
-
   struct StorageInitHelper {
     StorageInitHelper() = default;
     StorageInitHelper(std::vector<std::vector<char>> ArgsStorage,
@@ -110,7 +160,7 @@ public:
     std::vector<detail::EventImplPtr> MEvents;
   };
 
-  CG(CGTYPE Type, StorageInitHelper D, detail::code_location loc = {})
+  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {})
       : MType(Type), MData(std::move(D)) {
     // Capture the user code-location from Q.submit(), Q.parallel_for()
     // etc for later use; if code location information is not available,
@@ -126,7 +176,7 @@ public:
   CG(CG &&CommandGroup) = default;
   CG(const CG &CommandGroup) = default;
 
-  CGTYPE getType() const { return MType; }
+  CGType getType() const { return MType; }
 
   std::vector<std::vector<char>> &getArgsStorage() {
     return MData.MArgsStorage;
@@ -152,7 +202,7 @@ public:
   virtual ~CG() = default;
 
 private:
-  CGTYPE MType;
+  CGType MType;
   StorageInitHelper MData;
 
 public:
@@ -186,7 +236,7 @@ public:
                std::string KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type,
+               CGType Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
                bool KernelIsCooperative, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
@@ -197,7 +247,7 @@ public:
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative) {
-    assert(getType() == Kernel && "Wrong type of exec kernel CG.");
+    assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
@@ -229,7 +279,7 @@ class CGCopy : public CG {
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 
 public:
-  CGCopy(CGTYPE CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
+  CGCopy(CGType CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
          std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
       : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
@@ -252,7 +302,7 @@ public:
 
   CGFill(std::vector<char> Pattern, void *Ptr, CG::StorageInitHelper CGData,
          detail::code_location loc = {})
-      : CG(Fill, std::move(CGData), std::move(loc)),
+      : CG(CGType::Fill, std::move(CGData), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((AccessorImplHost *)Ptr) {}
   AccessorImplHost *getReqToFill() { return MPtr; }
 };
@@ -264,7 +314,7 @@ class CGUpdateHost : public CG {
 public:
   CGUpdateHost(void *Ptr, CG::StorageInitHelper CGData,
                detail::code_location loc = {})
-      : CG(UpdateHost, std::move(CGData), std::move(loc)),
+      : CG(CGType::UpdateHost, std::move(CGData), std::move(loc)),
         MPtr((AccessorImplHost *)Ptr) {}
 
   AccessorImplHost *getReqToUpdate() { return MPtr; }
@@ -279,7 +329,7 @@ class CGCopyUSM : public CG {
 public:
   CGCopyUSM(void *Src, void *Dst, size_t Length, CG::StorageInitHelper CGData,
             detail::code_location loc = {})
-      : CG(CopyUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+      : CG(CGType::CopyUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
         MLength(Length) {}
 
   void *getSrc() { return MSrc; }
@@ -296,7 +346,7 @@ class CGFillUSM : public CG {
 public:
   CGFillUSM(std::vector<char> Pattern, void *DstPtr, size_t Length,
             CG::StorageInitHelper CGData, detail::code_location loc = {})
-      : CG(FillUSM, std::move(CGData), std::move(loc)),
+      : CG(CGType::FillUSM, std::move(CGData), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -311,7 +361,7 @@ class CGPrefetchUSM : public CG {
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
                 detail::code_location loc = {})
-      : CG(PrefetchUSM, std::move(CGData), std::move(loc)), MDst(DstPtr),
+      : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)), MDst(DstPtr),
         MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -325,7 +375,7 @@ class CGAdviseUSM : public CG {
 
 public:
   CGAdviseUSM(void *DstPtr, size_t Length, pi_mem_advice Advice,
-              CG::StorageInitHelper CGData, CGTYPE Type,
+              CG::StorageInitHelper CGData, CGType Type,
               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)), MDst(DstPtr),
         MLength(Length), MAdvice(Advice) {}
@@ -339,7 +389,7 @@ public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
-            CG::StorageInitHelper CGData, CGTYPE Type,
+            CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
@@ -348,7 +398,7 @@ public:
 class CGProfilingTag : public CG {
 public:
   CGProfilingTag(CG::StorageInitHelper CGData, detail::code_location loc = {})
-      : CG(CG::ProfilingTag, std::move(CGData), std::move(loc)) {}
+      : CG(CGType::ProfilingTag, std::move(CGData), std::move(loc)) {}
 };
 
 /// "Copy 2D USM" command group class.
@@ -364,7 +414,7 @@ public:
   CGCopy2DUSM(void *Src, void *Dst, size_t SrcPitch, size_t DstPitch,
               size_t Width, size_t Height, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
-      : CG(Copy2DUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+      : CG(CGType::Copy2DUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
         MSrcPitch(SrcPitch), MDstPitch(DstPitch), MWidth(Width),
         MHeight(Height) {}
 
@@ -388,7 +438,7 @@ public:
   CGFill2DUSM(std::vector<char> Pattern, void *DstPtr, size_t Pitch,
               size_t Width, size_t Height, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
-      : CG(Fill2DUSM, std::move(CGData), std::move(loc)),
+      : CG(CGType::Fill2DUSM, std::move(CGData), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MPitch(Pitch),
         MWidth(Width), MHeight(Height) {}
   void *getDst() const { return MDst; }
@@ -410,7 +460,7 @@ public:
   CGMemset2DUSM(char Value, void *DstPtr, size_t Pitch, size_t Width,
                 size_t Height, CG::StorageInitHelper CGData,
                 detail::code_location loc = {})
-      : CG(Memset2DUSM, std::move(CGData), std::move(loc)), MValue(Value),
+      : CG(CGType::Memset2DUSM, std::move(CGData), std::move(loc)), MValue(Value),
         MDst(DstPtr), MPitch(Pitch), MWidth(Width), MHeight(Height) {}
   void *getDst() const { return MDst; }
   size_t getPitch() const { return MPitch; }
@@ -431,7 +481,7 @@ public:
   CGReadWriteHostPipe(const std::string &Name, bool Block, void *Ptr,
                       size_t Size, bool Read, CG::StorageInitHelper CGData,
                       detail::code_location loc = {})
-      : CG(ReadWriteHostPipe, std::move(CGData), std::move(loc)),
+      : CG(CGType::ReadWriteHostPipe, std::move(CGData), std::move(loc)),
         PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
         IsReadOp(Read) {}
 
@@ -455,7 +505,7 @@ public:
                        bool IsDeviceImageScoped, size_t NumBytes, size_t Offset,
                        CG::StorageInitHelper CGData,
                        detail::code_location loc = {})
-      : CG(CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
+      : CG(CGType::CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
         MDeviceGlobalPtr(DeviceGlobalPtr),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
         MOffset(Offset) {}
@@ -480,7 +530,7 @@ public:
                          bool IsDeviceImageScoped, size_t NumBytes,
                          size_t Offset, CG::StorageInitHelper CGData,
                          detail::code_location loc = {})
-      : CG(CopyFromDeviceGlobal, std::move(CGData), std::move(loc)),
+      : CG(CGType::CopyFromDeviceGlobal, std::move(CGData), std::move(loc)),
         MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
         MOffset(Offset) {}
@@ -512,7 +562,7 @@ public:
               sycl::detail::pi::PiImageRegion HostExtent,
               sycl::detail::pi::PiImageRegion CopyExtent,
               CG::StorageInitHelper CGData, detail::code_location loc = {})
-      : CG(CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+      : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
         MImageDesc(ImageDesc), MImageFormat(ImageFormat),
         MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
         MDstOffset(DstOffset), MHostExtent(HostExtent),
@@ -541,7 +591,7 @@ public:
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
       std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
-      : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
+      : CG(CGType::SemaphoreWait, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
   }
 
@@ -561,7 +611,7 @@ public:
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
       std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
-      : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
+      : CG(CGType::SemaphoreSignal, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle),
         MSignalValue(SignalValue) {}
 
@@ -583,8 +633,27 @@ public:
       const std::shared_ptr<
           sycl::ext::oneapi::experimental::detail::exec_graph_impl> &ExecGraph,
       CG::StorageInitHelper CGData)
-      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+      : CG(CGType::ExecCommandBuffer, std::move(CGData)),
         MCommandBuffer(CommandBuffer), MExecGraph(ExecGraph) {}
+};
+
+class CGHostTask : public CG {
+public:
+  std::shared_ptr<HostTask> MHostTask;
+  // queue for host-interop task
+  std::shared_ptr<detail::queue_impl> MQueue;
+  // context for host-interop task
+  std::shared_ptr<detail::context_impl> MContext;
+  std::vector<ArgDesc> MArgs;
+
+  CGHostTask(std::shared_ptr<HostTask> HostTask,
+             std::shared_ptr<detail::queue_impl> Queue,
+             std::shared_ptr<detail::context_impl> Context,
+             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
+             CGType Type, detail::code_location loc = {})
+      : CG(Type, std::move(CGData), std::move(loc)),
+        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
+        MArgs(std::move(Args)) {}
 };
 
 } // namespace detail
