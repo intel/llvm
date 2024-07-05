@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
-  # Merge: 5be5aa49 649c5f04
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 9 11:20:06 2024 +0100
-  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
-  #     [L0] Fix Queue get info and fix Queue release decrement
-  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG ewan/ur_dyn_events)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
