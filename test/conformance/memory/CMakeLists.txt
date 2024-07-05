@@ -10,6 +10,7 @@ add_conformance_test_with_devices_environment(memory
     urMemGetInfo.cpp 
     urMemGetNativeHandle.cpp 
     urMemImageCreate.cpp
+    urMemImageCreateWithImageFormatParam.cpp
     urMemImageCreateWithNativeHandle.cpp 
     urMemImageGetInfo.cpp 
     urMemRelease.cpp 

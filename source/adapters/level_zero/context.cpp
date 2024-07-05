@@ -576,8 +576,8 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   ur_device_handle_t Device = nullptr;
 
-  if (!Event->IsMultiDevice && Event->UrQueue) {
-    Device = Event->UrQueue->Device;
+  if (!Event->IsMultiDevice && Legacy(Event->UrQueue)) {
+    Device = Legacy(Event->UrQueue)->Device;
   }
 
   auto Cache = getEventCache(Event->isHostVisible(),
@@ -598,10 +598,10 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 
   ze_device_handle_t ZeDevice = nullptr;
   bool UsingImmediateCommandlists =
-      !Event->UrQueue || Event->UrQueue->UsingImmCmdLists;
+      !Legacy(Event->UrQueue) || Legacy(Event->UrQueue)->UsingImmCmdLists;
 
-  if (!Event->IsMultiDevice && Event->UrQueue) {
-    ZeDevice = Event->UrQueue->Device->ZeDevice;
+  if (!Event->IsMultiDevice && Legacy(Event->UrQueue)) {
+    ZeDevice = Legacy(Event->UrQueue)->Device->ZeDevice;
   }
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
@@ -644,7 +644,7 @@ static const size_t CmdListsCleanupThreshold = [] {
 
 // Retrieve an available command list to be used in a PI call.
 ur_result_t ur_context_handle_t_::getAvailableCommandList(
-    ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
+    ur_queue_handle_legacy_t Queue, ur_command_list_ptr_t &CommandList,
     bool UseCopyEngine, uint32_t NumEventsInWaitList,
     const ur_event_handle_t *EventWaitList, bool AllowBatching,
     ze_command_queue_handle_t *ForcedCmdQueue) {

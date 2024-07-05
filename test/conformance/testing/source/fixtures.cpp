@@ -39,4 +39,18 @@ std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
     ss << addr_mode << "_" << filter_mode;
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
+
+template <>
+std::string deviceTestWithParamPrinter<ur_image_format_t>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, ur_image_format_t>> &info) {
+    auto device = std::get<0>(info.param);
+    auto param = std::get<1>(info.param);
+    auto ChannelOrder = param.channelOrder;
+    auto ChannelType = param.channelType;
+
+    std::stringstream ss;
+    ss << ChannelOrder << "__" << ChannelType;
+    return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
+}
 } // namespace uur

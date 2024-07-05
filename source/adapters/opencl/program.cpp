@@ -451,10 +451,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
           CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceFunctionPointerCache,
           cl_ext::GetDeviceFunctionPointerName, &FuncT));
 
-  if (!FuncT) {
-    return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
-  }
-
   // Check if the kernel name exists to prevent the OpenCL runtime from throwing
   // an exception with the cpu runtime.
   // TODO: Use fallback search method if the clGetDeviceFunctionPointerINTEL
@@ -488,7 +484,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   // that the function name is invalid.
   if (CLResult == CL_INVALID_ARG_VALUE) {
     *ppFunctionPointer = 0;
-    return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    return UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE;
   }
 
   CL_RETURN_ON_FAILURE(CLResult);

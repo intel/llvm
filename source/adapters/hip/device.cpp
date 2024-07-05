@@ -21,6 +21,18 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   return Value;
 }
 
+uint64_t ur_device_handle_t_::getElapsedTime(hipEvent_t ev) const {
+  float Milliseconds = 0.0f;
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(ev));
+  UR_CHECK_ERROR(hipEventElapsedTime(&Milliseconds, EvBase, ev));
+
+  return static_cast<uint64_t>(Milliseconds * 1.0e6);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
@@ -178,7 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int WarpSize = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
                                          hDevice->get()));
-    size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
+    uint32_t Sizes[1] = {static_cast<uint32_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
@@ -322,7 +334,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
-    return ReturnValue(0lu);
+    return ReturnValue(size_t(0));
   }
   case UR_DEVICE_INFO_MAX_SAMPLERS: {
     // This call is kind of meaningless for HIP, as samplers don't exist.
@@ -332,7 +344,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
     // __global__ function parameters are passed to the device via constant
     // memory and are limited to 4 KB.
-    return ReturnValue(4000lu);
+    return ReturnValue(size_t(4000));
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int MemBaseAddrAlign = 0;
@@ -443,7 +455,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
     // Hard coded to value returned by clinfo for OpenCL 1.2 HIP | GeForce GTX
     // 1060 3GB
-    return ReturnValue(1000lu);
+    return ReturnValue(size_t(1000));
   }
   case UR_DEVICE_INFO_ENDIAN_LITTLE: {
     return ReturnValue(true);
@@ -466,10 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
-    // The mandated minimum capability:
-    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    return ReturnValue(Capability);
+    return ReturnValue(0);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
@@ -570,7 +579,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
-    return ReturnValue(1024lu);
+    return ReturnValue(size_t(1024));
   }
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
     return ReturnValue(true);
@@ -773,16 +782,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
     return ReturnValue(Capabilities);
   }
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // SYCL2020 4.6.4.2 minimum mandated capabilities for
     // atomic_fence/memory_scope_capabilities.
     // Because scopes are hierarchical, wider scopes support all narrower
     // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
     // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
-    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    constexpr ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
@@ -793,6 +811,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+#ifdef __HIP_PLATFORM_NVIDIA__
+    // Nvidia introduced fence.sc for seq_cst only since SM 7.0.
+    int Major = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
+    if (Major >= 7)
+      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#else
+    Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#endif
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_DEVICE_ID: {
@@ -851,14 +879,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_COMPONENT_DEVICES:
-  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
-    // These two are exclusive of L0.
-    return ReturnValue(0);
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // HIP supports enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(true);
+  }
 
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(false);
   // TODO: Investigate if this information is available on HIP.
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:
@@ -1049,11 +1081,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-    UR_CHECK_ERROR(hipEventSynchronize(Event));
-    float ElapsedTime = 0.0f;
-    UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
-                                       ur_platform_handle_t_::EvBase, Event));
-    *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
+    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
 
   if (pHostTimestamp) {

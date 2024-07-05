@@ -178,8 +178,6 @@ struct ur_kernel_handle_t_ {
     urContextRelease(Context);
   }
 
-  ur_program_handle_t get_program() const noexcept { return Program; }
-
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
@@ -187,6 +185,7 @@ struct ur_kernel_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   native_type get() const noexcept { return Function; };
+
   ur_program_handle_t getProgram() const noexcept { return Program; };
 
   native_type get_with_offset_parameter() const noexcept {
@@ -205,7 +204,9 @@ struct ur_kernel_handle_t_ {
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  size_t getNumArgs() const noexcept { return Args.Indices.size() - 1; }
+  uint32_t getNumArgs() const noexcept {
+    return static_cast<uint32_t>(Args.Indices.size() - 1);
+  }
 
   void setKernelArg(int Index, size_t Size, const void *Arg) {
     Args.addArg(Index, Size, Arg);

@@ -626,11 +626,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
-    // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return ReturnValue.template operator()<size_t>(
-        Device->ZeDeviceComputeProperties->subGroupSizes,
-        Device->ZeDeviceComputeProperties->numSubGroupSizes);
+    return ReturnValue(Device->ZeDeviceComputeProperties->subGroupSizes,
+                       Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
   case UR_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -877,6 +874,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.
@@ -891,7 +892,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // First call to get SubDeviceCount.
     ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
     if (SubDeviceCount == 0)
-      return ReturnValue(0);
+      return ReturnValue(std::nullopt);
 
     std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
     // Second call to get the actual list of devices.
@@ -986,6 +987,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
+
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,

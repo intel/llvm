@@ -27,6 +27,12 @@ struct ur_program_handle_t_ {
   ur_device_handle_t Device;
   std::string ExecutableCache;
 
+  // The ur_program_binary_type_t property is defined individually for every
+  // device in a program. However, since the HIP adapter only has 1 device per
+  // program, there is no need to keep track of its value for each
+  // device.
+  ur_program_binary_type_t BinaryType = UR_PROGRAM_BINARY_TYPE_NONE;
+
   // Metadata
   bool IsRelocatable = false;
 

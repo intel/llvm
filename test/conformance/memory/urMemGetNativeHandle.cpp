@@ -20,12 +20,6 @@ TEST_P(urMemGetNativeHandleTest, InvalidNullHandleMem) {
                      urMemGetNativeHandle(nullptr, device, &phNativeMem));
 }
 
-TEST_P(urMemGetNativeHandleTest, InvalidNullHandleDevice) {
-    ur_native_handle_t phNativeMem;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urMemGetNativeHandle(buffer, nullptr, &phNativeMem));
-}
-
 TEST_P(urMemGetNativeHandleTest, InvalidNullPointerNativeMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urMemGetNativeHandle(buffer, device, nullptr));

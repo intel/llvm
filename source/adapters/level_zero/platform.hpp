@@ -24,6 +24,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
+  // Given a multi driver scenario, the driver handle must be translated to the
+  // internal driver handle to allow calls to driver experimental apis.
+  ze_driver_handle_t ZeDriverHandleExpTranslated;
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;

@@ -25,11 +25,87 @@ static ur_image_desc_t image_desc{
     0                    ///< [in] number of samples
 };
 
-TEST_P(urMemImageCreateTest, Success) {
+using urMemImageCreateTestWith1DMemoryTypeParam =
+    uur::urContextTestWithParam<ur_mem_type_t>;
+
+UUR_TEST_SUITE_P(urMemImageCreateTestWith1DMemoryTypeParam,
+                 ::testing::Values(UR_MEM_TYPE_IMAGE1D,
+                                   UR_MEM_TYPE_IMAGE1D_ARRAY),
+                 uur::deviceTestWithParamPrinter<ur_mem_type_t>);
+
+TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
+    ur_image_desc_t image_desc_with_param{
+        UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
+        nullptr,    ///< [in][optional] pointer to extension-specific structure
+        getParam(), ///< [in] memory object type
+        1,          ///< [in] image width
+        0,          ///< [in] image height
+        0,          ///< [in] image depth
+        1,          ///< [in] image array size
+        0,          ///< [in] image row pitch
+        0,          ///< [in] image slice pitch
+        0,          ///< [in] number of MIP levels
+        0           ///< [in] number of samples
+    };
+
     ur_mem_handle_t image_handle = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
-                                    &image_format, &image_desc, nullptr,
-                                    &image_handle));
+                                    &image_format, &image_desc_with_param,
+                                    nullptr, &image_handle));
+    ASSERT_NE(nullptr, image_handle);
+    ASSERT_SUCCESS(urMemRelease(image_handle));
+}
+
+using urMemImageCreateTestWith2DMemoryTypeParam =
+    uur::urContextTestWithParam<ur_mem_type_t>;
+
+UUR_TEST_SUITE_P(urMemImageCreateTestWith2DMemoryTypeParam,
+                 ::testing::Values(UR_MEM_TYPE_IMAGE2D,
+                                   UR_MEM_TYPE_IMAGE2D_ARRAY),
+                 uur::deviceTestWithParamPrinter<ur_mem_type_t>);
+
+TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
+    ur_image_desc_t image_desc_with_param{
+        UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
+        nullptr,    ///< [in][optional] pointer to extension-specific structure
+        getParam(), ///< [in] memory object type
+        1,          ///< [in] image width
+        1,          ///< [in] image height
+        0,          ///< [in] image depth
+        1,          ///< [in] image array size
+        0,          ///< [in] image row pitch
+        0,          ///< [in] image slice pitch
+        0,          ///< [in] number of MIP levels
+        0           ///< [in] number of samples
+    };
+
+    ur_mem_handle_t image_handle = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                    &image_format, &image_desc_with_param,
+                                    nullptr, &image_handle));
+    ASSERT_NE(nullptr, image_handle);
+    ASSERT_SUCCESS(urMemRelease(image_handle));
+}
+
+TEST_P(urMemImageCreateTest, SuccessWith3DImageType) {
+    ur_image_desc_t image_desc_with_param{
+        UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
+        nullptr, ///< [in][optional] pointer to extension-specific structure
+        UR_MEM_TYPE_IMAGE3D, ///< [in] memory object type
+        1,                   ///< [in] image width
+        1,                   ///< [in] image height
+        1,                   ///< [in] image depth
+        1,                   ///< [in] image array size
+        0,                   ///< [in] image row pitch
+        0,                   ///< [in] image slice pitch
+        0,                   ///< [in] number of MIP levels
+        0                    ///< [in] number of samples
+    };
+
+    ur_mem_handle_t image_handle = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                    &image_format, &image_desc_with_param,
+                                    nullptr, &image_handle));
     ASSERT_NE(nullptr, image_handle);
     ASSERT_SUCCESS(urMemRelease(image_handle));
 }

@@ -280,9 +280,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
     ur_event_handle_t hEvent{};
-    ur_result_t result = pfnKernelLaunch(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
+    ur_result_t result =
+        pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                        pGlobalWorkSize, LaunchInfo.LocalWorkSize.data(),
+                        numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         UR_CALL(
@@ -1193,7 +1194,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
              *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
         auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = MemBuffer;
+        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(
             pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
@@ -1222,7 +1223,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     if (auto MemBuffer = context.interceptor->getMemBuffer(hArgValue)) {
         auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = MemBuffer;
+        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
     }

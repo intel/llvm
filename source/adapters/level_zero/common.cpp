@@ -46,9 +46,8 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
   case ZE_RESULT_ERROR_INVALID_NATIVE_BINARY:
     return UR_RESULT_ERROR_INVALID_BINARY;
   case ZE_RESULT_ERROR_INVALID_KERNEL_NAME:
-    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   case ZE_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   case ZE_RESULT_ERROR_OVERLAPPING_REGIONS:
     return UR_RESULT_ERROR_INVALID_OPERATION;
   case ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
@@ -65,9 +64,6 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 }
-
-usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
-    InitializeDisjointPoolConfig();
 
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
@@ -228,6 +224,14 @@ template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
 }
 template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
   return ZE_STRUCTURE_TYPE_IMAGE_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_image_bindless_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_image_pitched_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
 }
 template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_DESC;

@@ -16,6 +16,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <thread>
@@ -263,6 +264,12 @@ getInfo<const char *>(size_t param_value_size, void *param_value,
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
 }
+
+inline ur_result_t getInfoEmpty(size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, 0, 0,
+                     [](void *, int, size_t) {});
+}
 } // namespace ur
 
 class UrReturnHelper {
@@ -294,6 +301,12 @@ public:
   ur_result_t operator()(const T *t, size_t s) {
     return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,
                                         param_value_size_ret, t);
+  }
+
+  // Special case when there is no return value
+  ur_result_t operator()(std::nullopt_t) {
+    return ur::getInfoEmpty(param_value_size, param_value,
+                            param_value_size_ret);
   }
 
 protected:
@@ -337,7 +350,7 @@ roundToHighestFactorOfGlobalSize(size_t &ThreadsPerBlockInDim,
 
 // Returns whether or not Value is a power of 2
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-bool isPowerOf2(const T &Value) {
+bool isPowerOf2(const T Value) {
   return Value && !(Value & (Value - 1));
 }
 

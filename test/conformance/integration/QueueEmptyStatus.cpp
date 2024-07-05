@@ -39,7 +39,7 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
                              ArraySize * sizeof(uint32_t), 0, nullptr, &Event));
         ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &SharedMem));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, SharedMem));
 
         constexpr size_t global_offset = 0;
         constexpr size_t n_dimensions = 1;

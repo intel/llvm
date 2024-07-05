@@ -49,6 +49,9 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
     UR_CALL(platform->initialize());
+    ZE2UR_CALL(zelLoaderTranslateHandle,
+               (ZEL_HANDLE_DRIVER, platform->ZeDriver,
+                (void **)&platform->ZeDriverHandleExpTranslated));
 
     // Save a copy in the cache for future uses.
     platforms.push_back(std::move(platform));

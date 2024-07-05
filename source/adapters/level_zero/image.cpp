@@ -29,24 +29,6 @@ zeMemGetPitchFor2dImage_pfn zeMemGetPitchFor2dImageFunctionPtr = nullptr;
 
 zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
-/// Return true if the two image_desc are the same.
-bool isSameImageDesc(const ze_image_desc_t *Desc1,
-                     const ze_image_desc_t *Desc2) {
-  auto IsSameImageFormat = [](const ze_image_format_t &Format1,
-                              const ze_image_format_t &Format2) {
-    return Format1.layout == Format2.layout && Format1.type == Format2.type &&
-           Format1.x == Format2.x && Format1.y == Format2.y &&
-           Format1.z == Format2.z && Format1.w == Format2.w;
-  };
-  return Desc1->stype == Desc2->stype && Desc1->flags == Desc2->flags &&
-         Desc1->type == Desc2->type &&
-         IsSameImageFormat(Desc1->format, Desc2->format) &&
-         Desc1->width == Desc2->width && Desc1->height == Desc2->height &&
-         Desc1->depth == Desc2->depth &&
-         Desc1->arraylevels == Desc2->arraylevels &&
-         Desc1->miplevels == Desc2->miplevels;
-}
-
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
                              ur_image_format_t *UrImageFormat) {
@@ -357,7 +339,6 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
 
   ZeImageDesc.stype = ZE_STRUCTURE_TYPE_IMAGE_DESC;
   ZeImageDesc.pNext = ImageDesc->pNext;
-  ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
@@ -416,9 +397,9 @@ uint32_t getPixelSizeBytes(const ur_image_format_t *Format) {
   case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
   case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
   case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
     ChannelTypeSizeInBytes = 2;
     break;
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
   case UR_IMAGE_CHANNEL_TYPE_INT_101010:
   case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
   case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
@@ -432,6 +413,91 @@ uint32_t getPixelSizeBytes(const ur_image_format_t *Format) {
   return NumChannels * ChannelTypeSizeInBytes;
 }
 
+ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
+                                     ur_device_handle_t hDevice,
+                                     ur_exp_image_mem_handle_t hImageMem,
+                                     const ur_image_format_t *pImageFormat,
+                                     const ur_image_desc_t *pImageDesc,
+                                     ur_sampler_handle_t hSampler,
+                                     ur_exp_image_handle_t *phImage) {
+  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
+
+  UR_ASSERT(hContext && hDevice && hImageMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc && phImage,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+
+  ZeStruct<ze_image_bindless_exp_desc_t> BindlessDesc;
+  BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
+  ZeImageDesc.pNext = &BindlessDesc;
+
+  ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
+  if (hSampler) {
+    ZeSamplerDesc = hSampler->ZeSamplerDesc;
+    BindlessDesc.pNext = &ZeSamplerDesc;
+    BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
+  }
+
+  ze_image_handle_t ZeImage;
+
+  ze_memory_allocation_properties_t MemAllocProperties{
+      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES};
+  ZE2UR_CALL(zeMemGetAllocProperties,
+             (hContext->ZeContext, hImageMem, &MemAllocProperties, nullptr));
+  if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+    _ur_image *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
+
+    ZE2UR_CALL(zeImageViewCreateExt,
+               (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc,
+                UrImage->ZeImage, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident,
+               (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
+             MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
+    ZeStruct<ze_image_pitched_exp_desc_t> PitchedDesc;
+    PitchedDesc.ptr = hImageMem;
+    if (hSampler) {
+      ZeSamplerDesc.pNext = &PitchedDesc;
+    } else {
+      BindlessDesc.pNext = &PitchedDesc;
+    }
+
+    ZE2UR_CALL(zeImageCreate, (hContext->ZeContext, hDevice->ZeDevice,
+                               &ZeImageDesc, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident,
+               (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+  } else {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  static std::once_flag InitFlag;
+  std::call_once(InitFlag, [&]() {
+    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
+    auto Result = zeDriverGetExtensionFunctionAddress(
+        DriverHandle, "zeImageGetDeviceOffsetExp",
+        (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
+    if (Result != ZE_RESULT_SUCCESS)
+      logger::error("zeDriverGetExtensionFunctionAddress "
+                    "zeImageGetDeviceOffsetExpv failed, err = {}",
+                    Result);
+  });
+  if (!zeImageGetDeviceOffsetExpFunctionPtr)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  uint64_t DeviceOffset{};
+  ze_image_handle_t ZeImageTranslated;
+  ZE2UR_CALL(zelLoaderTranslateHandle,
+             (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
+  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
+             (ZeImageTranslated, &DeviceOffset));
+  *phImage = reinterpret_cast<ur_exp_image_handle_t>(DeviceOffset);
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace
 
 ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
@@ -441,11 +507,12 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D ||
+      ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
     Region->height = 1;
     Region->depth = 1;
   } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D ||
-             ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+             ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) {
     Region->depth = 1;
   }
 
@@ -454,6 +521,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
              Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
             UR_RESULT_ERROR_INVALID_VALUE);
 
@@ -464,6 +532,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
        Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       UR_RESULT_ERROR_INVALID_VALUE);
 #endif // !NDEBUG
@@ -473,8 +542,12 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
 
   uint32_t Width = ur_cast<uint32_t>(Region->width);
-  uint32_t Height = ur_cast<uint32_t>(Region->height);
-  uint32_t Depth = ur_cast<uint32_t>(Region->depth);
+  uint32_t Height = (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY)
+                        ? ZeImageDesc.arraylevels
+                        : ur_cast<uint32_t>(Region->height);
+  uint32_t Depth = (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY)
+                       ? ZeImageDesc.arraylevels
+                       : ur_cast<uint32_t>(Region->depth);
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
@@ -583,8 +656,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
 
   size_t Width = widthInBytes / elementSizeBytes;
   size_t RowPitch;
+  ze_device_handle_t ZeDeviceTranslated;
+  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
+                                        (void **)&ZeDeviceTranslated));
   ZE2UR_CALL(zeMemGetPitchFor2dImageFunctionPtr,
-             (hContext->ZeContext, hDevice->ZeDevice, Width, height,
+             (hContext->ZeContext, ZeDeviceTranslated, Width, height,
               elementSizeBytes, &RowPitch));
   *pResultPitch = RowPitch;
 
@@ -657,77 +733,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_exp_image_handle_t *phImage) {
-  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
-
-  UR_ASSERT(hContext && hDevice && hImageMem,
-            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pImageFormat && pImageDesc && phImage,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  ZeStruct<ze_image_desc_t> ZeImageDesc;
-  UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
-
-  ze_image_handle_t ZeImage;
-
-  ze_memory_allocation_properties_t MemAllocProperties{
-      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES};
-  ZE2UR_CALL(zeMemGetAllocProperties,
-             (hContext->ZeContext, hImageMem, &MemAllocProperties, nullptr));
-  if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-    _ur_image *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
-    if (!isSameImageDesc(&UrImage->ZeImageDesc, &ZeImageDesc)) {
-      ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
-      ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
-      ZeImageBindlessDesc.pNext = nullptr;
-      ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
-      ZeImageDesc.pNext = &ZeImageBindlessDesc;
-      ZE2UR_CALL(zeImageViewCreateExt,
-                 (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc,
-                  UrImage->ZeImage, &ZeImage));
-      ZE2UR_CALL(zeContextMakeImageResident,
-                 (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-    } else {
-      ZeImage = UrImage->ZeImage;
-    }
-  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE) {
-    ze_image_pitched_exp_desc_t PitchedDesc;
-    PitchedDesc.stype = ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
-    PitchedDesc.pNext = nullptr;
-    PitchedDesc.ptr = hImageMem;
-
-    ze_image_bindless_exp_desc_t BindlessDesc;
-    BindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
-    BindlessDesc.pNext = &PitchedDesc;
-    BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
-
-    ZeImageDesc.pNext = &BindlessDesc;
-
-    ZE2UR_CALL(zeImageCreate, (hContext->ZeContext, hDevice->ZeDevice,
-                               &ZeImageDesc, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident,
-               (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-  } else {
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  static std::once_flag InitFlag;
-  std::call_once(InitFlag, [&]() {
-    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
-    auto Result = zeDriverGetExtensionFunctionAddress(
-        DriverHandle, "zeImageGetDeviceOffsetExp",
-        (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
-    if (Result != ZE_RESULT_SUCCESS)
-      logger::error("zeDriverGetExtensionFunctionAddress "
-                    "zeImageGetDeviceOffsetExpv failed, err = {}",
-                    Result);
-  });
-  if (!zeImageGetDeviceOffsetExpFunctionPtr)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
-
-  uint64_t DeviceOffset{};
-  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr, (ZeImage, &DeviceOffset));
-  *phImage = reinterpret_cast<ur_exp_image_handle_t>(DeviceOffset);
-
+  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
+                                   pImageDesc, nullptr, phImage));
   return UR_RESULT_SUCCESS;
 }
 
@@ -736,29 +743,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
     ur_exp_image_handle_t *phImage) {
-
-  UR_CALL(urBindlessImagesUnsampledImageCreateExp(
-      hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage));
-
-  struct combined_sampled_image_handle {
-    uint64_t RawImageHandle;
-    uint64_t RawSamplerHandle;
-  };
-  auto *SampledImageHandle =
-      reinterpret_cast<combined_sampled_image_handle *>(phImage);
-  SampledImageHandle->RawSamplerHandle =
-      reinterpret_cast<uint64_t>(hSampler->ZeSampler);
-
+  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
+                                   pImageDesc, hSampler, phImage));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
-    ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
-    ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
+    void *pDst, void *pSrc, const ur_image_format_t *pImageFormat,
+    const ur_image_desc_t *pImageDesc, ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_rect_offset_t srcOffset, ur_rect_offset_t dstOffset,
+    ur_rect_region_t copyExtent, ur_rect_region_t hostExtent,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  auto hQueue = this;
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -766,7 +763,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags),
             UR_RESULT_ERROR_INVALID_ENUMERATION);
-  UR_ASSERT(!(pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type),
+  UR_ASSERT(!(pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
@@ -803,64 +800,85 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
+  uint32_t PixelSizeInBytes = getPixelSizeBytes(pImageFormat);
+
   if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    uint32_t SrcRowPitch = hostExtent.width * PixelSizeInBytes;
+    uint32_t SrcSlicePitch = SrcRowPitch * hostExtent.height;
     if (pImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &dstOffset, &copyExtent,
                                    DstRegion));
       auto *UrImage = static_cast<_ur_image *>(pDst);
-      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
-                 (ZeCommandList, UrImage->ZeImage, pSrc, &DstRegion, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
+      char *SrcPtr = static_cast<char *>(pSrc) + srcOffset.z * SrcSlicePitch +
+                     srcOffset.y * SrcRowPitch + srcOffset.x * PixelSizeInBytes;
+      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
+                 (ZeCommandList, UrImage->ZeImage, SrcPtr, &DstRegion,
+                  SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
+                  WaitList.ZeEventList));
     } else {
       // Copy to pitched USM memory
-      uint32_t DstPitch = pImageDesc->rowPitch;
+      uint32_t DstRowPitch = pImageDesc->rowPitch;
       ze_copy_region_t ZeDstRegion = {
           (uint32_t)dstOffset.x,       (uint32_t)dstOffset.y,
-          (uint32_t)dstOffset.z,       DstPitch,
+          (uint32_t)dstOffset.z,       DstRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
       uint32_t DstSlicePitch = 0;
-      uint32_t SrcPitch = hostExtent.width * getPixelSizeBytes(pImageFormat);
       ze_copy_region_t ZeSrcRegion = {
           (uint32_t)srcOffset.x,       (uint32_t)srcOffset.y,
-          (uint32_t)srcOffset.z,       SrcPitch,
+          (uint32_t)srcOffset.z,       SrcRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
-      uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    uint32_t DstRowPitch = hostExtent.width * PixelSizeInBytes;
+    uint32_t DstSlicePitch = DstRowPitch * hostExtent.height;
     if (pImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent,
                                    SrcRegion));
       auto *UrImage = static_cast<_ur_image *>(pSrc);
-      ZE2UR_CALL(zeCommandListAppendImageCopyToMemory,
-                 (ZeCommandList, pDst, UrImage->ZeImage, &SrcRegion, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
+      char *DstPtr = static_cast<char *>(pDst) + dstOffset.z * DstSlicePitch +
+                     dstOffset.y * DstRowPitch + dstOffset.x * PixelSizeInBytes;
+      ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
+                 (ZeCommandList, DstPtr, UrImage->ZeImage, &SrcRegion,
+                  DstRowPitch, DstSlicePitch, ZeEvent, WaitList.Length,
+                  WaitList.ZeEventList));
     } else {
       // Copy from pitched USM memory to host
-      uint32_t DstPitch = copyExtent.width * getPixelSizeBytes(pImageFormat);
       ze_copy_region_t ZeDstRegion = {
           (uint32_t)dstOffset.x,       (uint32_t)dstOffset.y,
-          (uint32_t)dstOffset.z,       DstPitch,
+          (uint32_t)dstOffset.z,       DstRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
-      uint32_t DstSlicePitch = 0;
-      uint32_t SrcPitch = pImageDesc->rowPitch;
+      uint32_t SrcRowPitch = pImageDesc->rowPitch;
       ze_copy_region_t ZeSrcRegion = {
           (uint32_t)srcOffset.x,       (uint32_t)srcOffset.y,
-          (uint32_t)srcOffset.z,       SrcPitch,
+          (uint32_t)srcOffset.z,       SrcRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
       uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
     }
+  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
+    ze_image_region_t DstRegion;
+    UR_CALL(
+        getImageRegionHelper(ZeImageDesc, &dstOffset, &copyExtent, DstRegion));
+    ze_image_region_t SrcRegion;
+    UR_CALL(
+        getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent, SrcRegion));
+    auto *UrImageDst = static_cast<_ur_image *>(pDst);
+    auto *UrImageSrc = static_cast<_ur_image *>(pSrc);
+    ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
+               (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
+                &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
+                WaitList.ZeEventList));
   } else {
     logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -941,18 +959,62 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
   return urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
+    ur_exp_external_mem_type_t memHandleType,
     ur_exp_interop_mem_desc_t *pInteropMemDesc,
     ur_exp_interop_mem_handle_t *phInteropMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = pInteropMemDesc;
-  std::ignore = phInteropMem;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pInteropMemDesc && phInteropMem,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  struct ur_ze_external_memory_data *externalMemoryData =
+      new struct ur_ze_external_memory_data;
+
+  void *pNext = const_cast<void *>(pInteropMemDesc->pNext);
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
+    if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+      ze_external_memory_import_fd_t *importFd =
+          new ze_external_memory_import_fd_t;
+      importFd->stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMPORT_FD;
+      importFd->pNext = nullptr;
+      auto FileDescriptor =
+          static_cast<const ur_exp_file_descriptor_t *>(pNext);
+      importFd->fd = FileDescriptor->fd;
+      importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
+      externalMemoryData->importExtensionDesc = importFd;
+      externalMemoryData->type = UR_ZE_EXTERNAL_OPAQUE_FD;
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+      ze_external_memory_import_win32_handle_t *importWin32 =
+          new ze_external_memory_import_win32_handle_t;
+      importWin32->stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMPORT_WIN32;
+      importWin32->pNext = nullptr;
+      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+
+      switch (memHandleType) {
+      case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
+        importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32;
+        break;
+      case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
+        importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE;
+        break;
+      case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+      default:
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+      importWin32->handle = Win32Handle->handle;
+      externalMemoryData->importExtensionDesc = importWin32;
+      externalMemoryData->type = UR_ZE_EXTERNAL_WIN32;
+    }
+    pNext = const_cast<void *>(BaseDesc->pNext);
+  }
+  externalMemoryData->size = size;
+
+  *phInteropMem =
+      reinterpret_cast<ur_exp_interop_mem_handle_t>(externalMemoryData);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
@@ -960,35 +1022,74 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_interop_mem_handle_t hInteropMem,
     ur_exp_image_mem_handle_t *phImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pImageFormat;
-  std::ignore = pImageDesc;
-  std::ignore = hInteropMem;
-  std::ignore = phImageMem;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  UR_ASSERT(hContext && hDevice && hInteropMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  struct ur_ze_external_memory_data *externalMemoryData =
+      reinterpret_cast<ur_ze_external_memory_data *>(hInteropMem);
+
+  ze_image_bindless_exp_desc_t ZeImageBindlessDesc = {};
+  ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+
+  ZeImageBindlessDesc.pNext = externalMemoryData->importExtensionDesc;
+  ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
+  ZeImageDesc.pNext = &ZeImageBindlessDesc;
+
+  ze_image_handle_t ZeImage;
+  ZE2UR_CALL(zeImageCreate,
+             (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
+  ZE2UR_CALL(zeContextMakeImageResident,
+             (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
+                                 ZeImageDesc, phImageMem));
+  externalMemoryData->urMemoryHandle =
+      reinterpret_cast<ur_mem_handle_t>(*phImageMem);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_interop_mem_handle_t hInteropMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hInteropMem;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  UR_ASSERT(hContext && hDevice && hInteropMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  struct ur_ze_external_memory_data *externalMemoryData =
+      reinterpret_cast<ur_ze_external_memory_data *>(hInteropMem);
+
+  UR_CALL(urMemRelease(externalMemoryData->urMemoryHandle));
+
+  switch (externalMemoryData->type) {
+  case UR_ZE_EXTERNAL_OPAQUE_FD:
+    delete (reinterpret_cast<ze_external_memory_import_fd_t *>(
+        externalMemoryData->importExtensionDesc));
+    break;
+  case UR_ZE_EXTERNAL_WIN32:
+    delete (reinterpret_cast<ze_external_memory_import_win32_handle_t *>(
+        externalMemoryData->importExtensionDesc));
+    break;
+  default:
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  delete (externalMemoryData);
+
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
     ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
   std::ignore = hContext;
   std::ignore = hDevice;
+  std::ignore = semHandleType;
   std::ignore = pInteropSemaphoreDesc;
   std::ignore = phInteropSemaphoreHandle;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -1007,12 +1108,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
+ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
+    ur_exp_interop_semaphore_handle_t hSemaphore, bool hasValue,
+    uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hSemaphore;
+  std::ignore = hasValue;
+  std::ignore = waitValue;
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
@@ -1021,12 +1123,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
+ur_result_t ur_queue_handle_legacy_t_::bindlessImagesSignalExternalSemaphoreExp(
+    ur_exp_interop_semaphore_handle_t hSemaphore, bool hasValue,
+    uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hSemaphore;
+  std::ignore = hasValue;
+  std::ignore = signalValue;
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
