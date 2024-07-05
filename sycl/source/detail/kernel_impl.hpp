@@ -256,9 +256,9 @@ namespace syclex = ext::oneapi::experimental;
 
 template <>
 inline typename syclex::info::kernel_queue_specific::
-    recommended_num_work_groups_per_cu::return_type
-    kernel_impl::ext_oneapi_get_info<syclex::info::kernel_queue_specific::
-                                         recommended_num_work_groups_per_cu>(
+    recommended_num_work_groups::return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::recommended_num_work_groups>(
         const queue &Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
   if (WorkGroupSize.size() == 0) {

@@ -80,7 +80,7 @@ size_t localMemorySize = 32;
 
 namespace syclex = sycl::ext::oneapi::experimental;
 size_t maxWGsPerCU = kernel.ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::recommended_num_work_groups_per_cu>(
+      syclex::info::kernel_queue_specific::recommended_num_work_groups>(
       q, wgSizeRange, localMemorySize);
 ----
 
@@ -118,7 +118,7 @@ implementation supports.
 ----
 namespace ext::oneapi::experimental::info::kernel_queue_specific {
 
-struct recommended_num_work_groups_per_cu;
+struct recommended_num_work_groups;
 
 }
 ----
@@ -130,7 +130,7 @@ struct recommended_num_work_groups_per_cu;
 |Return Type
 |Description
 
-|`recommended_num_work_groups_per_cu`
+|`recommended_num_work_groups`
 |`sycl::queue`, `sycl::range`, `size_t`
 |`size_t`
 |Returns the maximum number of actively executing work-groups per compute unit
