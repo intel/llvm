@@ -15,10 +15,12 @@
 // (not quite sure why windows.h is being included here)
 #ifndef NOMINMAX
 #define NOMINMAX
+#include "ur_api.h"
+#include "ur_ldrddi.hpp"
 #endif // !NOMINMAX
 
-#include "ur_lib.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_lib.hpp"
 #include "ur_loader.hpp"
 
 #include <cstring> // for std::memcpy
@@ -27,28 +29,13 @@
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
-context_t *context;
+context_t *getContext() { return context_t::get_direct(); }
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::context_t() {
-    for (auto l : layers) {
-        if (l->isAvailable()) {
-            for (auto &layerName : l->getNames()) {
-                availableLayers += layerName + ";";
-            }
-        }
-    }
-    // Remove the trailing ";"
-    availableLayers.pop_back();
-    parseEnvEnabledLayers();
-}
+context_t::context_t() { parseEnvEnabledLayers(); }
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
-
-bool context_t::layerExists(const std::string &layerName) const {
-    return availableLayers.find(layerName) != std::string::npos;
-}
 
 void context_t::parseEnvEnabledLayers() {
     auto maybeEnableEnvVarMap = getenv_to_map("UR_ENABLE_LAYERS", false);
@@ -63,18 +50,16 @@ void context_t::parseEnvEnabledLayers() {
 }
 
 void context_t::initLayers() const {
-    for (auto &l : layers) {
-        if (l->isAvailable()) {
-            l->init(&context->urDdiTable, enabledLayerNames, codelocData);
-        }
+    for (auto &[layer, _] : layers) {
+        layer->init((ur_dditable_t *)&urDdiTable, enabledLayerNames,
+                    codelocData);
     }
 }
 
 void context_t::tearDownLayers() const {
-    for (auto &l : layers) {
-        if (l->isAvailable()) {
-            l->tearDown();
-        }
+    for (auto &[layer, destroy] : layers) {
+        layer->tearDown();
+        destroy();
     }
 }
 
@@ -84,7 +69,7 @@ __urdlllocal ur_result_t context_t::Init(
     if (hLoaderConfig && hLoaderConfig->enableMock) {
         // This clears default known adapters and replaces them with the mock
         // adapter.
-        ur_loader::context->adapter_registry.enableMock();
+        ur_loader::getContext()->adapter_registry.enableMock();
     }
 
     ur_result_t result;
@@ -92,10 +77,10 @@ __urdlllocal ur_result_t context_t::Init(
     logger::init(logger_name);
     logger::debug("Logger {} initialized successfully!", logger_name);
 
-    result = ur_loader::context->init();
+    result = ur_loader::getContext()->init();
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urLoaderInit();
+        result = ddiInit();
     }
 
     if (hLoaderConfig) {
@@ -148,18 +133,19 @@ ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
+    auto availableLayers = ur_lib::context_t::availableLayers();
+
     switch (propName) {
     case UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS: {
         if (pPropSizeRet) {
-            *pPropSizeRet = context->availableLayers.size() + 1;
+            *pPropSizeRet = availableLayers.size() + 1;
         }
         if (pPropValue) {
             char *outString = static_cast<char *>(pPropValue);
-            if (propSize != context->availableLayers.size() + 1) {
+            if (propSize != availableLayers.size() + 1) {
                 return UR_RESULT_ERROR_INVALID_SIZE;
             }
-            std::memcpy(outString, context->availableLayers.data(),
-                        propSize - 1);
+            std::memcpy(outString, availableLayers.data(), propSize - 1);
             outString[propSize - 1] = '\0';
         }
         break;
@@ -192,17 +178,41 @@ ur_result_t urLoaderConfigEnableLayer(ur_loader_config_handle_t hLoaderConfig,
     if (!pLayerName) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
-    if (!context->layerExists(std::string(pLayerName))) {
+
+    auto availableLayers = ur_lib::context_t::availableLayers();
+    if (availableLayers.find(pLayerName) == std::string::npos) {
         return UR_RESULT_ERROR_LAYER_NOT_PRESENT;
     }
+
     hLoaderConfig->enabledLayers.insert(pLayerName);
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urLoaderTearDown() {
-    context->tearDownLayers();
+ur_result_t UR_APICALL urLoaderInit(ur_device_init_flags_t device_flags,
+                                    ur_loader_config_handle_t hLoaderConfig) {
+    if (UR_DEVICE_INIT_FLAGS_MASK & device_flags) {
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
 
-    return UR_RESULT_SUCCESS;
+    auto context = ur_lib::context_t::get();
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+    std::call_once(context->initOnce,
+                   [&result, context, device_flags, hLoaderConfig]() {
+                       result = context->Init(device_flags, hLoaderConfig);
+                   });
+
+    return result;
+}
+
+ur_result_t urLoaderTearDown() {
+    int ret = ur_lib::context_t::release([](context_t *context) {
+        context->tearDownLayers();
+        ur_loader::context_t::forceDelete();
+        delete context;
+    });
+
+    return ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;
 }
 
 ur_result_t

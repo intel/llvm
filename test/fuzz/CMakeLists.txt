@@ -11,13 +11,15 @@ function(add_fuzz_test name label)
         list(APPEND ENV_VARS
                 UBSAN_OPTIONS=print_stacktrace=1)
     endif()
-    if(UR_ENABLE_TRACING)
-        list(APPEND ENV_VARS
-                XPTI_TRACE_ENABLE=1
-                XPTI_FRAMEWORK_DISPATCHER=$<TARGET_FILE:xptifw>
-                XPTI_SUBSCRIBERS=$<TARGET_FILE:collector>
-                UR_ENABLE_LAYERS=UR_LAYER_TRACING)
-    endif()
+
+    # The XPTI collector is leaking memory, likely unrelated to UR.
+    #if(UR_ENABLE_TRACING)
+    #    list(APPEND ENV_VARS
+    #            XPTI_TRACE_ENABLE=1
+    #            XPTI_FRAMEWORK_DISPATCHER=$<TARGET_FILE:xptifw>
+    #            XPTI_SUBSCRIBERS=$<TARGET_FILE:collector>
+    #            UR_ENABLE_LAYERS=UR_LAYER_TRACING)
+    #endif()
 
     if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
         list(APPEND ENV_VARS
