@@ -25,7 +25,7 @@ sycl::queue deviceQueue;
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
-// CHECK-NEXT: TemplateArgument integral 6
+// CHECK-NEXT: TemplateArgument integral '6'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
