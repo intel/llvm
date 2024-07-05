@@ -50,6 +50,7 @@ struct launch_strategy {
   using RangeT = Range;
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
+  launch_strategy() = delete;
   // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
   launch_strategy(Range range, KProps kprops, LProps lprops, size_t lmem_size)
       : range{range}, kernel_properties{kprops}, launch_properties{lprops},

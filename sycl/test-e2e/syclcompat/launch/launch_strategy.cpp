@@ -40,7 +40,7 @@
 
 namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
-namespace sycli_exp = sycl::ext::intel::experimental;
+namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
 // Dummy kernel functions for testing
 // =======================================================================
@@ -73,10 +73,6 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 };
 // =======================================================================
 
-
-
-
-
 int test_basic_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -86,7 +82,7 @@ int test_basic_launch() {
 
   // A runtime kernel property for the
 
-  sycli_exp::cache_config my_cache_config{sycli_exp::large_slm}; // constructed at runtime
+  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; // constructed at runtime
 
   compat_exp::launch_strategy my_config(
       sycl::nd_range<1>{{32}, {32}},
@@ -111,7 +107,6 @@ int test_basic_launch() {
   compat_exp::launch<empty_kernel>(my_config, q);
   compat_exp::launch<int_kernel>(my_config, q, dummy_int);
 
-
   return 0;
 }
 
@@ -119,7 +114,8 @@ int test_lmem_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   using T = int;
-  sycli_exp::cache_config my_cache_config{sycli_exp::large_slm}; // constructed at runtime
+  // A property constructed at runtime:
+  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; 
 
   int local_mem_size = LOCAL_MEM_SIZE; // rt value
 
@@ -172,6 +168,8 @@ int test_dim3_launch_strategy() {
 
   return 0;
 }
+
+// TODO: negative testing for traits/templates
 
 int main() {
   // TODO: check return values!
