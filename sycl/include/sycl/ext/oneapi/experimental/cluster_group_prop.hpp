@@ -16,7 +16,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace cuda {
-template <std::size_t Dim>
+template <int Dim>
 struct cluster_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
           ::sycl::ext::oneapi::experimental::detail::ClusterLaunch> {
@@ -27,7 +27,7 @@ private:
   range<Dim> size;
 };
 
-template <std::size_t Dim> using cluster_size_key = cluster_size<Dim>;
+template <int Dim> using cluster_size_key = cluster_size<Dim>;
 
 } // namespace cuda
 
