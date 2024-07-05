@@ -36,6 +36,8 @@ from templates import helper as th
         ${x}::details::printPtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
         ${x}::details::printPtr(os, ${caller.body()});
+    %elif th.type_traits.is_native_handle(itype):
+        ${x}::details::printPtr(os, reinterpret_cast<void*>(${caller.body()}));
     %elif th.type_traits.is_handle(itype):
         ${x}::details::printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
