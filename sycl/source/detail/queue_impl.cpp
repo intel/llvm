@@ -172,7 +172,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  const std::vector<char> Pattern{static_cast<char>(Value)};
+  const std::vector<unsigned char> Pattern{static_cast<unsigned char>(Value)};
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },

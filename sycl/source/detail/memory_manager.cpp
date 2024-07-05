@@ -807,7 +807,7 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
+                         size_t PatternSize, const unsigned char *Pattern,
                          unsigned int Dim, sycl::range<3> MemRange,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
@@ -951,7 +951,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             const std::vector<char> &Pattern,
+                             const std::vector<unsigned char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -1082,7 +1082,7 @@ void MemoryManager::copy_2d_usm(
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<char> &Pattern,
+    const std::vector<unsigned char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
@@ -1570,7 +1570,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, const std::vector<char> &Pattern,
+    size_t Len, const std::vector<unsigned char> &Pattern,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
 
@@ -1588,9 +1588,9 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
-    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
-    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
-    unsigned int ElementSize,
+    void *Mem, size_t PatternSize, const unsigned char *Pattern,
+    unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
+    sycl::id<3> AccessOffset, unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");

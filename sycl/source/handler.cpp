@@ -995,7 +995,7 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                        size_t Width, size_t Height) {
   // Checks done in callers.
   MDstPtr = Dest;
-  MPattern.push_back(static_cast<char>(Value));
+  MPattern.push_back(static_cast<unsigned char>(Value));
   MImpl->MDstPitch = DestPitch;
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;

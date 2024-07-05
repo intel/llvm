@@ -3301,7 +3301,7 @@ private:
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
   /// Pattern that is used to fill memory object in case command type is fill.
-  std::vector<char> MPattern;
+  std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask

@@ -7,9 +7,7 @@
 
 void foo() {
   sycl::queue Q;
-  Q.submit([](sycl::handler &CGH) {
-    CGH.single_task<class Test>([]() {});
-  });
+  Q.submit([](sycl::handler &CGH) { CGH.single_task<class Test>([]() {}); });
 }
 
 // clang-format off
@@ -118,10 +116,10 @@ void foo() {
 // CHECK-NEXT: 384 |   void * MSrcPtr
 // CHECK-NEXT: 392 |   void * MDstPtr
 // CHECK-NEXT: 400 |   size_t MLength
-// CHECK-NEXT: 408 |   class std::vector<char> MPattern
-// CHECK-NEXT: 408 |     struct std::_Vector_base<char, class std::allocator<char> > (base)
-// CHECK-NEXT: 408 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
-// CHECK-NEXT: 408 |         class std::allocator<char> (base) (empty)
+// CHECK-NEXT: 408 |   class std::vector<unsigned char> MPattern
+// CHECK-NEXT: 408 |     struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> > (base)
+// CHECK-NEXT: 408 |       struct std::_Vector_base<unsigned char, class std::allocator<unsigned char> >::_Vector_impl _M_impl
+// CHECK-NEXT: 408 |         class std::allocator<unsigned char> (base) (empty)
 // CHECK:      408 |           pointer _M_start
 // CHECK-NEXT: 416 |           pointer _M_finish
 // CHECK-NEXT: 424 |           pointer _M_end_of_storage
