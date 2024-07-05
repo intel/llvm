@@ -21,3 +21,8 @@
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/queue.hpp>
+
+// TODO: We assume that this is the property of a vendor's implementation and
+// can define feature macros even if the particular header file implementing it
+// (if such exists) isn't included.
+#include <sycl/feature_test.hpp>

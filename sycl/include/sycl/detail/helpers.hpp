@@ -253,6 +253,7 @@ void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
 template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
+inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 } // namespace detail
 
 } // namespace _V1

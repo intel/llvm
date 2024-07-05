@@ -15,8 +15,9 @@
 #include <cmath>
 #include <numeric>
 #include <random>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   using namespace sycl;

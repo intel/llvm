@@ -13,12 +13,9 @@ const intel::fpga_datapath<int[10]> empty{};
 // CHECK: %[[datapath:.*]] = type { [10 x i32] }
 // CHECK: {{.*}}empty = internal addrspace(1) constant %[[datapath]] zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
 
-int main() {
-  queue Q;
+SYCL_EXTERNAL void fpga_datapath_global() {
   int f = 5;
-
-  Q.single_task([=]() { volatile int ReadVal = empty[f]; });
-  return 0;
+  volatile int ReadVal = empty[f];
 }
 
 // CHECK: ![[empty_md]] = !{![[register:[0-9]*]]}

@@ -447,7 +447,7 @@ _CLC_OVERLOAD _CLC_DEF double lgamma_r(double x, private int *ip) {
                 r += fma(-0.5, y, p / q);
         }
     } else if (absx < 8.0) {
-        int i = absx;
+        int i = (int)(long)absx;
         double y = absx - (double) i;
         double p = y * fma(y, fma(y, fma(y, fma(y, fma(y, fma(y, s6, s5), s4), s3), s2), s1), s0);
         double q = fma(y, fma(y, fma(y, fma(y, fma(y, fma(y, r6, r5), r4), r3), r2), r1), 1.0);

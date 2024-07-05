@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ;
 ; In precense of indirect calls we start matching functions using their
 ; signatures, i.e. we have an indirect call to i32(i32) function within
@@ -14,6 +14,18 @@
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-SYM
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-SYM
 ;
+;
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+;
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-TU0-IR \
+; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov \
+; RUN:     --implicit-check-not _Z4foo3v
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-TU1-IR \
+; RUN:     --implicit-check-not TU1_kernel --implicit-check-not _Z4foo2v \
+; RUN:     --implicit-check-not _Z4foo1v
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-TU0-SYM
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-TU1-SYM
+
 ; CHECK-TU0-SYM: _ZTSZ4mainE11TU1_kernel0
 ; CHECK-TU0-SYM: _ZTSZ4mainE11TU1_kernel1
 ;

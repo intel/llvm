@@ -9,12 +9,12 @@
 // not have the corresponding aspect, while the gpu runtime has different
 // behavior
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 
 #include <complex>
 #include <iostream>
-
-// clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;

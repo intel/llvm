@@ -4,15 +4,19 @@
 // This test performs basic check of the SYCL context class.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
 int main() {
   try {
     context c;
-  } catch (device_error e) {
-    std::cout << "Failed to create device for context" << std::endl;
+  } catch (exception e) {
+    if (e.code() == errc::invalid)
+      std::cout << "Failed to create device for context" << std::endl;
+    else
+      std::cout << "Failed to create context" << std::endl;
   }
 
   auto devices = device::get_devices();

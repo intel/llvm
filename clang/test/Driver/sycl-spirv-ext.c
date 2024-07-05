@@ -27,7 +27,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-DEFAULT-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
-// CHECK-DEFAULT-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions
+// CHECK-DEFAULT-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_device_side_avc_motion_estimation
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_loop_controls
@@ -48,6 +48,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_task_sequence
+// CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_bindless_images
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
@@ -55,7 +57,9 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_uniform_group_instructions
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone"
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone
+// CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
+// CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -90,7 +94,7 @@
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-CPU-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
-// CHECK-CPU-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions
+// CHECK-CPU-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr
 // CHECK-CPU-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
 // CHECK-CPU-SAME:,+SPV_INTEL_device_side_avc_motion_estimation
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_loop_controls
@@ -119,5 +123,6 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-CPU-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_optnone
+// CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
+// CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error"
-

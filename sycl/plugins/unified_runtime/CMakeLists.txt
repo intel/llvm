@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 758c61490442456933e3957aac568e13287429eb
-  # Merge: e2b5b7fa e2e44728
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 16:15:45 2024 +0100
-  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
-  #    [L0] Fix regular in order command list reuse given inorder queue
-  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+  # commit 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e
+  # Merge: 022df8ac 2f121cd8
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Jul 4 10:37:58 2024 +0100
+  #     Merge pull request #1212 from aarongreig/aaron/specMotivatedRefactors
+  #     Batch adapter changes: spec motivated refactors
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +115,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 760eaa38ae8cacf3143188a3293d8f9a2a3608f7
-    # Merge: 38e9478b e68f26fa
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 15:36:52 2024 +0100
-    #     Merge pull request #1357 from Bensuo/ewan/hip_nullptr
-    #     [HIP] Check for null arg to urKernelSetArgMemObj
-    760eaa38ae8cacf3143188a3293d8f9a2a3608f7
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
-    # Merge: b582fb80 c594cdc0
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 11:39:02 2024 +0100
-    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
-    #     [NATIVECPU] Initial threadpool implementation for Native CPU
-    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
@@ -301,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

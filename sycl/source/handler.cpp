@@ -29,6 +29,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -79,16 +80,18 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-    : handler(Queue, Queue, nullptr, IsHost) {}
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 bool CallerNeedsEvent)
+    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool IsHost)
+                 bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                   std::move(SecondaryQueue))),
-      MQueue(std::move(Queue)), MIsHost(IsHost) {}
+                                                   std::move(SecondaryQueue),
+                                                   CallerNeedsEvent)),
+      MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -241,10 +244,12 @@ event handler::finalize() {
     }
 
     if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
-        !MQueue->is_in_fusion_mode() &&
-        CGData.MRequirements.size() + CGData.MEvents.size() +
-                MStreamStorage.size() ==
-            0) {
+        !MQueue->is_in_fusion_mode() && !CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
+        (!CGData.MEvents.size() ||
+         (MQueue->isInOrder() &&
+          detail::Scheduler::areEventsSafeForSchedulerBypass(
+              CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -270,47 +275,10 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        if (MQueue->is_host()) {
-          MHostKernel->call(MNDRDesc, (NewEvent)
-                                          ? NewEvent->getHostProfilingInfo()
-                                          : nullptr);
-          Result = PI_SUCCESS;
-        } else {
-          if (MQueue->getDeviceImplPtr()->getBackend() ==
-              backend::ext_intel_esimd_emulator) {
-            // Capture the host timestamp for profiling (queue time)
-            if (NewEvent != nullptr)
-              NewEvent->setHostEnqueueTime();
-            [&](auto... Args) {
-              if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
-              } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
-              }
-            }(/* queue */
-              nullptr,
-              /* kernel */
-              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-              /* work_dim */
-              MNDRDesc.Dims,
-              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
-              /* global_work_size */ &MNDRDesc.GlobalSize[0],
-              /* local_work_size */ &MNDRDesc.LocalSize[0],
-              /* num_events_in_wait_list */ 0,
-              /* event_wait_list */ nullptr,
-              /* event */ nullptr);
-            Result = PI_SUCCESS;
-          } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-          }
-        }
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -324,8 +292,9 @@ event handler::finalize() {
         return Result;
       };
 
-      bool DiscardEvent = false;
-      if (MQueue->supportsDiscardingPiEvents()) {
+      bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
+                          MQueue->supportsDiscardingPiEvents();
+      if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
@@ -338,6 +307,9 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
+        auto EventImpl = std::make_shared<detail::event_impl>(
+            detail::event_impl::HES_Discarded);
+        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -348,8 +320,9 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
-        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+        NewEvent->setEnqueued();
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
@@ -429,19 +402,6 @@ event handler::finalize() {
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      // if no event to wait for was specified, we add all exit
-      // nodes/events of the graph
-      if (MEventsWaitWithBarrier.size() == 0) {
-        MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
-        // Graph-wide barriers take precedence over previous one.
-        // We therefore remove the previous ones from ExtraDependencies list.
-        // The current barrier is then added to this list in the graph_impl.
-        std::vector<detail::EventImplPtr> EventsBarriers =
-            GraphImpl->removeBarriersFromExtraDependencies();
-        MEventsWaitWithBarrier.insert(std::end(MEventsWaitWithBarrier),
-                                      std::begin(EventsBarriers),
-                                      std::end(EventsBarriers));
-      }
       CGData.MEvents.insert(std::end(CGData.MEvents),
                             std::begin(MEventsWaitWithBarrier),
                             std::end(MEventsWaitWithBarrier));
@@ -455,6 +415,10 @@ event handler::finalize() {
           new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
                                 std::move(CGData), MCGType, MCodeLoc));
     }
+    break;
+  }
+  case detail::CG::ProfilingTag: {
+    CommandGroup.reset(new detail::CGProfilingTag(std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::CopyToDeviceGlobal: {
@@ -510,11 +474,13 @@ event handler::finalize() {
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
-        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MWaitValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::SemaphoreSignal:
     CommandGroup.reset(new detail::CGSemaphoreSignal(
-        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MSignalValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
@@ -553,6 +519,7 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
+    EventImpl->setSubmittedQueue(MQueue);
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
 
@@ -584,7 +551,17 @@ event handler::finalize() {
       // queue.
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+      auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      if (LastBarrierRecordedFromQueue) {
+        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
+                                  {LastBarrierRecordedFromQueue});
+      } else {
+        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+      }
+
+      if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
+        GraphImpl->setBarrierDep(MQueue, NodeImpl);
+      }
     }
 
     // Associate an event with this new node and return the event.
@@ -596,7 +573,7 @@ event handler::finalize() {
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue));
+      std::move(CommandGroup), std::move(MQueue), MImpl->MEventNeeded);
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
@@ -773,7 +750,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       // to a single kernel argument set above.
       if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
-        const size_t SizeAccField = Dims * sizeof(Size[0]);
+        const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
                            SizeAccField, Index + IndexShift);
         ++IndexShift;
@@ -920,10 +897,16 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
-  MEventsWaitWithBarrier.resize(WaitList.size());
-  std::transform(
-      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-      [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  MEventsWaitWithBarrier.reserve(WaitList.size());
+  for (auto &Event : WaitList) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    // We could not wait for host task events in backend.
+    // Adding them as dependency to enable proper scheduling.
+    if (EventImpl->isHost()) {
+      depends_on(EventImpl);
+    }
+    MEventsWaitWithBarrier.push_back(EventImpl);
+  }
 }
 
 using namespace sycl::detail;
@@ -1047,8 +1030,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1100,8 +1084,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DestImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DestImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1151,8 +1136,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1162,6 +1148,58 @@ void handler::ext_oneapi_copy(
   MImpl->MImageFormat = PiFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  ImageDesc.verify();
+
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = ImageDesc.width;
+  PiDesc.image_height = ImageDesc.height;
+  PiDesc.image_depth = ImageDesc.depth;
+  PiDesc.image_array_size = ImageDesc.array_size;
+  if (ImageDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                             : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
+  } else {
+    PiDesc.image_type = ImageDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+  }
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(ImageDesc.num_channels));
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
   setType(detail::CG::CopyImage);
 }
 
@@ -1204,8 +1242,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(SrcImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(SrcImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1255,8 +1294,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1311,8 +1351,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DeviceImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1332,8 +1373,40 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              opaque_fd &&
+      SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              win32_nt_handle) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore used needs a user passed wait value.");
+  }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MWaitValue = {};
+  setType(detail::CG::SemaphoreWait);
+}
+
+void handler::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t WaitValue) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+          win32_nt_dx12_fence) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore does not support user passed wait values.");
+  }
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MWaitValue = WaitValue;
   setType(detail::CG::SemaphoreWait);
 }
 
@@ -1342,8 +1415,40 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              opaque_fd &&
+      SemaphoreHandle.handle_type !=
+          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+              win32_nt_handle) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore used needs a user passed signal value.");
+  }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MSignalValue = {};
+  setType(detail::CG::SemaphoreSignal);
+}
+
+void handler::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t SignalValue) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  if (SemaphoreHandle.handle_type !=
+      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+          win32_nt_dx12_fence) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Invalid type of semaphore for this operation. The "
+        "type of semaphore does not support user passed signal values.");
+  }
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  MImpl->MSignalValue = SignalValue;
   setType(detail::CG::SemaphoreSignal);
 }
 
@@ -1373,6 +1478,18 @@ void handler::use_kernel_bundle(
 
 void handler::depends_on(event Event) {
   auto EventImpl = detail::getSyclObjImpl(Event);
+  depends_on(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    depends_on(Event);
+  }
+}
+
+void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  if (!EventImpl)
+    return;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
@@ -1393,8 +1510,8 @@ void handler::depends_on(event Event) {
   CGData.MEvents.push_back(EventImpl);
 }
 
-void handler::depends_on(const std::vector<event> &Events) {
-  for (const event &Event : Events) {
+void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
+  for (const EventImplPtr &Event : Events) {
     depends_on(Event);
   }
 }
@@ -1408,6 +1525,53 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                                                     InfoQuery, sizeof(pi_bool),
                                                     &SupportsOp, nullptr);
   return SupportsOp;
+}
+
+void handler::verifyDeviceHasProgressGuarantee(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+  using forward_progress =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  auto deviceImplPtr = MQueue->getDeviceImplPtr();
+  const bool supported = deviceImplPtr->supportsForwardProgress(
+      guarantee, threadScope, coordinationScope);
+  if (threadScope == execution_scope::work_group) {
+    if (!supported) {
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "Required progress guarantee for work groups is not "
+          "supported by this device.");
+    }
+    // If we are here, the device supports the guarantee required but there is a
+    // caveat in that if the guarantee required is a concurrent guarantee, then
+    // we most likely also need to enable cooperative launch of the kernel. That
+    // is, although the device supports the required guarantee, some setup work
+    // is needed to truly make the device provide that guarantee at runtime.
+    // Otherwise, we will get the default guarantee which is weaker than
+    // concurrent. Same reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior in
+    // Unified Runtime.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else if (threadScope == execution_scope::sub_group) {
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for sub groups is not "
+                            "supported by this device.");
+    }
+    // Same reasoning as above.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else { // threadScope is execution_scope::work_item otherwise undefined
+           // behavior
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for work items is not "
+                            "supported by this device.");
+    }
+  }
 }
 
 bool handler::supportsUSMMemcpy2D() {
@@ -1614,5 +1778,7 @@ void handler::registerDynamicParameter(
   }
   MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
 }
+
+bool handler::eventNeeded() const { return MImpl->MEventNeeded; }
 } // namespace _V1
 } // namespace sycl

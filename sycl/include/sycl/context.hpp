@@ -16,7 +16,6 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/device.hpp>                    // for device
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/property_list.hpp>             // for property_list
 
@@ -216,13 +215,6 @@ public:
   cl_context get() const;
 #endif
 
-  /// Checks if this context is a SYCL host context.
-  ///
-  /// \return true if this context is a SYCL host context.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Returns the backend associated with this context.
   ///
   /// \return the backend associated with this context.
@@ -259,6 +251,35 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// context.hpp depends on exception.hpp but we can't define these ctors in
+// exception.hpp while context is still an incomplete type.
+inline exception::exception(context Ctx, std::error_code EC,
+                            const std::string &WhatArg)
+    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
+
+inline exception::exception(context Ctx, std::error_code EC,
+                            const char *WhatArg)
+    : exception(Ctx, EC, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, std::error_code EC)
+    : exception(Ctx, EC, "") {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const char *WhatArg)
+    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const std::string &WhatArg)
+    : exception(Ctx, {EV, ECat}, WhatArg) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat)
+    : exception(Ctx, EV, ECat, "") {}
+#endif
 
 } // namespace _V1
 } // namespace sycl

@@ -126,14 +126,14 @@ void foo() {
 // CHECK-NEXT: 416 |           pointer _M_finish
 // CHECK-NEXT: 424 |           pointer _M_end_of_storage
 // CHECK-NEXT: 432 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK:      432 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK:      432 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 432 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 432 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 432 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
 // CHECK:      432 |             struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
 // CHECK-NEXT: 432 |               class sycl::detail::HostKernelBase * _M_head_impl
 // CHECK-NEXT: 440 |   class std::unique_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK:      440 |       class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> > (base)
+// CHECK:      440 |       class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> >
 // CHECK-NEXT: 440 |         class std::tuple<class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > _M_t
 // CHECK-NEXT: 440 |           struct std::_Tuple_impl<0, class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > (base)
 // CHECK-NEXT: 440 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
@@ -165,26 +165,25 @@ void foo() {
 // CHECK-NEXT: 512 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 512 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 520 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
-// CHECK:      520 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK:      520 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
 // CHECK-NEXT: 520 |         class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
 // CHECK-NEXT: 520 |           struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
 // CHECK-NEXT: 520 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
 // CHECK:      520 |             struct std::_Head_base<0, class sycl::detail::CG *> (base)
 // CHECK-NEXT: 520 |               class sycl::detail::CG * _M_head_impl
-// CHECK-NEXT: 528 |   _Bool MIsHost
-// CHECK-NEXT: 536 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 536 |     const char * MFileName
-// CHECK-NEXT: 544 |     const char * MFunctionName
-// CHECK-NEXT: 552 |     unsigned long MLineNo
-// CHECK-NEXT: 560 |     unsigned long MColumnNo
-// CHECK-NEXT: 568 |   _Bool MIsFinalized
-// CHECK-NEXT: 576 |   class sycl::event MLastEvent
-// CHECK-NEXT: 576 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
-// CHECK-NEXT: 576 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 576 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
-// CHECK-NEXT: 576 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 576 |         element_type * _M_ptr
-// CHECK-NEXT: 584 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 584 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=592, dsize=592, align=8,
-// CHECK-NEXT:     |  nvsize=592, nvalign=8]
+// CHECK-NEXT: 528 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 528 |     const char * MFileName
+// CHECK-NEXT: 536 |     const char * MFunctionName
+// CHECK-NEXT: 544 |     unsigned long MLineNo
+// CHECK-NEXT: 552 |     unsigned long MColumnNo
+// CHECK-NEXT: 560 |   _Bool MIsFinalized
+// CHECK-NEXT: 568 |   class sycl::event MLastEvent
+// CHECK-NEXT: 568 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
+// CHECK-NEXT: 568 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 568 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
+// CHECK-NEXT: 568 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 568 |         element_type * _M_ptr
+// CHECK-NEXT: 576 |         class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 576 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=584, dsize=584, align=8,
+// CHECK-NEXT:     |  nvsize=584, nvalign=8]

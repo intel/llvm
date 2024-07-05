@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// FIXME: failure in post-commit, re-enable when fixed:
-// UNSUPPORTED: linux
+// FIXME: compfail, see https://github.com/intel/llvm/issues/14284, re-enable
+// when fixed:
+// UNSUPPORTED: linux, windows
 
 // REQUIRES: aspect-ext_intel_fpga_task_sequence
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
@@ -51,7 +52,7 @@ template <typename OutPipe> void argArray(DataArray data) {
 
 template <typename InPipe> DataStruct returnStruct() {
   float a = InPipe::read();
-  DataStruct res{sqrt(a), true};
+  DataStruct res{sycl::sqrt(a), true};
   return res;
 }
 
@@ -59,7 +60,7 @@ template <typename InPipe> DataArray returnArray() {
   DataArray res;
   for (int i = 0; i < 2; i++) {
     float a = InPipe::read();
-    res[i] = sqrt(a);
+    res[i] = sycl::sqrt(a);
   }
 
   return res;
@@ -111,7 +112,9 @@ int main() {
     });
     q.wait();
   }
-  assert((abs(res_struct[0].val - vec_in_struct[0].val) < 0.001) && res_struct[0].isValid);
-  assert((abs(res_array[0][0] - vec_in_array[0][0]) < 0.001) && (abs(res_array[0][1] - vec_in_array[0][1]) < 0.001));
+  assert((std::abs(res_struct[0].val - vec_in_struct[0].val) < 0.001) &&
+         res_struct[0].isValid);
+  assert((std::abs(res_array[0][0] - vec_in_array[0][0]) < 0.001) &&
+         (std::abs(res_array[0][1] - vec_in_array[0][1]) < 0.001));
   return 0;
 }

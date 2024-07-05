@@ -4,7 +4,7 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
@@ -12,6 +12,8 @@
 // then tests a graph made of kernels.
 
 #include "../graph_common.hpp"
+
+#include <sycl/properties/all_properties.hpp>
 
 #define GRAPH_TESTS_VERBOSE_PRINT 0
 
@@ -130,8 +132,10 @@ int main() {
 
     KernelGraph.end_recording(Queue);
 
-    auto CopyGraphExec = CopyGraph.finalize();
-    auto KernelGraphExec = KernelGraph.finalize();
+    auto CopyGraphExec =
+        CopyGraph.finalize({exp_ext::property::graph::enable_profiling{}});
+    auto KernelGraphExec =
+        KernelGraph.finalize({exp_ext::property::graph::enable_profiling{}});
 
     event CopyEvent, KernelEvent1, KernelEvent2;
     // Run graphs

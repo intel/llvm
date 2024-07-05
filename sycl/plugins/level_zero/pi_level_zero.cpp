@@ -394,19 +394,18 @@ __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
-    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc,
     pi_image_handle *RetHandle) {
-  return pi2ur::piextMemUnsampledImageCreate(
-      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+  return pi2ur::piextMemUnsampledImageCreate(Context, Device, ImgMem,
+                                             ImageFormat, ImageDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
     pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
-    pi_mem *RetMem, pi_image_handle *RetHandle) {
+    pi_image_handle *RetHandle) {
   return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
-                                           ImageDesc, Sampler, RetMem,
-                                           RetHandle);
+                                           ImageDesc, Sampler, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
@@ -467,11 +466,19 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
                                      ParamValueSizeRet);
 }
 
-__SYCL_EXPORT pi_result
-piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
-                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalMemory`")
+pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
+                                 size_t Size, int FileDescriptor,
+                                 pi_interop_mem_handle *RetHandle) {
   return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
                                        RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextImportExternalMemory(
+    pi_context Context, pi_device Device, pi_external_mem_descriptor *MemDesc,
+    pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextImportExternalMemory(Context, Device, MemDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemMapExternalArray(
@@ -488,11 +495,22 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
   return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
 }
 
-__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context Context, pi_device Device, int FileDescriptor,
-    pi_interop_semaphore_handle *RetHandle) {
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalSemaphore`")
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
+                                     int FileDescriptor,
+                                     pi_interop_semaphore_handle *RetHandle) {
   return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
                                                      FileDescriptor, RetHandle);
+}
+
+__SYCL_EXPORT pi_result
+piextImportExternalSemaphore(pi_context Context, pi_device Device,
+                             pi_external_semaphore_descriptor *SemDesc,
+                             pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphore(Context, Device, SemDesc,
+                                             RetHandle);
 }
 
 __SYCL_EXPORT pi_result
@@ -502,19 +520,21 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piextWaitExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(Queue, SemHandle, HasWaitValue,
+                                           WaitValue, NumEventsInWaitList,
+                                           EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piextSignalExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(Queue, SemHandle, HasSignalValue,
+                                             SignalValue, NumEventsInWaitList,
+                                             EventWaitList, Event);
 }
 
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
@@ -649,6 +669,14 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
                                            pi_event *Event) {
   return pi2ur::piextEventCreateWithNativeHandle(NativeHandle, Context,
                                                  OwnNativeHandle, Event);
+}
+
+pi_result piEnqueueTimestampRecordingExp(pi_queue Queue, pi_bool Blocking,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventWaitList,
+                                         pi_event *Event) {
+  return pi2ur::piEnqueueTimestampRecordingExp(
+      Queue, Blocking, NumEventsInWaitList, EventWaitList, Event);
 }
 
 //
@@ -1394,6 +1422,154 @@ piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
 pi_result
 piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
   return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param Context is the context to get the granularity from.
+/// \param Device is the device to get the granularity from.
+/// \param MemSize is the potentially unadjusted size to get granularity for.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result
+piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
+                                  pi_virtual_mem_granularity_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGranularityGetInfo(Context, Device, ParamName,
+                                                  ParamValueSize, ParamValue,
+                                                  ParamValueSizeRet);
+}
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param Context is the context within which the physical memory is allocated.
+/// \param Device is the device the physical memory is on.
+/// \param MemSize is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param RetPhysicalMem is the handle for the resulting physical memory.
+pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
+                                 size_t MemSize,
+                                 pi_physical_mem *RetPhysicalMem) {
+  return pi2ur::piextPhysicalMemCreate(Context, Device, MemSize,
+                                       RetPhysicalMem);
+}
+
+/// API for retaining a physical memory handle.
+///
+/// \param PhysicalMem is the handle for the physical memory to retain.
+pi_result piextPhysicalMemRetain(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRetain(PhysicalMem);
+}
+
+/// API for releasing a physical memory handle.
+///
+/// \param PhysicalMem is the handle for the physical memory to free.
+pi_result piextPhysicalMemRelease(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRelease(PhysicalMem);
+}
+
+/// API for reserving a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param RangeSize is the size of the virtual address range to reserve in
+///        bytes.
+/// \param RetPtr is the pointer to the start of the resulting virtual memory
+///        range.
+pi_result piextVirtualMemReserve(pi_context Context, const void *Start,
+                                 size_t RangeSize, void **RetPtr) {
+  return pi2ur::piextVirtualMemReserve(Context, Start, RangeSize, RetPtr);
+}
+
+/// API for freeing a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+pi_result piextVirtualMemFree(pi_context Context, const void *Ptr,
+                              size_t RangeSize) {
+  return pi2ur::piextVirtualMemFree(Context, Ptr, RangeSize);
+}
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param Context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+/// \param PhysicalMem is the handle for the physical memory to map Ptr to.
+/// \param Offset is the offset into PhysicalMem in bytes to map Ptr to.
+/// \param Flags is the access flags to set for the mapping.
+pi_result piextVirtualMemMap(pi_context Context, const void *Ptr,
+                             size_t RangeSize, pi_physical_mem PhysicalMem,
+                             size_t Offset, pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemMap(Context, Ptr, RangeSize, PhysicalMem, Offset,
+                                   Flags);
+}
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+pi_result piextVirtualMemUnmap(pi_context Context, const void *Ptr,
+                               size_t RangeSize) {
+  return pi2ur::piextVirtualMemUnmap(Context, Ptr, RangeSize);
+}
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param Flags is the access flags to set for the mapped virtual access range.
+pi_result piextVirtualMemSetAccess(pi_context Context, const void *Ptr,
+                                   size_t RangeSize,
+                                   pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemSetAccess(Context, Ptr, RangeSize, Flags);
+}
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
+                                 size_t RangeSize,
+                                 pi_virtual_mem_info ParamName,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGetInfo(Context, Ptr, RangeSize, ParamName,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
+}
+
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
 }
 
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;

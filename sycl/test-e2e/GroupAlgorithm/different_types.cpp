@@ -8,6 +8,7 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/sycl_span.hpp>
 
 using namespace sycl;
 

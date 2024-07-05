@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -sycl-std=2017 -ast-dump | FileCheck %s
 
 // The test checks AST of [[intel::num_simd_work_items()]] attribute.
 

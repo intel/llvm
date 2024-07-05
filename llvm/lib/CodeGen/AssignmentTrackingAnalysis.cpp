@@ -15,7 +15,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/UniqueVector.h"
-#include "llvm/Analysis/Interval.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
@@ -2494,7 +2493,7 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
   bool Changed = false;
   SmallDenseMap<DebugAggregate, BitVector> VariableDefinedBytes;
   // Scan over the entire block, not just over the instructions mapped by
-  // FnVarLocs, because wedges in FnVarLocs may only be seperated by debug
+  // FnVarLocs, because wedges in FnVarLocs may only be separated by debug
   // instructions.
   for (const Instruction &I : reverse(*BB)) {
     if (!isa<DbgVariableIntrinsic>(I)) {
@@ -2594,7 +2593,7 @@ removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
       VariableMap;
 
   // Scan over the entire block, not just over the instructions mapped by
-  // FnVarLocs, because wedges in FnVarLocs may only be seperated by debug
+  // FnVarLocs, because wedges in FnVarLocs may only be separated by debug
   // instructions.
   for (const Instruction &I : *BB) {
     // Get the defs that come just before this instruction.
@@ -2682,7 +2681,7 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
   DenseMap<DebugVariable, std::pair<Value *, DIExpression *>> VariableMap;
 
   // Scan over the entire block, not just over the instructions mapped by
-  // FnVarLocs, because wedges in FnVarLocs may only be seperated by debug
+  // FnVarLocs, because wedges in FnVarLocs may only be separated by debug
   // instructions.
   for (const Instruction &I : *BB) {
     // Get the defs that come just before this instruction.
