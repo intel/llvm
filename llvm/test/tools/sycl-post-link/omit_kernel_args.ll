@@ -2,7 +2,7 @@
 ; optimization info into a property file if the source IR contained
 ; corresponding metadata.
 ;
-; RUN: sycl-post-link -emit-param-info -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -emit-param-info -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
 

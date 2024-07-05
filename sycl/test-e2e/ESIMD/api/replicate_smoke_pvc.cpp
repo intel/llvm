@@ -12,9 +12,6 @@
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
 // PVC variant of the test - adds tfloat32.
 
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
-
 #define USE_TF32
 
 #include "replicate_smoke.cpp"

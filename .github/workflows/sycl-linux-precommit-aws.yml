@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   create-check:
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write
@@ -79,7 +79,7 @@ jobs:
   update-check:
     needs: [create-check, e2e-cuda]
     if: always()
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write
