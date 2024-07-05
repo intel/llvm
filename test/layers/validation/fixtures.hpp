@@ -132,7 +132,7 @@ inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; };
 
 // This returns valid (non-null) handles that we can safely leak.
 inline ur_result_t fakeContext_urContextCreate(void *pParams) {
-    static std::atomic_int handle = 1;
+    static std::atomic_int handle = 42;
     auto params = *static_cast<ur_context_create_params_t *>(pParams);
     **params.pphContext = reinterpret_cast<ur_context_handle_t>(handle++);
     return UR_RESULT_SUCCESS;

@@ -25,6 +25,10 @@ class __urdlllocal context_t {
     ur_dditable_t urDdiTable = {};
     context_t();
     ~context_t() = default;
+
+    ur_adapter_handle_t adapter = reinterpret_cast<ur_adapter_handle_t>(1);
+    ur_device_handle_t device = reinterpret_cast<ur_device_handle_t>(2);
+    ur_platform_handle_t platform = reinterpret_cast<ur_platform_handle_t>(3);
 };
 
 extern context_t d_context;

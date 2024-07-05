@@ -48,7 +48,7 @@ struct ur_loader_config_handle_t_ {
     std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
 
     codeloc_data codelocData;
-    bool enableMock;
+    bool enableMock = false;
 };
 
 namespace ur_lib {

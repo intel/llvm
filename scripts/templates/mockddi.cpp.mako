@@ -96,15 +96,25 @@ namespace driver
                 *ppMem = mock::createDummyHandle<void *>(size);
             %elif re.search(r"USMPitchedAllocExp$", fname):
                 *ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
-            %else:
-                %if fname == 'urAdapterGet' or fname == 'urDeviceGet' or fname == 'urPlatformGet':
+            ## We need a special case for USM free since it doesn't have the handle release tag
+            %elif re.search(r"USMFree$", fname):
+                mock::releaseDummyHandle(pMem);
+            ## adapter, platform and device have special lifetime considerations
+            %elif 'urAdapter' in fname or 'urDevice' in fname or 'urPlatform' in fname:
+                %if re.match(r"ur(.*)Get$", fname):
                     <%
                         num_param = th.find_param_name(".*pNum.*", n, tags, obj)
+                        object = re.match(r"ur(.*)Get", fname).group(1)
+                        out_param = "ph" + object + "s"
                     %>
                     if(${num_param}) {
                         *${num_param} = 1;
                     }
+                    if(${out_param}) {
+                        *${out_param} = d_context.${object.lower()};
+                    }
                 %endif
+            %else:
                 %for item in epilogue:
                     %if item['release']:
                         mock::releaseDummyHandle(${item['name']});

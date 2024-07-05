@@ -50,9 +50,8 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
         if (pNumAdapters) {
             *pNumAdapters = 1;
         }
-        // optional output handle
         if (phAdapters) {
-            *phAdapters = mock::createDummyHandle<ur_adapter_handle_t>();
+            *phAdapters = d_context.adapter;
         }
         result = UR_RESULT_SUCCESS;
     }
@@ -96,7 +95,6 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
         result = replaceCallback(&params);
     } else {
 
-        mock::releaseDummyHandle(hAdapter);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -139,7 +137,6 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
         result = replaceCallback(&params);
     } else {
 
-        mock::retainDummyHandle(hAdapter);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -301,9 +298,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
         if (pNumPlatforms) {
             *pNumPlatforms = 1;
         }
-        // optional output handle
         if (phPlatforms) {
-            *phPlatforms = mock::createDummyHandle<ur_platform_handle_t>();
+            *phPlatforms = d_context.platform;
         }
         result = UR_RESULT_SUCCESS;
     }
@@ -609,9 +605,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
         if (pNumDevices) {
             *pNumDevices = 1;
         }
-        // optional output handle
         if (phDevices) {
-            *phDevices = mock::createDummyHandle<ur_device_handle_t>();
+            *phDevices = d_context.device;
         }
         result = UR_RESULT_SUCCESS;
     }
@@ -710,7 +705,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
         result = replaceCallback(&params);
     } else {
 
-        mock::retainDummyHandle(hDevice);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -754,7 +748,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
         result = replaceCallback(&params);
     } else {
 
-        mock::releaseDummyHandle(hDevice);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -808,10 +801,6 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         result = replaceCallback(&params);
     } else {
 
-        // optional output handle
-        if (phSubDevices) {
-            *phSubDevices = mock::createDummyHandle<ur_device_handle_t>();
-        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -2355,6 +2344,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
         result = replaceCallback(&params);
     } else {
 
+        mock::releaseDummyHandle(pMem);
         result = UR_RESULT_SUCCESS;
     }
 
