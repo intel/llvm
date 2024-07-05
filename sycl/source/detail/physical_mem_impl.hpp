@@ -30,6 +30,9 @@ inline sycl::detail::pi::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
     return PI_VIRTUAL_ACCESS_FLAG_RW;
   case ext::oneapi::experimental::address_access_mode::none:
     return 0;
+  default:
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Invalid address_access_mode.");
   }
   throw sycl::exception(make_error_code(errc::invalid),
                         "Invalid address_access_mode.");

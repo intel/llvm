@@ -1661,7 +1661,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
       auto isPAuthLR = [](const char *member) {
         llvm::AArch64::ExtensionInfo pauthlr_extension =
             llvm::AArch64::getExtensionByID(llvm::AArch64::AEK_PAUTHLR);
-        return pauthlr_extension.Feature == member;
+        return pauthlr_extension.PosTargetFeature == member;
       };
 
       if (std::any_of(CmdArgs.begin(), CmdArgs.end(), isPAuthLR))
@@ -3817,7 +3817,6 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
   const unsigned ForwardedArguments[] = {options::OPT_dxil_validator_version,
                                          options::OPT_D,
                                          options::OPT_I,
-                                         options::OPT_S,
                                          options::OPT_O,
                                          options::OPT_emit_llvm,
                                          options::OPT_emit_obj,
@@ -5387,7 +5386,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // TODO: Once default arch is moved to at least SM_53, empty arch should
       // also result in the flag added.
       if (!GPUArchName.empty() &&
-          StringToCudaArch(GPUArchName) >= CudaArch::SM_53)
+          StringToOffloadArch(GPUArchName) >= OffloadArch::SM_53)
         CmdArgs.push_back("-fnative-half-type");
     }
     // Pass the triple of host when doing SYCL

@@ -1033,8 +1033,10 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn,
         break; // No other 'amdgcn.atomic.*'
       }
 
-      if (Name.starts_with("ds.fadd")) {
-        // Replaced with atomicrmw fadd, so there's no new declaration.
+      if (Name.starts_with("ds.fadd") || Name.starts_with("ds.fmin") ||
+          Name.starts_with("ds.fmax")) {
+        // Replaced with atomicrmw fadd/fmin/fmax, so there's no new
+        // declaration.
         NewFn = nullptr;
         return true;
       }
@@ -2341,6 +2343,8 @@ static Value *upgradeAMDGCNIntrinsicCall(StringRef Name, CallBase *CI,
   AtomicRMWInst::BinOp RMWOp =
       StringSwitch<AtomicRMWInst::BinOp>(Name)
           .StartsWith("ds.fadd", AtomicRMWInst::FAdd)
+          .StartsWith("ds.fmin", AtomicRMWInst::FMin)
+          .StartsWith("ds.fmax", AtomicRMWInst::FMax)
           .StartsWith("atomic.inc.", AtomicRMWInst::UIncWrap)
           .StartsWith("atomic.dec.", AtomicRMWInst::UDecWrap);
 
@@ -2349,7 +2353,8 @@ static Value *upgradeAMDGCNIntrinsicCall(StringRef Name, CallBase *CI,
     return nullptr;
 
   Value *Ptr = CI->getArgOperand(0);
-  if (!isa<PointerType>(Ptr->getType())) // Malformed.
+  PointerType *PtrTy = dyn_cast<PointerType>(Ptr->getType());
+  if (!PtrTy) // Malformed.
     return nullptr;
 
   Value *Val = CI->getArgOperand(1);
@@ -2394,6 +2399,11 @@ static Value *upgradeAMDGCNIntrinsicCall(StringRef Name, CallBase *CI,
   SyncScope::ID SSID = Ctx.getOrInsertSyncScopeID("agent");
   AtomicRMWInst *RMW =
       Builder.CreateAtomicRMW(RMWOp, Ptr, Val, std::nullopt, Order, SSID);
+
+  if (PtrTy->getAddressSpace() != 3) {
+    RMW->setMetadata("amdgpu.no.fine.grained.memory",
+                     MDNode::get(F->getContext(), {}));
+  }
 
   if (IsVolatile)
     RMW->setVolatile(true);
