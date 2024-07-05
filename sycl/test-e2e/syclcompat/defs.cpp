@@ -61,6 +61,19 @@ void test_check_error() {
          SYCLCOMPAT_CHECK_ERROR(runtime_error_throw()));
 }
 
+void test_version() {
+  // Check the composition of the version int
+  assert(SYCLCOMPAT_MAKE_VERSION(1, 1, 1) == 1001001);
+  assert(SYCLCOMPAT_MAKE_VERSION(9, 0, 0) == 9000000);
+
+  // Check the current version is as expected
+  assert(SYCLCOMPAT_MAKE_VERSION(0, 1, 0) == SYCLCOMPAT_VERSION);
+
+  // Check some inequalities
+  assert(SYCLCOMPAT_MAKE_VERSION(0, 1, 1) > SYCLCOMPAT_MAKE_VERSION(0, 1, 0));
+  assert(SYCLCOMPAT_MAKE_VERSION(1, 0, 0) > SYCLCOMPAT_MAKE_VERSION(0, 9, 0));
+}
+
 int main() {
   test_align();
   test_check_error();

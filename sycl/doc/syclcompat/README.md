@@ -72,6 +72,40 @@ This document presents the public API under the [Features](#features) section,
 and provides a working [Sample code](#sample-code) using this library. Refer to
 those to learn to use the library.
 
+## Versioning
+
+SYCLcompat adopts [semantic versioning](https://semver.org/)
+(`major.minor.patch`) in a manner which aligns with oneAPI releases. Each oneAPI
+product release has an associated SYCLcompat release. When breaking changes have
+been made to SYCLcompat's API since the last release, `major` is incremented,
+otherwise `minor` is incremented. Use of `patch` is described below.
+
+Between release cycles, ongoing updates to SYCLcompat (including possibly
+breaking changes) are merged into DPC++'s
+[`sycl`](https://github.com/intel/llvm/tree/sycl) branch. To enable projects
+pulling SYCLcompat from source to distinguish from the latest release version,
+the `patch` version in the `sycl` branch is incremented immediately following a
+oneAPI release.
+
+If important updates (e.g. bugfixes, breaking changes) are pushed to the `sycl`
+branch between oneAPI release cycles, `patch` will be incremented.
+
+### Release Process
+
+Once all changes planned for a release have been merged, the release process is
+defined as:
+
+1. Assess whether API breaks have occurred since last oneAPI release.
+2. Bump to next `major` or `minor` accordingly.
+3. oneAPI release is delivered.
+4. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat_major.minor.0`.
+5. Increment the `patch` version in `sycl` branch to `1`.
+
+## Changelog
+
+TODO: Point the user to the fact that SYCLcompat changelog is in the main DPC++
+changelog with tags [SYCL][COMPAT].
+
 ## Features
 
 ### dim3
