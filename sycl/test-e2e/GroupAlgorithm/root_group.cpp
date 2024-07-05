@@ -1,5 +1,7 @@
 // Fails with opencl non-cpu, enable when fixed.
-// XFAIL: (opencl && !cpu && !accelerator)
+// Temporarily disabled for Cuda due to a known issue. Enable it again when the
+// root group barrier functionality is implemented correct in the NVPTX backend.
+// XFAIL: (opencl && !cpu && !accelerator) || cuda
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
