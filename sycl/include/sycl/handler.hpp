@@ -965,6 +965,7 @@ private:
     constexpr std::size_t cluster_dim =
         syclex::detail::getClusterDim<Properties>();
     if constexpr (cluster_dim > 0) {
+      setKernelUsesClusterLaunch();
       MNDRDesc.setClusterDimensions(
           Props
               .template get_property<
