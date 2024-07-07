@@ -150,12 +150,17 @@ struct tuple_template_index
 {
   static constexpr std::size_t value =
     tuple_template_index_helper<classy, Tuple>::value;
-  static_assert(value < std::tuple_size_v<Tuple>,
-                "type does not appear in tuple");
+  // static_assert(value < std::tuple_size_v<Tuple>,
+  //               "type does not appear in tuple");
 };
 
-//----------------------------------------------
+template <template <typename TT> typename classy, typename Tuple>
+    struct tuple_contains_template
+    : std::conditional_t <
+      tuple_template_index<classy, Tuple>::value<
+          std::tuple_size_v<Tuple>, std::true_type, std::false_type> {};
 
+//----------------------------------------------
 
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps>
@@ -180,6 +185,16 @@ struct launch_policy {
   local_mem_size _local_mem_size;
 };
 
+template <typename... Ts>
+using kernel_properties_or_empty =
+    std::conditional_t <
+    tuple_contains_template<kernel_properties, std::tuple<Ts...>>::value,
+      std::tuple_element_t<
+          tuple_template_index<kernel_properties, std::tuple<Ts...>>::value,
+          std::tuple<Ts...>>,
+      sycl::ext::oneapi::experimental::empty_properties_t
+        >;
+
 // Deduction guides for launch_policy dim3 ctors
 // template <typename KProps, typename LProps>
 // launch_policy(dim3 global_range, kernel_properties<KProps> kprops, launch_properties<LProps> lprops,
@@ -193,9 +208,7 @@ struct launch_policy {
 
 template <typename Range, typename... Ts>
     launch_policy(Range range, Ts... ts)->launch_policy < Range,
-    typename is_kernel_properties < std::tuple_element_t < //TODO: tidy redundancy here - `is_kernel_properties` will always be true?
-        tuple_template_index<kernel_properties, std::tuple<Ts...>>::value,
-        std::tuple<Ts...>>>::KProps,
+    typename is_kernel_properties <kernel_properties_or_empty<Ts...>>::KProps,
     typename is_launch_properties<std::tuple_element_t<
         tuple_template_index<launch_properties ,std::tuple<Ts...>>::value,
         std::tuple<Ts...>>>::LProps>;
