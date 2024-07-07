@@ -174,36 +174,42 @@ struct launch_policy {
   local_mem_size _local_mem_size;
 };
 
-
 //TODO: ought this to return the sycl::properties type or the wrapper type?
-template <template <typename TT> typename PropertyContainer, typename ...Ts>
-struct properties_or_empty {
-  using Props = std::conditional_t <
-    tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value,
-      typename std::tuple_element_t<
-          tuple_template_index<PropertyContainer, std::tuple<Ts...>>::value,
-          std::tuple<Ts...>>::Props,
-      sycl::ext::oneapi::experimental::empty_properties_t
-        >;
+template <bool InTuple, template <typename TT> typename PropertyContainer, typename... Ts>
+struct properties_or_empty;
+
+template <template <typename TT> typename PropertyContainer, typename... Ts>
+struct properties_or_empty<false, PropertyContainer, Ts...> {
+  using Props = sycl::ext::oneapi::experimental::empty_properties_t;
 };
 
+template <template <typename TT> typename PropertyContainer, typename... Ts>
+struct properties_or_empty<true, PropertyContainer, Ts...> {
+  using Props = typename std::tuple_element_t<
+      tuple_template_index<PropertyContainer, std::tuple<Ts...>>::value,
+      std::tuple<Ts...>>::Props;
+};
 
+template <template <typename TT> typename PropertyContainer, typename... Ts>
+using properties_or_empty_rename_t = typename properties_or_empty<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
 
 // Deduction guides for launch_policy dim3 ctors
 // template <typename KProps, typename LProps>
-// launch_policy(dim3 global_range, kernel_properties<KProps> kprops, launch_properties<LProps> lprops,
+// launch_policy(dim3 global_range, kernel_properties<KProps> kprops,
+// launch_properties<LProps> lprops,
 //                 local_mem_size lmem_size)
 //     -> launch_policy<sycl::range<3>, KProps, LProps>;
 
 // template <typename KProps, typename LProps>
-// launch_policy(dim3 global_range, dim3 work_group_range, kernel_properties<KProps> kprops,
+// launch_policy(dim3 global_range, dim3 work_group_range,
+// kernel_properties<KProps> kprops,
 //                 launch_properties<LProps> lprops, local_mem_size lmem_size)
 //     -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
 
 template <typename Range, typename... Ts>
 launch_policy(Range range, Ts... ts) -> launch_policy<
-    Range, typename properties_or_empty<kernel_properties, Ts...>::Props,
-    typename properties_or_empty<launch_properties, Ts...>::Props>;
+    Range, properties_or_empty_rename_t<kernel_properties, Ts...>,
+    properties_or_empty_rename_t<launch_properties, Ts...>>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
 
