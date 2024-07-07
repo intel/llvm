@@ -40,8 +40,9 @@ namespace experimental {
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 template <typename Properties> struct kernel_properties {
-  template<typename ...Props>
+  template <typename... Props>
   kernel_properties(Props... properties) : props{properties...} {}
+  using Props = Properties;
   Properties props;
 };
 
@@ -49,8 +50,9 @@ template <typename... Props>
 kernel_properties(Props... props) -> kernel_properties<decltype(sycl_exp::properties(props...))>;
 
 template <typename Properties> struct launch_properties {
-  template<typename ...Props>
+  template <typename... Props>
   launch_properties(Props... properties) : props{properties...} {}
+  using Props = Properties;
   Properties props;
 };
 
@@ -61,20 +63,7 @@ struct local_mem_size {
   size_t size;
 };
 
-// Detects & extracts properties type from kernel_property struct
-template <typename T> struct is_kernel_properties : std::false_type {};
-template <typename U>
-struct is_kernel_properties<kernel_properties<U>> : std::true_type {
-  using KProps = U;
-};
-
-// Detects & extracts properties type from launch_property struct
-template <typename T> struct is_launch_properties : std::false_type {};
-template <typename U>
-struct is_launch_properties<launch_properties<U>> : std::true_type {
-  using LProps = U;
-};
-
+// TODO: ???
 template <typename T> struct is_local_mem_size : std::false_type {};
 template <> struct is_local_mem_size<local_mem_size> : std::true_type {};
 
@@ -185,15 +174,20 @@ struct launch_policy {
   local_mem_size _local_mem_size;
 };
 
-template <typename... Ts>
-using kernel_properties_or_empty =
-    std::conditional_t <
-    tuple_contains_template<kernel_properties, std::tuple<Ts...>>::value,
-      std::tuple_element_t<
-          tuple_template_index<kernel_properties, std::tuple<Ts...>>::value,
-          std::tuple<Ts...>>,
+
+//TODO: ought this to return the sycl::properties type or the wrapper type?
+template <template <typename TT> typename classy, typename ...Ts>
+struct properties_or_empty {
+  using Props = std::conditional_t <
+    tuple_contains_template<classy, std::tuple<Ts...>>::value,
+      typename std::tuple_element_t<
+          tuple_template_index<classy, std::tuple<Ts...>>::value,
+          std::tuple<Ts...>>::Props,
       sycl::ext::oneapi::experimental::empty_properties_t
         >;
+};
+
+
 
 // Deduction guides for launch_policy dim3 ctors
 // template <typename KProps, typename LProps>
@@ -207,11 +201,9 @@ using kernel_properties_or_empty =
 //     -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
 
 template <typename Range, typename... Ts>
-    launch_policy(Range range, Ts... ts)->launch_policy < Range,
-    typename is_kernel_properties <kernel_properties_or_empty<Ts...>>::KProps,
-    typename is_launch_properties<std::tuple_element_t<
-        tuple_template_index<launch_properties ,std::tuple<Ts...>>::value,
-        std::tuple<Ts...>>>::LProps>;
+launch_policy(Range range, Ts... ts) -> launch_policy<
+    Range, typename properties_or_empty<kernel_properties, Ts...>::Props,
+    typename properties_or_empty<launch_properties, Ts...>::Props>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
 
