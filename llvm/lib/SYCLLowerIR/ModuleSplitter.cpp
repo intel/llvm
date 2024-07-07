@@ -12,18 +12,26 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -42,6 +50,11 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
+    cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
@@ -125,10 +138,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   return false;
 }
 
-bool isESIMDFunction(const Function &F) {
-  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
 // Represents "dependency" or "use" graph of global objects (functions and
 // global variables) in a module. It is used during device code split to
 // understand which global variables and functions (other than entry points)
@@ -172,8 +181,13 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph
+    // We add every function into the graph except if
+    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
+
+      if (SupportDynamicLinking && canBeImportedFunction(F))
+        continue;
+
       // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
@@ -429,6 +443,15 @@ private:
 namespace llvm {
 namespace module_split {
 
+bool isESIMDFunction(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
+cl::OptionCategory &getModuleSplitCategory() {
+  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
+  return ModuleSplitCategory;
+}
+
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
   // Early exit if there is only one group
@@ -623,6 +646,14 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
+// Predicate for Internalize pass.
+bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV))
+    if (!canBeImportedFunction(*F))
+      return false;
+  return true;
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -630,6 +661,8 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
+  if (SupportDynamicLinking)
+    MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -731,6 +764,14 @@ void EntryPointGroup::rebuild(const Module &M) {
   for (const Function &F : M.functions())
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       Functions.insert(const_cast<Function *>(&F));
+}
+
+std::string ModuleDesc::makeSymbolTable() const {
+  std::string ST;
+  for (const Function *F : EntryPoints.Functions)
+    ST += (Twine(F->getName()) + "\n").str();
+
+  return ST;
 }
 
 namespace {
@@ -1115,8 +1156,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD.releaseModulePtr()),
-                        std::move(EntryPointGroups[0]), MD.Props);
+    Result.emplace_back(MD.releaseModulePtr(), std::move(EntryPointGroups[0]),
+                        MD.Props);
     return Result;
   }
 
@@ -1125,8 +1166,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(
-          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1134,13 +1174,87 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // modules are expected to be linked back together after ESIMD functions
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
-      Result.emplace_back(std::move(extractCallGraph(
+      Result.emplace_back(extractCallGraph(
           MD, std::move(Group), CG,
-          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
 
   return Result;
+}
+
+static Error saveModuleIRInFile(Module &M, StringRef FilePath,
+                                bool OutputAssembly) {
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  if (OutputAssembly)
+    MPM.addPass(PrintModulePass(OS));
+  else
+    MPM.addPass(BitcodeWriterPass(OS));
+
+  MPM.run(M, MAM);
+  return Error::success();
+}
+
+static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                            bool OutputAssembly) {
+  SplitModule SM;
+  Prefix += OutputAssembly ? ".ll" : ".bc";
+  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
+  if (E)
+    return E;
+
+  SM.ModuleFilePath = Prefix;
+  SM.Symbols = MD.makeSymbolTable();
+  return SM;
+}
+
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  // FIXME: false arguments are temporary for now.
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+
+  size_t ID = 0;
+  std::vector<SplitModule> OutputImages;
+  while (Splitter->hasMoreSplits()) {
+    ModuleDesc MD2 = Splitter->nextSplit();
+    MD2.fixupLinkageOfDirectInvokeSimdTargets();
+
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    auto SplittedImageOrErr =
+        saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
+    if (!SplittedImageOrErr)
+      return SplittedImageOrErr.takeError();
+
+    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    ++ID;
+  }
+
+  return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split

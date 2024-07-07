@@ -37,6 +37,18 @@ DEVICE_EXTERN_C_INLINE
 double fmin(double x, double y) { return __devicelib_fmin(x, y); }
 
 DEVICE_EXTERN_C_INLINE
+double trunc(double x) { return __devicelib_trunc(x); }
+
+DEVICE_EXTERN_C_INLINE
+double sinpi(double x) { return __devicelib_sinpi(x); }
+
+DEVICE_EXTERN_C_INLINE
+double rsqrt(double x) { return __devicelib_rsqrt(x); }
+
+DEVICE_EXTERN_C_INLINE
+double exp10(double x) { return __devicelib_exp10(x); }
+
+DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
 
 DEVICE_EXTERN_C_INLINE

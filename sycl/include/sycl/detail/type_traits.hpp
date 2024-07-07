@@ -178,6 +178,10 @@ struct get_elem_type<multi_ptr<ElementType, Space, DecorateAddress>> {
   using type = ElementType;
 };
 
+template <typename ElementType> struct get_elem_type<ElementType *> {
+  using type = ElementType;
+};
+
 template <typename T, typename = void>
 struct is_ext_vector : std::false_type {};
 

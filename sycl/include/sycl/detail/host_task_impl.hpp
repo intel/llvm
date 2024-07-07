@@ -47,6 +47,8 @@ public:
     if (HPI)
       HPI->end();
   }
+
+  friend class DispatchHostTask;
 };
 
 class CGHostTask : public CG {

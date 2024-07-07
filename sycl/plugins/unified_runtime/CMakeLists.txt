@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
-  # Merge: c015f892 b9442104
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 10:20:23 2024 +0100
-  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
-  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
-  set(UNIFIED_RUNTIME_TAG 9f783837089c970a22cda08f768aa3dbed38f0d3)
+  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
+  # Merge: 40300808 665d4a68
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Jul 5 09:44:30 2024 +0100
+  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
+  #     [L0] Fix immediate command list use in Command Queues
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

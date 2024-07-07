@@ -1178,8 +1178,9 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
-  AuxHandler.depends_on(E);
+  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
+  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
+    AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
@@ -1277,7 +1278,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           for (size_t E = 0; E < NElements; ++E) {
             *getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
-          Reducer.template atomic_combine(&Out[0]);
+          Reducer.atomic_combine(&Out[0]);
         }
       });
     });

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-usm_shared_allocations
+// UNSUPPORTED: cuda && windows
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 

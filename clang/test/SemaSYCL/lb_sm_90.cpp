@@ -1,3 +1,4 @@
+// REQUIRES: nvptx-registered-target
 // RUN: %clang_cc1 -internal-isystem %S/Inputs %s -triple nvptx64-nvidia-cuda -target-cpu sm_90 -fsycl-is-device -Wno-c++23-extensions -verify -S -o %t
 
 // Maximum work groups per multi-processor, mapped to maxclusterrank PTX

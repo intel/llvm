@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <utility> // for std::forward
+#include <utility>
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
@@ -72,14 +72,20 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
     return MLaunchConfig.getProperties();
   }
 };
+
+template <typename CommandGroupFunc>
+void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc) {
+  Q.submit_without_event(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
 } // namespace detail
 
 template <typename CommandGroupFunc>
 void submit(queue Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  // TODO: Use new submit without Events.
-  Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  sycl::ext::oneapi::experimental::detail::submit_impl(
+      Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc>
@@ -205,7 +211,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ReductionsT>(Reductions)...);
+    nd_launch<KernelName>(CGH, Range, KernelObj,
+                          std::forward<ReductionsT>(Reductions)...);
   });
 }
 
@@ -228,7 +235,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
-    nd_launch(CGH, Config, KernelObj, std::forward<ReductionsT>(Reductions)...);
+    nd_launch<KernelName>(CGH, Config, KernelObj,
+                          std::forward<ReductionsT>(Reductions)...);
   });
 }
 
@@ -270,11 +278,9 @@ inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
   CGH.memcpy(Dest, Src, NumBytes);
 }
 
-inline void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes,
-                   const sycl::detail::code_location &CodeLoc =
-                       sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { memcpy(CGH, Dest, Src, NumBytes); }, CodeLoc);
-}
+__SYCL_EXPORT void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current());
 
 template <typename T>
 void copy(handler &CGH, const T *Src, T *Dest, size_t Count) {
@@ -292,11 +298,9 @@ inline void memset(handler &CGH, void *Ptr, int Value, size_t NumBytes) {
   CGH.memset(Ptr, Value, NumBytes);
 }
 
-inline void memset(queue Q, void *Ptr, int Value, size_t NumBytes,
-                   const sycl::detail::code_location &CodeLoc =
-                       sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { memset(CGH, Ptr, Value, NumBytes); }, CodeLoc);
-}
+__SYCL_EXPORT void memset(queue Q, void *Ptr, int Value, size_t NumBytes,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current());
 
 template <typename T>
 void fill(sycl::handler &CGH, T *Ptr, const T &Pattern, size_t Count) {
@@ -324,13 +328,9 @@ inline void mem_advise(handler &CGH, void *Ptr, size_t NumBytes, int Advice) {
   CGH.mem_advise(Ptr, NumBytes, Advice);
 }
 
-inline void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
-                       const sycl::detail::code_location &CodeLoc =
-                           sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { mem_advise(CGH, Ptr, NumBytes, Advice); },
-      CodeLoc);
-}
+__SYCL_EXPORT void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
+                              const sycl::detail::code_location &CodeLoc =
+                                  sycl::detail::code_location::current());
 
 inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
 

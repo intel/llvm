@@ -34,7 +34,7 @@ int main() {
 
     e.wait_and_throw();
     return 0;
-  } catch (runtime_error e) {
+  } catch (exception e) {
     return 1;
   }
 }

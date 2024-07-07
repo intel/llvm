@@ -15,10 +15,42 @@
 #include <sycl/builtins.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/sycl_span.hpp>
+
+#include <memory>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+// Helpers for sorting algorithms
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T, typename Group>
+static __SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch,
+                                             Group g,
+                                             size_t number_of_elements) {
+  // Adjust the scratch pointer based on alignment of the type T.
+  // Per extension specification if scratch size is less than the value
+  // returned by memory_required then behavior is undefined, so we don't check
+  // that the scratch size statisfies the requirement.
+  T *scratch_begin = nullptr;
+  // We must have a barrier here before array placement new because it is
+  // possible that scratch memory is already in use, so we need to synchronize
+  // work items.
+  sycl::group_barrier(g);
+  if (g.leader()) {
+    void *scratch_ptr = scratch.data();
+    size_t space = scratch.size();
+    scratch_ptr = std::align(alignof(T), number_of_elements * sizeof(T),
+                             scratch_ptr, space);
+    scratch_begin = ::new (scratch_ptr) T[number_of_elements];
+  }
+  // Broadcast leader's pointer (the beginning of the scratch) to all work
+  // items in the group.
+  scratch_begin = sycl::group_broadcast(g, scratch_begin);
+  return scratch_begin;
+}
+#endif
 
 // ---- merge sort implementation
 
@@ -68,22 +100,10 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space, IsDecorated>> {
   using type = ElementType;
 };
 
-// since we couldn't assign data to raw memory, it's better to use placement
-// for first assignment
-template <typename Acc, typename T>
-void set_value(Acc ptr, const size_t idx, const T &val, bool is_first) {
-  if (is_first) {
-    ::new (ptr + idx) T(val);
-  } else {
-    ptr[idx] = val;
-  }
-}
-
 template <typename InAcc, typename OutAcc, typename Compare>
 void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
            const size_t start_1, const size_t end_1, const size_t end_2,
-           const size_t start_out, Compare comp, const size_t chunk,
-           bool is_first) {
+           const size_t start_out, Compare comp, const size_t chunk) {
   const size_t start_2 = end_1;
   // Borders of the sequences to merge within this call
   const size_t local_start_1 =
@@ -111,8 +131,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const size_t l_shift_1 = local_start_1 - start_1;
     const size_t l_shift_2 = l_search_bound_2 - start_2;
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1,
-              is_first);
+    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_1;
 
     size_t r_search_bound_2{};
     // find right border in 2nd sequence
@@ -123,8 +142,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const auto r_shift_1 = local_end_1 - 1 - start_1;
       const auto r_shift_2 = r_search_bound_2 - start_2;
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_1,
-                is_first);
+      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
     }
 
     // Handle intermediate items
@@ -138,8 +156,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t shift_1 = idx - start_1;
       const size_t shift_2 = l_search_bound_2 - start_2;
 
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_1,
-                is_first);
+      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_1;
     }
   }
   // Process 2nd sequence
@@ -152,8 +169,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const size_t l_shift_1 = l_search_bound_1 - start_1;
     const size_t l_shift_2 = local_start_2 - start_2;
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_2,
-              is_first);
+    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_2;
 
     size_t r_search_bound_1{};
     // find right border in 1st sequence
@@ -164,8 +180,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t r_shift_1 = r_search_bound_1 - start_1;
       const size_t r_shift_2 = local_end_2 - 1 - start_2;
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_2,
-                is_first);
+      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_2;
     }
 
     // Handle intermediate items
@@ -179,8 +194,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t shift_1 = l_search_bound_1 - start_1;
       const size_t shift_2 = idx - start_2;
 
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_2,
-                is_first);
+      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_2;
     }
   }
 }
@@ -200,10 +214,9 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
   }
 }
 
-template <typename Group, typename Iter, typename Compare>
+template <typename Group, typename Iter, typename T, typename Compare>
 void merge_sort(Group group, Iter first, const size_t n, Compare comp,
-                std::byte *scratch) {
-  using T = typename GetValueType<Iter>::type;
+                T *scratch) {
   const size_t idx = group.get_local_linear_id();
   const size_t local = group.get_local_range().size();
   const size_t chunk = (n - 1) / local + 1;
@@ -212,9 +225,7 @@ void merge_sort(Group group, Iter first, const size_t n, Compare comp,
   bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
   sycl::group_barrier(group);
 
-  T *temp = reinterpret_cast<T *>(scratch);
-  bool data_in_temp = false;
-  bool is_first = true;
+  bool data_in_scratch = false;
   size_t sorted_size = 1;
   while (sorted_size * chunk < n) {
     const size_t start_1 =
@@ -223,26 +234,24 @@ void merge_sort(Group group, Iter first, const size_t n, Compare comp,
     const size_t end_2 = sycl::min(end_1 + sorted_size * chunk, n);
     const size_t offset = chunk * (idx % sorted_size);
 
-    if (!data_in_temp) {
-      merge(offset, first, temp, start_1, end_1, end_2, start_1, comp, chunk,
-            is_first);
+    if (!data_in_scratch) {
+      merge(offset, first, scratch, start_1, end_1, end_2, start_1, comp,
+            chunk);
     } else {
-      merge(offset, temp, first, start_1, end_1, end_2, start_1, comp, chunk,
-            /*is_first*/ false);
+      merge(offset, scratch, first, start_1, end_1, end_2, start_1, comp,
+            chunk);
     }
     sycl::group_barrier(group);
 
-    data_in_temp = !data_in_temp;
+    data_in_scratch = !data_in_scratch;
     sorted_size *= 2;
-    if (is_first)
-      is_first = false;
   }
 
   // copy back if data is in a temporary storage
-  if (data_in_temp) {
+  if (data_in_scratch) {
     for (size_t i = 0; i < chunk; ++i) {
       if (idx * chunk + i < n) {
-        first[idx * chunk + i] = temp[idx * chunk + i];
+        first[idx * chunk + i] = scratch[idx * chunk + i];
       }
     }
     sycl::group_barrier(group);
@@ -601,7 +610,7 @@ template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
           typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
-                                ValsT vals, const ScratchMemory &memory) {
+                                ValsT *vals, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
