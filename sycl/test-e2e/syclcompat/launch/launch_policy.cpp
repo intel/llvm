@@ -76,6 +76,17 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 };
 // =======================================================================
 
+
+int test_config() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  {
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::kernel_properties{sycl_exp::sub_group_size<32>});
+  }
+}
+
 int test_basic_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -187,6 +198,7 @@ int test_dim3_launch_policy() {
 
 int main() {
   // TODO: check return values!
+  test_config();
   test_basic_launch();
   test_lmem_launch();
 #ifdef SUPPORT_DIM3
