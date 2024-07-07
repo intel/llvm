@@ -107,46 +107,46 @@ struct tuple_element_index
 
 //----------------------------------------------
 
-template <template <typename TT> typename classy, typename Tuple> struct tuple_template_index_helper;
+template <template <typename TT> typename PropertyContainer, typename Tuple> struct tuple_template_index_helper;
 
-template<template <typename TT> typename classy>
-struct tuple_template_index_helper<classy, std::tuple<>>
+template<template <typename TT> typename PropertyContainer>
+struct tuple_template_index_helper<PropertyContainer, std::tuple<>>
 {
   static constexpr std::size_t value = 0;
 };
 
-template<template <typename TT> typename classy, typename T, typename... Rest>
-struct tuple_template_index_helper<classy, std::tuple<classy<T>, Rest...>>
+template<template <typename TT> typename PropertyContainer, typename T, typename... Rest>
+struct tuple_template_index_helper<PropertyContainer, std::tuple<PropertyContainer<T>, Rest...>>
 {
   static constexpr std::size_t value = 0;
   using RestTuple = std::tuple<Rest...>;
   static_assert(
-    tuple_template_index_helper<classy, RestTuple>::value == 
+    tuple_template_index_helper<PropertyContainer, RestTuple>::value == 
     std::tuple_size_v<RestTuple>,
     "type appears more than once in tuple");
 };
 
-template<template <typename TT> typename classy, typename First, typename... Rest>
-struct tuple_template_index_helper<classy, std::tuple<First, Rest...>>
+template<template <typename TT> typename PropertyContainer, typename First, typename... Rest>
+struct tuple_template_index_helper<PropertyContainer, std::tuple<First, Rest...>>
 {
   using RestTuple = std::tuple<Rest...>;
   static constexpr std::size_t value = 1 +
-       tuple_template_index_helper<classy, RestTuple>::value;
+       tuple_template_index_helper<PropertyContainer, RestTuple>::value;
 };
 
-template<template <typename TT> typename classy, typename Tuple>
+template<template <typename TT> typename PropertyContainer, typename Tuple>
 struct tuple_template_index
 {
   static constexpr std::size_t value =
-    tuple_template_index_helper<classy, Tuple>::value;
+    tuple_template_index_helper<PropertyContainer, Tuple>::value;
   // static_assert(value < std::tuple_size_v<Tuple>,
   //               "type does not appear in tuple");
 };
 
-template <template <typename TT> typename classy, typename Tuple>
+template <template <typename TT> typename PropertyContainer, typename Tuple>
     struct tuple_contains_template
     : std::conditional_t <
-      tuple_template_index<classy, Tuple>::value<
+      tuple_template_index<PropertyContainer, Tuple>::value<
           std::tuple_size_v<Tuple>, std::true_type, std::false_type> {};
 
 //----------------------------------------------
@@ -176,12 +176,12 @@ struct launch_policy {
 
 
 //TODO: ought this to return the sycl::properties type or the wrapper type?
-template <template <typename TT> typename classy, typename ...Ts>
+template <template <typename TT> typename PropertyContainer, typename ...Ts>
 struct properties_or_empty {
   using Props = std::conditional_t <
-    tuple_contains_template<classy, std::tuple<Ts...>>::value,
+    tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value,
       typename std::tuple_element_t<
-          tuple_template_index<classy, std::tuple<Ts...>>::value,
+          tuple_template_index<PropertyContainer, std::tuple<Ts...>>::value,
           std::tuple<Ts...>>::Props,
       sycl::ext::oneapi::experimental::empty_properties_t
         >;
