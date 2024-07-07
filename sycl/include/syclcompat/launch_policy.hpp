@@ -171,13 +171,13 @@ struct launch_policy {
   launch_policy() = delete;
   // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
   template <typename ...Ts>
-  launch_policy(Range range, Ts... ts) : range{range}, kernel_properties{std::get<tuple_template_index<syclcompat::experimental::kernel_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, launch_properties{std::get<tuple_template_index<syclcompat::experimental::launch_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, local_mem_size{0} { //TODO: local_mem_size, disambiguate kernel_properties, deal with empty case, make it a fn
+  launch_policy(Range range, Ts... ts) : range{range}, _kernel_properties{std::get<tuple_template_index<kernel_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, _launch_properties{std::get<tuple_template_index<launch_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, _local_mem_size{0} { //TODO: local_mem_size, deal with empty case, make it a fn
   }
 
   Range range;
-  kernel_properties<KProps> kernel_properties;
-  launch_properties<LProps> launch_properties;
-  local_mem_size local_mem_size;
+  kernel_properties<KProps> _kernel_properties;
+  launch_properties<LProps> _launch_properties;
+  local_mem_size _local_mem_size;
 };
 
 // Deduction guides for launch_policy dim3 ctors
@@ -213,32 +213,32 @@ namespace detail {
 
 template <auto F, typename Range, typename KProps, typename... Args> struct KernelFunctor {
   KernelFunctor(KProps kernel_props, Args... args)
-      : kernel_properties{kernel_props},
-        argument_tuple(std::make_tuple(args...)) {}
+      : _kernel_properties{kernel_props},
+        _argument_tuple(std::make_tuple(args...)) {}
 
   KernelFunctor(KProps kernel_props, sycl::local_accessor<char, 1> local_acc,
                 Args... args)
-      : kernel_properties{kernel_props}, local_acc{local_acc},
-        argument_tuple(std::make_tuple(args...)) {}
+      : _kernel_properties{kernel_props}, _local_acc{local_acc},
+        _argument_tuple(std::make_tuple(args...)) {}
 
-  auto get(sycl_exp::properties_tag) { return kernel_properties; }
+  auto get(sycl_exp::properties_tag) { return _kernel_properties; }
 
   __syclcompat_inline__ inline void
   operator()(syclcompat::detail::range_to_item_t<Range> it) const {
     if constexpr (syclcompat::lmem_invocable<F, Args...>) {
       char *local_mem_ptr = static_cast<char *>(
-          local_acc.get_multi_ptr<sycl::access::decorated::no>());
+          _local_acc.get_multi_ptr<sycl::access::decorated::no>());
       std::apply(
           [lmem_ptr = local_mem_ptr](auto &&...args) { F(args..., lmem_ptr); },
-          argument_tuple);
+          _argument_tuple);
     } else {
-      std::apply([](auto &&...args) { F(args...); }, argument_tuple);
+      std::apply([](auto &&...args) { F(args...); }, _argument_tuple);
     }
   }
 
-  KProps kernel_properties;
-  std::tuple<Args...> argument_tuple;
-  sycl::local_accessor<char, 1> local_acc;
+  KProps _kernel_properties;
+  std::tuple<Args...> _argument_tuple;
+  sycl::local_accessor<char, 1> _local_acc;
 };
 
 //====================================================================
