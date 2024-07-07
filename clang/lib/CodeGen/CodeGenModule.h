@@ -1127,11 +1127,6 @@ public:
   void generateIntelFPGAAnnotation(const Decl *D,
                                      llvm::SmallString<256> &AnnotStr);
   void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
-  void
-  generateIntelFPGAAnnotationForField(const FieldDecl *Field,
-                                      llvm::SmallString<256> &FieldAnnotStr);
-  void emitFieldAnnotation(const FieldDecl *FD, llvm::GlobalValue *GV);
-  void emitGlobalAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
 
   /// Given a builtin id for a function like "__builtin_fabsf", return a
   /// Function* for "fabsf".
