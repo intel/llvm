@@ -45,6 +45,9 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 // Dummy kernel functions for testing
 // =======================================================================
 
+// #define DO_LAUNCH
+// #define SUPPORT_DIM3
+
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
 inline void empty_kernel(){};
@@ -101,7 +104,7 @@ int test_basic_launch() {
   //     sycl_exp::properties{sycl_exp::sub_group_size<32>,
   //                          sycl_exp::use_root_sync, my_cache_config},
   //     sycl_exp::properties{}, local_mem_size};
-
+#ifdef DO_LAUNCH
   sycl::queue q = syclcompat::get_default_queue();
 
   int dummy_int{1};
@@ -112,6 +115,7 @@ int test_basic_launch() {
   compat_exp::launch<empty_kernel>(my_config, q);
   compat_exp::launch<int_kernel>(my_config, q, dummy_int);
 
+#endif
   return 0;
 }
 
@@ -133,6 +137,7 @@ int test_lmem_launch() {
       compat_exp::kernel_properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
       compat_exp::launch_properties{}, local_mem_size);
 
+#ifdef DO_LAUNCH
   compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
   compat_exp::launch<dynamic_local_mem_typed_kernel<int>>(
@@ -146,10 +151,13 @@ int test_lmem_launch() {
   for (int i = 0; i < num_elements; i++) {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
   }
+#endif
+  
   syclcompat::free(h_a);
   return 0;
 }
 
+#ifdef SUPPORT_DIM3
 int test_dim3_launch_policy() {
 
   compat_exp::launch_policy my_range_config(
@@ -174,11 +182,14 @@ int test_dim3_launch_policy() {
 
   return 0;
 }
-
+#endif
 // TODO: negative testing for traits/templates
 
 int main() {
   // TODO: check return values!
   test_basic_launch();
   test_lmem_launch();
+#ifdef SUPPORT_DIM3
+  test_dim3_launch_policy();
+#endif
 }

@@ -61,6 +61,102 @@ struct local_mem_size {
   size_t size;
 };
 
+// Detects & extracts properties type from kernel_property struct
+template <typename T> struct is_kernel_properties : std::false_type {};
+template <typename U>
+struct is_kernel_properties<kernel_properties<U>> : std::true_type {
+  using KProps = U;
+};
+
+// Detects & extracts properties type from launch_property struct
+template <typename T> struct is_launch_properties : std::false_type {};
+template <typename U>
+struct is_launch_properties<launch_properties<U>> : std::true_type {
+  using LProps = U;
+};
+
+template <typename T> struct is_local_mem_size : std::false_type {};
+template <> struct is_local_mem_size<local_mem_size> : std::true_type {};
+
+
+
+template <typename T, typename Tuple> struct tuple_element_index_helper;
+
+template<typename T>
+struct tuple_element_index_helper<T, std::tuple<>>
+{
+  static constexpr std::size_t value = 0;
+};
+
+template<typename T, typename... Rest>
+struct tuple_element_index_helper<T, std::tuple<T, Rest...>>
+{
+  static constexpr std::size_t value = 0;
+  using RestTuple = std::tuple<Rest...>;
+  static_assert(
+    tuple_element_index_helper<T, RestTuple>::value == 
+    std::tuple_size_v<RestTuple>,
+    "type appears more than once in tuple");
+};
+
+template<typename T, typename First, typename... Rest>
+struct tuple_element_index_helper<T, std::tuple<First, Rest...>>
+{
+  using RestTuple = std::tuple<Rest...>;
+  static constexpr std::size_t value = 1 +
+       tuple_element_index_helper<T, RestTuple>::value;
+};
+
+template<typename T, typename Tuple>
+struct tuple_element_index
+{
+  static constexpr std::size_t value =
+    tuple_element_index_helper<T, Tuple>::value;
+  static_assert(value < std::tuple_size_v<Tuple>,
+                "type does not appear in tuple");
+};
+
+//----------------------------------------------
+
+template <template <typename TT> typename classy, typename Tuple> struct tuple_template_index_helper;
+
+template<template <typename TT> typename classy>
+struct tuple_template_index_helper<classy, std::tuple<>>
+{
+  static constexpr std::size_t value = 0;
+};
+
+template<template <typename TT> typename classy, typename T, typename... Rest>
+struct tuple_template_index_helper<classy, std::tuple<classy<T>, Rest...>>
+{
+  static constexpr std::size_t value = 0;
+  using RestTuple = std::tuple<Rest...>;
+  static_assert(
+    tuple_template_index_helper<classy, RestTuple>::value == 
+    std::tuple_size_v<RestTuple>,
+    "type appears more than once in tuple");
+};
+
+template<template <typename TT> typename classy, typename First, typename... Rest>
+struct tuple_template_index_helper<classy, std::tuple<First, Rest...>>
+{
+  using RestTuple = std::tuple<Rest...>;
+  static constexpr std::size_t value = 1 +
+       tuple_template_index_helper<classy, RestTuple>::value;
+};
+
+template<template <typename TT> typename classy, typename Tuple>
+struct tuple_template_index
+{
+  static constexpr std::size_t value =
+    tuple_template_index_helper<classy, Tuple>::value;
+  static_assert(value < std::tuple_size_v<Tuple>,
+                "type does not appear in tuple");
+};
+
+//----------------------------------------------
+
+
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps>
 struct launch_policy {
@@ -74,21 +170,9 @@ struct launch_policy {
 
   launch_policy() = delete;
   // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
-  launch_policy(Range range, KProps kprops, LProps lprops, size_t lmem_size)
-      : range{range}, kernel_properties{kprops}, launch_properties{lprops},
-        local_mem_size{lmem_size} {}
-
-  // Ctor taking just dim3 global range (converts to sycl::range<3>)
-  launch_policy(dim3 global_range, KProps kprops, LProps lprops,
-                  size_t lmem_size)
-      : range{global_range}, kernel_properties{kprops},
-        launch_properties{lprops}, local_mem_size{lmem_size} {}
-
-  // Ctor taking pair of dim3 (converts to sycl::nd_range<3>)
-  launch_policy(dim3 global_range, dim3 work_group_range, KProps kprops,
-                  LProps lprops, size_t lmem_size)
-      : range{global_range, work_group_range}, kernel_properties{kprops},
-        launch_properties{lprops}, local_mem_size{lmem_size} {}
+  template <typename ...Ts>
+  launch_policy(Range range, Ts... ts) : range{range}, kernel_properties{std::get<tuple_template_index<syclcompat::experimental::kernel_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, launch_properties{std::get<tuple_template_index<syclcompat::experimental::launch_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, local_mem_size{0} { //TODO: local_mem_size, disambiguate kernel_properties, deal with empty case, make it a fn
+  }
 
   Range range;
   kernel_properties<KProps> kernel_properties;
@@ -97,15 +181,24 @@ struct launch_policy {
 };
 
 // Deduction guides for launch_policy dim3 ctors
-template <typename KProps, typename LProps>
-launch_policy(dim3 global_range, kernel_properties<KProps> kprops, launch_properties<LProps> lprops,
-                local_mem_size lmem_size)
-    -> launch_policy<sycl::range<3>, KProps, LProps>;
+// template <typename KProps, typename LProps>
+// launch_policy(dim3 global_range, kernel_properties<KProps> kprops, launch_properties<LProps> lprops,
+//                 local_mem_size lmem_size)
+//     -> launch_policy<sycl::range<3>, KProps, LProps>;
 
-template <typename KProps, typename LProps>
-launch_policy(dim3 global_range, dim3 work_group_range, kernel_properties<KProps> kprops,
-                launch_properties<LProps> lprops, local_mem_size lmem_size)
-    -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
+// template <typename KProps, typename LProps>
+// launch_policy(dim3 global_range, dim3 work_group_range, kernel_properties<KProps> kprops,
+//                 launch_properties<LProps> lprops, local_mem_size lmem_size)
+//     -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
+
+template <typename Range, typename... Ts>
+    launch_policy(Range range, Ts... ts)->launch_policy < Range,
+    typename is_kernel_properties < std::tuple_element_t < //TODO: tidy redundancy here - `is_kernel_properties` will always be true?
+        tuple_template_index<kernel_properties, std::tuple<Ts...>>::value,
+        std::tuple<Ts...>>>::KProps,
+    typename is_launch_properties<std::tuple_element_t<
+        tuple_template_index<launch_properties ,std::tuple<Ts...>>::value,
+        std::tuple<Ts...>>>::LProps>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
 
