@@ -64,14 +64,6 @@ using ur_usm_pool_object_t = object_t<ur_usm_pool_handle_t>;
 using ur_usm_pool_factory_t =
     singleton_factory_t<ur_usm_pool_object_t, ur_usm_pool_handle_t>;
 
-using ur_exp_image_object_t = object_t<ur_exp_image_handle_t>;
-using ur_exp_image_factory_t =
-    singleton_factory_t<ur_exp_image_object_t, ur_exp_image_handle_t>;
-
-using ur_exp_image_mem_object_t = object_t<ur_exp_image_mem_handle_t>;
-using ur_exp_image_mem_factory_t =
-    singleton_factory_t<ur_exp_image_mem_object_t, ur_exp_image_mem_handle_t>;
-
 using ur_exp_interop_mem_object_t = object_t<ur_exp_interop_mem_handle_t>;
 using ur_exp_interop_mem_factory_t =
     singleton_factory_t<ur_exp_interop_mem_object_t,

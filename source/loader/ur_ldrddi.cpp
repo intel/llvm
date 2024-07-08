@@ -26,8 +26,6 @@ ur_sampler_factory_t ur_sampler_factory;
 ur_mem_factory_t ur_mem_factory;
 ur_physical_mem_factory_t ur_physical_mem_factory;
 ur_usm_pool_factory_t ur_usm_pool_factory;
-ur_exp_image_factory_t ur_exp_image_factory;
-ur_exp_image_mem_factory_t ur_exp_image_mem_factory;
 ur_exp_interop_mem_factory_t ur_exp_interop_mem_factory;
 ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
 ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
@@ -5818,7 +5816,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5837,9 +5835,6 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hImage = reinterpret_cast<ur_exp_image_object_t *>(hImage)->handle;
-
     // forward to device-platform
     result = pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
@@ -5852,7 +5847,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5871,9 +5866,6 @@ urBindlessImagesSampledImageHandleDestroyExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hImage = reinterpret_cast<ur_exp_image_object_t *>(hImage)->handle;
-
     // forward to device-platform
     result = pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
@@ -5888,7 +5880,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] pointer to handle of image memory allocated
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5915,14 +5907,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phImageMem = reinterpret_cast<ur_exp_image_mem_handle_t>(
-            ur_exp_image_mem_factory.getInstance(*phImageMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -5931,7 +5915,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5949,10 +5933,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hImageMem =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
-
     // forward to device-platform
     result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
@@ -5964,12 +5944,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5988,24 +5968,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hImageMem =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
-
     // forward to device-platform
     result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
                                         pImageFormat, pImageDesc, phImage);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(
-            ur_exp_image_factory.getInstance(*phImage, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     return result;
@@ -6016,13 +5984,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -6042,10 +6010,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // convert loader handle to platform handle
-    hImageMem =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
-
-    // convert loader handle to platform handle
     hSampler = reinterpret_cast<ur_sampler_object_t *>(hSampler)->handle;
 
     // forward to device-platform
@@ -6055,14 +6019,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(
-            ur_exp_image_factory.getInstance(*phImage, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     return result;
@@ -6148,27 +6104,28 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageGetInfoExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
-    ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,    ///< [out][optional] returned query value
-    size_t *pPropSizeRet ///< [out][optional] returned query value size
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_native_handle_t
+        hImageMem,            ///< [in] handle to the image memory
+    ur_image_info_t propName, ///< [in] queried info name
+    void *pPropValue,         ///< [out][optional] returned query value
+    size_t *pPropSizeRet      ///< [out][optional] returned query value size
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnImageGetInfoExp = dditable->ur.BindlessImagesExp.pfnImageGetInfoExp;
     if (nullptr == pfnImageGetInfoExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     // convert loader handle to platform handle
-    hImageMem =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // forward to device-platform
-    result = pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+    result = pfnImageGetInfoExp(hContext, hImageMem, propName, pPropValue,
+                                pPropSizeRet);
 
     return result;
 }
@@ -6178,10 +6135,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] returning memory handle to the individual image
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -6200,24 +6157,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hImageMem =
-        reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
-
     // forward to device-platform
     result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem, mipmapLevel,
                                   phImageMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phImageMem = reinterpret_cast<ur_exp_image_mem_handle_t>(
-            ur_exp_image_mem_factory.getInstance(*phImageMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     return result;
@@ -6228,7 +6173,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -6245,9 +6190,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
-
-    // convert loader handle to platform handle
-    hMem = reinterpret_cast<ur_exp_image_mem_object_t *>(hMem)->handle;
 
     // forward to device-platform
     result = pfnMipmapFreeExp(hContext, hDevice, hMem);
@@ -6313,7 +6255,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_mem_handle_t *
+    ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -6342,14 +6284,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phImageMem = reinterpret_cast<ur_exp_image_mem_handle_t>(
-            ur_exp_image_mem_factory.getInstance(*phImageMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     return result;
