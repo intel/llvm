@@ -100,12 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
-  # commit 81cdd9308987140ec8f04f78e881c4b57e82dbff
+  # commit b967785738a4683687496331190d3def18bb71e2
   # Author: Duncan Brawley <duncan.brawley@codeplay.com>
   # Date:   Wed May 29 13:04:15 2024 +0100
   #     [Bindless][Exp] Update device_info enum elements and update Level Zero
   #     and CUDA backend device_info supported features
-  set(UNIFIED_RUNTIME_TAG 81cdd9308987140ec8f04f78e881c4b57e82dbff)
+  set(UNIFIED_RUNTIME_TAG b967785738a4683687496331190d3def18bb71e2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
