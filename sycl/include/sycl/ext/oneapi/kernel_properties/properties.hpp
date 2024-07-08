@@ -73,9 +73,11 @@ struct single_task_kernel_key {
 
 struct max_work_group_size_key
     : detail::compile_time_property_key<detail::PropKind::MaxWorkGroupSize> {
-  template <size_t... Dims>
+  template <size_t Dim0, size_t Dim1, size_t Dim2>
   using value_t = property_value<max_work_group_size_key,
-                                 std::integral_constant<size_t, Dims>...>;
+                                 std::integral_constant<size_t, Dim0>,
+                                 std::integral_constant<size_t, Dim1>,
+                                 std::integral_constant<size_t, Dim2>>;
 };
 
 struct min_work_groups_per_cu_key
@@ -159,21 +161,19 @@ template <> struct property_value<single_task_kernel_key> {
   using key_t = single_task_kernel_key;
 };
 
-template <size_t Dim0, size_t... Dims>
+template <size_t Dim0, size_t Dim1, size_t Dim2>
 struct property_value<max_work_group_size_key,
                       std::integral_constant<size_t, Dim0>,
-                      std::integral_constant<size_t, Dims>...> {
-  static_assert(sizeof...(Dims) + 1 == 3,
-                "max_work_group_size property currently "
-                "only supports exactly three values.");
+                      std::integral_constant<size_t, Dim1>,
+                      std::integral_constant<size_t, Dim2>> {
   static_assert(
-      detail::AllNonZero<Dim0, Dims...>::value,
+      detail::AllNonZero<Dim0, Dim1, Dim2>::value,
       "max_work_group_size property must only contain non-zero values.");
 
   using key_t = max_work_group_size_key;
 
   constexpr size_t operator[](int Dim) const {
-    return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
+    return std::array<size_t, 3>{Dim0, Dim1, Dim2}[Dim];
   }
 };
 
@@ -219,8 +219,8 @@ inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
 
-template <size_t Dim0, size_t... Dims>
-inline constexpr max_work_group_size_key::value_t<Dim0, Dims...>
+template <size_t Dim0, size_t Dim1, size_t Dim2>
+inline constexpr max_work_group_size_key::value_t<Dim0, Dim1, Dim2>
     max_work_group_size;
 
 template <uint32_t Size>
@@ -345,10 +345,10 @@ template <> struct PropertyMetaInfo<single_task_kernel_key::value_t> {
   static constexpr const char *name = "sycl-single-task-kernel";
   static constexpr int value = 0;
 };
-template <size_t Dim0, size_t... Dims>
-struct PropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dims...>> {
+template <size_t Dim0, size_t Dim1, size_t Dim2>
+struct PropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dim1, Dim2>> {
   static constexpr const char *name = "sycl-max-work-group-size";
-  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
+  static constexpr const char *value = SizeListToStr<Dim0, Dim1, Dim2>::value;
 };
 template <uint32_t Size>
 struct PropertyMetaInfo<min_work_groups_per_cu_key::value_t<Size>> {
