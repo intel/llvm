@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a1094cd082dcbb90228b6a7815d655f3d7f5abaa
-  # Merge: 2a31795d 6fb77c98
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jun 18 17:51:45 2024 +0100
-  #     Merge pull request #1638 from zhaomaosu/asan-shadow-scale-4
-  #     [DeviceSanitizer] Change ASan shadow scale from 3 to 4
-  set(UNIFIED_RUNTIME_TAG a1094cd082dcbb90228b6a7815d655f3d7f5abaa)
+  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
+  # Merge: 40300808 665d4a68
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Jul 5 09:44:30 2024 +0100
+  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
+  #     [L0] Fix immediate command list use in Command Queues
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -130,12 +130,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0e5bbcb2f8709643abf08cb83469787e866e3598
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 19 14:33:26 2024 +0100
-    #     Merge pull request #1628 from PietroGhg/pietro/native_cpu_half
-    #     [NATIVECPU] Report cl_khr_fp16 on native cpu
-    0e5bbcb2f8709643abf08cb83469787e866e3598
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
@@ -287,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

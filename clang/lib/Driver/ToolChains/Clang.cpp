@@ -47,6 +47,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Casting.h"
@@ -593,6 +594,11 @@ static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
   if (Args.hasArg(options::OPT_verify_pch) && Input.getType() == types::TY_PCH)
     return;
 
+  // If the input is a Tempfilelist, this call is part for a
+  // llvm-foreach call and we should infer the type from the file extension.
+  if (Input.getType() == types::TY_Tempfilelist)
+    return;
+
   CmdArgs.push_back("-x");
   if (Args.hasArg(options::OPT_rewrite_objc))
     CmdArgs.push_back(types::getTypeName(types::TY_PP_ObjCXX));
@@ -1103,7 +1109,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
       // If user provided -o, that is the dependency target, except
       // when we are only generating a dependency file.
-      Arg *OutputOpt = Args.getLastArg(options::OPT_o);
+      Arg *OutputOpt = Args.getLastArg(options::OPT_o, options::OPT__SLASH_Fo);
       if (OutputOpt && Output.getType() != types::TY_Dependencies) {
         DepTarget = OutputOpt->getValue();
       } else {
@@ -1351,7 +1357,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   Args.addAllArgs(CmdArgs,
                   {options::OPT_D, options::OPT_U, options::OPT_I_Group,
-                   options::OPT_F, options::OPT_index_header_map});
+                   options::OPT_F, options::OPT_index_header_map,
+                   options::OPT_embed_dir_EQ});
 
   // Add -Wp, and -Xpreprocessor if using the preprocessor.
 
@@ -2778,7 +2785,7 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
       } else if (Value.starts_with("-mcpu") || Value.starts_with("-mfpu") ||
                  Value.starts_with("-mhwdiv") || Value.starts_with("-march")) {
         // Do nothing, we'll validate it later.
-      } else if (Value == "-defsym") {
+      } else if (Value == "-defsym" || Value == "--defsym") {
         if (A->getNumValues() != 2) {
           D.Diag(diag::err_drv_defsym_invalid_format) << Value;
           break;
@@ -2797,7 +2804,7 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
           D.Diag(diag::err_drv_defsym_invalid_symval) << SVal;
           break;
         }
-        CmdArgs.push_back(Value.data());
+        CmdArgs.push_back("--defsym");
         TakeNextArg = true;
       } else if (Value == "-fdebug-compilation-dir") {
         CmdArgs.push_back("-fdebug-compilation-dir");
@@ -4793,6 +4800,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   Args.addOptInFlag(CmdArgs, options::OPT_fforce_dwarf_frame,
                     options::OPT_fno_force_dwarf_frame);
 
+  bool EnableTypeUnits = false;
   if (Args.hasFlag(options::OPT_fdebug_types_section,
                    options::OPT_fno_debug_types_section, false)) {
     if (!(T.isOSBinFormatELF() || T.isOSBinFormatWasm())) {
@@ -4803,9 +4811,22 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     } else if (checkDebugInfoOption(
                    Args.getLastArg(options::OPT_fdebug_types_section), Args, D,
                    TC)) {
+      EnableTypeUnits = true;
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-generate-type-units");
     }
+  }
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_gomit_unreferenced_methods,
+                          options::OPT_gno_omit_unreferenced_methods))
+    (void)checkDebugInfoOption(A, Args, D, TC);
+  if (Args.hasFlag(options::OPT_gomit_unreferenced_methods,
+                   options::OPT_gno_omit_unreferenced_methods, false) &&
+      (DebugInfoKind == llvm::codegenoptions::DebugInfoConstructor ||
+       DebugInfoKind == llvm::codegenoptions::LimitedDebugInfo) &&
+      !EnableTypeUnits) {
+    CmdArgs.push_back("-gomit-unreferenced-methods");
   }
 
   // To avoid join/split of directory+filename, the integrated assembler prefers
@@ -5339,7 +5360,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
 
     if (JA.isDeviceOffloading(Action::OFK_HIP) &&
-        getToolChain().getTriple().isAMDGPU()) {
+        (getToolChain().getTriple().isAMDGPU() ||
+         (getToolChain().getTriple().isSPIRV() &&
+          getToolChain().getTriple().getVendor() == llvm::Triple::AMD))) {
       // Device side compilation printf
       if (Args.getLastArg(options::OPT_mprintf_kind_EQ)) {
         CmdArgs.push_back(Args.MakeArgString(
@@ -6407,6 +6430,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   case CodeGenOptions::FramePointerKind::None:
     FPKeepKindStr = "-mframe-pointer=none";
     break;
+  case CodeGenOptions::FramePointerKind::Reserved:
+    FPKeepKindStr = "-mframe-pointer=reserved";
+    break;
   case CodeGenOptions::FramePointerKind::NonLeaf:
     FPKeepKindStr = "-mframe-pointer=non-leaf";
     break;
@@ -6425,11 +6451,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // enabled.  This alias option is being used to simplify the hasFlag logic.
   OptSpecifier StrictAliasingAliasOption =
       OFastEnabled ? options::OPT_Ofast : options::OPT_fstrict_aliasing;
-  // We turn strict aliasing off by default if we're in CL mode, since MSVC
+  // We turn strict aliasing off by default if we're Windows MSVC since MSVC
   // doesn't do any TBAA.
-  bool TBAAOnByDefault = !D.IsCLMode();
   if (!Args.hasFlag(options::OPT_fstrict_aliasing, StrictAliasingAliasOption,
-                    options::OPT_fno_strict_aliasing, TBAAOnByDefault))
+                    options::OPT_fno_strict_aliasing, !IsWindowsMSVC))
     CmdArgs.push_back("-relaxed-aliasing");
   if (!Args.hasFlag(options::OPT_fstruct_path_tbaa,
                     options::OPT_fno_struct_path_tbaa, true))
@@ -7839,8 +7864,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       options::OPT_fms_compatibility, options::OPT_fno_ms_compatibility,
       (IsWindowsMSVC && Args.hasFlag(options::OPT_fms_extensions,
                                      options::OPT_fno_ms_extensions, true)));
-  if (IsMSVCCompat)
+  if (IsMSVCCompat) {
     CmdArgs.push_back("-fms-compatibility");
+    if (!types::isCXX(Input.getType()) &&
+        Args.hasArg(options::OPT_fms_define_stdc))
+      CmdArgs.push_back("-fms-define-stdc");
+  }
 
   if (Triple.isWindowsMSVCEnvironment() && !D.IsCLMode() &&
       Args.hasArg(options::OPT_fms_runtime_lib_EQ))
@@ -8080,13 +8109,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fsized-deallocation is on by default in C++14 onwards and otherwise off
   // by default.
-  if (Arg *A = Args.getLastArg(options::OPT_fsized_deallocation,
-                               options::OPT_fno_sized_deallocation)) {
-    if (A->getOption().matches(options::OPT_fno_sized_deallocation))
-      CmdArgs.push_back("-fno-sized-deallocation");
-    else
-      CmdArgs.push_back("-fsized-deallocation");
-  }
+  Args.addLastArg(CmdArgs, options::OPT_fsized_deallocation,
+                  options::OPT_fno_sized_deallocation);
 
   // -faligned-allocation is on by default in C++17 onwards and otherwise off
   // by default.
@@ -9330,6 +9354,9 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   // Pass along any -I options so we get proper .include search paths.
   Args.AddAllArgs(CmdArgs, options::OPT_I_Group);
 
+  // Pass along any --embed-dir or similar options so we get proper embed paths.
+  Args.AddAllArgs(CmdArgs, options::OPT_embed_dir_EQ);
+
   // Determine the original source input.
   auto FindSource = [](const Action *S) -> const Action * {
     while (S->getKind() != Action::InputClass) {
@@ -10250,6 +10277,13 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         C.getArgsForToolChain(TC, OffloadAction->getOffloadingArch(),
                               OffloadAction->getOffloadingDeviceKind());
     StringRef File = C.getArgs().MakeArgString(TC->getInputFilename(Input));
+
+    // If the input is a Tempfilelist, it is a response file
+    // which internally contains a list of files to be processed.
+    // Add an '@' so the tool knows to expand the response file.
+    if (Input.getType() == types::TY_Tempfilelist)
+      File = C.getArgs().MakeArgString("@" + File);
+
     StringRef Arch = OffloadAction->getOffloadingArch()
                          ? OffloadAction->getOffloadingArch()
                          : TCArgs.getLastArgValue(options::OPT_march_EQ);
@@ -10406,15 +10440,76 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
   constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
 }
 
+// Utility function to gather all arguments for SPIR-V generation using the
+// SPIR-V backend. This set of arguments is expected to get updated as we add
+// more features/extensions to the SPIR-V backend.
+static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
+                                ArgStringList &BackendArgs) {
+  BackendArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("-mtriple=spirv64-unknown-unknown"));
+  // TODO: Optimization level is currently forced to -O0 due to some testing
+  // issues. Update optimization level after testing issues are resolved.
+  BackendArgs.push_back(TCArgs.MakeArgString("-O0"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
+  BackendArgs.push_back(
+      TCArgs.MakeArgString("--translator-compatibility-mode"));
+
+  // TODO: There is some overlap between the lists of extensions in SPIR-V
+  // backend and SPIR-V Trnaslator). We will try to combine them when SPIR-V
+  // backdn is ready.
+  std::string ExtArg("--spirv-ext=");
+  std::string DefaultExtArg =
+      "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+      ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+  std::string INTELExtArg = ",+SPV_INTEL_subgroups,+SPV_INTEL_function_pointers"
+                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_INTEL_variable_length_array";
+  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
+
+  // Other args
+  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
+            ",+SPV_KHR_uniform_group_instructions"
+            ",+SPV_INTEL_optnone"
+            ",+SPV_KHR_subgroup_rotate"
+            ",+SPV_INTEL_usm_storage_classes"
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_KHR_bit_instructions";
+
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
+}
+
 // Utility function to gather all llvm-spirv options.
-static void getOtherSPIRVTransOpts(Compilation &C,
-                                   const llvm::opt::ArgList &TCArgs,
-                                   llvm::Triple Triple,
-                                   ArgStringList &TranslatorArgs) {
+// Not dependent on target triple.
+static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
+                                            const llvm::opt::ArgList &TCArgs,
+                                            ArgStringList &TranslatorArgs) {
+  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  bool CreatingSyclSPIRVFatObj =
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+          .equals_insensitive("spirv") &&
+      !C.getDriver().offloadDeviceOnly();
+  bool ShouldPreserveMetadataInFinalImage =
+      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+  bool ShouldPreserveMetadata =
+      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+  if (ShouldPreserveMetadata)
+    TranslatorArgs.push_back("--spirv-preserve-auxdata");
+}
+
+// Add any llvm-spirv option that relies on a specific Triple in addition
+// to user supplied options.
+// NOTE: Any changes made here should be reflected in the similarly named
+// function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+static void getTripleBasedSPIRVTransOpts(Compilation &C,
+                                         const llvm::opt::ArgList &TCArgs,
+                                         llvm::Triple Triple,
+                                         ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  TranslatorArgs.push_back("-spirv-max-version=1.4");
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
   const bool IsWindowsMSVC =
       Triple.isWindowsMSVCEnvironment() ||
@@ -10434,17 +10529,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";
   TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
-  bool CreatingSyclSPIRVFatObj =
-      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
-      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-          .equals_insensitive("spirv") &&
-      !C.getDriver().offloadDeviceOnly();
-  bool ShouldPreserveMetadataInFinalImage =
-      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
-  bool ShouldPreserveMetadata =
-      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
-  if (ShouldPreserveMetadata)
-    TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
   // Disable all the extensions by default
   std::string ExtArg("-spirv-ext=-all");
@@ -10502,6 +10586,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
 }
 
 // Begin SPIRVTranslator
+// TODO: Add a unique 'llc' JobAction for SPIR-V backends.
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -10517,16 +10602,22 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
+  bool UseSPIRVBackend =
+      TCArgs.hasArg(options::OPT_fsycl_use_spirv_backend_for_spirv_gen);
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    llvm::Triple Triple = TC.getTriple();
-    getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
-
-    // Handle -Xspirv-translator
-    TC.TranslateTargetOpt(
-        Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
-        options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+    if (UseSPIRVBackend) {
+      getSPIRVBackendOpts(TCArgs, TranslatorArgs);
+    } else {
+      getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
+      llvm::Triple Triple = TC.getTriple();
+      getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
+      // Handle -Xspirv-translator
+      TC.TranslateTargetOpt(
+          Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
+          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+    }
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());
@@ -10541,8 +10632,10 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
 
-  auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+  auto ToolName = UseSPIRVBackend ? "llc" : getShortName();
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(ToolName)),
       TranslatorArgs, std::nullopt);
 
   if (!ForeachArgs.empty()) {
@@ -10657,6 +10750,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  if (!IsUsingLTO || LTOMode != LTOK_Thin)
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10711,9 +10809,12 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
-    // Symbol file and specialization constant info generation is mandatory -
+    bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (!IsUsingLTO || LTOMode != LTOK_Thin)
+      addArgs(PostLinkArgs, TCArgs, {"-symbols"});
+    // Specialization constant info generation is mandatory -
     // add options unconditionally
-    addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(PostLinkArgs, TCArgs, {"-emit-imported-symbols"});
     if (SplitEsimd)
@@ -11057,15 +11158,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
-    // TODO: TargetTriple should not be used here for creating linker wrapper
-    // options. It should also not be passed to the linker wrapper.
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIROrSPIRV() &&
-          TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // Note: For AMD targets, we do not pass any SYCL device libraries.
+      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
@@ -11144,10 +11243,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         appendOption(OptString, A);
     }
     ArgStringList TranslatorArgs;
-    getOtherSPIRVTransOpts(C, Args, TargetTriple, TranslatorArgs);
+    getNonTripleBasedSPIRVTransOpts(C, Args, TranslatorArgs);
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+
+    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
+      CmdArgs.push_back("-sycl-is-windows-msvc-env");
+
+    bool IsUsingLTO = D.isUsingLTO(/*IsDeviceOffloadAction=*/true);
+    auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
+    if (IsUsingLTO && LTOMode == LTOK_Thin)
+      CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and
@@ -11171,7 +11278,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           WrapperOption = "--sycl-backend-compile-options=";
         }
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
-          WrapperOption = "--gen-tool-arg=";
+          WrapperOption = "--gpu-tool-arg=";
         if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
           WrapperOption = "--cpu-tool-arg=";
       } else

@@ -35,8 +35,8 @@ int main() {
     });
   });
 
-  const auto HostAccessor1 = Buffer1.get_access<sycl::access::mode::read>();
-  const auto HostAccessor2 = Buffer2.get_access<sycl::access::mode::read>();
+  const sycl::host_accessor HostAccessor1(Buffer1, sycl::read_only);
+  const sycl::host_accessor HostAccessor2(Buffer2, sycl::read_only);
 
   // Check the results.
   for (size_t I = 0; I < Buffer1.size(); ++I) {

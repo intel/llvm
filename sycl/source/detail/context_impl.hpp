@@ -97,11 +97,6 @@ public:
   /// \return an instance of OpenCL cl_context.
   cl_context get() const;
 
-  /// Checks if this context is a host context.
-  ///
-  /// \return true if this context is a host context.
-  bool is_host() const;
-
   /// Gets asynchronous exception handler.
   ///
   /// \return an instance of SYCL async_handler.
@@ -179,12 +174,6 @@ public:
   /// it returns true if the device is either a member of the context or a
   /// descendant of a member.
   bool isDeviceValid(DeviceImplPtr Device) {
-    // OpenCL does not support using descendants of context members within that
-    // context yet.
-    // TODO remove once this limitation is lifted
-    if (!is_host() && Device->getBackend() == backend::opencl)
-      return hasDevice(Device);
-
     while (!hasDevice(Device)) {
       if (Device->isRootDevice()) {
         if (Device->has(aspect::ext_oneapi_is_component)) {
@@ -195,6 +184,12 @@ public:
           return hasDevice(detail::getSyclObjImpl(CompositeDevice));
         }
 
+        return false;
+      } else if (Device->getBackend() == backend::opencl) {
+        // OpenCL does not support using descendants of context members within
+        // that context yet. We make the exception in case it supports
+        // component/composite devices.
+        // TODO remove once this limitation is lifted
         return false;
       }
       Device = detail::getSyclObjImpl(
@@ -272,7 +267,6 @@ private:
   sycl::detail::pi::PiContext MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
-  bool MHostContext;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
