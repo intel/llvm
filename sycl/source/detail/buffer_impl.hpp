@@ -38,7 +38,7 @@ class host_accessor;
 
 namespace detail {
 
-class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
+class buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 

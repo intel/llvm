@@ -65,6 +65,9 @@ static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
     "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
     "%p)\n";
+static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
+    "%p)\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -123,7 +126,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   }
 
   if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-    if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+    if (__asan_report_out_of_shadow_bounds()) {
       __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr);
     }
   }
@@ -171,7 +174,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
 
     if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+      if (__asan_report_out_of_shadow_bounds()) {
         __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
                            (uptr)__AsanShadowMemoryGlobalStart);
       }
@@ -207,9 +210,42 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
                       ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+      if (__asan_report_out_of_shadow_bounds()) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)shadow_offset);
+      }
+      return 0;
+    }
+    return shadow_ptr;
+  } else if (as == ADDRESS_SPACE_PRIVATE) { // private
+    // work-group linear id
+    const auto WG_LID =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+    const auto shadow_offset = launch_info->PrivateShadowOffset;
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
+
+    if (shadow_offset == 0) {
+      return 0;
+    }
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->PrivateShadowOffset, 0,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+    uptr shadow_ptr = shadow_offset +
+                      ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+
+    if (shadow_ptr > shadow_offset_end) {
+      if (__asan_report_out_of_shadow_bounds()) {
+        __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr,
+                           WG_LID, (uptr)shadow_offset);
       }
       return 0;
     }
@@ -233,6 +269,8 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
     return shadow_ptr;
   }
 
+// FIXME: OCL "O2" optimizer doesn't work well with following code
+#if 0
   if (__AsanDebug) {
     if (shadow_ptr) {
       if (as == ADDRESS_SPACE_PRIVATE)
@@ -244,6 +282,7 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
       __spirv_ocl_printf(__asan_print_shadow_value2, addr, as, shadow_ptr);
     }
   }
+#endif
 
   return shadow_ptr;
 }
@@ -605,6 +644,14 @@ ASAN_REPORT_ERROR(store, true, 16)
 
 ASAN_REPORT_ERROR_N(load, false)
 ASAN_REPORT_ERROR_N(store, true)
+
+///
+/// ASAN convert memory address to shadow memory address
+///
+
+DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
+  return MemToShadow(ptr, as);
+}
 
 ///
 /// ASAN initialize shdadow memory of local memory

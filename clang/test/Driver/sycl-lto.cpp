@@ -12,6 +12,7 @@
 // RUN: %clangxx -fsycl --offload-new-driver -foffload-lto=thin %s -### 2>&1 | FileCheck -check-prefix=CHECK_SUPPORTED %s
 // CHECK_SUPPORTED: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
 // CHECK_SUPPORTED: sycl-post-link{{.*}}
+// CHECK_SUPPORTED-NOT: -properties
 // CHECK_SUPPORTED-NEXT: file-table-tform{{.*}}
 // CHECK_SUPPORTED-NEXT: llvm-foreach{{.*}} "--" {{.*}}clang{{.*}} "-fsycl-is-device"{{.*}} "-flto=thin" "-flto-unit"
 // CHECK_SUPPORTED-NEXT: file-table-tform{{.*}}

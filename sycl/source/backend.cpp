@@ -91,15 +91,21 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
 
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
-                                   backend Backend) {
+                                   backend Backend, bool KeepOwnership,
+                                   const std::vector<device> &DeviceList) {
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiContext PiContext = nullptr;
+  std::vector<pi_device> DeviceHandles;
+  for (auto Dev : DeviceList) {
+    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
+  }
   Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
-      NativeHandle, 0, nullptr, false, &PiContext);
+      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), false,
+      &PiContext);
   // Construct the SYCL context from PI context.
-  return detail::createSyclObjFromImpl<context>(
-      std::make_shared<context_impl>(PiContext, Handler, Plugin));
+  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+      PiContext, Handler, Plugin, DeviceList, !KeepOwnership));
 }
 
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
