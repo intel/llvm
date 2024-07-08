@@ -101,6 +101,7 @@ struct tuple_element_index
 
 //----------------------------------------------
 
+// Helper for tuple_template_index
 template <template <typename TT> typename PropertyContainer, typename Tuple> struct tuple_template_index_helper;
 
 template<template <typename TT> typename PropertyContainer>
@@ -128,15 +129,21 @@ struct tuple_template_index_helper<PropertyContainer, std::tuple<First, Rest...>
        tuple_template_index_helper<PropertyContainer, RestTuple>::value;
 };
 
+// tuple_template_index is a trait helper which finds the index of a
+// class template in a std::tuple<Ts...>. During template argument deduction
+// this enables us to search the tuple for e.g. `kernel_properties` without
+// knowing the concrete type (e.g. kernel_properties<KProps>)
+// A compile time error is raised if the class template is found more than once.
+// If not found, returns the tuple size (i.e. this is not an error).
 template<template <typename TT> typename PropertyContainer, typename Tuple>
 struct tuple_template_index
 {
   static constexpr std::size_t value =
     tuple_template_index_helper<PropertyContainer, Tuple>::value;
-  // static_assert(value < std::tuple_size_v<Tuple>,
-  //               "type does not appear in tuple");
 };
 
+// tuple_contains_template piggy-backs on the functionality of
+// tuple_template_index to detect whether a class template exists in the tuple
 template <template <typename TT> typename PropertyContainer, typename Tuple>
     struct tuple_contains_template
     : std::conditional_t <
@@ -153,7 +160,6 @@ struct property_getter<true, PropertyContainerConcrete, Tuple>{
     return std::get<PropertyContainerConcrete>(tuple);
   }
 };
-
 
 template <typename PropertyContainerConcrete, typename Tuple>
 struct property_getter<false, PropertyContainerConcrete, Tuple>{
