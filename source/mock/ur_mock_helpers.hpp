@@ -124,6 +124,6 @@ struct callbacks_t {
     std::unordered_map<std::string, ur_mock_callback_t> afterCallbacks;
 };
 
-callbacks_t &getCallbacks();
+UR_DLLEXPORT callbacks_t &getCallbacks();
 
 } // namespace mock
