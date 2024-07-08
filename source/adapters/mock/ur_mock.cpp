@@ -36,7 +36,7 @@ ur_result_t mock_urPlatformGetInfo(void *pParams) {
         if (*params.ppPropValue) {
 #if defined(_WIN32)
             strncpy_s(reinterpret_cast<char *>(*params.ppPropValue),
-                      *params.ppropSize, null_platform_name,
+                      *params.ppropSize, mock_platform_name,
                       sizeof(mock_platform_name));
 #else
             strncpy(reinterpret_cast<char *>(*params.ppPropValue),
