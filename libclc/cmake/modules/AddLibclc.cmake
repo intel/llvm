@@ -86,11 +86,13 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     ""
     "TARGET"
-    "INPUTS"
+    "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
 
@@ -112,7 +114,7 @@ function(link_bc)
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
     COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
-    DEPENDS libclc::llvm-link ${ARG_INPUTS} ${RSP_FILE}
+    DEPENDS libclc::llvm-link ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
@@ -275,15 +277,21 @@ macro(add_libclc_builtin_set arch_suffix)
       OUTPUT ${output_file}
       EXTRA_OPTS -fno-builtin -nostdlib
           "${ARG_COMPILE_OPT}" -I${PROJECT_SOURCE_DIR}/${file_dir}
+      DEPENDENCIES generate_convert.cl clspv-generate_convert.cl
     )
     list(APPEND bytecode_files ${output_file})
   endforeach()
 
-  set( builtins_link_lib_tgt builtins.link.${arch_suffix} )
+  set( builtins_comp_lib_tgt builtins.comp.${arch_suffix} )
+  add_custom_target( ${builtins_comp_lib_tgt}
+    DEPENDS ${bytecode_files}
+  )
 
+  set( builtins_link_lib_tgt builtins.link.${arch_suffix} )
   link_bc(
     TARGET ${builtins_link_lib_tgt}
     INPUTS ${bytecode_files}
+    DEPENDENCIES ${builtins_comp_lib_tgt}
   )
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
@@ -294,7 +302,7 @@ macro(add_libclc_builtin_set arch_suffix)
   add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
     COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
       ${builtins_link_lib}
-    DEPENDS libclc::opt ${builtins_link_lib}
+    DEPENDS libclc::opt ${builtins_link_lib} ${builtins_link_lib_tgt}
   )
   add_custom_target( ${builtins_opt_lib_tgt}
     ALL DEPENDS ${builtins_opt_lib_tgt}.bc
@@ -311,7 +319,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
     COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
       ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} prepare_builtins )
+    DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} prepare_builtins )
   add_custom_target( prepare-${obj_suffix} ALL
     DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
   )

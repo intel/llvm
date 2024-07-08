@@ -128,31 +128,19 @@ private:
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, std::string(Msg), PIErr, Context) {}
+  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr)
+      : exception(Ec, std::string(Msg), PIErr) {}
 
-  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, Context, Msg + " " + detail::codeToString(PIErr)) {
+  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
+      : exception(Ec, nullptr, Msg + " " + detail::codeToString(PIErr)) {
     MPIErr = PIErr;
   }
 
-  exception(const std::string &Msg)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr){}
-#else
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {
-  }
-#endif
-
-        // base constructor for all SYCL 2020 constructors
-        // exception(context *ctxPtr, std::error_code Ec, const std::string
-        // &what_arg);
-        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-                  const std::string &what_arg)
-      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
-  }
+  // base constructor for all SYCL 2020 constructors
+  // exception(context *, std::error_code, const std::string);
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
 
