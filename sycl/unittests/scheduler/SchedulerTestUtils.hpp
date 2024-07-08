@@ -225,9 +225,9 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost,
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue,
               bool CallerNeedsEvent)
-      : sycl::handler(Queue, IsHost, CallerNeedsEvent) {}
+      : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -293,8 +293,8 @@ public:
 class MockHandlerCustomFinalize : public MockHandler {
 public:
   MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost, bool CallerNeedsEvent)
-      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
+                            bool CallerNeedsEvent)
+      : MockHandler(Queue, CallerNeedsEvent) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
@@ -307,7 +307,8 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, MImpl->MKernelIsCooperative, getCodeLoc()));
+          getCGType(), {}, MImpl->MKernelIsCooperative,
+          MImpl->MKernelUsesClusterLaunch, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {

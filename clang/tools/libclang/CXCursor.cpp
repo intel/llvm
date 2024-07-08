@@ -340,6 +340,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::SYCLBuiltinBaseTypeExprClass:
   case Stmt::SYCLUniqueStableNameExprClass:
   case Stmt::SYCLUniqueStableIdExprClass:
+  case Stmt::EmbedExprClass:
     K = CXCursor_UnexposedExpr;
     break;
 
@@ -877,6 +878,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OpenACCComputeConstructClass:
     K = CXCursor_OpenACCComputeConstruct;
+    break;
+  case Stmt::OpenACCLoopConstructClass:
+    K = CXCursor_OpenACCLoopConstruct;
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
     K = CXCursor_OMPTargetParallelGenericLoopDirective;
