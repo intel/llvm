@@ -164,17 +164,17 @@ template <template <typename TT> typename PropertyContainer, typename Tuple>
 
 
 template <bool TupleContains, typename PropertyContainerConcrete, typename Tuple>
-struct property_getter;
+struct property_getter_helper;
 
 template <typename PropertyContainerConcrete, typename Tuple>
-struct property_getter<true, PropertyContainerConcrete, Tuple>{
+struct property_getter_helper<true, PropertyContainerConcrete, Tuple>{
   PropertyContainerConcrete operator()(Tuple tuple){
     return std::get<PropertyContainerConcrete>(tuple);
   }
 };
 
 template <typename PropertyContainerConcrete, typename Tuple>
-struct property_getter<false, PropertyContainerConcrete, Tuple>{
+struct property_getter_helper<false, PropertyContainerConcrete, Tuple>{
   PropertyContainerConcrete operator()(Tuple tuple){
     (void)tuple;
     return {};
@@ -188,33 +188,32 @@ struct has_type;
 template <typename T, typename... Us>
 struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
-
 template <template <typename TT> typename PropertyContainer,  typename PropertyContainerConcrete, typename Tuple>
-using property_getter_rename_t = property_getter<tuple_contains_template<PropertyContainer, Tuple>::value, PropertyContainerConcrete, Tuple>;
+using property_getter = property_getter_helper<tuple_contains_template<PropertyContainer, Tuple>::value, PropertyContainerConcrete, Tuple>;
 
 template <typename PropertyContainerConcrete, typename Tuple>
-using property_getter_for_local_mem_rename_t = property_getter<has_type<PropertyContainerConcrete, Tuple>::value, PropertyContainerConcrete, Tuple>;
+using local_mem_getter = property_getter_helper<has_type<PropertyContainerConcrete, Tuple>::value, PropertyContainerConcrete, Tuple>;
 
 
 
 //TODO: ought this to return the sycl::properties type or the wrapper type?
 template <bool InTuple, template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty;
+struct properties_or_empty_helper;
 
 template <template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty<false, PropertyContainer, Ts...> {
+struct properties_or_empty_helper<false, PropertyContainer, Ts...> {
   using Props = sycl::ext::oneapi::experimental::empty_properties_t;
 };
 
 template <template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty<true, PropertyContainer, Ts...> {
+struct properties_or_empty_helper<true, PropertyContainer, Ts...> {
   using Props = typename std::tuple_element_t<
       tuple_template_index<PropertyContainer, std::tuple<Ts...>>::value,
       std::tuple<Ts...>>::Props;
 };
 
 template <template <typename TT> typename PropertyContainer, typename... Ts>
-using properties_or_empty_rename_t = typename properties_or_empty<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
+using properties_or_empty = typename properties_or_empty_helper<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
 
 } // namespace detail
 
@@ -241,13 +240,13 @@ private:
 
   template <typename... Ts>
   launch_policy(Ts... ts)
-      : _kernel_properties{detail::property_getter_rename_t<
+      : _kernel_properties{detail::property_getter<
             kernel_properties, kernel_properties<KPropsT>, std::tuple<Ts...>>()(
             std::tuple<Ts...>(ts...))},
-        _launch_properties{detail::property_getter_rename_t<
+        _launch_properties{detail::property_getter<
             launch_properties, launch_properties<LPropsT>, std::tuple<Ts...>>()(
             std::tuple<Ts...>(ts...))},
-        _local_mem_size{detail::property_getter_for_local_mem_rename_t<
+        _local_mem_size{detail::local_mem_getter<
             local_mem_size, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))} {
     static_assert(
         std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
@@ -289,22 +288,22 @@ private:
 template <typename Range, typename... Ts>
 launch_policy(Range, Ts...)
     -> launch_policy<Range,
-                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::properties_or_empty<kernel_properties, Ts...>,
+                     detail::properties_or_empty<launch_properties, Ts...>,
                      detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
 launch_policy(dim3, Ts...)
     -> launch_policy<sycl::range<3>,
-                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::properties_or_empty<kernel_properties, Ts...>,
+                     detail::properties_or_empty<launch_properties, Ts...>,
                      detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
 launch_policy(dim3, dim3, Ts...)
     -> launch_policy<sycl::nd_range<3>,
-                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::properties_or_empty<kernel_properties, Ts...>,
+                     detail::properties_or_empty<launch_properties, Ts...>,
                      detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
