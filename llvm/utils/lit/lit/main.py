@@ -333,7 +333,10 @@ def print_group(tests, code, shown_codes):
     print("*" * 20)
     print("{} Tests ({}):".format(code.label, len(tests)))
     for test in tests:
-        print("  %s" % test.getFullName())
+        print(
+            "%s: %s"
+            % (code.name, test.getFullName())
+        )
     sys.stdout.write("\n")
 
 
