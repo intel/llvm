@@ -109,8 +109,8 @@ typename Param::return_type get_kernel_info(const context& ctxt);
 ----
 !====
 
-_Constraints:_ The `Param` must be an information descriptor for the `kernel`
-class, which can be used by the `kernel::get_info()` overload.
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info()` overload.
 
 _Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
 is defined in the application.
@@ -144,8 +144,9 @@ typename Param::return_type get_kernel_info(const context& ctxt,
 ----
 !====
 
-_Constraints:_ The `Param` must be an information descriptor for the `kernel`
-class, which can be used by the `kernel::get_info(const device&)` overload.
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info(const device &)`
+overload.
 
 _Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
 is defined in the application.
@@ -181,8 +182,9 @@ typename Param::return_type get_kernel_info(const queue& q);
 ----
 !====
 
-_Constraints:_ The `Param` must be an information descriptor for the `kernel`
-class, which can be used by the `kernel::get_info(const device&)` overload.
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info(const device &)`
+overload.
 
 _Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
 is defined in the application.
