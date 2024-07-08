@@ -167,7 +167,7 @@ public:
     }
     const QueueOrder QOrder =
         MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-    MQueues.push_back(createQueue(QOrder));
+    MUrQueues.push_back(createQueue(QOrder));
     // This section is the second part of the instrumentation that uses the
     // tracepoint information and notifies
 
@@ -795,8 +795,9 @@ protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
-    getPlugin()->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        Handler.MQueue->getHandleRef(), 0, nullptr, &ResEvent->getHandleRef());
+    getPlugin()->call(urEnqueueEventsWaitWithBarrier,
+                      Handler.MQueue->getHandleRef(), 0, nullptr,
+                      &ResEvent->getHandleRef());
     return ResEvent;
   }
 

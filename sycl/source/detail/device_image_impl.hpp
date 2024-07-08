@@ -310,6 +310,7 @@ public:
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
         const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
         memReleaseHelper(Plugin, MSpecConstsBuffer);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);
     }

@@ -970,11 +970,11 @@ void MemoryManager::prefetch_usm(
                DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-void MemoryManager::advise_usm(
-    const void *Mem, QueueImplPtr Queue, size_t Length, pi_mem_advice Advice,
-    std::vector<ur_event_handle_t> /*DepEvents*/,
-    ur_event_handle_t *OutEvent,
-    const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
+                               size_t Length, ur_usm_advice_flags_t Advice,
+                               std::vector<ur_event_handle_t> /*DepEvents*/,
+                               ur_event_handle_t *OutEvent,
+                               const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM advise must be called with a valid device queue");
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
@@ -1245,7 +1245,7 @@ static void memcpyFromDeviceGlobalDirect(
     ur_event_handle_t *OutEvent) {
   assert(Queue && "Direct copy from device global must be called with a valid "
                   "device queue");
-  sycl::detail::pi::PiProgram Program =
+  ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getHandleRef(),

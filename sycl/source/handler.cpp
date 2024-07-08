@@ -319,7 +319,7 @@ event handler::finalize() {
         if (UR_RESULT_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               UR_RESULT_ERROR_INVALID_OPERATION);
-        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 

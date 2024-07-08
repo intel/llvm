@@ -1215,7 +1215,7 @@ struct get_device_info_impl<
 
     // If the feature is unsupported or if the result was empty, return an empty
     // list of devices.
-    if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+    if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION ||
         (Err == UR_RESULT_SUCCESS && ResultSize == 0))
       return {};
 

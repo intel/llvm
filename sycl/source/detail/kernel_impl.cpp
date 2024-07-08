@@ -19,16 +19,16 @@ namespace detail {
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramManager::getInstance().getPiProgramFromPiKernel(
-          Kernel, ContextImpl)),
+    : MURKernel(Kernel), MContext(Context),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
+                                                                      Context)),
       MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
-  ur_context_handle_t Context = nullptr;
+  ur_context_handle_t UrContext = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
-                    sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getHandleRef() != Context)
+                    sizeof(UrContext), &UrContext, nullptr);
+  if (Context->getHandleRef() != UrContext)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         UR_RESULT_ERROR_INVALID_CONTEXT);

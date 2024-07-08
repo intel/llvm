@@ -520,29 +520,21 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  pi_interop_mem_handle piInteropMem;
-  pi_external_mem_descriptor piExternalMemDescriptor;
-
-  piExternalMemDescriptor.memorySizeBytes = externalMem.size_in_bytes;
-  piExternalMemDescriptor.handle.file_descriptor =
-      externalMem.external_resource.file_descriptor;
-  // For `resource_fd` external memory type, the handle type is always
-  // `opaque_fd`. No need for a switch statement like we have for win32
-  // resources.
-  piExternalMemDescriptor.handleType = pi_external_mem_handle_type::opaque_fd;
-
-  Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextImportExternalMemory>(
-      C, Device, &piExternalMemDescriptor, &piInteropMem);
-
-  ur_exp_interop_mem_desc_t InteropMemDesc{};
-  InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
-  InteropMemDesc.pNext = &PosixFD;
-
   ur_exp_interop_mem_handle_t urInteropMem = nullptr;
-  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportOpaqueFDExp, C,
+  ur_exp_file_descriptor_t urFileDescriptor = {};
+  urFileDescriptor.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+  urFileDescriptor.fd = externalMem.external_resource.file_descriptor;
+  ur_exp_interop_mem_desc_t urExternalMemDescriptor = {};
+  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+  urExternalMemDescriptor.pNext = &urFileDescriptor;
+
+  // For `resource_fd` external memory type, the handle type is always
+  // `OPAQUE_FD`. No need for a switch statement like we have for win32
+  // resources.
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalMemoryExp, C,
                                     Device, externalMem.size_in_bytes,
-                                    &InteropMemDesc, &urInteropMem);
+                                    UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
+                                    &urExternalMemDescriptor, &urInteropMem);
 
   return interop_mem_handle{urInteropMem};
 }
@@ -567,32 +559,34 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  ur_exp_interop_mem_handle_t urInteropMem;
+  ur_exp_interop_mem_handle_t urInteropMem = nullptr;
+  ur_exp_win32_handle_t urWin32Handle = {};
+  urWin32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
+  urWin32Handle.handle = externalMem.external_resource.handle;
   ur_exp_interop_mem_desc_t urExternalMemDescriptor{};
-
-  urExternalMemDescriptor.memorySizeBytes = externalMem.size_in_bytes;
-  urExternalMemDescriptor.handle.win32_handle =
-      externalMem.external_resource.handle;
+  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+  urExternalMemDescriptor.pNext = &urWin32Handle;
 
   // Select appropriate memory handle type.
+  ur_exp_external_mem_type_t urHandleType;
   switch (externalMem.handle_type) {
   case external_mem_handle_type::win32_nt_handle:
-    piExternalMemDescriptor.handleType =
-        pi_external_mem_handle_type::win32_nt_handle;
+    urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
   case external_mem_handle_type::win32_nt_dx12_resource:
-    piExternalMemDescriptor.handleType =
-        pi_external_mem_handle_type::win32_nt_dx12_resource;
+    urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
     break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid memory handle type");
   }
 
-  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalMemoryExp,
-      C, Device, &piExternalMemDescriptor, &urInteropMem);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalMemoryExp, C,
+                                    Device, externalMem.size_in_bytes,
+                                    urHandleType, &urExternalMemDescriptor,
+                                    &urInteropMem);
 
-  return interop_mem_handle{piInteropMem};
+  return interop_mem_handle{urInteropMem};
 }
 
 template <>
@@ -717,20 +711,22 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
 
-  pi_interop_semaphore_handle piInteropSemaphore;
-  pi_external_semaphore_descriptor piInteropSemDesc;
+  ur_exp_interop_semaphore_handle_t urInteropSemaphore;
+  ur_exp_file_descriptor_t urFileDescriptor = {};
+  urFileDescriptor.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
+  urFileDescriptor.fd = externalSemaphoreDesc.external_resource.file_descriptor;
+  ur_exp_interop_semaphore_desc_t urInteropSemDesc = {};
+  urInteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
+  urInteropSemDesc.pNext = &urFileDescriptor;
 
   // For this specialization of `import_external_semaphore` the handleType is
-  // always `opaque_fd`.
-  piInteropSemDesc.handleType = pi_external_semaphore_handle_type::opaque_fd;
-  piInteropSemDesc.handle.file_descriptor =
-      externalSemaphoreDesc.external_resource.file_descriptor;
+  // always `OPAQUE_FD`.
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalSemaphoreExp,
+                                    C, Device,
+                                    UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
+                                    &urInteropSemDesc, &urInteropSemaphore);
 
-  Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextImportExternalSemaphore>(
-      C, Device, &piInteropSemDesc, &piInteropSemaphore);
-
-  return interop_semaphore_handle{piInteropSemaphore,
+  return interop_semaphore_handle{urInteropSemaphore,
                                   external_semaphore_handle_type::opaque_fd};
 }
 
@@ -749,37 +745,38 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  pi_context C = CtxImpl->getHandleRef();
+  ur_context_handle_t C = CtxImpl->getHandleRef();
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
+  ur_device_handle_t Device = DevImpl->getHandleRef();
 
-  pi_interop_semaphore_handle piInteropSemaphore;
-  pi_external_semaphore_descriptor piInteropSemDesc;
+  ur_exp_interop_semaphore_handle_t urInteropSemaphore;
+  ur_exp_win32_handle_t urWin32Handle = {};
+  urWin32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
+  urWin32Handle.handle = externalSemaphoreDesc.external_resource.handle;
+  ur_exp_interop_semaphore_desc_t urInteropSemDesc = {};
+  urInteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
+  urInteropSemDesc.pNext = &urWin32Handle;
 
   // Select appropriate semaphore handle type.
+  ur_exp_external_semaphore_type_t urHandleType;
   switch (externalSemaphoreDesc.handle_type) {
   case external_semaphore_handle_type::win32_nt_handle:
-    piInteropSemDesc.handleType =
-        pi_external_semaphore_handle_type::win32_nt_handle;
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT;
     break;
   case external_semaphore_handle_type::win32_nt_dx12_fence:
-    piInteropSemDesc.handleType =
-        pi_external_semaphore_handle_type::win32_nt_dx12_fence;
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
     break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid semaphore handle type");
   }
 
-  piInteropSemDesc.handle.win32_handle =
-      externalSemaphoreDesc.external_resource.handle;
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalSemaphoreExp,
+                                    C, Device, urHandleType, &urInteropSemDesc,
+                                    &urInteropSemaphore);
 
-  Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextImportExternalSemaphore>(
-      C, Device, &piInteropSemDesc, &piInteropSemaphore);
-
-  return interop_semaphore_handle{piInteropSemaphore,
+  return interop_semaphore_handle{urInteropSemaphore,
                                   externalSemaphoreDesc.handle_type};
 }
 

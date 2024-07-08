@@ -40,7 +40,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList),
+      MUrContext(nullptr), MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
@@ -71,7 +71,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
-      MDevices(DeviceList), MContext(UrContext), MPlatform(),
+      MDevices(DeviceList), MUrContext(UrContext), MPlatform(),
       MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());

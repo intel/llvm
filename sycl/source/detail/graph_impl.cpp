@@ -790,7 +790,7 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
-      for (const auto &Iter : Partition->MPiCommandBuffers) {
+      for (const auto &Iter : Partition->MUrCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
           ur_result_t Res =
             Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
@@ -802,7 +802,8 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (auto &Iter : MCommandMap) {
       if (auto Command = Iter.second; Command) {
-        ur_result_t Res = Plugin->call_nocheck(urCommandBufferReleaseExp, Command);
+        ur_result_t Res =
+            Plugin->call_nocheck(urCommandBufferReleaseCommandExp, Command);
         (void)Res;
         assert(Res == UR_RESULT_SUCCESS);
       }

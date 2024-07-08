@@ -320,7 +320,7 @@ struct EnqueueNativeCommandData {
   std::function<void(interop_handle)> func;
 };
 
-void InteropFreeFunc(pi_queue, void *InteropData) {
+void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
@@ -329,7 +329,7 @@ void InteropFreeFunc(pi_queue, void *InteropData) {
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
-  std::vector<pi_mem> MReqPiMem;
+  std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
@@ -376,9 +376,9 @@ class DispatchHostTask {
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
                    std::vector<interop_handle::ReqToMem> ReqToMem,
-                   std::vector<pi_mem> ReqPiMem)
+                   std::vector<ur_mem_handle_t> ReqUrMem)
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)),
-        MReqPiMem(std::move(ReqPiMem)) {}
+        MReqUrMem(std::move(ReqUrMem)) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
@@ -421,9 +421,10 @@ public:
         // for host task?
         auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
-        Queue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Queue->getPlugin()->call(
+            urDeviceGetInfo,
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-            PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+            UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
             sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
         if (NativeCommandSupport) {
           EnqueueNativeCommandData CustomOpData{
@@ -436,9 +437,10 @@ public:
           //
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
-          Queue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
-              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
-              MReqPiMem.size(), MReqPiMem.data(), 0, nullptr, nullptr);
+          Queue->getPlugin()->call(
+              urEnqueueNativeCommandExp, HostTask.MQueue->getHandleRef(),
+              InteropFreeFunc, &CustomOpData, MReqUrMem.size(),
+              MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
@@ -534,7 +536,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
       }
     } else {
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-      flushCrossQueueDeps(EventImpls, getWorkerQueue());
+      flushCrossQueueDeps(EventImpls, MWorkerQueue);
       const PluginPtr &Plugin = Queue->getPlugin();
 
       if (MEvent != nullptr)
@@ -1366,7 +1368,7 @@ ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
   ur_event_handle_t &Event = MEvent->getHandleRef();
   *MDstPtr = MemoryManager::map(
@@ -1448,7 +1450,7 @@ ur_result_t UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
   ur_event_handle_t &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
@@ -1556,7 +1558,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
   ur_event_handle_t &Event = MEvent->getHandleRef();
 
   auto RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
   MemoryManager::copy(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
@@ -2283,38 +2285,15 @@ void SetArgBasedOnType(
     // we may pass default constructed accessors to a command, which don't add
     // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
     // valid case, so we need to properly handle it.
-    sycl::detail::pi::PiMem MemArg =
+    ur_mem_handle_t MemArg =
         getMemAllocationFunc
-            ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
+            ? reinterpret_cast<ur_mem_handle_t>(getMemAllocationFunc(Req))
             : nullptr;
-    // Only call piKernelSetArg for opencl plugin. Although for now opencl
-    // plugin is a thin wrapper for UR plugin, but they still produce different
-    // MemArg. For opencl plugin, the MemArg is a straight-forward cl_mem, so it
-    // will be fine using piKernelSetArg, which will call urKernelSetArgValue to
-    // pass the cl_mem object directly to clSetKernelArg. But when in
-    // SYCL_PREFER_UR=1, the MemArg is a cl_mem wrapped by ur_mem_object_t,
-    // which will need to unpack by calling piextKernelSetArgMemObj, which calls
-    // urKernelSetArgMemObj. If we call piKernelSetArg in such case, the
-    // clSetKernelArg will report CL_INVALID_MEM_OBJECT since the arg_value is
-    // not a valid cl_mem object but a ur_mem_object_t object.
-    if (Context.get_backend() == backend::opencl &&
-        !Plugin->hasBackend(backend::all)) {
-      // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-      // when MemArg is null, which is the case when zero-sized buffers are
-      // handled. Below assignment provides later call to clSetKernelArg with
-      // acceptable arguments.
-      if (!MemArg)
-        MemArg = sycl::detail::pi::PiMem();
-
-      Plugin->call<PiApiKind::piKernelSetArg>(
-          Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
-    } else {
-      pi_mem_obj_property MemObjData{};
-      MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
-      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       &MemObjData, &MemArg);
-    }
+    ur_kernel_arg_mem_obj_properties_t MemObjData{};
+    MemObjData.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+    MemObjData.memoryAccess = AccessModeToUr(Req->MAccessMode);
+    Plugin->call(urKernelSetArgMemObj, Kernel, NextTrueIndex, &MemObjData,
+                 MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {
@@ -2893,7 +2872,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
   bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
                          MCommandGroup->getRequirements().size() == 0);
@@ -3084,14 +3063,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
-    std::vector<pi_mem> ReqPiMem;
+    std::vector<ur_mem_handle_t> ReqUrMem;
 
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
       const std::vector<Requirement *> &HandlerReq =
           HostTask->getRequirements();
-      auto ReqToMemConv = [&ReqToMem, &ReqPiMem, HostTask](Requirement *Req) {
+      auto ReqToMemConv = [&ReqToMem, &ReqUrMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
@@ -3101,7 +3080,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             auto MemArg =
                 reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
-            ReqPiMem.emplace_back(MemArg);
+            ReqUrMem.emplace_back(MemArg);
 
             return;
           }
@@ -3123,7 +3102,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     queue_impl::getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqPiMem)));
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
     MShouldCompleteEventIfPossible = false;
 
@@ -3421,7 +3400,7 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getUrEvents(EventImpls);
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
   for (auto &Node : MNodes) {

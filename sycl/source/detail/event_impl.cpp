@@ -132,8 +132,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
-    : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)),
+    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
