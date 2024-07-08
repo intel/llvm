@@ -3634,7 +3634,7 @@ private:
 
   void AddAccessorReq(detail::AccessorImplPtr Accessor);
 
-  void AddLifetimeSharedPtrStorage(std::shared_ptr<void> SPtr);
+  void AddLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr);
 
   void AddArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);

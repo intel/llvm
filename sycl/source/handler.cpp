@@ -1826,12 +1826,12 @@ void handler::AddAccessorReq(detail::AccessorImplPtr Accessor) {
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
 
-void handler::AddLifetimeSharedPtrStorage(std::shared_ptr<void> SPtr) {
+void handler::AddLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
 }
 
-void handler::AddArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
-            int ArgIndex) {
+void handler::AddArg(detail::kernel_param_kind_t ArgKind, void *Req,
+                     int AccessTarget, int ArgIndex) {
   impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex);
 }
 
