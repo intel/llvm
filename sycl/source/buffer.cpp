@@ -54,12 +54,12 @@ buffer_plain::buffer_plain(
 }
 
 buffer_plain::buffer_plain(
-    pi_native_handle MemObject, context SyclContext,
+    pi_native_handle MemObject, const context &SyclContext,
     std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
-    bool OwnNativeHandle, event AvailableEvent) {
-  impl = std::make_shared<detail::buffer_impl>(
-      MemObject, std::move(SyclContext), std::move(Allocator), OwnNativeHandle,
-      std::move(AvailableEvent));
+    bool OwnNativeHandle, const event &AvailableEvent) {
+  impl = std::make_shared<detail::buffer_impl>(MemObject, SyclContext,
+                                               std::move(Allocator),
+                                               OwnNativeHandle, AvailableEvent);
 }
 
 void buffer_plain::set_final_data_internal() { impl->set_final_data(nullptr); }

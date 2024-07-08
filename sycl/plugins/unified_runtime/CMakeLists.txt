@@ -100,11 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94
-  # Author: Yang Zhao <yang2.zhao@intel.com>
-  # Date:   Thu Jun 27 20:26:17 2024 +0800
-  #     [DeviceSanitizer] Support out-of-bounds on private memory (#1676)
-  set(UNIFIED_RUNTIME_TAG 58ca3a34dea0f559b8d950bdfe7d5d8a610d3a94)
+  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
+  # Merge: 01af5602 79be9c5f
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jul 8 13:52:48 2024 +0100
+  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
+  #     Refactor Level Zero Command-Buffer implementation
+  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -280,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

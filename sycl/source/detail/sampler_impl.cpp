@@ -40,11 +40,16 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 }
 
 sampler_impl::~sampler_impl() {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  for (auto &Iter : MContextToSampler) {
-    // TODO catch an exception and add it to the list of asynchronous exceptions
-    const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
-    Plugin->call<PiApiKind::piSamplerRelease>(Iter.second);
+  try {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    for (auto &Iter : MContextToSampler) {
+      // TODO catch an exception and add it to the list of asynchronous
+      // exceptions
+      const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
+      Plugin->call<PiApiKind::piSamplerRelease>(Iter.second);
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sample_impl", e);
   }
 }
 
