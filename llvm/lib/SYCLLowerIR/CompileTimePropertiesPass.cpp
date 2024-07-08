@@ -364,11 +364,11 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
   static constexpr std::tuple<const char *, const char *, bool>
       SimpleWGAttrs[] = {
           {"sycl-work-group-size", "reqd_work_group_size",
-           /*requiresAll3Dims*/ false},
+           /*RequiresAll3Dims*/ false},
           {"sycl-work-group-size-hint", "work_group_size_hint",
-           /*requiresAll3Dims*/ false},
+           /*RequiresAll3Dims*/ false},
           {"sycl-max-work-group-size", "max_work_group_size",
-           /*requiresAll3Dims*/ true},
+           /*RequiresAll3Dims*/ true},
       };
 
   for (auto &[AttrKind, MDStr, Req3D] : SimpleWGAttrs) {
