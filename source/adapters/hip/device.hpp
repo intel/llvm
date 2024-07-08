@@ -104,7 +104,7 @@ public:
     if (!hDevice) {
       throw UR_RESULT_ERROR_INVALID_DEVICE;
     }
-    hipSetDevice(hDevice->get());
+    hipSetDevice(hDevice->getIndex());
   }
 };
 } // namespace
