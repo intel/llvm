@@ -966,7 +966,7 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(PadRange(ClusterSize), ClusterDim);
+      setKernelClusterLaunch(PadRange(ClusterSize, 1), ClusterDim);
     }
   }
 
@@ -3644,11 +3644,12 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> PadRange(sycl::range<Dims> Range) {
+  template <int Dims>
+  static sycl::range<3> PadRange(sycl::range<Dims> Range, size_t Padding) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
-      sycl::range<3> Res{0, 0, 0};
+      sycl::range<3> Res{Padding, Padding, Padding};
       for (int I = 0; I < Dims; ++I)
         Res[I] = Range[I];
       return Res;
@@ -3669,19 +3670,20 @@ private:
   template <int Dims>
   void SetNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return SetNDRangeDescriptorPadded(PadRange(N), SetNumWorkGroups, Dims);
+    return SetNDRangeDescriptorPadded(PadRange(N, SetNumWorkGroups),
+                                      SetNumWorkGroups, Dims);
   }
   template <int Dims>
   void SetNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
                             sycl::id<Dims> Offset) {
-    return SetNDRangeDescriptorPadded(PadRange(NumWorkItems), PadId(Offset),
+    return SetNDRangeDescriptorPadded(PadRange(NumWorkItems, 0), PadId(Offset),
                                       Dims);
   }
   template <int Dims>
   void SetNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
     return SetNDRangeDescriptorPadded(
-        PadRange(ExecutionRange.get_global_range()),
-        PadRange(ExecutionRange.get_local_range()),
+        PadRange(ExecutionRange.get_global_range(), 1),
+        PadRange(ExecutionRange.get_local_range(), 1),
         PadId(ExecutionRange.get_offset()), Dims);
   }
 
