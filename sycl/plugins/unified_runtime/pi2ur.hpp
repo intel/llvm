@@ -1341,6 +1341,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
                              UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH,
+                             UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -3776,6 +3778,57 @@ inline pi_result piextEnqueueCooperativeKernelLaunch(
   HANDLE_ERRORS(urEnqueueCooperativeKernelLaunchExp(
       UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
       LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  std::vector<ur_exp_launch_property_t> props(NumPropsInLaunchPropList);
+  for (pi_uint32 i = 0; i < NumPropsInLaunchPropList; i++) {
+    switch (LaunchPropList[i].id) {
+    case PI_LAUNCH_PROPERTY_IGNORE: {
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_IGNORE;
+      break;
+    }
+    case PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION: {
+
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
+      props[i].value.clusterDim[0] = LaunchPropList[i].value.cluster_dims[0];
+      props[i].value.clusterDim[1] = LaunchPropList[i].value.cluster_dims[1];
+      props[i].value.clusterDim[2] = LaunchPropList[i].value.cluster_dims[2];
+      break;
+    }
+    case PI_LAUNCH_PROPERTY_COOPERATIVE: {
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
+      props[i].value.cooperative = LaunchPropList[i].value.cooperative;
+      break;
+    }
+    default: {
+      return PI_ERROR_INVALID_VALUE;
+    }
+    }
+  }
+
+  HANDLE_ERRORS(urEnqueueKernelLaunchCustomExp(
+      UrQueue, UrKernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, &props[0], NumEventsInWaitList,
+      UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
