@@ -162,15 +162,6 @@ template <template <typename TT> typename PropertyContainer, typename Tuple>
           std::tuple_size_v<Tuple>, std::true_type, std::false_type> {};
 
 
-template <typename T> struct is_kernel_properties : std::false_type{};
-template <typename TT> struct is_kernel_properties<::syclcompat::experimental::kernel_properties<TT>> : std::true_type{};
-
-template <typename T> struct is_launch_properties : std::false_type{};
-template <typename TT> struct is_launch_properties<launch_properties<TT>> : std::true_type{};
-
-template <typename T> struct is_local_mem_size : std::false_type{};
-template <> struct is_local_mem_size<local_mem_size> : std::true_type{};
-
 template <bool TupleContains, typename PropertyContainerConcrete, typename Tuple>
 struct property_getter_helper;
 
@@ -202,9 +193,7 @@ using property_getter = property_getter_helper<detail::tuple_contains_template<P
 template <typename PropertyContainerConcrete, typename Tuple>
 using local_mem_getter = property_getter_helper<has_type<PropertyContainerConcrete, Tuple>::value, PropertyContainerConcrete, Tuple>;
 
-
-
-//TODO: ought this to return the sycl::properties type or the wrapper type?
+// Helpers for properties_or_empty
 template <bool InTuple, template <typename TT> typename PropertyContainer, typename... Ts>
 struct properties_or_empty_helper;
 
@@ -220,10 +209,32 @@ struct properties_or_empty_helper<true, PropertyContainer, Ts...> {
       std::tuple<Ts...>>::Props;
 };
 
+// Template type alias which searches variadic types for e.g.
+// syclcompat::experimental::kernel_properties, launch_properties and returns
+// the contained sycl_exp::properties. If not found, returns
+// sycl_exp::empty_properties_t
 template <template <typename TT> typename PropertyContainer, typename... Ts>
-using properties_or_empty = typename properties_or_empty_helper<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
+using properties_or_empty = typename properties_or_empty_helper<
+    tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value,
+    PropertyContainer, Ts...>::Props;
 
-// Traits to detect launch_policy
+
+// Traits to detect objects related to compat_exp::launch
+// ========================================================
+
+// Trait to detect compat_exp::kernel_properties
+template <typename T> struct is_kernel_properties : std::false_type{};
+template <typename TT> struct is_kernel_properties<kernel_properties<TT>> : std::true_type{};
+
+// Trait to detect compat_exp::launch_properties
+template <typename T> struct is_launch_properties : std::false_type{};
+template <typename TT> struct is_launch_properties<launch_properties<TT>> : std::true_type{};
+
+// Trait to detect compat_exp::local_mem_size
+template <typename T> struct is_local_mem_size : std::false_type{};
+template <> struct is_local_mem_size<local_mem_size> : std::true_type{};
+
+// Traits to detect compat_exp::launch_policy
 template <typename T> struct is_launch_policy : std::false_type {};
 
 template <typename RangeT, typename KProps, typename LProps, bool LocalMem>
