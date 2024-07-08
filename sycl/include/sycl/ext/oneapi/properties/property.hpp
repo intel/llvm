@@ -211,11 +211,12 @@ enum PropKind : uint32_t {
   OutputDataPlacement = 70,
   IncludeFiles = 71,
   RegisteredKernelNames = 72,
-  MaxWorkGroupSize = 73,
-  MinWorkGroupsPerCU = 74,
-  MaxWorkGroupsPerMP = 75,
+  ClusterLaunch = 73,
+  MaxWorkGroupSize = 74,
+  MinWorkGroupsPerCU = 75,
+  MaxWorkGroupsPerMP = 76,
   // PropKindSize must always be the last value.
-  PropKindSize = 76,
+  PropKindSize = 77,
 };
 
 struct property_key_base_tag {};
