@@ -60,8 +60,19 @@ template <typename... Props>
 launch_properties(Props... props) -> launch_properties<decltype(sycl_exp::properties(props...))>;
 
 struct local_mem_size {
+  local_mem_size(size_t size) : size{size} {};
+  local_mem_size() : size{} {};
   size_t size;
 };
+
+template <typename T> struct is_kernel_properties : std::false_type{};
+template <typename TT> struct is_kernel_properties<kernel_properties<TT>> : std::true_type{};
+
+template <typename T> struct is_launch_properties : std::false_type{};
+template <typename TT> struct is_launch_properties<launch_properties<TT>> : std::true_type{};
+
+template <typename T> struct is_local_mem_size : std::false_type{};
+template <> struct is_local_mem_size<local_mem_size> : std::true_type{};
 
 template <typename T, typename Tuple> struct tuple_element_index_helper;
 
@@ -234,7 +245,13 @@ struct launch_policy {
             std::tuple<Ts...>(ts...))},
         _local_mem_size{property_getter_for_local_mem_rename_t<
             local_mem_size, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))} {
-    //TODO: Static assert here that every tuple member is expected
+
+    static_assert(
+        std::conjunction_v<
+            std::disjunction<is_kernel_properties<Ts>, is_launch_properties<Ts>,
+                             is_local_mem_size<Ts>>...>,
+        "\n\nReceived an unexpected argument to ctor. Did you forget to wrap in "
+        "compat::kernel_properties, launch_properties, local_mem_size?");
   }
   
   //TODO static_assert everything passed to ctor is expected.
