@@ -12,11 +12,7 @@
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: detail/array.hpp
-// CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/pi_error.def
-// CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h
@@ -24,10 +20,14 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: ur_print.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: detail/pi.hpp
 // CHECK-NEXT: detail/os_util.hpp
+// CHECK-NEXT: detail/pi.h
+// CHECK-NEXT: detail/pi_error.def
+// CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
