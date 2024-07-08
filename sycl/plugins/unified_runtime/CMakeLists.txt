@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 38bd941caf19213e9091e4da9b98df350f7c7955
-  # Merge: fa06e95c 36ca9f15
+  # commit 01af5602345ac3289cc084eb19bf266c054da075
+  # Merge: 20844ddc ad3befd1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jul 5 13:48:45 2024 +0100
-  #     Merge pull request #1587 from callumfare/callum/native_handle_uintptr_t
-  #     Change ur_native_handle_t to be uintptr_t
-  set(UNIFIED_RUNTIME_TAG 38bd941caf19213e9091e4da9b98df350f7c7955)
+  # Date:   Mon Jul 8 10:32:14 2024 +0100
+  #     Merge pull request #1809 from nrspruit/fix_l0_ur_deviceinfo
+  #     [L0] Fix Device Info return code to report unsupported enumeration
+  set(UNIFIED_RUNTIME_TAG 01af5602345ac3289cc084eb19bf266c054da075)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
