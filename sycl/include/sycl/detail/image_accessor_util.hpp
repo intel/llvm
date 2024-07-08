@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This file includes some utilities that are used by image accessors on host
-// device
+// This file includes some utilities that are used by image accessors in host
+// code
 //
 
 #pragma once
@@ -685,7 +685,7 @@ convertWriteData(const half4 WriteData,
 }
 
 // imageWriteHostImpl method is called by the write API in image accessors for
-// host device. Steps:
+// host code. Steps:
 // 1. Calculates the offset from the base ptr of the image where the pixel
 // denoted by Coord is located.(getImageOffset method.)
 // 2. Converts the ptr to the appropriate datatype based on

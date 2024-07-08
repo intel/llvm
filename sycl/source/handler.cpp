@@ -80,30 +80,18 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-/// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
-    : handler(Queue, IsHost, /*CallerNeedsEvent=*/true) {}
-
-/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool IsHost)
-    : handler(Queue, PrimaryQueue, SecondaryQueue, IsHost,
-              /*CallerNeedsEvent=*/true) {}
-
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, IsHost, CallerNeedsEvent) {}
+    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool IsHost, bool CallerNeedsEvent)
+                 bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue),
                                                    CallerNeedsEvent)),
-      MQueue(std::move(Queue)), MIsHost(IsHost) {}
+      MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -287,17 +275,11 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        if (MQueue->is_host()) {
-          MHostKernel->call(MNDRDesc, (NewEvent)
-                                          ? NewEvent->getHostProfilingInfo()
-                                          : nullptr);
-          Result = PI_SUCCESS;
-        } else {
-          Result = enqueueImpKernel(
-              MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-              MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-        }
+        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                  MKernel, MKernelName.c_str(), RawEvents,
+                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
+                                  MImpl->MKernelIsCooperative,
+                                  MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -339,7 +321,7 @@ event handler::finalize() {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
-        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -360,7 +342,8 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName.c_str(), std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+        MImpl->MKernelUsesClusterLaunch, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -921,7 +904,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     auto EventImpl = detail::getSyclObjImpl(Event);
     // We could not wait for host task events in backend.
     // Adding them as dependency to enable proper scheduling.
-    if (EventImpl->is_host()) {
+    if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
     MEventsWaitWithBarrier.push_back(EventImpl);
@@ -975,6 +958,15 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setType(detail::CG::FillUSM);
+}
+
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
                                        const void *Src, size_t SrcPitch,
                                        size_t Width, size_t Height) {
@@ -1005,7 +997,7 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                        size_t Width, size_t Height) {
   // Checks done in callers.
   MDstPtr = Dest;
-  MPattern.push_back(static_cast<char>(Value));
+  MPattern.push_back(static_cast<unsigned char>(Value));
   MImpl->MDstPitch = DestPitch;
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;
@@ -1633,6 +1625,13 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+backend handler::getDeviceBackend() const {
+  if (MGraph)
+    return MGraph->getDevice().get_backend();
+  else
+    return MQueue->getDeviceImplPtr()->getBackend();
+}
+
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
@@ -1729,6 +1728,13 @@ void handler::setKernelCacheConfig(
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
+}
+
+void handler::setKernelUsesClusterLaunch() {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  MImpl->MKernelUsesClusterLaunch = true;
 }
 
 void handler::ext_oneapi_graph(

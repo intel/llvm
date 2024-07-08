@@ -43,10 +43,6 @@ public:
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::cout << "Not run due to host-only environment\n";
-      GTEST_SKIP();
-    }
     MockSchedulerPtr = new MockScheduler();
     sycl::detail::GlobalHandler::instance().attachScheduler(
         dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));

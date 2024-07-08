@@ -41,8 +41,8 @@ entry:
 ; CHECK-SPIRV: DebugValue [[#]] [[#FINAL_COMPOS]]
 
 
-; CHECK-LLVM: call void @llvm.dbg.value(
-; CHECK-LLVM-SAME:   metadata <4 x i8> <
+; CHECK-LLVM: #dbg_value(
+; CHECK-LLVM-SAME:   <4 x i8> <
 ; CHECK-LLVM-SAME:   i8 add (
 ; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
 ; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
@@ -53,7 +53,7 @@ entry:
 ; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
 ; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2)),
 ; CHECK-LLVM-SAME:   i8 undef>,
-; CHECK-LLVM-SAME:   metadata ![[#]], metadata !DIExpression()), !dbg ![[#]]
+; CHECK-LLVM-SAME:   ![[#]], !DIExpression(), ![[#]])
   call void @llvm.dbg.value(
     metadata <4 x i8> <
     i8 add (

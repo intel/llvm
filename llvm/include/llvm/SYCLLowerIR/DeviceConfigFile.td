@@ -43,7 +43,6 @@ def AspectExt_oneapi_native_assert : Aspect<"ext_oneapi_native_assert">;
 def AspectHost_debuggable : Aspect<"host_debuggable">;
 def AspectExt_intel_gpu_hw_threads_per_eu : Aspect<"ext_intel_gpu_hw_threads_per_eu">;
 def AspectExt_oneapi_cuda_async_barrier : Aspect<"ext_oneapi_cuda_async_barrier">;
-def AspectExt_oneapi_bfloat16_math_functions : Aspect<"ext_oneapi_bfloat16_math_functions">;
 def AspectExt_intel_free_memory : Aspect<"ext_intel_free_memory">;
 def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
 def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
@@ -83,6 +82,7 @@ def AspectExt_oneapi_limited_graph : Aspect<"ext_oneapi_limited_graph">;
 def AspectExt_oneapi_private_alloca : Aspect<"ext_oneapi_private_alloca">;
 def AspectExt_oneapi_queue_profiling_tag : Aspect<"ext_oneapi_queue_profiling_tag">;
 def AspectExt_oneapi_virtual_mem : Aspect<"ext_oneapi_virtual_mem">;
+def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -125,7 +125,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations,
     AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
-    AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
+    AspectExt_oneapi_cuda_async_barrier, AspectExt_intel_free_memory,
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
     AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
@@ -140,7 +140,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence, AspectExt_oneapi_limited_graph,
-    AspectExt_oneapi_private_alloca, AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem],
+    AspectExt_oneapi_private_alloca, AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -198,17 +198,17 @@ def : CudaTargetInfo<"nvidia_gpu_sm_70", !listconcat(CudaMinAspects, CudaBindles
 def : CudaTargetInfo<"nvidia_gpu_sm_72", !listconcat(CudaMinAspects, CudaBindlessImagesAspects, [AspectFp16, AspectAtomic64])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_75", !listconcat(CudaMinAspects, CudaBindlessImagesAspects, [AspectFp16, AspectAtomic64])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_80", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_86", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_87", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_89", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_90a", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
-    [AspectFp16, AspectAtomic64, AspectExt_oneapi_bfloat16_math_functions, AspectExt_oneapi_cuda_async_barrier])>;
+    [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
 
 //
 // HIP / AMDGPU device aspects

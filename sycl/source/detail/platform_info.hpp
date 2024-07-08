@@ -59,36 +59,6 @@ get_platform_info(sycl::detail::pi::PiPlatform Plt, const PluginPtr &Plugin) {
   return split_string(Result, ' ');
 }
 
-// Host platform information methods
-template <typename Param>
-inline typename Param::return_type get_platform_info_host() = delete;
-
-template <>
-inline std::string get_platform_info_host<info::platform::profile>() {
-  return "FULL PROFILE";
-}
-
-template <>
-inline std::string get_platform_info_host<info::platform::version>() {
-  return "1.2";
-}
-
-template <> inline std::string get_platform_info_host<info::platform::name>() {
-  return "SYCL host platform";
-}
-
-template <>
-inline std::string get_platform_info_host<info::platform::vendor>() {
-  return "";
-}
-
-template <>
-inline std::vector<std::string>
-get_platform_info_host<info::platform::extensions>() {
-  // TODO update when appropriate
-  return {};
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
