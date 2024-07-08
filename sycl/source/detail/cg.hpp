@@ -91,7 +91,9 @@ public:
   NDRDescT(NDRDescT &&Desc) = default;
 
   NDRDescT(sycl::range<3> N, bool SetNumWorkGroups, int Dims)
-      : GlobalSize{SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N},
+      : GlobalSize{SetNumWorkGroups
+                       ? sycl::range<3>{Dims > 0, Dims > 1, Dims > 2}
+                       : N},
         NumWorkGroups{SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0}},
         Dims{size_t(Dims)} {}
 
