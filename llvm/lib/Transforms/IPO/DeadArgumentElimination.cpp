@@ -1261,7 +1261,7 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
     const auto &FuncOperand = MetadataNode->getOperand(0);
     if (!FuncOperand)
       continue;
-    auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+    auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
     if (!FuncConstant)
       continue;
     auto *Func = dyn_cast<Function>(FuncConstant->getValue());
@@ -1272,8 +1272,8 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
 
     // Carefully update any and all grid_constant annotations, since those are
     // denoted parameter indices, which may have changed
-    for (unsigned i = 1; i < MetadataNode->getNumOperands() - 1; i += 2) {
-      if (auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(i));
+    for (unsigned I = 1; I < MetadataNode->getNumOperands() - 1; I += 2) {
+      if (auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(I));
           Type && Type->getString() == "grid_constant") {
         LLVMContext &Ctx = NF->getContext();
         LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - updating nvvm "
@@ -1281,9 +1281,7 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
                           << NF->getName() << "\n");
         // The 'value' operand is a list of integers denoting parameter indices
         auto *OldGridConstParamIdxs =
-            dyn_cast<MDNode>(MetadataNode->getOperand(i + 1));
-        if (!OldGridConstParamIdxs)
-          continue;
+            cast<MDNode>(MetadataNode->getOperand(I + 1));
         // For each parameter that's identified as a grid_constant, count how
         // many arguments before that position are dead, and shift the number
         // down by that amount.
@@ -1331,7 +1329,7 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
                    dbgs() << "} to new annotation {";
                    PrintList(NewGridConstParamIdxs); dbgs() << "}\n";);
 
-        MetadataNode->replaceOperandWith(i + 1, NewGridConstParamIdxs);
+        MetadataNode->replaceOperandWith(I + 1, NewGridConstParamIdxs);
       }
     }
   }
