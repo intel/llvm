@@ -961,7 +961,7 @@ void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
   MPattern.resize(ValueSize);
   std::memcpy(MPattern.data(), Value, ValueSize);
   MLength = Count * ValueSize;
-  setType(detail::CG::FillUSM);
+  setType(detail::CGType::FillUSM);
 }
 
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
@@ -995,10 +995,10 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   // Checks done in callers.
   MDstPtr = Dest;
   MPattern.push_back(static_cast<unsigned char>(Value));
-  MImpl->MDstPitch = DestPitch;
-  MImpl->MWidth = Width;
-  MImpl->MHeight = Height;
-  setType(detail::CG::Memset2DUSM);
+  impl->MDstPitch = DestPitch;
+  impl->MWidth = Width;
+  impl->MHeight = Height;
+  setType(detail::CGType::Memset2DUSM);
 }
 
 void handler::ext_oneapi_copy(
@@ -1623,8 +1623,8 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 }
 
 backend handler::getDeviceBackend() const {
-  if (MGraph)
-    return MGraph->getDevice().get_backend();
+  if (impl->MGraph)
+    return impl->MGraph->getDevice().get_backend();
   else
     return MQueue->getDeviceImplPtr()->getBackend();
 }
