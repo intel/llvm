@@ -1070,12 +1070,19 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type, be declared at file scope,
-// outside any namespaces, and with the SYCL_DEVICE attribute. If the
-// SYCL_DEVICE attribute is not specified this function is not entered since the
-// possibility of the function being a free function is ruled out already.
+static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
+  return std::any_of(Exprs, Exprs + ExprsSize, [](const Expr *E) {
+    return E->isValueDependent() || E->isTypeDependent();
+  });
+}
+
+// FIXME: Free functions must be declared at file scope, outside any namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+    // Free function properties are all compiletime constants, so skip checking
+    // any attribute values that are not constants.
+    if (hasDependentExpr(IRAttr->args_begin(), IRAttr->args_size()))
+      continue;
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
@@ -1097,6 +1104,10 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
 static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
                                    const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+    // Free function properties are all compiletime constants, so skip checking
+    // any attribute values that are not constants.
+    if (hasDependentExpr(IRAttr->args_begin(), IRAttr->args_size()))
+      continue;
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
