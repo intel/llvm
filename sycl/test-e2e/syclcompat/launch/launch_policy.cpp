@@ -49,6 +49,8 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
+using sycl::ext::oneapi::experimental::empty_properties_t;
+
 inline void empty_kernel(){};
 inline void int_kernel(int a){};
 inline void int_ptr_kernel(int *a){};
@@ -83,36 +85,60 @@ int test_variadic_config_ctor() {
     compat_exp::launch_policy my_config(
         sycl::nd_range<1>{{32}, {32}},
         compat_exp::kernel_properties{sycl_exp::sub_group_size<32>});
+    static_assert(
+        std::is_same_v<decltype(my_config),
+                       compat_exp::launch_policy<
+                           sycl::nd_range<1>,
+                           decltype(sycl::ext::oneapi::experimental::properties{
+                               sycl_exp::sub_group_size<32>}),
+                           empty_properties_t, false>>);
   }
 
   // Empty kernel properties
   {
-    compat_exp::launch_policy my_config(
-        sycl::nd_range<1>{{32}, {32}},
-        compat_exp::kernel_properties{});
+    compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
+                                        compat_exp::kernel_properties{});
+    static_assert(
+        std::is_same_v<
+            decltype(my_config),
+            compat_exp::launch_policy<sycl::nd_range<1>, empty_properties_t,
+                                      empty_properties_t, false>>);
   }
 
   // Dummy launch properties
   {
-    compat_exp::launch_policy my_config(
-        sycl::nd_range<1>{{32}, {32}},
-        compat_exp::launch_properties{});
+    compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
+                                        compat_exp::launch_properties{});
+    static_assert(
+        std::is_same_v<
+            decltype(my_config),
+            compat_exp::launch_policy<sycl::nd_range<1>, empty_properties_t,
+                                      empty_properties_t, false>>);
   }
 
   // Just local mem
   {
-    compat_exp::launch_policy my_config(
-        sycl::nd_range<1>{{32}, {32}},
-        compat_exp::local_mem_size{1024});
+    compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
+                                        compat_exp::local_mem_size{1024});
+    static_assert(
+        std::is_same_v<
+            decltype(my_config),
+            compat_exp::launch_policy<sycl::nd_range<1>, empty_properties_t,
+                                      empty_properties_t, true>>);
   }
 
   // Just 0 local mem
   {
-    compat_exp::launch_policy my_config(
-        sycl::nd_range<1>{{32}, {32}},
-        compat_exp::local_mem_size{0});
+    compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
+                                        compat_exp::local_mem_size{0});
+    static_assert(
+        std::is_same_v<
+            decltype(my_config),
+            compat_exp::launch_policy<sycl::nd_range<1>, empty_properties_t,
+                                      empty_properties_t, true>>);
   }
 
+  //TODO: more combos here
   return 0;
 }
 

@@ -202,7 +202,7 @@ using properties_or_empty_rename_t = typename properties_or_empty<tuple_contains
 //----------------------------------------------
 
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
-template <typename Range, typename KProps, typename LProps>
+template <typename Range, typename KProps, typename LProps, bool LocalMem>
 struct launch_policy {
   static_assert(sycl_exp::is_property_list_v<KProps>);
   static_assert(sycl_exp::is_property_list_v<LProps>);
@@ -211,6 +211,7 @@ struct launch_policy {
   using KPropsT = KProps;
   using LPropsT = LProps;
   using RangeT = Range;
+
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
   launch_policy() = delete;
@@ -252,14 +253,16 @@ struct launch_policy {
 //     -> launch_policy<sycl::nd_range<3>, KProps, LProps>;
 
 template <typename Range, typename... Ts>
-launch_policy(Range range, Ts... ts) -> launch_policy<
-    Range, properties_or_empty_rename_t<kernel_properties, Ts...>,
-    properties_or_empty_rename_t<launch_properties, Ts...>>;
+launch_policy(Range range, Ts... ts)
+    -> launch_policy<Range,
+                     properties_or_empty_rename_t<kernel_properties, Ts...>,
+                     properties_or_empty_rename_t<launch_properties, Ts...>,
+                     has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
 
-template <typename RangeT, typename KProps, typename LProps>
-struct is_launch_policy<launch_policy<RangeT, KProps, LProps>> : std::true_type {};
+template <typename RangeT, typename KProps, typename LProps, bool LocalMem>
+struct is_launch_policy<launch_policy<RangeT, KProps, LProps, LocalMem>> : std::true_type {};
 
 template <typename T>
 inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
