@@ -295,14 +295,14 @@ struct all_props_are_keys_of<SyclT,
 
 template <typename SyclT, typename PropT>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
+    SyclT, ext::oneapi::experimental::detail::properties_t<PropT>>
     : std::bool_constant<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
 };
 
 template <typename SyclT, typename PropT, typename... PropTs>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
+    SyclT, ext::oneapi::experimental::detail::properties_t<PropT, PropTs...>>
     : std::bool_constant<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
           all_props_are_keys_of<SyclT, ext::oneapi::experimental::detail::
