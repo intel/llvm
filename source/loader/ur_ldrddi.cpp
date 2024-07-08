@@ -4144,10 +4144,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
                         phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4200,10 +4201,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     result = pfnEventsWait(hQueue, numEventsInWaitList,
                            phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4257,10 +4259,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                       phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4322,10 +4325,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
                               numEventsInWaitList, phEventWaitListLocal.data(),
                               phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4389,10 +4393,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                                pSrc, numEventsInWaitList,
                                phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4467,10 +4472,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4548,10 +4554,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4617,10 +4624,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                               dstOffset, size, numEventsInWaitList,
                               phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4696,10 +4704,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4761,10 +4770,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
                               size, numEventsInWaitList,
                               phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4831,10 +4841,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
                              rowPitch, slicePitch, pDst, numEventsInWaitList,
                              phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4902,10 +4913,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
                               rowPitch, slicePitch, pSrc, numEventsInWaitList,
                               phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -4977,10 +4989,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
                              region, numEventsInWaitList,
                              phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5044,10 +5057,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
                              size, numEventsInWaitList,
                              phEventWaitListLocal.data(), phEvent, ppRetMap);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5105,10 +5119,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     result = pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
                          phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5169,10 +5184,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
                    numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5231,10 +5247,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                      phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5290,10 +5307,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     result = pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
                             phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5334,10 +5352,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     // forward to device-platform
     result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5403,10 +5422,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                      numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5471,10 +5491,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                             width, height, numEventsInWaitList,
                             phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5540,10 +5561,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5609,10 +5631,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         hQueue, hProgram, name, blockingRead, count, offset, pDst,
         numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5681,10 +5704,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
                              size, numEventsInWaitList,
                              phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -5753,10 +5777,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
                               size, numEventsInWaitList,
                               phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -7592,10 +7617,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         pLocalWorkSize, numEventsInWaitList, phEventWaitListLocal.data(),
         phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
@@ -7689,10 +7715,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     result = pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
                                       phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         *phEvent = reinterpret_cast<ur_event_handle_t>(
@@ -8102,10 +8129,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
         hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemListLocal.data(),
         pProperties, numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
-    if (UR_RESULT_SUCCESS != result) {
+    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+    if (UR_RESULT_SUCCESS != result &&
+        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
         return result;
     }
-
     try {
         // convert platform handle to loader handle
         if (nullptr != phEvent) {
