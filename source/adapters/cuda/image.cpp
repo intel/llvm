@@ -235,7 +235,7 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
 ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const ur_image_desc_t *pImageDesc,
                             const CUDA_RESOURCE_DESC &ResourceDesc,
-                            ur_exp_image_handle_t *phRetImage) {
+                            ur_exp_image_native_handle_t *phRetImage) {
 
   try {
     /// pi_sampler_properties
@@ -324,7 +324,7 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     CUtexObject Texture;
     UR_CHECK_ERROR(
         cuTexObjectCreate(&Texture, &ResourceDesc, &ImageTexDesc, nullptr));
-    *phRetImage = (ur_exp_image_handle_t)Texture;
+    *phRetImage = (ur_exp_image_native_handle_t)Texture;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -372,9 +372,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
-                                               ur_device_handle_t hDevice,
-                                               ur_exp_image_handle_t hImage) {
+urBindlessImagesUnsampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_native_handle_t hImage) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -385,9 +385,9 @@ urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
-                                             ur_device_handle_t hDevice,
-                                             ur_exp_image_handle_t hImage) {
+urBindlessImagesSampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_native_handle_t hImage) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -400,7 +400,7 @@ urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_image_mem_handle_t *phImageMem) {
+    ur_exp_image_mem_native_handle_t *phImageMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -458,7 +458,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
     try {
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
-      *phImageMem = (ur_exp_image_mem_handle_t)ImageArray;
+      *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
       cuArrayDestroy(ImageArray);
       return Err;
@@ -474,7 +474,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     try {
       UR_CHECK_ERROR(cuMipmappedArrayCreate(&mip_array, &array_desc,
                                             pImageDesc->numMipLevel));
-      *phImageMem = (ur_exp_image_mem_handle_t)mip_array;
+      *phImageMem = (ur_exp_image_mem_native_handle_t)mip_array;
     } catch (ur_result_t Err) {
       cuMipmappedArrayDestroy(mip_array);
       return Err;
@@ -489,7 +489,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_handle_t hImageMem) {
+    ur_exp_image_mem_native_handle_t hImageMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -508,9 +508,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_native_handle_t hImageMem,
+    const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    ur_exp_image_handle_t *phImage) {
+    ur_exp_image_native_handle_t *phImage) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -540,7 +541,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     // CUDA deals with unsampled images.
     CUsurfObject surface;
     UR_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
-    *phImage = (ur_exp_image_handle_t)surface;
+    *phImage = (ur_exp_image_native_handle_t)surface;
 
   } catch (ur_result_t Err) {
     return Err;
@@ -553,9 +554,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
-    const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
-    ur_exp_image_handle_t *phImage) {
+    ur_exp_image_mem_native_handle_t hImageMem,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_sampler_handle_t hSampler, ur_exp_image_native_handle_t *phImage) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -928,8 +929,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ur_image_info_t propName,
-    void *pPropValue, size_t *pPropSizeRet) {
+    ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
+    ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
 
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
   UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, (CUarray)hImageMem));
@@ -992,8 +993,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_handle_t hImageMem, uint32_t mipmapLevel,
-    ur_exp_image_mem_handle_t *phImageMem) {
+    ur_exp_image_mem_native_handle_t hImageMem, uint32_t mipmapLevel,
+    ur_exp_image_mem_native_handle_t *phImageMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1004,7 +1005,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     CUarray ImageArray;
     UR_CHECK_ERROR(cuMipmappedArrayGetLevel(
         &ImageArray, (CUmipmappedArray)hImageMem, mipmapLevel));
-    *phImageMem = (ur_exp_image_mem_handle_t)ImageArray;
+    *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -1016,7 +1017,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_handle_t hMem) {
+    ur_exp_image_mem_native_handle_t hMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1096,7 +1097,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_interop_mem_handle_t hInteropMem,
-    ur_exp_image_mem_handle_t *phImageMem) {
+    ur_exp_image_mem_native_handle_t *phImageMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1131,12 +1132,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         &memMipMap, (CUexternalMemory)hInteropMem, &mipmapDesc));
 
     if (pImageDesc->numMipLevel > 1) {
-      *phImageMem = (ur_exp_image_mem_handle_t)memMipMap;
+      *phImageMem = (ur_exp_image_mem_native_handle_t)memMipMap;
     } else {
       CUarray memArray;
       UR_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
 
-      *phImageMem = (ur_exp_image_mem_handle_t)memArray;
+      *phImageMem = (ur_exp_image_mem_native_handle_t)memArray;
     }
 
   } catch (ur_result_t Err) {

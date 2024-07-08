@@ -39,8 +39,6 @@ struct is_handle<ur_kernel_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_queue_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_native_handle_t> : std::true_type {};
-template <>
 struct is_handle<ur_sampler_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_mem_handle_t> : std::true_type {};
@@ -49,13 +47,11 @@ struct is_handle<ur_physical_mem_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_usm_pool_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_exp_image_handle_t> : std::true_type {};
-template <>
-struct is_handle<ur_exp_image_mem_handle_t> : std::true_type {};
-template <>
 struct is_handle<ur_exp_interop_mem_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_win32_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
@@ -14646,8 +14642,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImage = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImage));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImage)));
 
     return os;
 }
@@ -14672,8 +14668,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImage = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImage));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImage)));
 
     return os;
 }
@@ -14736,8 +14732,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     return os;
 }
@@ -14762,8 +14758,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -14806,8 +14802,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -14929,10 +14925,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_image_get_info_exp_params_t *params) {
 
-    os << ".hImageMem = ";
+    os << ".hContext = ";
 
     ur::details::printPtr(os,
-                          *(params->phImageMem));
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hImageMem = ";
+
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".propName = ";
@@ -14974,8 +14976,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".mipmapLevel = ";
@@ -15011,8 +15013,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phMem)));
 
     return os;
 }
