@@ -36,9 +36,9 @@ void test(queue &Q, size_t Count) {
     event E1 = Q.submit([&](handler &CGH) {
       std::cout << "Submit 1" << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc0 = B0.get_host_access(CGH);
+      auto Acc1 = B1.get_host_access(CGH);
+      auto Acc2 = B2.get_host_access(CGH);
 
       auto Func = [=] {
         Acc0[0] = 1 * Idx;
@@ -53,8 +53,8 @@ void test(queue &Q, size_t Count) {
     event E2 = Q.submit([&](handler &CGH) {
       std::cout << "Submit 2" << std::endl;
 
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc2 = B2.get_host_access(CGH);
+      auto Acc3 = B3.get_host_access(CGH);
 
       auto Func = [=] {
         Acc2[1] = 1 * Idx;
@@ -71,8 +71,8 @@ void test(queue &Q, size_t Count) {
 
       std::cout << "Submit 3" << std::endl;
 
-      auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc4 = B4.get_host_access(CGH);
+      auto Acc5 = B5.get_host_access(CGH);
 
       auto Func = [=] {
         Acc4[2] = 1 * Idx;

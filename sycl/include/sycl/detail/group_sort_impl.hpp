@@ -15,10 +15,42 @@
 #include <sycl/builtins.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/sycl_span.hpp>
+
+#include <memory>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+// Helpers for sorting algorithms
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T, typename Group>
+static __SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch,
+                                             Group g,
+                                             size_t number_of_elements) {
+  // Adjust the scratch pointer based on alignment of the type T.
+  // Per extension specification if scratch size is less than the value
+  // returned by memory_required then behavior is undefined, so we don't check
+  // that the scratch size statisfies the requirement.
+  T *scratch_begin = nullptr;
+  // We must have a barrier here before array placement new because it is
+  // possible that scratch memory is already in use, so we need to synchronize
+  // work items.
+  sycl::group_barrier(g);
+  if (g.leader()) {
+    void *scratch_ptr = scratch.data();
+    size_t space = scratch.size();
+    scratch_ptr = std::align(alignof(T), number_of_elements * sizeof(T),
+                             scratch_ptr, space);
+    scratch_begin = ::new (scratch_ptr) T[number_of_elements];
+  }
+  // Broadcast leader's pointer (the beginning of the scratch) to all work
+  // items in the group.
+  scratch_begin = sycl::group_broadcast(g, scratch_begin);
+  return scratch_begin;
+}
+#endif
 
 // ---- merge sort implementation
 
@@ -578,7 +610,7 @@ template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
           typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
-                                ValsT vals, const ScratchMemory &memory) {
+                                ValsT *vals, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();

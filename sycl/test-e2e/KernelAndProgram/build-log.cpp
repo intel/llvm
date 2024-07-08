@@ -40,12 +40,14 @@ void test() {
     Queue.submit(
         [&](sycl::handler &CGH) { CGH.single_task<class SingleTask>(Kernel); });
     assert(false && "There must be compilation error");
-  } catch (const sycl::compile_program_error &e) {
+  } catch (const sycl::exception &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
+    assert(e.code() == sycl::errc::build &&
+           "Caught exception was not a compilation error");
     assert(Msg.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos);
   } catch (...) {
-    assert(false && "There must be sycl::compile_program_error");
+    assert(false && "Caught exception was not a compilation error");
   }
 }
 

@@ -177,21 +177,21 @@ bool RISCVISAInfo::addExtension(StringRef ExtName,
 }
 
 static StringRef getExtensionTypeDesc(StringRef Ext) {
-  if (Ext.starts_with("s"))
+  if (Ext.starts_with('s'))
     return "standard supervisor-level extension";
-  if (Ext.starts_with("x"))
+  if (Ext.starts_with('x'))
     return "non-standard user-level extension";
-  if (Ext.starts_with("z"))
+  if (Ext.starts_with('z'))
     return "standard user-level extension";
   return StringRef();
 }
 
 static StringRef getExtensionType(StringRef Ext) {
-  if (Ext.starts_with("s"))
+  if (Ext.starts_with('s'))
     return "s";
-  if (Ext.starts_with("x"))
+  if (Ext.starts_with('x'))
     return "x";
-  if (Ext.starts_with("z"))
+  if (Ext.starts_with('z'))
     return "z";
   return StringRef();
 }
@@ -757,7 +757,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
                 Ext, SeenExtMap, IgnoreUnknown, EnableExperimentalExtension,
                 ExperimentalExtensionVersionCheck))
           return std::move(E);
-        // Multi-letter extension must be seperate following extension with
+        // Multi-letter extension must be separate following extension with
         // underscore
         break;
       } else {
@@ -839,12 +839,12 @@ Error RISCVISAInfo::checkDependency() {
     return createStringError(errc::invalid_argument,
                              "'zcf' is only supported for 'rv32'");
 
-  if (Exts.count("zacas") && !(Exts.count("a") || Exts.count("zamo")))
+  if (Exts.count("zacas") && !(Exts.count("a") || Exts.count("zaamo")))
     return createStringError(
         errc::invalid_argument,
         "'zacas' requires 'a' or 'zaamo' extension to also be specified");
 
-  if (Exts.count("zabha") && !(Exts.count("a") || Exts.count("zamo")))
+  if (Exts.count("zabha") && !(Exts.count("a") || Exts.count("zaamo")))
     return createStringError(
         errc::invalid_argument,
         "'zabha' requires 'a' or 'zaamo' extension to also be specified");
@@ -880,7 +880,7 @@ void RISCVISAInfo::updateImplication() {
   // implied
   if (!HasE && !HasI) {
     auto Version = findDefaultVersion("i");
-    addExtension("i", Version.value());
+    addExtension("i", *Version);
   }
 
   if (HasE && HasI)
@@ -906,7 +906,7 @@ void RISCVISAInfo::updateImplication() {
                     if (Exts.count(ImpliedExt))
                       return;
                     auto Version = findDefaultVersion(ImpliedExt);
-                    addExtension(ImpliedExt, Version.value());
+                    addExtension(ImpliedExt, *Version);
                     WorkList.insert(ImpliedExt);
                   });
   }
@@ -915,7 +915,7 @@ void RISCVISAInfo::updateImplication() {
   if (XLen == 32 && Exts.count("zce") && Exts.count("f") &&
       !Exts.count("zcf")) {
     auto Version = findDefaultVersion("zcf");
-    addExtension("zcf", Version.value());
+    addExtension("zcf", *Version);
   }
 }
 
@@ -942,7 +942,7 @@ void RISCVISAInfo::updateCombination() {
           });
       if (HasAllRequiredFeatures) {
         auto Version = findDefaultVersion(CombineExt);
-        addExtension(CombineExt, Version.value());
+        addExtension(CombineExt, *Version);
         MadeChange = true;
       }
     }

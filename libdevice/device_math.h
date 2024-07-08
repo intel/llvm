@@ -77,6 +77,30 @@ DEVICE_EXTERN_C
 double __devicelib_fmin(double x, double y);
 
 DEVICE_EXTERN_C
+float __devicelib_truncf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_trunc(double x);
+
+DEVICE_EXTERN_C
+double __devicelib_sinpi(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_sinpif(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_rsqrt(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_rsqrtf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_exp10(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_exp10f(float x);
+
+DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y);
 
 DEVICE_EXTERN_C
