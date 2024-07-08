@@ -695,7 +695,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
             detail::getSyclObjImpl(DevImagePlain);
 
-        SerializedObj ImgSpecConsts = DeviceImageImpl->get_spec_const_blob_ref();
+        SerializedObj ImgSpecConsts =
+            DeviceImageImpl->get_spec_const_blob_ref();
 
         auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
             *BinImg, Context, Device, CompileOpts + LinkOpts, ImgSpecConsts);
@@ -743,8 +744,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
-  auto CacheKey =
-      std::make_pair(std::make_pair(SpecConsts, ImgId), PiDevice);
+  auto CacheKey = std::make_pair(std::make_pair(SpecConsts, ImgId), PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
