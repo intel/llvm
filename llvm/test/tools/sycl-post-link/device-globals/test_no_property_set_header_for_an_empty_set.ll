@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --device-globals -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --device-globals -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
 
 ; This test is intended to check that sycl-post-link doesn't add the header for

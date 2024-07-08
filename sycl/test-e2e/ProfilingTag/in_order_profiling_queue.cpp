@@ -21,9 +21,9 @@
 // https://github.com/intel/llvm/issues/14053
 // UNSUPPORTED: cuda
 
-// Fails on FPGA and level_zero too
+// FPGA emulator seems to return unexpected start time for the fallback barrier.
 // https://github.com/intel/llvm/issues/14315
-// UNSUPPORTED: accelerator || level_zero
+// UNSUPPORTED: accelerator
 
 #include "common.hpp"
 

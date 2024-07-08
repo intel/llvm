@@ -2,7 +2,7 @@
 ; dependencies to a function that can be imported do not cause the function
 ; to be added to a device image.
 
-; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
 
 
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0
@@ -29,8 +29,8 @@
 ; and is included in the device image.
 ; Function __private starts with "__" and thus is included in the device image.
 ; CHECK-SYM-2: childB
-; CHECK-LL-2: define weak_odr spir_func void @internal() {
-; CHECK-LL-2: define weak_odr spir_func void @__private() #0 {
+; CHECK-LL-2: define internal spir_func void @internal() {
+; CHECK-LL-2: define internal spir_func void @__private() #0 {
 ; CHECK-LL-2: define weak_odr spir_func void @childB() #0 {
 ; CHECK-LL-2: attributes #0 = { "sycl-module-id"="a.cpp" }
 

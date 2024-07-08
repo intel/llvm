@@ -237,6 +237,41 @@ TEST_F(CommandGraphTest, ExplicitBarrierException) {
   ASSERT_EQ(Success, false);
 }
 
+TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph2{
+      Queue};
+
+  Graph2.begin_recording({Queue});
+
+  auto Node = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph2.end_recording();
+
+  auto Event = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.begin_recording(Queue);
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Node});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Event});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  Graph2.end_recording();
+}
+
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   device D;
   if (!D.get_info<
