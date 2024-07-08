@@ -578,6 +578,26 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+  (void)Queue;
+  (void)Kernel;
+  (void)WorkDim;
+  (void)GlobalWorkSize;
+  (void)LocalWorkSize;
+  (void)NumPropsInLaunchPropList;
+  (void)LaunchPropList;
+  (void)NumEventsInWaitList;
+  (void)EventsWaitList;
+  (void)OutEvent;
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  return PI_ERROR_UNSUPPORTED_FEATURE;
+}
+
 pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
@@ -957,23 +977,22 @@ pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
   return pi2ur::piextKernelSetArgPointer(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
-/// USM Memset API
+/// USM Fill API
 ///
 /// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to memset
-/// @param Value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// @param Count is the size in bytes to memset
+/// @param Ptr is the ptr to fill
+/// \param Pattern is the ptr with the bytes of the pattern to set
+/// \param PatternSize is the size in bytes of the pattern to set
+/// @param Count is the size in bytes to fill
 /// @param NumEventsInWaitlist is the number of events to wait on
 /// @param EventsWaitlist is an array of events to wait on
 /// @param Event is the event that represents this operation
-pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
-                                size_t Count, pi_uint32 NumEventsInWaitlist,
-                                const pi_event *EventsWaitlist,
-                                pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr, const void *Pattern,
+                              size_t PatternSize, size_t Count,
+                              pi_uint32 NumEventsInWaitlist,
+                              const pi_event *EventsWaitlist, pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
@@ -1422,6 +1441,154 @@ piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
 pi_result
 piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
   return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param Context is the context to get the granularity from.
+/// \param Device is the device to get the granularity from.
+/// \param MemSize is the potentially unadjusted size to get granularity for.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result
+piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
+                                  pi_virtual_mem_granularity_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGranularityGetInfo(Context, Device, ParamName,
+                                                  ParamValueSize, ParamValue,
+                                                  ParamValueSizeRet);
+}
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param Context is the context within which the physical memory is allocated.
+/// \param Device is the device the physical memory is on.
+/// \param MemSize is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param RetPhysicalMem is the handle for the resulting physical memory.
+pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
+                                 size_t MemSize,
+                                 pi_physical_mem *RetPhysicalMem) {
+  return pi2ur::piextPhysicalMemCreate(Context, Device, MemSize,
+                                       RetPhysicalMem);
+}
+
+/// API for retaining a physical memory handle.
+///
+/// \param PhysicalMem is the handle for the physical memory to retain.
+pi_result piextPhysicalMemRetain(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRetain(PhysicalMem);
+}
+
+/// API for releasing a physical memory handle.
+///
+/// \param PhysicalMem is the handle for the physical memory to free.
+pi_result piextPhysicalMemRelease(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRelease(PhysicalMem);
+}
+
+/// API for reserving a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param RangeSize is the size of the virtual address range to reserve in
+///        bytes.
+/// \param RetPtr is the pointer to the start of the resulting virtual memory
+///        range.
+pi_result piextVirtualMemReserve(pi_context Context, const void *Start,
+                                 size_t RangeSize, void **RetPtr) {
+  return pi2ur::piextVirtualMemReserve(Context, Start, RangeSize, RetPtr);
+}
+
+/// API for freeing a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+pi_result piextVirtualMemFree(pi_context Context, const void *Ptr,
+                              size_t RangeSize) {
+  return pi2ur::piextVirtualMemFree(Context, Ptr, RangeSize);
+}
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param Context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+/// \param PhysicalMem is the handle for the physical memory to map Ptr to.
+/// \param Offset is the offset into PhysicalMem in bytes to map Ptr to.
+/// \param Flags is the access flags to set for the mapping.
+pi_result piextVirtualMemMap(pi_context Context, const void *Ptr,
+                             size_t RangeSize, pi_physical_mem PhysicalMem,
+                             size_t Offset, pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemMap(Context, Ptr, RangeSize, PhysicalMem, Offset,
+                                   Flags);
+}
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+pi_result piextVirtualMemUnmap(pi_context Context, const void *Ptr,
+                               size_t RangeSize) {
+  return pi2ur::piextVirtualMemUnmap(Context, Ptr, RangeSize);
+}
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param Flags is the access flags to set for the mapped virtual access range.
+pi_result piextVirtualMemSetAccess(pi_context Context, const void *Ptr,
+                                   size_t RangeSize,
+                                   pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemSetAccess(Context, Ptr, RangeSize, Flags);
+}
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
+                                 size_t RangeSize,
+                                 pi_virtual_mem_info ParamName,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGetInfo(Context, Ptr, RangeSize, ParamName,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
+}
+
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
 }
 
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;

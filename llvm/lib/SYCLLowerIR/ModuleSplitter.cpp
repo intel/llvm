@@ -20,6 +20,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -29,6 +31,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -643,6 +646,14 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
+// Predicate for Internalize pass.
+bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV))
+    if (!canBeImportedFunction(*F))
+      return false;
+  return true;
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -650,6 +661,8 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
+  if (SupportDynamicLinking)
+    MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -1143,8 +1156,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD.releaseModulePtr()),
-                        std::move(EntryPointGroups[0]), MD.Props);
+    Result.emplace_back(MD.releaseModulePtr(), std::move(EntryPointGroups[0]),
+                        MD.Props);
     return Result;
   }
 
@@ -1153,8 +1166,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(
-          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1162,9 +1174,9 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // modules are expected to be linked back together after ESIMD functions
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
-      Result.emplace_back(std::move(extractCallGraph(
+      Result.emplace_back(extractCallGraph(
           MD, std::move(Group), CG,
-          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
 

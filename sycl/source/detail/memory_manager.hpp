@@ -88,7 +88,6 @@ public:
   static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                   bool HostPtrReadOnly, size_t Size,
                                   const sycl::property_list &PropsList);
-
   static void *
   allocateInteropMemObject(ContextImplPtr TargetContext, void *UserPtr,
                            const EventImplPtr &InteropEvent,
@@ -121,9 +120,10 @@ public:
                    const detail::EventImplPtr &OutEventImpl);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                   size_t PatternSize, const char *Pattern, unsigned int Dim,
-                   sycl::range<3> Size, sycl::range<3> AccessRange,
-                   sycl::id<3> AccessOffset, unsigned int ElementSize,
+                   size_t PatternSize, const unsigned char *Pattern,
+                   unsigned int Dim, sycl::range<3> Size,
+                   sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+                   unsigned int ElementSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
                    const detail::EventImplPtr &OutEventImpl);
@@ -147,7 +147,7 @@ public:
                        const detail::EventImplPtr &OutEventImpl);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                       int Pattern,
+                       const std::vector<unsigned char> &Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
                        const detail::EventImplPtr &OutEventImpl);
@@ -172,7 +172,7 @@ public:
 
   static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                           size_t Width, size_t Height,
-                          const std::vector<char> &Pattern,
+                          const std::vector<unsigned char> &Pattern,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent *OutEvent,
                           const detail::EventImplPtr &OutEventImpl);
@@ -242,7 +242,7 @@ public:
   static void ext_oneapi_fill_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-      size_t Len, int Pattern,
+      size_t Len, const std::vector<unsigned char> &Pattern,
       std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
@@ -250,7 +250,7 @@ public:
   ext_oneapi_fill_cmd_buffer(sycl::detail::ContextImplPtr Context,
                              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
                              SYCLMemObjI *SYCLMemObj, void *Mem,
-                             size_t PatternSize, const char *Pattern,
+                             size_t PatternSize, const unsigned char *Pattern,
                              unsigned int Dim, sycl::range<3> Size,
                              sycl::range<3> AccessRange,
                              sycl::id<3> AccessOffset, unsigned int ElementSize,
