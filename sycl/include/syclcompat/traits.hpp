@@ -44,18 +44,16 @@ template <typename T> using arith_t = typename arith<T>::type;
 
 // Traits to check device function signature matches args (with or without local
 // mem)
-// TODO: naming
 template <auto F, typename... Args>
-constexpr inline bool invocable =
-    std::is_invocable<decltype(F), Args...>::value;
+struct device_fn_invocable : std::is_invocable<decltype(F), Args...> {};
 
 template <auto F, typename... Args>
-constexpr inline bool lmem_invocable =
-    std::is_invocable<decltype(F), Args..., char *>::value;
+struct device_fn_lmem_invocable : std::is_invocable<decltype(F), Args..., char *> {};
 
-template <auto F, typename... Args>
+template <typename LaunchPolicy, auto F, typename... Args>
 constexpr inline bool args_compatible =
-    invocable<F, Args...> || lmem_invocable<F, Args...>;
+    std::conditional_t<LaunchPolicy::HasLocalMem, device_fn_lmem_invocable<F, Args...>,
+                     device_fn_invocable<F, Args...>>::value;
 
 namespace detail {
 // Trait for identifying sycl::range and sycl::nd_range.

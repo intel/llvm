@@ -44,7 +44,7 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 // Dummy kernel functions for testing
 // =======================================================================
 
-// #define DO_LAUNCH
+#define DO_LAUNCH
 // #define SUPPORT_DIM3
 
 static constexpr int LOCAL_MEM_SIZE = 1024;
@@ -158,18 +158,9 @@ int test_basic_launch() {
 
   compat_exp::launch_properties my_l_props{sycl_exp::use_root_sync}; //TODO: this isn't a launch property!
 
-  compat_exp::launch_policy my_config(
-      sycl::nd_range<1>{{32}, {32}},
-      compat_exp::kernel_properties{sycl_exp::sub_group_size<32>,
-                           sycl_exp::use_root_sync, my_cache_config},
-      compat_exp::launch_properties{}, compat_exp::local_mem_size{0});
+  compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}}, my_k_props,
+                                      my_l_props);
 
-  //TODO: deal with initializer list ctor here
-  // compat_exp::launch_policy my_init_config{
-  //     sycl::nd_range<1>{{32}, {32}},
-  //     sycl_exp::properties{sycl_exp::sub_group_size<32>,
-  //                          sycl_exp::use_root_sync, my_cache_config},
-  //     sycl_exp::properties{}, local_mem_size};
 #ifdef DO_LAUNCH
   sycl::queue q = syclcompat::get_default_queue();
 
@@ -201,11 +192,12 @@ int test_lmem_launch() {
   compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{256}, {256}},
       compat_exp::kernel_properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
-      compat_exp::launch_properties{}, local_mem_size);
+      compat_exp::launch_properties{}, compat_exp::local_mem_size(local_mem_size));
 
 #ifdef DO_LAUNCH
   compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
+
   compat_exp::launch<dynamic_local_mem_typed_kernel<int>>(
       my_config, d_a).wait();
   std::cout << "Launched 2 succesfully" << std::endl;

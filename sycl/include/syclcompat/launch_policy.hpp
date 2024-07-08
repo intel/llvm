@@ -228,6 +228,7 @@ struct launch_policy {
   using KPropsT = KProps;
   using LPropsT = LProps;
   using RangeT = Range;
+  static constexpr bool HasLocalMem = LocalMem;
 
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
@@ -297,7 +298,7 @@ inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
 
 namespace detail {
 
-template <auto F, typename Range, typename KProps, typename... Args> struct KernelFunctor {
+template <auto F, typename Range, typename KProps, bool HasLocalMem, typename... Args> struct KernelFunctor {
   KernelFunctor(KProps kernel_props, Args... args)
       : _kernel_properties{kernel_props},
         _argument_tuple(std::make_tuple(args...)) {}
@@ -311,7 +312,7 @@ template <auto F, typename Range, typename KProps, typename... Args> struct Kern
 
   __syclcompat_inline__ inline void
   operator()(syclcompat::detail::range_to_item_t<Range> it) const {
-    if constexpr (syclcompat::lmem_invocable<F, Args...>) {
+    if constexpr (HasLocalMem) {
       char *local_mem_ptr = static_cast<char *>(
           _local_acc.get_multi_ptr<sycl::access::decorated::no>());
       std::apply(
@@ -333,34 +334,37 @@ template <auto F, typename LaunchPolicy, typename... Args>
 auto build_kernel_functor(sycl::handler& cgh, LaunchPolicy launch_policy,
                           Args... args)
     -> KernelFunctor<F, typename LaunchPolicy::RangeT,
-                     typename LaunchPolicy::KPropsT, Args...> {
-  if constexpr (syclcompat::lmem_invocable<F, Args...>) {
+                     typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...> {
+  if constexpr (LaunchPolicy::HasLocalMem) {
     sycl::local_accessor<char, 1> local_memory(launch_policy.get_local_mem_size(),
                                                cgh);
     return KernelFunctor<F, typename LaunchPolicy::RangeT,
-                         typename LaunchPolicy::KPropsT, Args...>(
+                         typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...>(
         launch_policy.get_kernel_properties(), local_memory, args...);
   } else {
       return KernelFunctor<F, typename LaunchPolicy::RangeT,
-                        typename LaunchPolicy::KPropsT, Args...>(
+                        typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...>(
               launch_policy.get_kernel_properties(), args...);
   }
 }
 
 template <auto F, typename LaunchPolicy, typename... Args>
 sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
-  static_assert(syclcompat::args_compatible<F, Args...>);
+  static_assert(syclcompat::args_compatible<LaunchPolicy, F, Args...>,
+                "Mismatch between device function signature and supplied "
+                "arguments. Have you correctly handled local memory/char*?");
 
   sycl_exp::launch_config config(launch_policy.range,
                                  launch_policy.get_launch_properties());
 
   return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
     auto KernelFunctor = build_kernel_functor<F>(cgh, launch_policy, args...);
-    if constexpr (syclcompat::detail::is_sycl_range<typename LaunchPolicy::RangeT>::value) { //TODO: template aliases for this
+    if constexpr (syclcompat::detail::is_sycl_range<
+                      typename LaunchPolicy::RangeT>::value) {
       parallel_for(cgh, config, KernelFunctor);
     } else {
-      static_assert(
-          syclcompat::detail::is_sycl_nd_range<typename LaunchPolicy::RangeT>::value);
+      static_assert(syclcompat::detail::is_sycl_nd_range<
+                    typename LaunchPolicy::RangeT>::value);
       nd_launch(cgh, config, KernelFunctor);
     }
   });
@@ -369,20 +373,16 @@ sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
 } // namespace detail
 
 template <auto F, typename LaunchPolicy, typename... Args>
-std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
-launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
+sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
   static_assert(is_launch_policy_v<LaunchPolicy>);
   return detail::launch<F>(launch_policy, q, args...);
 }
 
-
 template <auto F, typename LaunchPolicy, typename... Args>
-std::enable_if_t<syclcompat::args_compatible<F, Args...>, sycl::event>
-launch(LaunchPolicy launch_policy, Args... args) {
+sycl::event launch(LaunchPolicy launch_policy, Args... args) {
   static_assert(is_launch_policy_v<LaunchPolicy>);
   return launch<F>(launch_policy, get_default_queue(), args...);
 }
-
 
 } // namespace experimental
 } // namespace syclcompat
