@@ -361,26 +361,29 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
-  static constexpr std::pair<const char *, const char *> SimpleWGAttrs[] = {
-      {"sycl-work-group-size", "reqd_work_group_size"},
-      {"sycl-work-group-size-hint", "work_group_size_hint"},
-      {"sycl-max-work-group-size", "max_work_group_size"},
-  };
+  static constexpr std::tuple<const char *, const char *, bool>
+      SimpleWGAttrs[] = {
+          {"sycl-work-group-size", "reqd_work_group_size",
+           /*requiresAll3Dims*/ false},
+          {"sycl-work-group-size-hint", "work_group_size_hint",
+           /*requiresAll3Dims*/ false},
+          {"sycl-max-work-group-size", "max_work_group_size",
+           /*requiresAll3Dims*/ true},
+      };
 
-  for (auto [AttrKind, MDStr] : SimpleWGAttrs) {
+  for (auto &[AttrKind, MDStr, Req3D] : SimpleWGAttrs) {
     if (AttrKindStr != AttrKind)
       continue;
     // Split values in the comma-separated list integers.
-    SmallVector<StringRef, 3> ValStrs;
-    Attr.getValueAsString().split(ValStrs, ',');
+    SmallVector<StringRef, 3> AttrValStrs;
+    Attr.getValueAsString().split(AttrValStrs, ',');
 
-    assert(ValStrs.size() <= 3 &&
-           "sycl-work-group-size, sycl-work-group-size-hint and "
-           "sycl-max-work-group-size currently only "
-           "support up to three values");
+    assert(((Req3D && AttrValStrs.size() == 3) ||
+            (!Req3D && AttrValStrs.size() <= 3)) &&
+           "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
-    std::reverse(ValStrs.begin(), ValStrs.end());
+    std::reverse(AttrValStrs.begin(), AttrValStrs.end());
 
     // Use integer pointer size as closest analogue to size_t.
     IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
@@ -389,7 +392,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
-    for (StringRef ValStr : ValStrs)
+    for (StringRef ValStr : AttrValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
