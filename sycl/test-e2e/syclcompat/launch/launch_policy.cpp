@@ -31,7 +31,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/group_barrier.hpp>
 
-//#include <syclcompat/launch.hpp>
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
 
@@ -77,7 +76,7 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 // =======================================================================
 
 
-int test_config() {
+int test_variadic_config_ctor() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   {
@@ -85,6 +84,36 @@ int test_config() {
         sycl::nd_range<1>{{32}, {32}},
         compat_exp::kernel_properties{sycl_exp::sub_group_size<32>});
   }
+
+  // Empty kernel properties
+  {
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::kernel_properties{});
+  }
+
+  // Dummy launch properties
+  {
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::launch_properties{});
+  }
+
+  // Just local mem
+  {
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::local_mem_size{1024});
+  }
+
+  // Just 0 local mem
+  {
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::local_mem_size{0});
+  }
+
+  return 0;
 }
 
 int test_basic_launch() {
@@ -198,7 +227,7 @@ int test_dim3_launch_policy() {
 
 int main() {
   // TODO: check return values!
-  test_config();
+  test_variadic_config_ctor();
   test_basic_launch();
   test_lmem_launch();
 #ifdef SUPPORT_DIM3

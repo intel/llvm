@@ -149,6 +149,30 @@ template <template <typename TT> typename PropertyContainer, typename Tuple>
       tuple_template_index<PropertyContainer, Tuple>::value<
           std::tuple_size_v<Tuple>, std::true_type, std::false_type> {};
 
+
+template <bool TupleContains, typename PropertyContainerConcrete, typename Tuple>
+struct property_getter;
+
+template <typename PropertyContainerConcrete, typename Tuple>
+struct property_getter<true, PropertyContainerConcrete, Tuple>{
+  PropertyContainerConcrete operator()(Tuple tuple){
+    return std::get<PropertyContainerConcrete>(tuple);
+  }
+};
+
+
+template <typename PropertyContainerConcrete, typename Tuple>
+struct property_getter<false, PropertyContainerConcrete, Tuple>{
+  PropertyContainerConcrete operator()(Tuple tuple){
+    (void)tuple;
+    return {};
+  }
+};
+
+
+template <template <typename TT> typename PropertyContainer,  typename PropertyContainerConcrete, typename Tuple>
+using property_getter_rename_t = property_getter<tuple_contains_template<PropertyContainer, Tuple>::value, PropertyContainerConcrete, Tuple>;
+
 //----------------------------------------------
 
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
@@ -159,14 +183,20 @@ struct launch_policy {
   static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
 
   using KPropsT = KProps;
+  using LPropsT = LProps;
   using RangeT = Range;
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
   launch_policy() = delete;
+
   // Ctor taking a sycl::range<Dim> or sycl::nd_range<Dim>
   template <typename ...Ts>
-  launch_policy(Range range, Ts... ts) : range{range}, _kernel_properties{std::get<tuple_template_index<kernel_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, _launch_properties{std::get<tuple_template_index<launch_properties, std::tuple<Ts...>>::value>(std::tuple<Ts...>(ts...))}, _local_mem_size{0} { //TODO: local_mem_size, deal with empty case, make it a fn
-  }
+  launch_policy(Range range, Ts... ts) : range{range}, 
+  _kernel_properties{property_getter_rename_t<kernel_properties, kernel_properties<KPropsT>, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))},
+  _launch_properties{property_getter_rename_t<launch_properties, launch_properties<LPropsT>, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))},
+  _local_mem_size{0} {} //TODO: local_mem_size, deal with empty case, make it a fn
+  
+  //TODO static_assert everything passed to ctor is expected.
 
   Range range;
   kernel_properties<KProps> _kernel_properties;
