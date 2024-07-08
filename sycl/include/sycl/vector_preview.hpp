@@ -139,7 +139,8 @@ class vec : public detail::vec_arith<DataT, NumElements> {
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
       sycl::ext::oneapi::bfloat16,
       /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
-      DataT, /*->*/ detail::ConvertToOpenCLType_t<DataT>  //
+      char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
+      DataT, /*->*/ DataT                                 //
       >::type;
 
 public:
