@@ -21,9 +21,9 @@ inline constexpr auto DisableCleanupName =
 
 class MockHandlerStreamInit : public MockHandler {
 public:
-  MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+  MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue,
                         bool CallerNeedsEvent)
-      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
+      : MockHandler(Queue, CallerNeedsEvent) {}
   std::unique_ptr<detail::CG> finalize() {
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
@@ -36,7 +36,8 @@ public:
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
-          MImpl->MKernelIsCooperative, getCodeLoc()));
+          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          getCodeLoc()));
       break;
     }
     default:
