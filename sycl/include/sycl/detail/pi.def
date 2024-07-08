@@ -129,7 +129,7 @@ _PI_API(piextUSMHostAlloc)
 _PI_API(piextUSMDeviceAlloc)
 _PI_API(piextUSMSharedAlloc)
 _PI_API(piextUSMFree)
-_PI_API(piextUSMEnqueueMemset)
+_PI_API(piextUSMEnqueueFill)
 _PI_API(piextUSMEnqueueMemcpy)
 _PI_API(piextUSMEnqueuePrefetch)
 _PI_API(piextUSMEnqueueMemAdvise)
@@ -214,5 +214,23 @@ _PI_API(piextImportExternalSemaphore)
 _PI_API(piextDestroyExternalSemaphore)
 _PI_API(piextWaitExternalSemaphore)
 _PI_API(piextSignalExternalSemaphore)
+
+// Virtual memory
+_PI_API(piextVirtualMemGranularityGetInfo)
+_PI_API(piextPhysicalMemCreate)
+_PI_API(piextPhysicalMemRetain)
+_PI_API(piextPhysicalMemRelease)
+_PI_API(piextVirtualMemReserve)
+_PI_API(piextVirtualMemFree)
+_PI_API(piextVirtualMemMap)
+_PI_API(piextVirtualMemUnmap)
+_PI_API(piextVirtualMemSetAccess)
+_PI_API(piextVirtualMemGetInfo)
+
+// Enqueue native command
+_PI_API(piextEnqueueNativeCommand)
+
+// Kernel Launch Properties
+_PI_API(piextEnqueueKernelLaunchCustom)
 
 #undef _PI_API

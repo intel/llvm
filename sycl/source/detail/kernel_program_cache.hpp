@@ -289,7 +289,7 @@ public:
         return BuildResult;
       } catch (const exception &Ex) {
         BuildResult->Error.Msg = Ex.what();
-        BuildResult->Error.Code = Ex.get_cl_code();
+        BuildResult->Error.Code = detail::get_pi_error(Ex);
         if (BuildResult->Error.Code == PI_ERROR_OUT_OF_RESOURCES ||
             BuildResult->Error.Code == PI_ERROR_OUT_OF_HOST_MEMORY) {
           reset();
