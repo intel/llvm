@@ -154,6 +154,7 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
 
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     bool HasLeak = false;
     for (const auto &[_, AI] : m_AllocationMap) {
         if (!AI->IsReleased) {
