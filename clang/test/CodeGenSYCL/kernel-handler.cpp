@@ -23,7 +23,8 @@ void test(int val) {
 }
 
 // ALL: define dso_local{{ spir_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
-// ALL-SAME: (i32 noundef %_arg_a, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
+// NONATIVESUPPORT-SAME: (ptr noundef byval(%class.anon) align 4 %_arg__sycl_functor, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
+// NATIVESUPPORT-SAME: (i32 noundef %_arg_a, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
 // ALL: %kh = alloca %"class.sycl::_V1::kernel_handler", align 1
 
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load ptr addrspace(1), ptr %_arg__specialization_constants_buffer.addr, align 8
