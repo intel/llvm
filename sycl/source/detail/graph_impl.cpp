@@ -1204,7 +1204,7 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
           "of nodes being updated must have the same type");
     }
 
-    if (MNodeStorage[i]->MCGType == sycl::detail::CG::Kernel) {
+    if (MNodeStorage[i]->MCGType == sycl::detail::CGType::Kernel) {
       sycl::detail::CGExecKernel *TargetCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               MNodeStorage[i]->MCommandGroup.get());
