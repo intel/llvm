@@ -906,6 +906,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     oclv::OpenCLVersion DevVer;
     CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
         cl_adapter::cast<cl_device_id>(hDevice), DevVer));
+    /* Independent forward progress query is only supported as of OpenCL 2.1
+     * if version is older we return a default false. */
     if (DevVer >= oclv::V2_1) {
         cl_bool CLValue;
         CL_RETURN_ON_FAILURE(
