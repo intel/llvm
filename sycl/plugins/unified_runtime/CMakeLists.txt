@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 01af5602345ac3289cc084eb19bf266c054da075
-  # Merge: 20844ddc ad3befd1
+  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
+  # Merge: 01af5602 79be9c5f
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 10:32:14 2024 +0100
-  #     Merge pull request #1809 from nrspruit/fix_l0_ur_deviceinfo
-  #     [L0] Fix Device Info return code to report unsupported enumeration
-  set(UNIFIED_RUNTIME_TAG 01af5602345ac3289cc084eb19bf266c054da075)
+  # Date:   Mon Jul 8 13:52:48 2024 +0100
+  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
+  #     Refactor Level Zero Command-Buffer implementation
+  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
