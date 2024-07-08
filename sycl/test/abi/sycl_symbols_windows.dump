@@ -656,6 +656,7 @@
 ??0platform@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0platform@_V1@sycl@@QEAA@AEBV012@@Z
 ??0platform@_V1@sycl@@QEAA@AEBVdevice_selector@12@@Z
+??0platform@_V1@sycl@@QEAA@PEAU_cl_platform_id@@@Z
 ??0platform@_V1@sycl@@QEAA@XZ
 ??0queue@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ??0queue@_V1@sycl@@QEAA@$$QEAV012@@Z
@@ -3987,6 +3988,7 @@
 ?allocateMemSubBuffer@MemoryManager@detail@_V1@sycl@@SAPEAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAX_K2V?$range@$02@34@V?$vector@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@2@@6@AEAPEAUur_event_handle_t_@@@Z
 ?aspect_selector@_V1@sycl@@YA?AV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@4@0@Z
 ?assertion@pi@detail@_V1@sycl@@YAX_NPEBD@Z
+?assertion@ur@detail@_V1@sycl@@YAX_NPEBD@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVAccessorBaseHost@123@W4target@access@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVSampledImageAccessorBaseHost@123@W4image_target@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVUnsampledImageAccessorBaseHost@123@W4image_target@23@@Z
@@ -4061,6 +4063,7 @@
 ?determineHostPtr@SYCLMemObjT@detail@_V1@sycl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@_NAEAPEAXAEA_N@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
 ?die@pi@detail@_V1@sycl@@YAXPEBD@Z
+?die@ur@detail@_V1@sycl@@YAXPEBD@Z
 ?discard_or_return@queue@_V1@sycl@@AEAA?AVevent@23@AEBV423@@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z

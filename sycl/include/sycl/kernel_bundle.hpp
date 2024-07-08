@@ -13,8 +13,8 @@
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
-#include <sycl/detail/pi.hpp>              // for cast
 #include <sycl/detail/string_view.hpp>
+#include <sycl/detail/ur.hpp>           // for cast
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
@@ -432,7 +432,7 @@ private:
 
     for (const device_image<State> &DevImg : *this) {
       ReturnValue.push_back(
-          detail::pi::cast<typename decltype(ReturnValue)::value_type>(
+          detail::ur::cast<typename decltype(ReturnValue)::value_type>(
               DevImg.getNative()));
     }
 

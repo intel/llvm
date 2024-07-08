@@ -10,6 +10,7 @@
 #include <detail/context_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
@@ -85,7 +86,7 @@ context::context(const std::vector<device> &DeviceList,
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<ur_context_handle_t>(ClContext), AsyncHandler, Plugin);
+      detail::ur::cast<ur_context_handle_t>(ClContext), AsyncHandler, Plugin);
 }
 
 template <typename Param>

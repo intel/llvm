@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -27,12 +28,12 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
 /// Constructs a SYCL device instance using the provided
-/// PI device instance.
+/// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
     : device_impl(nullptr, Device, Platform, Platform->getPlugin()) {}
 
 /// Constructs a SYCL device instance using the provided
-/// PI device instance.
+/// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, const PluginPtr &Plugin)
     : device_impl(nullptr, Device, nullptr, Plugin) {}
 
@@ -105,7 +106,7 @@ cl_device_id device_impl::get() const {
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urDeviceRetain, MUrDevice);
-  return pi::cast<cl_device_id>(getNative());
+  return ur::cast<cl_device_id>(getNative());
 }
 
 platform device_impl::get_platform() const {
@@ -734,12 +735,11 @@ bool device_impl::has(aspect Aspect) const {
       return false;
 
     typename sycl_to_ur<device>::type Result;
-    bool CallSuccessful =
-        getPlugin()->call_nocheck(
-            urDeviceGetInfo, getHandleRef(),
-            UrInfoCode<ext::oneapi::experimental::info::device::
-                           composite_device>::value,
-            sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
+    bool CallSuccessful = getPlugin()->call_nocheck(
+        urDeviceGetInfo, getHandleRef(),
+        UrInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
 
     return CallSuccessful && Result != nullptr;
   }
@@ -853,7 +853,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
     auto Result = Plugin->call_nocheck(urDeviceGetGlobalTimestamps, MUrDevice,
                                        &MDeviceHostBaseTime.first,
                                        &MDeviceHostBaseTime.second);
-    // We have to remember base host timestamp right after PI call and it is
+    // We have to remember base host timestamp right after UR call and it is
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
     // and piGetDeviceAndHostTimer calls may take significant amount of time,

@@ -96,7 +96,7 @@ public:
   /// kernel.
   ///
   /// \param Context is a pointer to SYCL context impl.
-  /// \param Kernel is a raw PI kernel handle.
+  /// \param Kernel is a raw UR kernel handle.
   // program_impl(ContextImplPtr Context, sycl::detail::pi::PiKernel Kernel);
 
   program_impl(ContextImplPtr Context, ur_kernel_handle_t Kernel);
@@ -277,7 +277,7 @@ public:
 
   /// Takes current values of specialization constants and "injects" them into
   /// the underlying native program program via specialization constant
-  /// managemment PI APIs. The native program passed as non-null argument
+  /// managemment UR APIs. The native program passed as non-null argument
   /// overrides the MProgram native program field.
   /// \param Img device binary image corresponding to this program, used to
   ///        resolve spec constant name to SPIR-V integer ID
@@ -358,8 +358,8 @@ private:
   /// \return true if underlying OpenCL program has kernel with specific name.
   bool has_cl_kernel(const std::string &KernelName) const;
 
-  /// \param KernelName is a string containing PI kernel name.
-  /// \return an instance of PI kernel with specific name. If kernel is
+  /// \param KernelName is a string containing UR kernel name.
+  /// \return an instance of UR kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
   std::pair<ur_kernel_handle_t, const KernelArgMask *>
   get_ur_kernel_arg_mask_pair(const std::string &KernelName) const;

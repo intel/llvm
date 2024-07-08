@@ -1,4 +1,4 @@
-//==---------------- backend.hpp - SYCL PI backends ------------------------==//
+//==---------------- backend.hpp - SYCL UR backends ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -49,12 +49,12 @@
 #include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
 #endif
 
+#include <sycl/detail/ur.hpp>
+
 #include <memory>      // for shared_ptr
 #include <stdint.h>    // for int32_t
 #include <type_traits> // for enable_if_t
 #include <vector>      // for vector
-
-#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -64,7 +64,7 @@ namespace detail {
 // but the details for this are not fully specified yet
 enum class backend_errc : unsigned int {};
 
-// Convert from PI backend to SYCL backend enum
+// Convert from UR backend to SYCL backend enum
 backend convertUrBackend(ur_platform_backend_t UrBackend);
 backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
@@ -98,7 +98,7 @@ struct BufferInterop {
   GetNativeObjs(const std::vector<ur_native_handle_t> &Handle) {
     ReturnType ReturnValue = 0;
     if (Handle.size()) {
-      ReturnValue = detail::pi::cast<ReturnType>(Handle[0]);
+      ReturnValue = detail::ur::cast<ReturnType>(Handle[0]);
     }
     return ReturnValue;
   }
@@ -114,7 +114,7 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
     ReturnType ReturnValue{};
     for (auto &Obj : Handle) {
       ReturnValue.push_back(
-          detail::pi::cast<typename decltype(ReturnValue)::value_type>(Obj));
+          detail::ur::cast<typename decltype(ReturnValue)::value_type>(Obj));
     }
     return ReturnValue;
   }
@@ -311,7 +311,7 @@ make_platform(
     const typename backend_traits<Backend>::template input_type<platform>
         &BackendObject) {
   return detail::make_platform(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), Backend);
+      detail::ur::cast<ur_native_handle_t>(BackendObject), Backend);
 }
 
 template <backend Backend>
@@ -330,7 +330,7 @@ make_device(const typename backend_traits<Backend>::template input_type<device>
   }
 
   return detail::make_device(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), Backend);
+      detail::ur::cast<ur_native_handle_t>(BackendObject), Backend);
 }
 
 template <backend Backend>
@@ -341,7 +341,7 @@ make_context(
         &BackendObject,
     const async_handler &Handler = {}) {
   return detail::make_context(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), Handler, Backend);
+      detail::ur::cast<ur_native_handle_t>(BackendObject), Handler, Backend);
 }
 
 template <backend Backend>
@@ -352,7 +352,7 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
            const context &TargetContext, const async_handler Handler = {}) {
   auto KeepOwnership =
       Backend == backend::ext_oneapi_cuda || Backend == backend::ext_oneapi_hip;
-  return detail::make_queue(detail::pi::cast<ur_native_handle_t>(BackendObject),
+  return detail::make_queue(detail::ur::cast<ur_native_handle_t>(BackendObject),
                             false, TargetContext, nullptr, KeepOwnership, {},
                             Handler, Backend);
 }
@@ -363,7 +363,7 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext) {
-  return detail::make_event(detail::pi::cast<ur_native_handle_t>(BackendObject),
+  return detail::make_event(detail::ur::cast<ur_native_handle_t>(BackendObject),
                             TargetContext, Backend);
 }
 
@@ -375,7 +375,7 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
                                            &BackendObject,
                                    const context &TargetContext,
                                    bool KeepOwnership) {
-  return detail::make_event(detail::pi::cast<ur_native_handle_t>(BackendObject),
+  return detail::make_event(detail::ur::cast<ur_native_handle_t>(BackendObject),
                             TargetContext, KeepOwnership, Backend);
 }
 
@@ -389,7 +389,7 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
+      detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
       AvailableEvent);
 }
 
@@ -402,7 +402,7 @@ make_image(const typename backend_traits<Backend>::template input_type<
                image<Dimensions, AllocatorT>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {}) {
   return image<Dimensions, AllocatorT>(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
+      detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
       AvailableEvent);
 }
 
@@ -412,7 +412,7 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
   return detail::make_kernel(
-      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
+      detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
       Backend);
 }
 
@@ -425,7 +425,7 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
                    const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
+          detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }

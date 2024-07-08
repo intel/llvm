@@ -272,6 +272,7 @@ set(SYCL_COMMON_SOURCES
     "detail/spec_constant_impl.cpp"
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
+    "detail/ur.cpp"
     "detail/util.cpp"
     "detail/xpti_registry.cpp"
     "accessor.cpp"

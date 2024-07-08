@@ -23,13 +23,13 @@
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: detail/pi.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: detail/pi.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
@@ -174,6 +174,7 @@
 // CHECK-NEXT: detail/cg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
+// CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp

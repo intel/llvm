@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
@@ -72,7 +73,7 @@ public:
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
+      : SYCLMemObjT(ur::cast<ur_native_handle_t>(MemObject), SyclContext,
                     /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 

@@ -12,6 +12,7 @@
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -37,7 +38,7 @@ device::device(cl_device_id DeviceId) {
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
   Plugin->call(urDeviceCreateWithNativeHandle,
-               detail::pi::cast<ur_native_handle_t>(DeviceId),
+               detail::ur::cast<ur_native_handle_t>(DeviceId),
                Plugin->getUrPlatforms()[0], nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromUrDevice(Device, Plugin);
@@ -137,7 +138,7 @@ template <>
 __SYCL_EXPORT device
 device::get_info_impl<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
-  // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
+  // overridden (ie it may be nullptr on a sub-device) The UR of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
   // parentless root devices.
   if (impl->isRootDevice())

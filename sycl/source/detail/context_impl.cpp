@@ -13,7 +13,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
@@ -125,7 +125,7 @@ cl_context context_impl::get() const {
   getPlugin()->call(urContextRetain, MUrContext);
   ur_native_handle_t nativeHandle = nullptr;
   getPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
-  return pi::cast<cl_context>(nativeHandle);
+  return ur::cast<cl_context>(nativeHandle);
 }
 
 bool context_impl::is_host() const { return MHostContext; }

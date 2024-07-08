@@ -1,4 +1,4 @@
-//===-- pi.cpp - PI utilities implementation -------------------*- C++ -*--===//
+//===-- pi.cpp - UR utilities implementation -------------------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 /// \file pi.cpp
-/// Implementation of C++ wrappers for PI interface.
+/// Implementation of C++ wrappers for UR interface.
 ///
 /// \ingroup sycl_pi
 
@@ -47,15 +47,6 @@ namespace detail {
 // child of
 /// Event to be used by graph related activities
 xpti_td *GSYCLGraphEvent = nullptr;
-/// Event to be used by PI layer related activities
-xpti_td *GPICallEvent = nullptr;
-/// Event to be used by PI layer calls with arguments
-xpti_td *GPIArgCallEvent = nullptr;
-xpti_td *GPIArgCallActiveEvent = nullptr;
-
-uint8_t PiCallStreamID = 0;
-uint8_t PiDebugCallStreamID = 0;
-
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE>
@@ -80,6 +71,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 
 bool XPTIInitDone = false;
 
+<<<<<<< HEAD
 // Implementation of the SYCL PI API call tracing methods that use XPTI
 // framework to emit these traces that will be used by tools.
 uint64_t emitFunctionBeginTrace(const char *FName) {
@@ -143,6 +135,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
+
 void contextSetExtendedDeleter(const sycl::context &context,
                                ur_context_extended_deleter_t func,
                                void *user_data) {
@@ -151,138 +144,6 @@ void contextSetExtendedDeleter(const sycl::context &context,
   const auto &Plugin = impl->getPlugin();
   Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
 }
-
-std::string platformInfoToString(pi_platform_info info) {
-  switch (info) {
-  case PI_PLATFORM_INFO_PROFILE:
-    return "PI_PLATFORM_INFO_PROFILE";
-  case PI_PLATFORM_INFO_VERSION:
-    return "PI_PLATFORM_INFO_VERSION";
-  case PI_PLATFORM_INFO_NAME:
-    return "PI_PLATFORM_INFO_NAME";
-  case PI_PLATFORM_INFO_VENDOR:
-    return "PI_PLATFORM_INFO_VENDOR";
-  case PI_PLATFORM_INFO_EXTENSIONS:
-    return "PI_PLATFORM_INFO_EXTENSIONS";
-  case PI_EXT_PLATFORM_INFO_BACKEND:
-    return "PI_EXT_PLATFORM_INFO_BACKEND";
-  }
-  die("Unknown pi_platform_info value passed to "
-      "sycl::detail::pi::platformInfoToString");
-}
-
-std::string memFlagToString(pi_mem_flags Flag) {
-  assertion(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
-            "More than one bit set");
-
-  std::stringstream Sstream;
-
-  switch (Flag) {
-  case pi_mem_flags{0}:
-    Sstream << "pi_mem_flags(0)";
-    break;
-  case PI_MEM_FLAGS_ACCESS_RW:
-    Sstream << "PI_MEM_FLAGS_ACCESS_RW";
-    break;
-  case PI_MEM_FLAGS_HOST_PTR_USE:
-    Sstream << "PI_MEM_FLAGS_HOST_PTR_USE";
-    break;
-  case PI_MEM_FLAGS_HOST_PTR_COPY:
-    Sstream << "PI_MEM_FLAGS_HOST_PTR_COPY";
-    break;
-  default:
-    Sstream << "unknown pi_mem_flags bit == " << Flag;
-  }
-
-  return Sstream.str();
-}
-
-std::string memFlagsToString(pi_mem_flags Flags) {
-  std::stringstream Sstream;
-  bool FoundFlag = false;
-
-  auto FlagSeparator = [](bool FoundFlag) { return FoundFlag ? "|" : ""; };
-
-  pi_mem_flags ValidFlags[] = {PI_MEM_FLAGS_ACCESS_RW,
-                               PI_MEM_FLAGS_HOST_PTR_USE,
-                               PI_MEM_FLAGS_HOST_PTR_COPY};
-
-  if (Flags == 0u) {
-    Sstream << "pi_mem_flags(0)";
-  } else {
-    for (const auto Flag : ValidFlags) {
-      if (Flag & Flags) {
-        Sstream << FlagSeparator(FoundFlag) << memFlagToString(Flag);
-        FoundFlag = true;
-      }
-    }
-
-    std::bitset<64> UnkownBits(Flags & ~(PI_MEM_FLAGS_ACCESS_RW |
-                                         PI_MEM_FLAGS_HOST_PTR_USE |
-                                         PI_MEM_FLAGS_HOST_PTR_COPY));
-    if (UnkownBits.any()) {
-      Sstream << FlagSeparator(FoundFlag)
-              << "unknown pi_mem_flags bits == " << UnkownBits;
-    }
-  }
-
-  return Sstream.str();
-}
-
-// Find the plugin at the appropriate location and return the location.
-std::vector<std::pair<std::string, backend>> findPlugins() {
-  std::vector<std::pair<std::string, backend>> PluginNames;
-
-  // TODO: Based on final design discussions, change the location where the
-  // plugin must be searched; how to identify the plugins etc. Currently the
-  // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
-  // env only.
-  //
-  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-  if (!OdsTargetList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::ext_oneapi_level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
-    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
-    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                             backend::ext_oneapi_native_cpu);
-
-  } else {
-    ods_target_list &list = *OdsTargetList;
-    if (list.backendCompatible(backend::opencl)) {
-      PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
-      PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                               backend::ext_oneapi_level_zero);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_cuda)) {
-      PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
-                               backend::ext_oneapi_cuda);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_hip)) {
-      PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_native_cpu)) {
-      PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                               backend::ext_oneapi_native_cpu);
-    }
-    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
-  }
-  return PluginNames;
-}
-
-// Load the Plugin by calling the OS dependent library loading call.
-// Return the handle to the Library.
-void *loadPlugin(const std::string &PluginPath) {
-  return loadOsPluginLibrary(PluginPath);
-}
-
-// Unload the given plugin by calling teh OS-specific library unloading call.
-// \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
@@ -300,27 +161,18 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getPlugins();
 }
 
-// Implementation of this function is OS specific. Please see windows_pi.cpp and
-// posix_pi.cpp.
-// TODO: refactor code when support matrix for DPCPP changes and <filesystem> is
-// available on all supported systems.
-std::vector<std::tuple<std::string, backend, void *>>
-loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
-
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig) {
-  // TODO: error handling, could/should this throw?
-  // If we weren't provided with a custom config handle enable full validation
-  // by default.
+#define CHECK_UR_SUCCESS(Call)                                                 \
+  __SYCL_CHECK_OCL_CODE_THROW(Call, sycl::runtime_error, nullptr)
+
   bool OwnLoaderConfig = false;
-  if (!LoaderConfig) {
-    if (urLoaderConfigCreate(&LoaderConfig) == UR_RESULT_SUCCESS) {
-      if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_FULL_VALIDATION")) {
-        urLoaderConfigRelease(LoaderConfig);
-        std::cerr << "Failed to enable validation layer";
-        return;
-      }
-    }
+  // If we weren't provided with a custom config handle create our own and
+  // enable full validation by default.
+  if(!LoaderConfig) {
+    CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
+    CHECK_UR_SUCCESS(
+        urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_FULL_VALIDATION"))
     OwnLoaderConfig = true;
   }
 
@@ -334,8 +186,17 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   }
 
   if (std::getenv("UR_LOG_TRACING")) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING")) {
-      std::cerr << "Warning: Failed to enable tracing layer\n";
+    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+  }
+
+  CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(
+      LoaderConfig, codeLocationCallback, nullptr));
+
+  if (ProgramManager::getInstance().kernelUsesAsan()) {
+    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      urLoaderConfigRelease(LoaderConfig);
+      std::cerr << "Failed to enable ASAN layer\n";
+      return;
     }
   }
 
@@ -351,16 +212,16 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   }
 
   ur_device_init_flags_t device_flags = 0;
-  urLoaderInit(device_flags, LoaderConfig);
+  CHECK_UR_SUCCESS(urLoaderInit(device_flags, LoaderConfig));
 
   if (OwnLoaderConfig) {
-    urLoaderConfigRelease(LoaderConfig);
+    CHECK_UR_SUCCESS(urLoaderConfigRelease(LoaderConfig));
   }
 
   uint32_t adapterCount = 0;
-  urAdapterGet(0, nullptr, &adapterCount);
+  CHECK_UR_SUCCESS(urAdapterGet(0, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
-  urAdapterGet(adapterCount, adapters.data(), nullptr);
+  CHECK_UR_SUCCESS(urAdapterGet(adapterCount, adapters.data(), nullptr));
 
   auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
     switch (backend) {
@@ -375,19 +236,18 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
     case UR_ADAPTER_BACKEND_NATIVE_CPU:
       return backend::ext_oneapi_native_cpu;
     default:
-      // no idea what to do here
+      // Throw an exception, this should be unreachable.
+      CHECK_UR_SUCCESS(UR_RESULT_ERROR_INVALID_ENUMERATION)
       return backend::all;
     }
   };
 
   for (const auto &adapter : adapters) {
     ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
-    urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(adapterBackend),
-                     &adapterBackend, nullptr);
+    CHECK_UR_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
+                                      sizeof(adapterBackend), &adapterBackend,
+                                      nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    if (syclBackend == backend::all) {
-      // kaboom??
-    }
     Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
   }
 
@@ -398,7 +258,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime
   // team needs to advise on the right place, until then we piggy-back on the
-  // initialization of the PI layer.
+  // initialization of the UR layer.
 
   // Initialize the global events just once, in the case pi::initialize() is
   // called multiple times
@@ -424,7 +284,8 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
                           GSYCLGraphEvent, GraphInstanceNo, nullptr);
   }
 #endif
-} // namespace pi
+#undef CHECK_UR_SUCCESS
+}
 
 // Get the plugin serving given backend.
 template <backend BE> const PluginPtr &getPlugin() {
@@ -450,20 +311,6 @@ template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_intel_esimd_emulator>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
-
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
-  std::terminate();
-}
-
-void assertion(bool Condition, const char *Message) {
-  if (!Condition)
-    die(Message);
-}
 
 // Reads an integer value from ELF data.
 template <typename ResT>

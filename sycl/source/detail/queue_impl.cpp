@@ -594,7 +594,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock()) {
-      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // A nullptr UR event indicates that piQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
       if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);

@@ -180,7 +180,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   size_t BufSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin->call(urMemGetInfo, detail::pi::cast<ur_mem_handle_t>(MemObject),
+  Plugin->call(urMemGetInfo, detail::ur::cast<ur_mem_handle_t>(MemObject),
                UR_MEM_INFO_SIZE, sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }

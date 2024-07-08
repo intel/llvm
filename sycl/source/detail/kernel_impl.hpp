@@ -13,7 +13,7 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -113,7 +113,7 @@ public:
     getPlugin()->call(urKernelRetain, MURKernel);
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
-    return pi::cast<cl_kernel>(nativeHandle);
+    return ur::cast<cl_kernel>(nativeHandle);
   }
 
   /// Check if the associated SYCL context is a SYCL host context.

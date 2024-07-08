@@ -264,6 +264,8 @@ void GlobalHandler::unloadPlugins() {
     }
   }
 
+  urLoaderTearDown();
+
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
 }
@@ -347,7 +349,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   bool PrintPiTrace = false;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all UR traces
     PrintPiTrace = true;
   }
 

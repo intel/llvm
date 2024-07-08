@@ -18,7 +18,7 @@
 #include <sycl/detail/defines_elementary.hpp>        // for __SYCL_DE...
 #include <sycl/detail/export.hpp>                    // for __SYCL_EX...
 #include <sycl/detail/impl_utils.hpp>                // for createSyc...
-#include <sycl/detail/pi.hpp>                        // for cast
+#include <sycl/detail/ur.hpp>                        // for cast
 #include <sycl/device.hpp>                           // for device
 #include <sycl/event.hpp>                            // for event
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
@@ -93,7 +93,7 @@ T make(const std::vector<device> &DeviceList,
            Interop,
        ownership Ownership = ownership::transfer) {
   return make_context(DeviceList,
-                      sycl::detail::pi::cast<ur_native_handle_t>(Interop),
+                      sycl::detail::ur::cast<ur_native_handle_t>(Interop),
                       Ownership == ownership::keep);
 }
 
@@ -120,7 +120,7 @@ inline context make_context<backend::ext_oneapi_level_zero>(
   (void)Handler;
   return ext::oneapi::level_zero::make_context(
       BackendObject.DeviceList,
-      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
@@ -228,7 +228,7 @@ inline event make_event<backend::ext_oneapi_level_zero>(
     const context &TargetContext) {
   return ext::oneapi::level_zero::make_event(
       TargetContext,
-      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
@@ -242,7 +242,7 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
     const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+          detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
           TargetContext,
           BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
           bundle_state::executable, backend::ext_oneapi_level_zero);
@@ -258,7 +258,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
     const context &TargetContext) {
   return detail::make_kernel(
       TargetContext, BackendObject.KernelBundle,
-      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       backend::ext_oneapi_level_zero);
 }
@@ -273,7 +273,7 @@ make_buffer(
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext, event AvailableEvent) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, AvailableEvent,
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
@@ -288,7 +288,7 @@ make_buffer(
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
@@ -306,7 +306,7 @@ make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
       (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
 
   return image<Dimensions, AllocatorT>(
-      detail::pi::cast<ur_native_handle_t>(BackendObject.ZeImageHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.ZeImageHandle),
       TargetContext, AvailableEvent, BackendObject.ChanOrder,
       BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
 }

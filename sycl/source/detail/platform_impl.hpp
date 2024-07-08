@@ -14,7 +14,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
@@ -113,7 +113,7 @@ public:
     }
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
-    return pi::cast<cl_platform_id>(nativeHandle);
+    return ur::cast<cl_platform_id>(nativeHandle);
   }
 
   const ur_platform_handle_t &getHandleRef() const { return MUrPlatform; }
@@ -178,23 +178,24 @@ public:
   /// \return the host platform impl
   static std::shared_ptr<platform_impl> getHostPlatformImpl();
 
-  /// Queries the cache to see if the specified PiPlatform has been seen
+  /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
   /// one and cache it.
   ///
-  /// \param PiPlatform is the PI Platform handle representing the platform
-  /// \param Plugin is the PI plugin providing the backend for the platform
-  /// \return the platform_impl representing the PI platform
+  /// \param UrPlatform is the UR Platform handle representing the platform
+  /// \param Plugin is the UR plugin providing the backend for the platform
+  /// \return the platform_impl representing the UR platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(ur_platform_handle_t, const PluginPtr &Plugin);
+  getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
+                        const PluginPtr &Plugin);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
   /// one and caches it.
   ///
-  /// \param PiDevice is the PI device handle for the device whose platform is
+  /// \param UrDevice is the UR device handle for the device whose platform is
   /// desired
-  /// \param Plugin is the PI plugin providing the backend for the device and
+  /// \param Plugin is the UR plugin providing the backend for the device and
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>

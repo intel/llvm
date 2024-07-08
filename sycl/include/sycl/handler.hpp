@@ -1180,7 +1180,7 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
-  // PI APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
+  // UR APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
   constexpr static bool isBackendSupportedFillSize(size_t Size) {
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;

@@ -15,10 +15,10 @@
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
+#include <sycl/detail/ur.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
-
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -173,7 +173,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
   // C-style cast is required for MSVC
   uintptr_t MemObjID = (uintptr_t)(Mem);
   uintptr_t Ptr = 0;
-  // Do not make unnecessary PI calls without instrumentation enabled
+  // Do not make unnecessary UR calls without instrumentation enabled
   if (xptiTraceEnabled()) {
     ur_native_handle_t PtrHandle = 0;
     // When doing buffer interop we don't know what device the memory should be
@@ -272,7 +272,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
   }
 
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  memReleaseHelper(Plugin, pi::cast<ur_mem_handle_t>(MemAllocation));
+  memReleaseHelper(Plugin, ur::cast<ur_mem_handle_t>(MemAllocation));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -445,7 +445,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   ur_mem_handle_t NewMem;
   const PluginPtr &Plugin = TargetContext->getPlugin();
   Error = Plugin->call_nocheck(
-      urMemBufferPartition, pi::cast<ur_mem_handle_t>(ParentMemObj),
+      urMemBufferPartition, ur::cast<ur_mem_handle_t>(ParentMemObj),
       UR_MEM_FLAG_READ_WRITE, UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
@@ -768,20 +768,20 @@ void MemoryManager::copy(
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
-              pi::cast<ur_mem_handle_t>(DstMem), std::move(TgtQueue), DimDst,
+              ur::cast<ur_mem_handle_t>(DstMem), std::move(TgtQueue), DimDst,
               DstSize, DstAccessRange, DstOffset, DstElemSize,
               std::move(DepEvents), OutEvent, OutEventImpl);
   } else {
     if (TgtQueue->is_host())
-      copyD2H(SYCLMemObj, pi::cast<ur_mem_handle_t>(SrcMem),
+      copyD2H(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
               OutEvent, OutEventImpl);
     else
-      copyD2D(SYCLMemObj, pi::cast<ur_mem_handle_t>(SrcMem),
+      copyD2D(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
-              SrcElemSize, pi::cast<ur_mem_handle_t>(DstMem),
+              SrcElemSize, ur::cast<ur_mem_handle_t>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
   }
@@ -830,7 +830,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
     if (RangesUsable && OffsetUsable) {
       Plugin->call(urEnqueueMemBufferFill, Queue->getHandleRef(),
-                   pi::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
+                   ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
                    Offset[0] * ElementSize, RangeMultiplier * ElementSize,
                    DepEvents.size(), DepEvents.data(), &OutEvent);
       return;
@@ -843,7 +843,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // We don't have any backend implementations that support enqueueing a fill
-    // on non-buffer mem objects like this. The old PI function was a stub with
+    // on non-buffer mem objects like this. The old UR function was a stub with
     // an abort.
     throw runtime_error("Fill operation not supported for the given mem object",
                         UR_RESULT_ERROR_INVALID_OPERATION);
@@ -902,7 +902,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
   const PluginPtr &Plugin = Queue->getPlugin();
   memBufferMapHelper(Plugin, Queue->getHandleRef(),
-                     pi::cast<ur_mem_handle_t>(Mem), false, Flags,
+                     ur::cast<ur_mem_handle_t>(Mem), false, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
                      DepEvents.data(), &OutEvent, &MappedPtr);
   return MappedPtr;
@@ -918,7 +918,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   // Using the plugin of the Queue.
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  memUnmapHelper(Plugin, Queue->getHandleRef(), pi::cast<ur_mem_handle_t>(Mem),
+  memUnmapHelper(Plugin, Queue->getHandleRef(), ur::cast<ur_mem_handle_t>(Mem),
                  MappedPtr, DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
@@ -1439,8 +1439,8 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
 
   if (1 == DimDst && 1 == DimSrc) {
     Plugin->call(urCommandBufferAppendMemBufferCopyExp, CommandBuffer,
-                 sycl::detail::pi::cast<ur_mem_handle_t>(SrcMem),
-                 sycl::detail::pi::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
+                 sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
+                 sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
                  DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(),
                  Deps.data(), OutSyncPoint);
   } else {
@@ -1465,8 +1465,8 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
                             SrcAccessRange[SrcPos.ZTerm]};
 
     Plugin->call(urCommandBufferAppendMemBufferCopyRectExp, CommandBuffer,
-                 sycl::detail::pi::cast<ur_mem_handle_t>(SrcMem),
-                 sycl::detail::pi::cast<ur_mem_handle_t>(DstMem), SrcOrigin,
+                 sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
+                 sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcOrigin,
                  DstOrigin, Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
                  DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
   }
@@ -1504,7 +1504,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   if (1 == DimDst && 1 == DimSrc) {
     ur_result_t Result = Plugin->call_nocheck(
         urCommandBufferAppendMemBufferReadExp, CommandBuffer,
-        sycl::detail::pi::cast<ur_mem_handle_t>(SrcMem), SrcXOffBytes,
+        sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem), SrcXOffBytes,
         SrcAccessRangeWidthBytes, DstMem + DstXOffBytes, Deps.size(),
         Deps.data(), OutSyncPoint);
 
@@ -1533,7 +1533,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
 
     ur_result_t Result = Plugin->call_nocheck(
         urCommandBufferAppendMemBufferReadRectExp, CommandBuffer,
-        sycl::detail::pi::cast<ur_mem_handle_t>(SrcMem), BufferOffset,
+        sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem), BufferOffset,
         HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, DstMem, Deps.size(), Deps.data(), OutSyncPoint);
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1578,7 +1578,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   if (1 == DimDst && 1 == DimSrc) {
     ur_result_t Result = Plugin->call_nocheck(
         urCommandBufferAppendMemBufferWriteExp, CommandBuffer,
-        sycl::detail::pi::cast<ur_mem_handle_t>(DstMem), DstXOffBytes,
+        sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), DstXOffBytes,
         DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes, Deps.size(),
         Deps.data(), OutSyncPoint);
 
@@ -1607,7 +1607,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
 
     ur_result_t Result = Plugin->call_nocheck(
         urCommandBufferAppendMemBufferWriteRectExp, CommandBuffer,
-        sycl::detail::pi::cast<ur_mem_handle_t>(DstMem), BufferOffset,
+        sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), BufferOffset,
         HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, SrcMem, Deps.size(), Deps.data(), OutSyncPoint);
 
@@ -1686,7 +1686,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
 
   if (RangesUsable && OffsetUsable) {
     Plugin->call(urCommandBufferAppendMemBufferFillExp, CommandBuffer,
-                 pi::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
+                 ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
                  AccessOffset[0] * ElementSize, RangeMultiplier * ElementSize,
                  Deps.size(), Deps.data(), OutSyncPoint);
     return;

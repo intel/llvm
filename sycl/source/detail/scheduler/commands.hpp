@@ -230,7 +230,7 @@ public:
   /// for memory copy commands.
   const QueueImplPtr &getWorkerQueue() const;
 
-  /// Returns true iff the command produces a PI event on non-host devices.
+  /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
 
   /// Returns true iff this command can be freed by post enqueue cleanup.
