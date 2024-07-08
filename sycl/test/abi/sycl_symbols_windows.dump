@@ -142,6 +142,7 @@
 ??$get_info_impl@Uext_oneapi_max_work_groups_2d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$01@12@XZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_3d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$02@12@XZ
 ??$get_info_impl@Uext_oneapi_srgb@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
+??$get_info_impl@Uext_oneapi_cuda_cluster_group@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uextensions@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uextensions@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Ufree_memory@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
@@ -4410,6 +4411,7 @@
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4_pi_kernel_cache_config@@@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelUsesClusterLaunch@handler@_V1@sycl@@AEAAXXZ
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ

@@ -309,7 +309,8 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
-          getType(), {}, impl->MKernelIsCooperative, getCodeLoc()));
+          getType(), {}, impl->MKernelIsCooperative,
+          impl->MKernelUsesClusterLaunch, getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {

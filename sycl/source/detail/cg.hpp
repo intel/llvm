@@ -115,6 +115,17 @@ public:
   NDRDescT(sycl::range<Dims> Range)
       : NDRDescT(PadRange(Range), /*SetNumWorkGroups=*/false, Dims) {}
 
+  void setClusterDimensions(sycl::range<3> N, int Dims) {
+    if (this->Dims != size_t(Dims)) {
+      throw std::runtime_error(
+          "Dimensionality of cluster, global and local ranges must be same");
+    }
+
+    for (int I = 0; I < Dims; ++I) {
+      ClusterDimensions[I] = N[I];
+    }
+  }
+
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
@@ -125,6 +136,7 @@ public:
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
   sycl::range<3> NumWorkGroups{0, 0, 0};
+  sycl::range<3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
 };
 
@@ -228,6 +240,7 @@ public:
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
   bool MKernelIsCooperative = false;
+  bool MKernelUsesClusterLaunch = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -238,7 +251,8 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-               bool KernelIsCooperative, detail::code_location loc = {})
+               bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
+               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
@@ -246,7 +260,8 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)),
-        MKernelIsCooperative(KernelIsCooperative) {
+        MKernelIsCooperative(KernelIsCooperative),
+        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
 
