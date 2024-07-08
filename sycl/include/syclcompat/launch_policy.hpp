@@ -39,6 +39,7 @@ namespace experimental {
 
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
+// Wrapper for kernel sycl_exp::properties
 template <typename Properties> struct kernel_properties {
   template <typename... Props>
   kernel_properties(Props... properties) : props{properties...} {}
@@ -49,6 +50,7 @@ template <typename Properties> struct kernel_properties {
 template <typename... Props>
 kernel_properties(Props... props) -> kernel_properties<decltype(sycl_exp::properties(props...))>;
 
+// Wrapper for launch sycl_exp::properties
 template <typename Properties> struct launch_properties {
   template <typename... Props>
   launch_properties(Props... properties) : props{properties...} {}
@@ -59,169 +61,16 @@ template <typename Properties> struct launch_properties {
 template <typename... Props>
 launch_properties(Props... props) -> launch_properties<decltype(sycl_exp::properties(props...))>;
 
+// Wrapper for local memory size
 struct local_mem_size {
   local_mem_size(size_t size) : size{size} {};
   local_mem_size() : size{} {};
   size_t size;
 };
 
-namespace detail{
-template <typename T> struct is_kernel_properties : std::false_type{};
-template <typename TT> struct is_kernel_properties<kernel_properties<TT>> : std::true_type{};
-
-template <typename T> struct is_launch_properties : std::false_type{};
-template <typename TT> struct is_launch_properties<launch_properties<TT>> : std::true_type{};
-
-template <typename T> struct is_local_mem_size : std::false_type{};
-template <> struct is_local_mem_size<local_mem_size> : std::true_type{};
-
-template <typename T, typename Tuple> struct tuple_element_index_helper;
-
-template<typename T>
-struct tuple_element_index_helper<T, std::tuple<>>
-{
-  static constexpr std::size_t value = 0;
-};
-
-template<typename T, typename... Rest>
-struct tuple_element_index_helper<T, std::tuple<T, Rest...>>
-{
-  static constexpr std::size_t value = 0;
-  using RestTuple = std::tuple<Rest...>;
-  static_assert(
-    tuple_element_index_helper<T, RestTuple>::value == 
-    std::tuple_size_v<RestTuple>,
-    "type appears more than once in tuple");
-};
-
-template<typename T, typename First, typename... Rest>
-struct tuple_element_index_helper<T, std::tuple<First, Rest...>>
-{
-  using RestTuple = std::tuple<Rest...>;
-  static constexpr std::size_t value = 1 +
-       tuple_element_index_helper<T, RestTuple>::value;
-};
-
-template<typename T, typename Tuple>
-struct tuple_element_index
-{
-  static constexpr std::size_t value =
-    tuple_element_index_helper<T, Tuple>::value;
-  static_assert(value < std::tuple_size_v<Tuple>,
-                "type does not appear in tuple");
-};
-
-//----------------------------------------------
-
-// Helper for tuple_template_index
-template <template <typename TT> typename PropertyContainer, typename Tuple> struct tuple_template_index_helper;
-
-template<template <typename TT> typename PropertyContainer>
-struct tuple_template_index_helper<PropertyContainer, std::tuple<>>
-{
-  static constexpr std::size_t value = 0;
-};
-
-template<template <typename TT> typename PropertyContainer, typename T, typename... Rest>
-struct tuple_template_index_helper<PropertyContainer, std::tuple<PropertyContainer<T>, Rest...>>
-{
-  static constexpr std::size_t value = 0;
-  using RestTuple = std::tuple<Rest...>;
-  static_assert(
-    tuple_template_index_helper<PropertyContainer, RestTuple>::value == 
-    std::tuple_size_v<RestTuple>,
-    "type appears more than once in tuple");
-};
-
-template<template <typename TT> typename PropertyContainer, typename First, typename... Rest>
-struct tuple_template_index_helper<PropertyContainer, std::tuple<First, Rest...>>
-{
-  using RestTuple = std::tuple<Rest...>;
-  static constexpr std::size_t value = 1 +
-       tuple_template_index_helper<PropertyContainer, RestTuple>::value;
-};
-
-// tuple_template_index is a trait helper which finds the index of a
-// class template in a std::tuple<Ts...>. During template argument deduction
-// this enables us to search the tuple for e.g. `kernel_properties` without
-// knowing the concrete type (e.g. kernel_properties<KProps>)
-// A compile time error is raised if the class template is found more than once.
-// If not found, returns the tuple size (i.e. this is not an error).
-template<template <typename TT> typename PropertyContainer, typename Tuple>
-struct tuple_template_index
-{
-  static constexpr std::size_t value =
-    tuple_template_index_helper<PropertyContainer, Tuple>::value;
-};
-
-// tuple_contains_template piggy-backs on the functionality of
-// tuple_template_index to detect whether a class template exists in the tuple
-template <template <typename TT> typename PropertyContainer, typename Tuple>
-    struct tuple_contains_template
-    : std::conditional_t <
-      tuple_template_index<PropertyContainer, Tuple>::value<
-          std::tuple_size_v<Tuple>, std::true_type, std::false_type> {};
-
-
-template <bool TupleContains, typename PropertyContainerConcrete, typename Tuple>
-struct property_getter_helper;
-
-template <typename PropertyContainerConcrete, typename Tuple>
-struct property_getter_helper<true, PropertyContainerConcrete, Tuple>{
-  PropertyContainerConcrete operator()(Tuple tuple){
-    return std::get<PropertyContainerConcrete>(tuple);
-  }
-};
-
-template <typename PropertyContainerConcrete, typename Tuple>
-struct property_getter_helper<false, PropertyContainerConcrete, Tuple>{
-  PropertyContainerConcrete operator()(Tuple tuple){
-    (void)tuple;
-    return {};
-  }
-};
-
-// For local_mem_size
-template <typename T, typename Tuple>
-struct has_type;
-
-template <typename T, typename... Us>
-struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
-
-template <template <typename TT> typename PropertyContainer,  typename PropertyContainerConcrete, typename Tuple>
-using property_getter = property_getter_helper<tuple_contains_template<PropertyContainer, Tuple>::value, PropertyContainerConcrete, Tuple>;
-
-template <typename PropertyContainerConcrete, typename Tuple>
-using local_mem_getter = property_getter_helper<has_type<PropertyContainerConcrete, Tuple>::value, PropertyContainerConcrete, Tuple>;
-
-
-
-//TODO: ought this to return the sycl::properties type or the wrapper type?
-template <bool InTuple, template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty_helper;
-
-template <template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty_helper<false, PropertyContainer, Ts...> {
-  using Props = sycl::ext::oneapi::experimental::empty_properties_t;
-};
-
-template <template <typename TT> typename PropertyContainer, typename... Ts>
-struct properties_or_empty_helper<true, PropertyContainer, Ts...> {
-  using Props = typename std::tuple_element_t<
-      tuple_template_index<PropertyContainer, std::tuple<Ts...>>::value,
-      std::tuple<Ts...>>::Props;
-};
-
-template <template <typename TT> typename PropertyContainer, typename... Ts>
-using properties_or_empty = typename properties_or_empty_helper<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
-
-} // namespace detail
-
-//----------------------------------------------
-
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps, bool LocalMem>
-struct launch_policy {
+class launch_policy {
   static_assert(sycl_exp::is_property_list_v<KProps>);
   static_assert(sycl_exp::is_property_list_v<LProps>);
   static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
@@ -229,6 +78,7 @@ struct launch_policy {
                 "\nsycl::range kernel launches are incompatible with local "
                 "memory usage!");
 
+public:
   using KPropsT = KProps;
   using LPropsT = LProps;
   using RangeT = Range;
@@ -285,6 +135,7 @@ private:
   local_mem_size _local_mem_size;
 };
 
+// Deduction guides for launch_policy
 template <typename Range, typename... Ts>
 launch_policy(Range, Ts...)
     -> launch_policy<Range,
@@ -305,15 +156,6 @@ launch_policy(dim3, dim3, Ts...)
                      detail::properties_or_empty<kernel_properties, Ts...>,
                      detail::properties_or_empty<launch_properties, Ts...>,
                      detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
-
-template <typename T> struct is_launch_policy : std::false_type {};
-
-template <typename RangeT, typename KProps, typename LProps, bool LocalMem>
-struct is_launch_policy<launch_policy<RangeT, KProps, LProps, LocalMem>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
-
 
 namespace detail {
 
@@ -394,13 +236,13 @@ sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
 
 template <auto F, typename LaunchPolicy, typename... Args>
 sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
-  static_assert(is_launch_policy_v<LaunchPolicy>);
+  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
   return detail::launch<F>(launch_policy, q, args...);
 }
 
 template <auto F, typename LaunchPolicy, typename... Args>
 sycl::event launch(LaunchPolicy launch_policy, Args... args) {
-  static_assert(is_launch_policy_v<LaunchPolicy>);
+  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
   return launch<F>(launch_policy, get_default_queue(), args...);
 }
 
