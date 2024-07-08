@@ -377,7 +377,7 @@
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_cluster_group__
-// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 75)
+// __SYCL_ASPECT(ext_oneapi_cuda_cluster_group, 74)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_cluster_group__ 0
 #endif
 
