@@ -305,8 +305,8 @@ struct all_props_are_keys_of<
     SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
     : std::bool_constant<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, ext::oneapi::experimental::properties<
-                                           std::tuple<PropTs...>>>::value> {};
+          all_props_are_keys_of<SyclT, ext::oneapi::experimental::detail::
+                                           properties_t<PropTs...>>::value> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
