@@ -3890,7 +3890,7 @@
 ?alloc_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?alloc_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?aspect_selector@_V1@sycl@@YA?AV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@4@0@Z
-?assertion@pi@detail@_V1@sycl@@YAX_NPEBD@Z
+?assertion@ur@detail@_V1@sycl@@YAX_NPEBD@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVAccessorBaseHost@123@W4target@access@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVSampledImageAccessorBaseHost@123@W4image_target@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVUnsampledImageAccessorBaseHost@123@W4image_target@23@@Z
@@ -3938,7 +3938,7 @@
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVqueue@45@@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
-?die@pi@detail@_V1@sycl@@YAXPEBD@Z
+?die@ur@detail@_V1@sycl@@YAXPEBD@Z
 ?discard_or_return@queue@_V1@sycl@@AEAA?AVevent@23@AEBV423@@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
