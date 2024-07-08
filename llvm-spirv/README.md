@@ -140,7 +140,9 @@ There are several options for accessing the header file:
   Headers - if you have the headers downloaded somewhere in your
   system and want to use that version, simply extend your CMake
   command with `-DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers"
-  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`.
+  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>` for in-tree
+  builds and just `-DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`
+  for out-of-tree builds.
 
 ## Test instructions
 
