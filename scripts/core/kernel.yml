@@ -109,7 +109,7 @@ etors:
     - name: FUNCTION_NAME
       desc: "[char[]] Return null-terminated kernel function name."
     - name: NUM_ARGS
-      desc: "[size_t] Return Kernel number of arguments."
+      desc: "[uint32_t] Return Kernel number of arguments."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the kernel object.
@@ -309,7 +309,7 @@ details:
 params:
     - type: $x_kernel_handle_t
       name: hKernel
-      desc: "[in] handle for the Kernel to release"
+      desc: "[in][release] handle for the Kernel to release"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelSetArgPointer."
