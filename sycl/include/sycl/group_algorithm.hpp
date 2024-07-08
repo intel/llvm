@@ -28,6 +28,7 @@
 #include <sycl/ext/oneapi/functional.hpp>
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #endif
 #endif
 

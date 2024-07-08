@@ -95,11 +95,6 @@ queue::ext_oneapi_get_graph() const {
           ext::oneapi::experimental::graph_state::modifiable>>(Graph);
 }
 
-bool queue::is_host() const {
-  assert(false && "queue::is_host should not be called in implementation.");
-  return false;
-}
-
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
