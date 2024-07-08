@@ -22,17 +22,17 @@
 
 #pragma once
 
-#include "sycl/ext/oneapi/properties/properties.hpp"
 #include "sycl/ext/oneapi/experimental/enqueue_functions.hpp"
+#include "sycl/ext/oneapi/properties/properties.hpp"
 #include <sycl/event.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>
 
+#include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
 #include <syclcompat/traits.hpp>
-#include <syclcompat/defs.hpp>
 
 namespace syclcompat {
 namespace experimental {
@@ -51,7 +51,8 @@ template <typename Properties> struct kernel_properties {
 };
 
 template <typename... Props>
-kernel_properties(Props... props) -> kernel_properties<decltype(sycl_exp::properties(props...))>;
+kernel_properties(Props... props)
+    -> kernel_properties<decltype(sycl_exp::properties(props...))>;
 
 // Wrapper for launch sycl_exp::properties
 template <typename Properties> struct launch_properties {
@@ -65,7 +66,8 @@ template <typename Properties> struct launch_properties {
 };
 
 template <typename... Props>
-launch_properties(Props... props) -> launch_properties<decltype(sycl_exp::properties(props...))>;
+launch_properties(Props... props)
+    -> launch_properties<decltype(sycl_exp::properties(props...))>;
 
 // Wrapper for local memory size
 struct local_mem_size {
@@ -101,8 +103,9 @@ private:
         _launch_properties{detail::property_getter<
             launch_properties, launch_properties<LPropsT>, std::tuple<Ts...>>()(
             std::tuple<Ts...>(ts...))},
-        _local_mem_size{detail::local_mem_getter<
-            local_mem_size, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))} {
+        _local_mem_size{
+            detail::local_mem_getter<local_mem_size, std::tuple<Ts...>>()(
+                std::tuple<Ts...>(ts...))} {
     static_assert(
         std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
                                             detail::is_launch_properties<Ts>,
@@ -124,7 +127,8 @@ public:
   }
 
   template <typename... Ts>
-  launch_policy(dim3 global_range, dim3 local_range, Ts... ts) : launch_policy(ts...) {
+  launch_policy(dim3 global_range, dim3 local_range, Ts... ts)
+      : launch_policy(ts...) {
     _range = Range{global_range, local_range};
   }
 
@@ -142,29 +146,28 @@ private:
 
 // Deduction guides for launch_policy
 template <typename Range, typename... Ts>
-launch_policy(Range, Ts...)
-    -> launch_policy<Range,
-                     detail::properties_or_empty<kernel_properties, Ts...>,
-                     detail::properties_or_empty<launch_properties, Ts...>,
-                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
+launch_policy(Range, Ts...) -> launch_policy<
+    Range, detail::properties_or_empty<kernel_properties, Ts...>,
+    detail::properties_or_empty<launch_properties, Ts...>,
+    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
-launch_policy(dim3, Ts...)
-    -> launch_policy<sycl::range<3>,
-                     detail::properties_or_empty<kernel_properties, Ts...>,
-                     detail::properties_or_empty<launch_properties, Ts...>,
-                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
+launch_policy(dim3, Ts...) -> launch_policy<
+    sycl::range<3>, detail::properties_or_empty<kernel_properties, Ts...>,
+    detail::properties_or_empty<launch_properties, Ts...>,
+    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
-launch_policy(dim3, dim3, Ts...)
-    -> launch_policy<sycl::nd_range<3>,
-                     detail::properties_or_empty<kernel_properties, Ts...>,
-                     detail::properties_or_empty<launch_properties, Ts...>,
-                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
+launch_policy(dim3, dim3, Ts...) -> launch_policy<
+    sycl::nd_range<3>, detail::properties_or_empty<kernel_properties, Ts...>,
+    detail::properties_or_empty<launch_properties, Ts...>,
+    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 namespace detail {
 
-template <auto F, typename Range, typename KProps, bool HasLocalMem, typename... Args> struct KernelFunctor {
+template <auto F, typename Range, typename KProps, bool HasLocalMem,
+          typename... Args>
+struct KernelFunctor {
   KernelFunctor(KProps kernel_props, Args... args)
       : _kernel_properties{kernel_props},
         _argument_tuple(std::make_tuple(args...)) {}
@@ -193,26 +196,29 @@ template <auto F, typename Range, typename KProps, bool HasLocalMem, typename...
   KProps _kernel_properties;
   std::tuple<Args...> _argument_tuple;
   std::conditional_t<HasLocalMem, sycl::local_accessor<char, 1>, std::monostate>
-      _local_acc; //monostate for empty type
+      _local_acc; // monostate for empty type
 };
 
 //====================================================================
 // This helper function avoids 2 nested `if constexpr` in detail::launch
 template <auto F, typename LaunchPolicy, typename... Args>
-auto build_kernel_functor(sycl::handler& cgh, LaunchPolicy launch_policy,
+auto build_kernel_functor(sycl::handler &cgh, LaunchPolicy launch_policy,
                           Args... args)
     -> KernelFunctor<F, typename LaunchPolicy::RangeT,
-                     typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...> {
+                     typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem,
+                     Args...> {
   if constexpr (LaunchPolicy::HasLocalMem) {
-    sycl::local_accessor<char, 1> local_memory(launch_policy.get_local_mem_size(),
-                                               cgh);
+    sycl::local_accessor<char, 1> local_memory(
+        launch_policy.get_local_mem_size(), cgh);
     return KernelFunctor<F, typename LaunchPolicy::RangeT,
-                         typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...>(
+                         typename LaunchPolicy::KPropsT,
+                         LaunchPolicy::HasLocalMem, Args...>(
         launch_policy.get_kernel_properties(), local_memory, args...);
   } else {
-      return KernelFunctor<F, typename LaunchPolicy::RangeT,
-                        typename LaunchPolicy::KPropsT, LaunchPolicy::HasLocalMem, Args...>(
-              launch_policy.get_kernel_properties(), args...);
+    return KernelFunctor<F, typename LaunchPolicy::RangeT,
+                         typename LaunchPolicy::KPropsT,
+                         LaunchPolicy::HasLocalMem, Args...>(
+        launch_policy.get_kernel_properties(), args...);
   }
 }
 
@@ -231,8 +237,8 @@ sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
                       typename LaunchPolicy::RangeT>) {
       parallel_for(cgh, config, KernelFunctor);
     } else {
-      static_assert(syclcompat::detail::is_nd_range_v<
-                    typename LaunchPolicy::RangeT>);
+      static_assert(
+          syclcompat::detail::is_nd_range_v<typename LaunchPolicy::RangeT>);
       nd_launch(cgh, config, KernelFunctor);
     }
   });

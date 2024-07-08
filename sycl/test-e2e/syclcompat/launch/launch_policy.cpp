@@ -23,17 +23,16 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include "sycl/ext/oneapi/experimental/root_group.hpp"
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
 #include "sycl/ext/intel/experimental/kernel_execution_properties.hpp"
+#include "sycl/ext/oneapi/experimental/root_group.hpp"
+#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
 #include "syclcompat/device.hpp"
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
-
 
 #include "launch_fixt.hpp"
 
@@ -76,7 +75,6 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   }
 };
 // =======================================================================
-
 
 int test_variadic_config_ctor() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -138,7 +136,7 @@ int test_variadic_config_ctor() {
                                       empty_properties_t, true>>);
   }
 
-  //TODO: more combos here
+  // TODO: more combos here
   return 0;
 }
 
@@ -151,12 +149,14 @@ int test_basic_launch() {
 
   // A runtime kernel property for the
 
-  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; // constructed at runtime
+  sycl_intel_exp::cache_config my_cache_config{
+      sycl_intel_exp::large_slm}; // constructed at runtime
 
   compat_exp::kernel_properties my_k_props{
       sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config};
 
-  compat_exp::launch_properties my_l_props{sycl_exp::use_root_sync}; //TODO: this isn't a launch property!
+  compat_exp::launch_properties my_l_props{
+      sycl_exp::use_root_sync}; // TODO: this isn't a launch property!
 
   compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}}, my_k_props,
                                       my_l_props);
@@ -201,7 +201,7 @@ int test_lmem_launch() {
 
   using T = int;
   // A property constructed at runtime:
-  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm}; 
+  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm};
 
   int local_mem_size = LOCAL_MEM_SIZE; // rt value
 
@@ -211,17 +211,18 @@ int test_lmem_launch() {
 
   compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{256}, {256}},
-      compat_exp::kernel_properties{sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config},
-      compat_exp::launch_properties{}, compat_exp::local_mem_size(local_mem_size));
+      compat_exp::kernel_properties{sycl_exp::sub_group_size<32>,
+                                    sycl_exp::use_root_sync, my_cache_config},
+      compat_exp::launch_properties{},
+      compat_exp::local_mem_size(local_mem_size));
 
 #ifdef DO_LAUNCH
   compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
 
-  compat_exp::launch<dynamic_local_mem_typed_kernel<int>>(
-      my_config, d_a).wait();
+  compat_exp::launch<dynamic_local_mem_typed_kernel<int>>(my_config, d_a)
+      .wait();
   std::cout << "Launched 2 succesfully" << std::endl;
-
 
   syclcompat::memcpy(h_a, d_a, local_mem_size);
   syclcompat::free(d_a);
@@ -230,7 +231,7 @@ int test_lmem_launch() {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
   }
 #endif
-  
+
   syclcompat::free(h_a);
   return 0;
 }
@@ -239,18 +240,16 @@ int test_lmem_launch() {
 int test_dim3_launch_policy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  compat_exp::launch_policy my_range_config(
-      syclcompat::dim3{32});
+  compat_exp::launch_policy my_range_config(syclcompat::dim3{32});
 
   static_assert(
       std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);
 
-  compat_exp::launch_policy my_nd_range_config(
-      syclcompat::dim3{32}, syclcompat::dim3{32});
+  compat_exp::launch_policy my_nd_range_config(syclcompat::dim3{32},
+                                               syclcompat::dim3{32});
 
   static_assert(
       std::is_same_v<decltype(my_nd_range_config)::RangeT, sycl::nd_range<3>>);
-
 
   compat_exp::launch<empty_kernel>(my_range_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
