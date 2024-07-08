@@ -234,7 +234,7 @@ template <typename T>
 using is_native_broadcast =
     std::bool_constant<detail::is_arithmetic<T>::value &&
                        !std::is_same<T, half>::value && !detail::is_vec_v<T> &&
-                       !detail::is_marray_v<T>>;
+                       !detail::is_marray_v<T> && !std::is_pointer_v<T>>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = std::enable_if_t<
