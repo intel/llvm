@@ -45,7 +45,7 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 // =======================================================================
 
 #define DO_LAUNCH
-// #define SUPPORT_DIM3
+#define SUPPORT_DIM3
 
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
@@ -176,6 +176,26 @@ int test_basic_launch() {
   return 0;
 }
 
+int test_range_launch() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  compat_exp::launch_policy my_config(sycl::range<1>{32});
+
+#ifdef DO_LAUNCH
+  sycl::queue q = syclcompat::get_default_queue();
+
+  int dummy_int{1};
+
+  compat_exp::launch<empty_kernel>(my_config);
+  compat_exp::launch<int_kernel>(my_config, dummy_int);
+
+  compat_exp::launch<empty_kernel>(my_config, q);
+  compat_exp::launch<int_kernel>(my_config, q, dummy_int);
+
+#endif
+  return 0;
+}
+
 int test_lmem_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -217,17 +237,16 @@ int test_lmem_launch() {
 
 #ifdef SUPPORT_DIM3
 int test_dim3_launch_policy() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   compat_exp::launch_policy my_range_config(
-      syclcompat::dim3{32}, compat_exp::kernel_properties{},
-      compat_exp::launch_properties{}, compat_exp::local_mem_size{0});
+      syclcompat::dim3{32});
 
   static_assert(
       std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);
 
   compat_exp::launch_policy my_nd_range_config(
-      syclcompat::dim3{32}, syclcompat::dim3{32}, sycl_exp::properties{},
-      sycl_exp::properties{}, 0);
+      syclcompat::dim3{32}, syclcompat::dim3{32});
 
   static_assert(
       std::is_same_v<decltype(my_nd_range_config)::RangeT, sycl::nd_range<3>>);
@@ -247,6 +266,7 @@ int main() {
   // TODO: check return values!
   test_variadic_config_ctor();
   test_basic_launch();
+  test_range_launch();
   test_lmem_launch();
 #ifdef SUPPORT_DIM3
   test_dim3_launch_policy();
