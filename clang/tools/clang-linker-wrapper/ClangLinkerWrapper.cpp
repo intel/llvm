@@ -531,91 +531,39 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
-// This table is used to manage the output table populated by sycl-post-link.
-struct Table {
-  struct SYCLTableEntry {
-    std::string IRFile;
-    std::string PropFile;
-    std::string SymFile;
-  };
-
-  SmallVector<SYCLTableEntry, 16> Entries;
-
-  SmallVector<std::string, 16> getListOfIRFiles(void) {
-    SmallVector<std::string, 16> Files;
-    for (auto &Entry : Entries) {
-      Files.push_back(Entry.IRFile);
-    }
-    return Files;
-  }
-
-  Expected<StringRef> writeSYCLTableToFile(void) {
-    // Create a new file.
-    auto TempFileOrErr =
-        createOutputFile(sys::path::filename(ExecutableName), "table");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    std::error_code EC;
-    raw_fd_ostream TableFile(*TempFileOrErr, EC, sys::fs::OF_None);
-    if (EC)
-      reportError(errorCodeToError(EC));
-    TableFile << "[Code|Properties|Symbols]\n";
-    for (auto &Entry : Entries) {
-      TableFile << Entry.IRFile << "|";
-      TableFile << Entry.PropFile << "|";
-      TableFile << Entry.SymFile << "\n";
-    }
-    return *TempFileOrErr;
-  }
-
-  Error populateSYCLTable(StringRef EntriesFile) {
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MBOrErr =
-        llvm::MemoryBuffer::getFileOrSTDIN(EntriesFile);
-    if (std::error_code EC = MBOrErr.getError())
-      return createFileError(EntriesFile, EC);
-    int LineNumber = -1;
-    for (line_iterator LI(**MBOrErr); !LI.is_at_eof(); ++LI) {
-      // Skip first line
-      StringRef Line = *LI;
-      if (LineNumber == -1) {
-        if (Line != "[Code|Properties|Symbols]")
-          return createStringError(inconvertibleErrorCode(),
-                                   "Invalid SYCL Table file.");
-        LineNumber++;
-        continue;
-      }
-      if (Line.empty())
-        return createStringError(inconvertibleErrorCode(),
-                                 "Invalid SYCL Table file.");
-      auto [FirstWord, Rem1] = Line.split("|");
-      SYCLTableEntry Entry;
-      Entry.IRFile = FirstWord.str();
-      if (Rem1.empty())
-        return createStringError(inconvertibleErrorCode(),
-                                 "Invalid SYCL Table file.");
-      auto [SecondWord, ThirdWord] = Rem1.split("|");
-      Entry.PropFile = SecondWord.str();
-      Entry.SymFile = ThirdWord.str();
-      Entries.push_back(Entry);
-    }
-    return Error::success();
-  }
-};
-
+/// Parses the output table file from sycl-post-link tool.
 static Expected<std::vector<module_split::SplitModule>>
 parseSplitModulesFromFile(StringRef File) {
-  Table T;
-  if (Error E = T.populateSYCLTable(File))
-    return std::move(E);
+  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
 
+  if (!EntriesMBOrErr)
+    return createFileError(File, EntriesMBOrErr.getError());
+
+  line_iterator LI(**EntriesMBOrErr);
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
   std::vector<module_split::SplitModule> Modules;
-  for (auto &Entry : T.Entries) {
+  while (!LI.is_at_eof()) {
+    StringRef Line = *LI;
+    if (Line.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL table row.");
+
+    auto [IRFilePath, Rem] = Line.split("|");
+    if (Rem.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto [PropertyFilePath, SymbolsFilePath] = Rem.split("|");
     llvm::util::PropertySetRegistry Properties;
     std::string Symbols;
-    if (!Entry.PropFile.empty()) {
-      auto MBOrErr = MemoryBuffer::getFile(Entry.PropFile);
+    if (!PropertyFilePath.empty()) {
+      auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
       if (!MBOrErr)
-        return createFileError(Entry.PropFile, MBOrErr.getError());
+        return createFileError(PropertyFilePath, MBOrErr.getError());
 
       auto &MB = **MBOrErr;
       auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
@@ -625,17 +573,17 @@ parseSplitModulesFromFile(StringRef File) {
       Properties = std::move(**PropSetOrErr);
     }
 
-    if (!Entry.SymFile.empty()) {
-      auto MBOrErr = MemoryBuffer::getFile(Entry.SymFile);
+    if (!SymbolsFilePath.empty()) {
+      auto MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
       if (!MBOrErr)
-        return createFileError(Entry.SymFile, MBOrErr.getError());
+        return createFileError(SymbolsFilePath, MBOrErr.getError());
 
       auto &MB = *MBOrErr;
       Symbols = std::string(MB->getBufferStart(), MB->getBufferEnd());
     }
 
-    Modules.emplace_back(Entry.IRFile, std::move(Properties),
-                         std::move(Symbols));
+    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
+    ++LI;
   }
 
   return Modules;
