@@ -3289,11 +3289,6 @@ private:
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
-  /// Storage for lambda/function when using HostTask
-  std::shared_ptr<detail::HostTask> MHostTask;
-  /// The list of valid SYCL events that need to complete
-  /// before barrier command can be executed
-  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

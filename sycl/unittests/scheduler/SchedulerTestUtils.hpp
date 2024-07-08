@@ -260,7 +260,9 @@ public:
   std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
   std::string getKernelName() { return MKernelName.c_str(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
-  std::shared_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
+  std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
+    return impl->MHostTask;
+  }
   std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
   void setType(sycl::detail::CGType Type) {

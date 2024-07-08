@@ -187,6 +187,12 @@ public:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
+  
+  /// Storage for lambda/function when using HostTask
+  std::shared_ptr<detail::HostTask> MHostTask;
+  /// The list of valid SYCL events that need to complete
+  /// before barrier command can be executed
+  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 };
 
 } // namespace detail

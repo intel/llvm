@@ -65,32 +65,19 @@ void foo() {
 // CHECK-NEXT: 152 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
 // CHECK:      152 |             struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
 // CHECK-NEXT: 152 |               class sycl::detail::HostKernelBase * _M_head_impl
-// CHECK-NEXT: 160 |   class std::shared_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK-NEXT: 160 |     class std::__shared_ptr<class sycl::detail::HostTask> (base)
-// CHECK-NEXT: 160 |       class std::__shared_ptr_access<class sycl::detail::HostTask, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 160 |       element_type * _M_ptr
-// CHECK-NEXT: 168 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 168 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 176 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
-// CHECK-NEXT: 176 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
-// CHECK-NEXT: 176 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
-// CHECK-NEXT: 176 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK:      176 |           pointer _M_start
-// CHECK-NEXT: 184 |           pointer _M_finish
-// CHECK-NEXT: 192 |           pointer _M_end_of_storage
-// CHECK-NEXT: 200 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 200 |     const char * MFileName
-// CHECK-NEXT: 208 |     const char * MFunctionName
-// CHECK-NEXT: 216 |     unsigned long MLineNo
-// CHECK-NEXT: 224 |     unsigned long MColumnNo
-// CHECK-NEXT: 232 |   _Bool MIsFinalized
-// CHECK-NEXT: 240 |   class sycl::event MLastEvent
-// CHECK-NEXT: 240 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
-// CHECK-NEXT: 240 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 240 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
-// CHECK-NEXT: 240 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 240 |         element_type * _M_ptr
-// CHECK-NEXT: 248 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 248 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=256, dsize=256, align=8,
-// CHECK-NEXT:     |  nvsize=256, nvalign=8]
+// CHECK-NEXT: 160 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 160 |     const char * MFileName
+// CHECK-NEXT: 168 |     const char * MFunctionName
+// CHECK-NEXT: 176 |     unsigned long MLineNo
+// CHECK-NEXT: 184 |     unsigned long MColumnNo
+// CHECK-NEXT: 192 |   _Bool MIsFinalized
+// CHECK-NEXT: 200 |   class sycl::event MLastEvent
+// CHECK-NEXT: 200 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
+// CHECK-NEXT: 200 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 200 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
+// CHECK-NEXT: 200 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 200 |         element_type * _M_ptr
+// CHECK-NEXT: 208 |         class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 208 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=216, dsize=216, align=8,
+// CHECK-NEXT:     |  nvsize=216, nvalign=8]

@@ -396,7 +396,7 @@ event handler::finalize() {
     auto context = impl->MGraph ? detail::getSyclObjImpl(impl->MGraph->getContext())
                           : MQueue->getContextImplPtr();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue, context, std::move(impl->MArgs),
+        std::move(impl->MHostTask), MQueue, context, std::move(impl->MArgs),
         std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
@@ -404,8 +404,8 @@ event handler::finalize() {
   case detail::CGType::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
       impl->CGData.MEvents.insert(std::end(impl->CGData.MEvents),
-                            std::begin(MEventsWaitWithBarrier),
-                            std::end(MEventsWaitWithBarrier));
+                            std::begin(impl->MEventsWaitWithBarrier),
+                            std::end(impl->MEventsWaitWithBarrier));
       // Barrier node is implemented as an empty node in Graph
       // but keep the barrier type to help managing dependencies
       setType(detail::CGType::Barrier);
@@ -413,7 +413,7 @@ event handler::finalize() {
           new detail::CG(detail::CGType::Barrier, std::move(impl->CGData), MCodeLoc));
     } else {
       CommandGroup.reset(
-          new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
+          new detail::CGBarrier(std::move(impl->MEventsWaitWithBarrier),
                                 std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
@@ -896,7 +896,7 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   setType(detail::CGType::BarrierWaitlist);
-  MEventsWaitWithBarrier.reserve(WaitList.size());
+  impl->MEventsWaitWithBarrier.reserve(WaitList.size());
   for (auto &Event : WaitList) {
     auto EventImpl = detail::getSyclObjImpl(Event);
     // We could not wait for host task events in backend.
@@ -904,7 +904,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
-    MEventsWaitWithBarrier.push_back(EventImpl);
+    impl->MEventsWaitWithBarrier.push_back(EventImpl);
   }
 }
 
@@ -1805,7 +1805,7 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
 
 void handler::SetHostTask(std::function<void()> &&Func) {
   SetNDRangeDescriptor(range<1>(1));
-  MHostTask.reset(new detail::HostTask(std::move(Func)));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
