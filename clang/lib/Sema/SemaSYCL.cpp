@@ -2163,7 +2163,8 @@ public:
   bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
     CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
     assert(RD && "should not be null.");
-    if (CollectionStack.pop_back_val()) {
+    if (CollectionStack.pop_back_val() ||
+        SemaSYCLRef.getLangOpts().SYCLDecomposeStruct) {
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
