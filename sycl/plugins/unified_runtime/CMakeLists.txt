@@ -100,17 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
-  # Merge: 40300808 665d4a68
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Jul 5 09:44:30 2024 +0100
-  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
-  #     [L0] Fix immediate command list use in Command Queues
-  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
+  # commit 01af5602345ac3289cc084eb19bf266c054da075
+  # Merge: 20844ddc ad3befd1
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jul 8 10:32:14 2024 +0100
+  #     Merge pull request #1809 from nrspruit/fix_l0_ur_deviceinfo
+  #     [L0] Fix Device Info return code to report unsupported enumeration
+  set(UNIFIED_RUNTIME_TAG 01af5602345ac3289cc084eb19bf266c054da075)
 
   fetch_adapter_source(level_zero
-    https://github.com/nrspruit/unified-runtime.git
-    ad3befd1d4a9e7fbea625b8048757f4f7e4daba0
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
