@@ -41,7 +41,7 @@ ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
 std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program);
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr);
-size_t GetKernelNumArgs(ur_kernel_handle_t Kernel);
+uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel);
 size_t GetKernelLocalMemorySize(ur_kernel_handle_t Kernel,
                                 ur_device_handle_t Device);
 size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,

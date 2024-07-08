@@ -167,7 +167,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   *phQueue = reinterpret_cast<ur_queue_handle_t>(hNativeQueue);
   cl_int RetErr =
-      clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(hNativeQueue));
+      clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(*phQueue));
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }

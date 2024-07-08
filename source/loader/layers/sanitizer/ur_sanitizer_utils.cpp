@@ -149,8 +149,8 @@ std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
     return Devices;
 }
 
-size_t GetKernelNumArgs(ur_kernel_handle_t Kernel) {
-    size_t NumArgs = 0;
+uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel) {
+    uint32_t NumArgs = 0;
     [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_NUM_ARGS, sizeof(NumArgs), &NumArgs, nullptr);
     assert(Res == UR_RESULT_SUCCESS);

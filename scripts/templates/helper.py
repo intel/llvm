@@ -109,6 +109,7 @@ class class_traits:
 """
 class type_traits:
     RE_HANDLE   = r"(.*)handle_t"
+    RE_NATIVE_HANDLE = r"(.*)native_handle_t"
     RE_IPC      = r"(.*)ipc(.*)handle_t"
     RE_POINTER  = r"(.*\w+)\*+"
     RE_PPOINTER = r"(.*\w+)\*{2,}"
@@ -125,6 +126,13 @@ class type_traits:
     def is_handle(cls, name):
         try:
             return True if re.match(cls.RE_HANDLE, name) else False
+        except:
+            return False
+
+    @classmethod
+    def is_native_handle(cls, name):
+        try:
+            return True if re.match(cls.RE_NATIVE_HANDLE, name) else False
         except:
             return False
 
