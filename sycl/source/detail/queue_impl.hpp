@@ -28,7 +28,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
-#include <sycl/properties/context_properties.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
