@@ -1455,9 +1455,17 @@ public:
   KernelObjVisitor(SemaSYCL &S) : SemaSYCLRef(S) {}
 
   static bool useTopLevelKernelObj(const CXXRecordDecl *KernelObj) {
-    return !(targetRequiresNewType(KernelObj->getASTContext()) ||
-             KernelObj->hasAttr<SYCLRequiresDecompositionAttr>() ||
-             KernelObj->hasAttr<SYCLGenerateNewTypeAttr>());
+    // If the kernel is empty, "decompose" it so we don't generate arguments.
+    if (KernelObj->isEmpty())
+      return false;
+    // FIXME: Workaround to not change large number of tests
+    // this is covered by the test below.
+    if (targetRequiresNewType(KernelObj->getASTContext()))
+      return false;
+    if (KernelObj->hasAttr<SYCLRequiresDecompositionAttr>() ||
+        KernelObj->hasAttr<SYCLGenerateNewTypeAttr>())
+      return false;
+    return true;
   }
 
   template <typename... HandlerTys>
