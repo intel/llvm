@@ -171,8 +171,9 @@ template <auto F, typename Range, typename KProps, bool HasLocalMem, typename...
 
   auto get(sycl_exp::properties_tag) { return _kernel_properties; }
 
-  __syclcompat_inline__ inline void
+  __syclcompat_inline__ void
   operator()(syclcompat::detail::range_to_item_t<Range> it) const {
+    (void)it;
     if constexpr (HasLocalMem) {
       char *local_mem_ptr = static_cast<char *>(
           _local_acc.template get_multi_ptr<sycl::access::decorated::no>());
