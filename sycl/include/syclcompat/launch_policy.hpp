@@ -65,6 +65,7 @@ struct local_mem_size {
   size_t size;
 };
 
+namespace detail{
 template <typename T> struct is_kernel_properties : std::false_type{};
 template <typename TT> struct is_kernel_properties<kernel_properties<TT>> : std::true_type{};
 
@@ -215,6 +216,7 @@ struct properties_or_empty<true, PropertyContainer, Ts...> {
 template <template <typename TT> typename PropertyContainer, typename... Ts>
 using properties_or_empty_rename_t = typename properties_or_empty<tuple_contains_template<PropertyContainer, std::tuple<Ts...>>::value, PropertyContainer, Ts...>::Props;
 
+} // namespace detail
 
 //----------------------------------------------
 
@@ -239,18 +241,18 @@ private:
 
   template <typename... Ts>
   launch_policy(Ts... ts)
-      : _kernel_properties{property_getter_rename_t<
+      : _kernel_properties{detail::property_getter_rename_t<
             kernel_properties, kernel_properties<KPropsT>, std::tuple<Ts...>>()(
             std::tuple<Ts...>(ts...))},
-        _launch_properties{property_getter_rename_t<
+        _launch_properties{detail::property_getter_rename_t<
             launch_properties, launch_properties<LPropsT>, std::tuple<Ts...>>()(
             std::tuple<Ts...>(ts...))},
-        _local_mem_size{property_getter_for_local_mem_rename_t<
+        _local_mem_size{detail::property_getter_for_local_mem_rename_t<
             local_mem_size, std::tuple<Ts...>>()(std::tuple<Ts...>(ts...))} {
     static_assert(
-        std::conjunction_v<
-            std::disjunction<is_kernel_properties<Ts>, is_launch_properties<Ts>,
-                             is_local_mem_size<Ts>>...>,
+        std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
+                                            detail::is_launch_properties<Ts>,
+                                            detail::is_local_mem_size<Ts>>...>,
         "\nReceived an unexpected argument to ctor. Did you forget to wrap "
         "in "
         "compat::kernel_properties, launch_properties, local_mem_size?");
@@ -287,23 +289,23 @@ private:
 template <typename Range, typename... Ts>
 launch_policy(Range, Ts...)
     -> launch_policy<Range,
-                     properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     properties_or_empty_rename_t<launch_properties, Ts...>,
-                     has_type<local_mem_size, std::tuple<Ts...>>::value>;
+                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
+                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
 launch_policy(dim3, Ts...)
     -> launch_policy<sycl::range<3>,
-                     properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     properties_or_empty_rename_t<launch_properties, Ts...>,
-                     has_type<local_mem_size, std::tuple<Ts...>>::value>;
+                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
+                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename... Ts>
 launch_policy(dim3, dim3, Ts...)
     -> launch_policy<sycl::nd_range<3>,
-                     properties_or_empty_rename_t<kernel_properties, Ts...>,
-                     properties_or_empty_rename_t<launch_properties, Ts...>,
-                     has_type<local_mem_size, std::tuple<Ts...>>::value>;
+                     detail::properties_or_empty_rename_t<kernel_properties, Ts...>,
+                     detail::properties_or_empty_rename_t<launch_properties, Ts...>,
+                     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 template <typename T> struct is_launch_policy : std::false_type {};
 
