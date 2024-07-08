@@ -256,6 +256,10 @@ struct launch_policy {
   
   //TODO static_assert everything passed to ctor is expected.
 
+  KProps get_kernel_properties() { return _kernel_properties.props; }
+  LProps get_launch_properties() { return _launch_properties.props; }
+  size_t get_local_mem_size() { return _local_mem_size.size; }
+
   Range range;
   kernel_properties<KProps> _kernel_properties;
   launch_properties<LProps> _launch_properties;
@@ -331,15 +335,15 @@ auto build_kernel_functor(sycl::handler& cgh, LaunchStrategy launch_policy,
     -> KernelFunctor<F, typename LaunchStrategy::RangeT,
                      typename LaunchStrategy::KPropsT, Args...> {
   if constexpr (syclcompat::lmem_invocable<F, Args...>) {
-    sycl::local_accessor<char, 1> local_memory(launch_policy.local_mem_size,
+    sycl::local_accessor<char, 1> local_memory(launch_policy.get_local_mem_size(),
                                                cgh);
     return KernelFunctor<F, typename LaunchStrategy::RangeT,
                          typename LaunchStrategy::KPropsT, Args...>(
-        launch_policy.kernel_properties, local_memory, args...);
+        launch_policy.get_kernel_properties(), local_memory, args...);
   } else {
       return KernelFunctor<F, typename LaunchStrategy::RangeT,
                         typename LaunchStrategy::KPropsT, Args...>(
-              launch_policy.kernel_properties, args...);
+              launch_policy.get_kernel_properties(), args...);
   }
 }
 
@@ -348,7 +352,7 @@ sycl::event launch(LaunchStrategy launch_policy, sycl::queue q, Args... args) {
   static_assert(syclcompat::args_compatible<F, Args...>);
 
   sycl_exp::launch_config config(launch_policy.range,
-                                 launch_policy.launch_properties);
+                                 launch_policy.get_launch_properties());
 
   return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
     auto KernelFunctor = build_kernel_functor<F>(cgh, launch_policy, args...);
