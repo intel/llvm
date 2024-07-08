@@ -69,9 +69,9 @@ public:
 };
 
 // Forward declare to declare as a friend in sycl::excepton.
-__SYCL_EXPORT int32_t get_pi_error(const exception &e);
+__SYCL_EXPORT int32_t get_ur_error(const exception &e);
 // TODO: Should it be exported at all?
-__SYCL_EXPORT exception set_pi_error(exception &&e, int32_t pi_err);
+__SYCL_EXPORT exception set_ur_error(exception &&e, int32_t ur_err);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -124,7 +124,7 @@ private:
 #else
   std::shared_ptr<std::string> MMsg;
 #endif
-  int32_t MPIErr = 0;
+  int32_t MURErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
@@ -133,9 +133,9 @@ protected:
   exception(std::error_code Ec, const char *Msg, const int32_t PIErr)
       : exception(Ec, std::string(Msg), PIErr) {}
 
-  exception(std::error_code Ec, const std::string &Msg, const int32_t PIErr)
-      : exception(Ec, nullptr, Msg + " " + detail::codeToString(PIErr)) {
-    MPIErr = PIErr;
+  exception(std::error_code Ec, const std::string &Msg, const int32_t URErr)
+      : exception(Ec, nullptr, Msg + " " + detail::codeToString(URErr)) {
+    MURErr = URErr;
   }
 
   // base constructor for all SYCL 2020 constructors
@@ -146,14 +146,14 @@ protected:
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
 
-  friend __SYCL_EXPORT int32_t detail::get_pi_error(const exception &);
+  friend __SYCL_EXPORT int32_t detail::get_ur_error(const exception &);
   // To be used like this:
-  //   throw/return detail::set_pi_error(exception(...), some_pi_error);
-  // *only* when such a error is coming from the PI/UR level. Otherwise it
-  // *should be left unset/default-initialized and exception should be thrown
+  //   throw/return detail::set_ur_error(exception(...), some_ur_error);
+  // *only* when such a error is coming from the UR level. Otherwise it
+  // *should* be left unset/default-initialized and exception should be thrown
   // as-is using public ctors.
-  friend __SYCL_EXPORT exception detail::set_pi_error(exception &&e,
-                                                      int32_t pi_err);
+  friend __SYCL_EXPORT exception detail::set_ur_error(exception &&e,
+                                                      int32_t ur_err);
 };
 
 class __SYCL2020_DEPRECATED(
