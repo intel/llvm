@@ -2828,10 +2828,14 @@ public:
     setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
-      T *CastedPtr = static_cast<T *>(Ptr);
-      CastedPtr[Index] = Pattern;
-    });
+    if (getDeviceBackend() == backend::ext_oneapi_level_zero) {
+      parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+        T *CastedPtr = static_cast<T *>(Ptr);
+        CastedPtr[Index] = Pattern;
+      });
+    } else {
+      this->fill_impl(Ptr, &Pattern, sizeof(T), Count);
+    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3282,7 +3286,7 @@ private:
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
   /// Pattern that is used to fill memory object in case command type is fill.
-  std::vector<char> MPattern;
+  std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
@@ -3420,6 +3424,10 @@ private:
   // Helper function for getting a loose bound on work-items.
   id<2> computeFallbackKernelBounds(size_t Width, size_t Height);
 
+  // Function to get information about the backend for which the code is
+  // compiled for
+  backend getDeviceBackend() const;
+
   // Common function for launching a 2D USM memcpy kernel to avoid redefinitions
   // of the kernel from copy and memcpy.
   template <typename T>
@@ -3529,6 +3537,9 @@ private:
       }
     });
   }
+
+  // Implementation of USM fill using command for native fill.
+  void fill_impl(void *Dest, const void *Value, size_t ValueSize, size_t Count);
 
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
   void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,
