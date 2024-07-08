@@ -134,7 +134,10 @@ inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; };
 inline ur_result_t fakeContext_urContextCreate(void *pParams) {
     static std::atomic_int handle = 42;
     auto params = *static_cast<ur_context_create_params_t *>(pParams);
-    **params.pphContext = reinterpret_cast<ur_context_handle_t>(handle++);
+    // There are two casts because windows doesn't implicitly extend the 32 bit
+    // result of atomic_int::operator++.
+    **params.pphContext =
+        reinterpret_cast<ur_context_handle_t>(static_cast<uintptr_t>(handle++));
     return UR_RESULT_SUCCESS;
 }
 

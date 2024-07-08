@@ -28,7 +28,7 @@ function(add_fuzz_test name label)
                     DisableDeepBind=1)
         endif()
     else()
-        list(APPEND ENV_VARS UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\")
+        list(APPEND ENV_VARS UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\")
     endif()
     
     add_test(NAME ${TEST_TARGET_NAME}
