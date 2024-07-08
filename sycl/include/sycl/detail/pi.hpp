@@ -148,6 +148,7 @@ using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
 using PiPhysicalMem = ::pi_physical_mem;
 using PiVirtualAccessFlags = ::pi_virtual_access_flags;
+using PiLaunchProperty = ::pi_launch_property;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

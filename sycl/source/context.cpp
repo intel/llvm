@@ -126,11 +126,6 @@ context::get_backend_info() const {
 
 cl_context context::get() const { return impl->get(); }
 
-bool context::is_host() const {
-  assert(false && "context::is_host should not be called in implementation.");
-  return false;
-}
-
 backend context::get_backend() const noexcept { return impl->getBackend(); }
 
 platform context::get_platform() const {
