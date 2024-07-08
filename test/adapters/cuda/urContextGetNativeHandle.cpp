@@ -9,7 +9,7 @@ using urCudaContextGetNativeHandle = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaContextGetNativeHandle);
 
 TEST_P(urCudaContextGetNativeHandle, Success) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
     CUcontext cuda_context = reinterpret_cast<CUcontext>(native_context);
 
