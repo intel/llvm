@@ -122,7 +122,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_BINARY;
   case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
     return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
     return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
   case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
     return PI_ERROR_INVALID_WORK_DIMENSION;
@@ -1341,6 +1341,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
                              UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH,
+                             UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -2453,18 +2455,8 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    size_t NumArgs = 0;
-    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
-                                  sizeof(NumArgs), &NumArgs, nullptr));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = sizeof(uint32_t);
-    }
-    if (ParamValue) {
-      if (ParamValueSize != sizeof(uint32_t))
-        return PI_ERROR_INVALID_BUFFER_SIZE;
-      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
-    }
-    return PI_SUCCESS;
+    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
+    break;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;
@@ -3790,6 +3782,57 @@ inline pi_result piextEnqueueCooperativeKernelLaunch(
   return PI_SUCCESS;
 }
 
+inline pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  std::vector<ur_exp_launch_property_t> props(NumPropsInLaunchPropList);
+  for (pi_uint32 i = 0; i < NumPropsInLaunchPropList; i++) {
+    switch (LaunchPropList[i].id) {
+    case PI_LAUNCH_PROPERTY_IGNORE: {
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_IGNORE;
+      break;
+    }
+    case PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION: {
+
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
+      props[i].value.clusterDim[0] = LaunchPropList[i].value.cluster_dims[0];
+      props[i].value.clusterDim[1] = LaunchPropList[i].value.cluster_dims[1];
+      props[i].value.clusterDim[2] = LaunchPropList[i].value.cluster_dims[2];
+      break;
+    }
+    case PI_LAUNCH_PROPERTY_COOPERATIVE: {
+      props[i].id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
+      props[i].value.cooperative = LaunchPropList[i].value.cooperative;
+      break;
+    }
+    default: {
+      return PI_ERROR_INVALID_VALUE;
+    }
+    }
+  }
+
+  HANDLE_ERRORS(urEnqueueKernelLaunchCustomExp(
+      UrQueue, UrKernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, &props[0], NumEventsInWaitList,
+      UrEventsWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+
 inline pi_result
 piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image, pi_bool BlockingWrite,
                        pi_image_offset Origin, pi_image_region Region,
@@ -3923,11 +3966,12 @@ inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   return PI_SUCCESS;
 }
 
-inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                       pi_int32 Value, size_t Count,
-                                       pi_uint32 NumEventsInWaitList,
-                                       const pi_event *EventsWaitList,
-                                       pi_event *OutEvent) {
+inline pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                     const void *Pattern, size_t PatternSize,
+                                     size_t Count,
+                                     pi_uint32 NumEventsInWaitList,
+                                     const pi_event *EventsWaitList,
+                                     pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   if (!Ptr) {
     return PI_ERROR_INVALID_VALUE;
@@ -3939,8 +3983,7 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
 
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  size_t PatternSize = 1;
-  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, Pattern, Count,
                                  NumEventsInWaitList, UrEventsWaitList,
                                  UREvent));
 

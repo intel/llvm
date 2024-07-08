@@ -1184,8 +1184,10 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   /// Collect Alloca instructions we want (and can) handle.
   void visitAllocaInst(AllocaInst &AI) {
     // FIXME: Handle scalable vectors instead of ignoring them.
-    if (!ASan.isInterestingAlloca(AI) ||
-        isa<ScalableVectorType>(AI.getAllocatedType())) {
+    const Type *AllocaType = AI.getAllocatedType();
+    const auto *STy = dyn_cast<StructType>(AllocaType);
+    if (!ASan.isInterestingAlloca(AI) || isa<ScalableVectorType>(AllocaType) ||
+        (STy && STy->containsHomogeneousScalableVectorTypes())) {
       if (AI.isStaticAlloca()) {
         // Skip over allocas that are present *before* the first instrumented
         // alloca, we don't want to move those around.
@@ -1409,7 +1411,7 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIR()) {
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     bool HasESIMDKernel = false;
 
     // ESIMD kernel doesn't support noinline functions, so we can't
@@ -1565,7 +1567,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
 Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
                                      uint32_t AddressSpace) {
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     return IRB.CreateCall(
         AsanMemToShadow,
         {Shadow, ConstantInt::get(IRB.getInt32Ty(), AddressSpace)},
@@ -1718,7 +1720,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
       return true;
   } else {
@@ -2212,7 +2214,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0) {
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 5> Args;
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
@@ -2294,7 +2296,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0) {
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 6> Args;
         Args.push_back(AddrLong);
         Args.push_back(Size);
@@ -3126,7 +3128,7 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     // Add module metadata "device.sanitizer" for sycl-post-link
     LLVMContext &Ctx = M.getContext();
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
@@ -3189,7 +3191,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       //   unsigned int line,
       //   char* func
       // )
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
             Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
@@ -3250,7 +3252,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     AsanShadowGlobal = M.getOrInsertGlobal("__asan_shadow",
                                            ArrayType::get(IRB.getInt8Ty(), 0));
 
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     // __asan_set_shadow_static_local(
     //   uptr ptr,
     //   size_t size,
@@ -3375,7 +3377,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
   if (F.getName().starts_with("__asan_")) return false;
 
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     if (F.getName().contains("__sycl_service_kernel__"))
       return false;
     // Skip referenced-indirectly function as we insert access to shared local
@@ -3471,7 +3473,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
             NoReturnCalls.push_back(CB);
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-          if (TargetTriple.isSPIR() && CI->getCalledFunction() &&
+          if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&
               CI->getCalledFunction()->getCallingConv() ==
                   llvm::CallingConv::SPIR_FUNC &&
               CI->getCalledFunction()->getName() ==
@@ -3501,7 +3503,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                     F.getParent()->getDataLayout(), RTCI);
     FunctionModified = true;
   }
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     for (auto *CI : SyclAllocateLocalMemoryCalls) {
       instrumentSyclStaticLocalMemory(CI);
       FunctionModified = true;
@@ -4027,7 +4029,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // The left-most redzone has enough space for at least 4 pointers.
   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);
   // SPIRV doesn't use the following metadata
-  if (!TargetTriple.isSPIR()) {
+  if (!TargetTriple.isSPIROrSPIRV()) {
     // Write the Magic value to redzone[0].
     IRB.CreateStore(ConstantInt::get(IntptrTy, kCurrentStackFrameMagic),
                     BasePlus0);

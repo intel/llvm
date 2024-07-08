@@ -100,12 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit aaf08109f2a05adb61f50478824ae2739526daee
-  # Author: Ben Tracy <ben.tracy@codeplay.com>
-  # Date:   Mon Jun 17 14:49:53 2024 +0100
-  #     [CMDBUF] Fix coverity issue in command buffers
-  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
-  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
+  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
+  # Merge: 40300808 665d4a68
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Jul 5 09:44:30 2024 +0100
+  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
+  #     [L0] Fix immediate command list use in Command Queues
+  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
 
   fetch_adapter_source(level_zero
     https://github.com/nrspruit/unified-runtime.git
@@ -281,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")
