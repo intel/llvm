@@ -1,5 +1,5 @@
 // Fails with opencl non-cpu, enable when fixed.
-// XFAIL: (opencl && !cpu)
+// XFAIL: (opencl && !cpu && !accelerator)
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 

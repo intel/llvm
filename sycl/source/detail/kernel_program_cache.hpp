@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "sycl/exception.hpp"
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
@@ -285,7 +286,7 @@ public:
         return BuildResult;
       } catch (const exception &Ex) {
         BuildResult->Error.Msg = Ex.what();
-        BuildResult->Error.Code = Ex.get_cl_code();
+        BuildResult->Error.Code = detail::get_pi_error(Ex);
         if (BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
           reset();

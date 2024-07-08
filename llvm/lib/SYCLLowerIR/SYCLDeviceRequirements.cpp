@@ -37,11 +37,12 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 }
 
 SYCLDeviceRequirements
-llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
+llvm::computeDeviceRequirements(const Module &M,
+                                const SetVector<Function *> &EntryPoints) {
   SYCLDeviceRequirements Reqs;
   bool MultipleReqdWGSize = false;
   // Process all functions in the module
-  for (const Function &F : MD.getModule()) {
+  for (const Function &F : M) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
         StringRef AspectName = "";
@@ -98,7 +99,7 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   }
 
   // Process just the entry points in the module
-  for (const Function *F : MD.entries()) {
+  for (const Function *F : EntryPoints) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       // There should only be at most one function with
       // intel_reqd_sub_group_size metadata when considering the entry

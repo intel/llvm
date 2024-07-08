@@ -32,9 +32,6 @@ class device_impl;
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  /// Constructs platform_impl for a SYCL host platform.
-  platform_impl() : MHostPlatform(true) {}
-
   /// Constructs platform_impl from a plug-in interoperability platform
   /// handle.
   ///
@@ -88,9 +85,6 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
-  /// \return true if this SYCL platform is a host platform.
-  bool is_host() const { return MHostPlatform; };
-
   /// Returns the backend of this platform.
   backend getBackend(void) const { return MBackend; }
 
@@ -106,16 +100,18 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This instance of platform doesn't support OpenCL interoperability.",
-          UR_RESULT_ERROR_INVALID_PLATFORM);
-    }
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
+  /// Returns raw underlying plug-in platform handle.
+  ///
+  /// Unlike get() method, this method does not retain handler. It is caller
+  /// responsibility to make sure that platform stays alive while raw handle
+  /// is in use.
+  ///
+  /// \return a raw plug-in platform handle.
   const ur_platform_handle_t &getHandleRef() const { return MUrPlatform; }
 
   /// Returns all available SYCL platforms in the system.
@@ -127,9 +123,16 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  const PluginPtr &getPlugin() const {
-    assert(!MHostPlatform && "Plugin is not available for Host.");
-    return MPlugin;
+  // \return the Plugin associated with this platform.
+  const PluginPtr &getPlugin() const { return MPlugin; }
+
+  /// Sets the platform implementation to use another plugin.
+  ///
+  /// \param PluginPtr is a pointer to a plugin instance
+  /// \param Backend is the backend that we want this platform to use
+  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
+    MPlugin = PluginPtr;
+    MBackend = Backend;
   }
 
   /// Gets the native handle of the SYCL platform.
@@ -170,14 +173,6 @@ public:
   getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
 
-  /// Static functions that help maintain platform uniquess and
-  /// equality of comparison
-
-  /// Returns the host platform impl
-  ///
-  /// \return the host platform impl
-  static std::shared_ptr<platform_impl> getHostPlatformImpl();
-
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
   /// one and cache it.
@@ -214,7 +209,6 @@ private:
   filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
                      ListT *FilterList) const;
 
-  bool MHostPlatform = false;
   ur_platform_handle_t MUrPlatform = 0;
   backend MBackend;
 

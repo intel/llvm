@@ -1,26 +1,9 @@
 #include "func.h"
 #include "types.h"
 
-#ifdef NO_CLANG_BUILTINS
-
-#define GEN_UNARY_BUILTIN_T(NAME, TYPE)                                        \
-  _CLC_OVERLOAD TYPE __##NAME##_helper(TYPE);                                  \
-  _CLC_OVERLOAD TYPE __spirv_ocl_##NAME(TYPE n) { return __##NAME##_helper(n); }
-
-#define GEN_TERNARY_BUILTIN_T(NAME, TYPE)                                      \
-  _CLC_OVERLOAD TYPE __##NAME##_helper(TYPE, TYPE, TYPE);                      \
-  _CLC_OVERLOAD TYPE __spirv_ocl_##NAME(TYPE a, TYPE b, TYPE c) {              \
-    return __##NAME##_helper(a, b, c);                                         \
-  }
-#define GEN_UNARY_BUILTIN(NAME)                                                \
-  GEN_UNARY_BUILTIN_T(NAME, float)                                             \
-  GEN_UNARY_BUILTIN_T(NAME, double)
-
-#define GEN_TERNARY_BUILTIN(NAME)                                              \
-  GEN_TERNARY_BUILTIN_T(NAME, float)                                           \
-  GEN_TERNARY_BUILTIN_T(NAME, double)
-
-#else
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
 
 #ifndef IS_NATIVE
 #define GETNAME(ID) __spirv_ocl_##ID
@@ -49,13 +32,30 @@
   GEN_UNARY_VECTOR_BUILTIN(NAME, TYPE, 8)                                      \
   GEN_UNARY_VECTOR_BUILTIN(NAME, TYPE, 16)
 
-#define GEN_UNARY_BUILTIN(NAME)                                                \
-  _CLC_OVERLOAD float GETNAME(NAME)(float n) {                                 \
-    return __builtin_##NAME##f(n);                                             \
-  }                                                                            \
-  _CLC_OVERLOAD double GETNAME(NAME)(double n) { return __builtin_##NAME(n); } \
-  GEN_UNARY_VECTOR_BUILTIN_T(NAME, float)                                      \
+#define GEN_UNARY_BUILTIN_T(NAME, TYPE)                                        \
+  _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n) { return __builtin_##NAME(n); }
+
+#if defined(cl_khr_fp16)
+#define GEN_UNARY_FP16(NAME)                                                   \
+  GEN_UNARY_BUILTIN_T(NAME, half)                                              \
+  GEN_UNARY_VECTOR_BUILTIN_T(NAME, half)
+#else
+#define GEN_UNARY_FP16(NAME)
+#endif
+
+#if defined(cl_khr_fp64)
+#define GEN_UNARY_FP64(NAME)                                                   \
+  GEN_UNARY_BUILTIN_T(NAME, double)                                            \
   GEN_UNARY_VECTOR_BUILTIN_T(NAME, double)
+#else
+#define GEN_UNARY_FP64(NAME)
+#endif
+
+#define GEN_UNARY_BUILTIN(NAME)                                                \
+  GEN_UNARY_BUILTIN_T(NAME, float)                                             \
+  GEN_UNARY_VECTOR_BUILTIN_T(NAME, float)                                      \
+  GEN_UNARY_FP16(NAME)                                                         \
+  GEN_UNARY_FP64(NAME)
 
 #define GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                            \
   _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n1, TYPE##NUM n2,            \
@@ -70,13 +70,29 @@
   GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, 8)                                    \
   GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, 16)
 
-#define GEN_TERNARY_BUILTIN(NAME)                                              \
-  _CLC_OVERLOAD float GETNAME(NAME)(float n1, float n2, float n3) {            \
-    return __builtin_##NAME##f(n1, n2, n3);                                    \
-  }                                                                            \
-  _CLC_OVERLOAD double GETNAME(NAME)(double n1, double n2, double n3) {        \
+#define GEN_TERNARY_BUILTIN_T(NAME, TYPE)                                      \
+  _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n1, TYPE n2, TYPE n3) {                \
     return __builtin_##NAME(n1, n2, n3);                                       \
-  }                                                                            \
-  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, float)                                    \
-  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, double)
+  }
+
+#if defined(cl_khr_fp16)
+#define GEN_TERNARY_FP16(NAME)                                                 \
+  GEN_TERNARY_BUILTIN_T(NAME, half)                                            \
+  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, half)
+#else
+#define GEN_TERNARY_FP16(NAME)
 #endif
+
+#if defined(cl_khr_fp64)
+#define GEN_TERNARY_FP64(NAME)                                                 \
+  GEN_TERNARY_BUILTIN_T(NAME, double)                                          \
+  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, double)
+#else
+#define GEN_TERNARY_FP64(NAME)
+#endif
+
+#define GEN_TERNARY_BUILTIN(NAME)                                              \
+  GEN_TERNARY_BUILTIN_T(NAME, float)                                           \
+  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, float)                                    \
+  GEN_TERNARY_FP16(NAME)                                                       \
+  GEN_TERNARY_FP64(NAME)

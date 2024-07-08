@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -ast-dump %s | FileCheck %s
 
 // The test checks AST of [[intel::reqd_sub_group_size()]] attribute.
 
@@ -35,7 +35,7 @@ public:
 // CHECK-NEXT: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func 'void ()'
-// CHECK-NEXT: TemplateArgument integral 12
+// CHECK-NEXT: TemplateArgument integral '12'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
 // CHECK-NEXT: ConstantExpr{{.*}}'int'

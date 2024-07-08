@@ -179,13 +179,6 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
 
-  // we give the esimd_emulator device a score of zero to prevent it from being
-  // chosen among other devices. The same thing is done for gpu_selector_v
-  // below.
-  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 0;
-  }
-
   traceDeviceSelector("info::device_type::automatic");
 
   if (dev.is_gpu())
@@ -208,10 +201,6 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
 __SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
-
-  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 0;
-  }
 
   traceDeviceSelector("info::device_type::gpu");
   if (dev.is_gpu()) {
@@ -241,14 +230,6 @@ __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
     Score += detail::getDevicePreference(dev);
   }
   return Score;
-}
-
-int host_selector::operator()(const device &dev) const {
-  // Host device has been removed and host_selector has been deprecated, so this
-  // should never be able to select a device.
-  std::ignore = dev;
-  traceDeviceSelector("info::device_type::host");
-  return detail::REJECT_DEVICE_SCORE;
 }
 
 __SYCL_EXPORT detail::DSelectorInvocableType

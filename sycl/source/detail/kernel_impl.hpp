@@ -25,19 +25,16 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 // Forward declaration
-class program_impl;
 class kernel_bundle_impl;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using ProgramImplPtr = std::shared_ptr<program_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
   ///
   /// This constructor is used for plug-in interoperability. It always marks
-  /// kernel as being created from source and creates a new program_impl
-  /// instance.
+  /// kernel as being created from source.
   ///
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
@@ -50,24 +47,6 @@ public:
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
-  /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
-  ///
-  /// This constructor creates a new instance from PiKernel and saves
-  /// the provided SYCL program. If context of PiKernel differs from
-  /// context of the SYCL program, an invalid_parameter_error exception is
-  /// thrown.
-  ///
-  /// \param Kernel is a valid PiKernel instance
-  /// \param ContextImpl is a valid SYCL context
-  /// \param ProgramImpl is a valid instance of program_impl
-  /// \param IsCreatedFromSource is a flag that indicates whether program
-  /// is created from source code
-  /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
-              ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-              KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask);
-
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
   /// kernel_bundle and / PiKernel.
   ///
@@ -79,12 +58,6 @@ public:
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
-
-  /// Constructs a SYCL kernel for host device
-  ///
-  /// \param Context is a valid SYCL context
-  /// \param ProgramImpl is a valid instance of program_impl
-  kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl);
 
   // This section means the object is non-movable and non-copyable
   // There is no need of move and copy constructors in kernel_impl.
@@ -105,21 +78,11 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This instance of kernel doesn't support OpenCL interoperability.",
-          UR_RESULT_ERROR_INVALID_KERNEL);
-    }
     getPlugin()->call(urKernelRetain, MURKernel);
     ur_native_handle_t nativeHandle = nullptr;
     getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
     return ur::cast<cl_kernel>(nativeHandle);
   }
-
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  bool is_host() const { return MContext->is_host(); }
 
   const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
@@ -217,11 +180,6 @@ template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  if (is_host()) {
-    // TODO implement
-    assert(0 && "Not implemented");
-  }
-
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
@@ -248,9 +206,6 @@ kernel_impl::get_info(const device &Device) const {
           "is a built-in kernel.");
   }
 
-  if (is_host()) {
-    return get_kernel_device_specific_info_host<Param>(Device);
-  }
   return get_kernel_device_specific_info<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
       getPlugin());
@@ -260,10 +215,6 @@ template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device,
                       const sycl::range<3> &WGSize) const {
-  if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        UR_RESULT_ERROR_INVALID_DEVICE);
-  }
   return get_kernel_device_specific_info_with_input<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
       getPlugin());

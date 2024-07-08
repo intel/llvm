@@ -59,8 +59,6 @@ backend convertBackend(pi_platform_backend PiBackend) {
     return backend::ext_oneapi_cuda;
   case PI_EXT_PLATFORM_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case PI_EXT_PLATFORM_BACKEND_ESIMD:
-    return backend::ext_intel_esimd_emulator;
   case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   }
@@ -112,18 +110,23 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
 
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
-                                   backend Backend) {
+                                   backend Backend, bool KeepOwnership,
+                                   const std::vector<device> &DeviceList) {
   const auto &Plugin = getPlugin(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = false;
-  Plugin->call(urContextCreateWithNativeHandle, NativeHandle, 0, nullptr,
-               &Properties, &UrContext);
+  std::vector<ur_device_handle_t> DeviceHandles;
+  for (auto Dev : DeviceList) {
+    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
+  }
+  Plugin->call(urContextCreateWithNativeHandle, NativeHandle,
+      DeviceHandles.size(), DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
-  return detail::createSyclObjFromImpl<context>(
-      std::make_shared<context_impl>(UrContext, Handler, Plugin));
+  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+      UrContext, Handler, Plugin, DeviceList, !KeepOwnership));
 }
 
 __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,

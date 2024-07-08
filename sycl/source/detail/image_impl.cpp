@@ -327,7 +327,7 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                               void *HostPtr,
                               ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
 
   ur_image_desc_t Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&
@@ -460,6 +460,8 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
 }
 
 std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
+  if (!Context)
+    return {};
   return Context->get_info<info::context::devices>();
 }
 

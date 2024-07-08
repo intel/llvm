@@ -7,7 +7,7 @@
 ; The test is intended to check that sycl-post-link correctly separates kernels
 ; that use different sycl_joint_matrix_mad metadata
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR-K3,CHECK-IR-K5 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
@@ -59,7 +59,7 @@
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 
-; RUN: sycl-post-link -split=source -symbols -S %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR-K3,CHECK-IR-K5 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN: --implicit-check-not Kernel4 --implicit-check-not Kernel6
@@ -111,7 +111,7 @@
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel5 --implicit-check-not Kernel6
 
-; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t.table
+; RUN: sycl-post-link -properties -split=kernel -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR-K6 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2 \
 ; RUN:  --implicit-check-not Kernel3 --implicit-check-not Kernel4 --implicit-check-not Kernel5

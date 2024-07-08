@@ -31,9 +31,14 @@ struct OwnedUrEvent {
       MPlugin->call(urEventRetain, *MEvent);
   }
   ~OwnedUrEvent() {
-    // Release the event if the ownership was not transferred.
-    if (MEvent.has_value())
-      MPlugin->call(urEventRelease, *MEvent);
+    try {
+      // Release the event if the ownership was not transferred.
+      if (MEvent.has_value())
+        MPlugin->call(urEventRelease, *MEvent);
+
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~OwnedUrEvent", e);
+    }
   }
 
   OwnedUrEvent(OwnedUrEvent &&Other)

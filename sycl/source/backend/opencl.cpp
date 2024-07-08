@@ -9,7 +9,6 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
-#include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/sycl.hpp>
 
@@ -20,34 +19,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace opencl {
 using namespace detail;
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<platform>
-__SYCL_EXPORT platform make_platform(ur_native_handle_t NativeHandle) {
-  return detail::make_platform(NativeHandle, backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<device>
-__SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle) {
-  return detail::make_device(NativeHandle, backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<context>
-__SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle) {
-  return detail::make_context(NativeHandle, detail::defaultAsyncHandler,
-                              backend::opencl);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<queue>
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               ur_native_handle_t NativeHandle) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, 0, Context, nullptr, false, {},
-                            ContextImpl->get_async_handler(), backend::opencl);
-}
 
 //----------------------------------------------------------------------------
 // Free functions to query OpenCL backend extensions

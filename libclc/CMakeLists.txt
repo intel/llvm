@@ -42,6 +42,9 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
+set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
+  CACHE STRING "Semicolon-separated list of compiler flags for x86_64 libclc target.")
+
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -215,7 +218,7 @@ set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
   gfx1010 gfx1011 gfx1012 gfx1013
   gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036
   gfx1100 gfx1101 gfx1102 gfx1103
-  gfx1150 gfx1151
+  gfx1150 gfx1151 gfx1152
   gfx1200 gfx1201
 )
 
@@ -356,9 +359,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       elseif( IS_NATIVE_CPU_ARCH )
         list( APPEND flags -Xclang -fsycl-is-native-cpu )
         if( ARCH  STREQUAL x86_64 )
-          # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-          list( APPEND flags -Xclang -target-feature -Xclang +avx
-              -Xclang -target-feature -Xclang +avx512f)
+          list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
         endif()
       endif()
     endif()

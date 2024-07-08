@@ -62,52 +62,29 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to UR device
-  ur_device_handle_t &getHandleRef() {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 UR_RESULT_ERROR_INVALID_DEVICE);
-
-    return MUrDevice;
-  }
+  ur_device_handle_t &getHandleRef() { return MUrDevice; }
 
   /// Get constant reference to UR device
   ///
   /// For host device an exception is thrown
   ///
   /// \return constant reference to UR device
-  const ur_device_handle_t &getHandleRef() const {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 UR_RESULT_ERROR_INVALID_DEVICE);
-
-    return MUrDevice;
-  }
-
-  /// Check if SYCL device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  bool is_host() const { return MIsHostDevice; }
+  const ur_device_handle_t &getHandleRef() const { return MUrDevice; }
 
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const {
-    return (!is_host() && (MUrType == UR_DEVICE_TYPE_CPU));
-  }
+  bool is_cpu() const { return MUrType == UR_DEVICE_TYPE_CPU; }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const {
-    return (!is_host() && (MUrType == UR_DEVICE_TYPE_GPU));
-  }
+  bool is_gpu() const { return MUrType == UR_DEVICE_TYPE_GPU; }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const {
-    return (!is_host() && (MUrType == UR_DEVICE_TYPE_FPGA));
-  }
+  bool is_accelerator() const { return MUrType == UR_DEVICE_TYPE_FPGA; }
 
   /// Return device type
   ///
@@ -232,11 +209,6 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  /// Gets the single instance of the Host Device
-  ///
-  /// \return the host device_impl singleton
-  static std::shared_ptr<device_impl> getHostDeviceImpl();
-
   bool isAssertFailSupported() const;
 
   bool isRootDevice() const { return MUrRootDevice == nullptr; }
@@ -331,7 +303,6 @@ private:
   ur_device_handle_t MUrDevice = 0;
   ur_device_type_t MUrType;
   ur_device_handle_t MUrRootDevice = nullptr;
-  bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
