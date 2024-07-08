@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit 01af5602345ac3289cc084eb19bf266c054da075
   # Merge: 20844ddc ad3befd1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Mon Jul 8 10:32:14 2024 +0100
   #     Merge pull request #1809 from nrspruit/fix_l0_ur_deviceinfo
   #     [L0] Fix Device Info return code to report unsupported enumeration
-  set(UNIFIED_RUNTIME_TAG 01af5602345ac3289cc084eb19bf266c054da075)
+  set(UNIFIED_RUNTIME_TAG a8bc0058ce292fd977e28346420a11192995c945)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
