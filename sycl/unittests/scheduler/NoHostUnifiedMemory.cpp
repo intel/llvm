@@ -71,7 +71,7 @@ static ur_result_t redefinedMemGetInfoAfter(void *pParams) {
 static ur_result_t redefinedMemCreateWithNativeHandle(void *pParams) {
   auto params =
       *static_cast<ur_mem_buffer_create_with_native_handle_params_t *>(pParams);
-  **params.pphMem = detail::pi::cast<ur_mem_handle_t>(*params.phNativeMem);
+  **params.pphMem = detail::ur::cast<ur_mem_handle_t>(*params.phNativeMem);
   return UR_RESULT_SUCCESS;
 }
 
@@ -194,7 +194,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     context InteropContext = Q.get_context();
     InteropUrContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
-        detail::pi::cast<ur_native_handle_t>(MockInteropBuffer),
+        detail::ur::cast<ur_native_handle_t>(MockInteropBuffer),
         Q.get_context(),
         std::make_unique<
             detail::SYCLMemObjAllocatorHolder<buffer_allocator<char>, char>>(),
