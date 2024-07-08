@@ -99,8 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 79be9c5f115f74ee6192500997d32fe48fad19d4)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
+  # Merge: 01af5602 79be9c5f
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jul 8 13:52:48 2024 +0100
+  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
+  #     Refactor Level Zero Command-Buffer implementation
+  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
