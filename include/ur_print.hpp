@@ -215,6 +215,9 @@ inline ur_result_t printUnion(
 template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_info_t value, size_t size);
 
+template <>
+inline ur_result_t printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os, uint32_t flag);
+
 } // namespace ur::details
 
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
@@ -345,6 +348,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_launch_property_id_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_launch_property_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_native_command_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_enqueue_native_command_properties_t params);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_function_t type
@@ -934,6 +939,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP";
         break;
+    case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP:
+        os << "UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1086,6 +1094,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
         break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -1338,6 +1349,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
+
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES: {
+        const ur_exp_enqueue_native_command_properties_t *pstruct = (const ur_exp_enqueue_native_command_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
     default:
         os << "unknown enumerator";
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1525,8 +1541,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
         os << "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
         break;
-    case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-        os << "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+    case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        os << "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
         break;
     case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
         os << "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
@@ -2508,11 +2524,17 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_COMPOSITE_DEVICE:
         os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
         break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+        os << "UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT";
+        break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+        os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
         break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
@@ -2588,6 +2610,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -3986,6 +4011,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -3999,6 +4036,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -4299,6 +4348,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -7809,9 +7870,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         printPtr(os, tptr);
     } break;
     case UR_KERNEL_INFO_NUM_ARGS: {
-        const size_t *tptr = (const size_t *)ptr;
-        if (sizeof(size_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
@@ -8814,6 +8875,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
         break;
     case UR_COMMAND_TIMESTAMP_RECORDING_EXP:
         os << "UR_COMMAND_TIMESTAMP_RECORDING_EXP";
+        break;
+    case UR_COMMAND_ENQUEUE_NATIVE_EXP:
+        os << "UR_COMMAND_ENQUEUE_NATIVE_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -10024,6 +10088,78 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
 } // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_native_command_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_native_command_flag_t value) {
+    switch (value) {
+    case UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD:
+        os << "UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_native_command_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os, uint32_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD) == (uint32_t)UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD) {
+        val ^= (uint32_t)UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_native_command_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_enqueue_native_command_properties_t params) {
+    os << "(struct ur_exp_enqueue_native_command_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".flags = ";
+
+    ur::details::printFlag<ur_exp_enqueue_native_command_flag_t>(os,
+                                                                 (params.flags));
+
+    os << "}";
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_loader_config_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -10255,8 +10391,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativePlatform = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativePlatform));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativePlatform)));
 
     os << ", ";
     os << ".hAdapter = ";
@@ -10452,8 +10588,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeContext = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeContext));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeContext)));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10662,8 +10798,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeEvent = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeEvent));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeEvent)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11256,8 +11392,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeProgram = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeProgram));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeProgram)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11476,8 +11612,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeKernel = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeKernel));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeKernel)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11925,8 +12061,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeQueue = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeQueue));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeQueue)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12099,8 +12235,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeSampler = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeSampler));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeSampler)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12303,8 +12439,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12335,8 +12471,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -14391,6 +14527,78 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ".blocking = ";
 
     os << *(params->pblocking);
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_native_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_enqueue_native_command_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".pfnNativeEnqueue = ";
+
+    os << reinterpret_cast<void *>(
+        *(params->ppfnNativeEnqueue));
+
+    os << ", ";
+    os << ".data = ";
+
+    ur::details::printPtr(os,
+                          *(params->pdata));
+
+    os << ", ";
+    os << ".numMemsInMemList = ";
+
+    os << *(params->pnumMemsInMemList);
+
+    os << ", ";
+    os << ".phMemList = {";
+    for (size_t i = 0; *(params->pphMemList) != NULL && i < *params->pnumMemsInMemList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphMemList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -17013,8 +17221,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeDevice = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeDevice));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeDevice)));
 
     os << ", ";
     os << ".hPlatform = ";
@@ -17466,6 +17674,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP: {
         os << (const struct ur_enqueue_timestamp_recording_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
+        os << (const struct ur_enqueue_native_command_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)params;

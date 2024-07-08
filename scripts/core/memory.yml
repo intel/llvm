@@ -197,10 +197,10 @@ members:
       desc: "[in] image slice pitch"
     - type: uint32_t
       name: numMipLevel
-      desc: "[in] number of MIP levels"
+      desc: "[in] number of MIP levels, must be `0`"
     - type: uint32_t
       name: numSamples
-      desc: "[in] number of samples"
+      desc: "[in] number of samples, must be `0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create an image object"
@@ -242,6 +242,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
       - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && pImageDesc->numMipLevel != 0`"
+      - "`pImageDesc && pImageDesc->numSamples != 0`"
+      - "`pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`"
+      - "`pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
@@ -364,7 +368,7 @@ analogue:
 params:
     - type: $x_mem_handle_t
       name: hMem
-      desc: "[in] handle of the memory object to release"
+      desc: "[in][release] handle of the memory object to release"
 returns:
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -436,6 +440,7 @@ details:
     - "Use interoperability platform extensions to convert native handle to native type."
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
+    - "The implementation may require a valid device handle to return the native mem handle"
 params:
     - type: $x_mem_handle_t
       name: hMem
@@ -444,7 +449,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: |
-            [in] handle of the device that the native handle will be resident on.
+            [in][optional] handle of the device that the native handle will be resident on.
     - type: $x_native_handle_t*
       name: phNativeMem
       desc: |
@@ -452,6 +457,8 @@ params:
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+        - "If `hDevice == NULL` and the implementation requires a valid device."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native memory object creation properties"

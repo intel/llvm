@@ -875,6 +875,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // L0 doesn't support enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.
@@ -984,6 +988,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
+
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,

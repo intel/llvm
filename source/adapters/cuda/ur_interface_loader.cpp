@@ -411,6 +411,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
   pDdiTable->pfnKernelLaunchCustomExp = urEnqueueKernelLaunchCustomExp;
+  pDdiTable->pfnNativeCommandExp = urEnqueueNativeCommandExp;
 
   return UR_RESULT_SUCCESS;
 }

@@ -530,35 +530,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
   }
 
   std::vector<CUlaunchAttribute> launch_attribute(numPropsInLaunchPropList);
-  for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
-    switch (launchPropList[i].id) {
-    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE: {
-      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_IGNORE;
-      break;
-    }
-    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
-
-      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
-      // Note that cuda orders from right to left wrt SYCL dimensional order.
-      launch_attribute[i].value.clusterDim.x =
-          launchPropList[i].value.clusterDim[2];
-      launch_attribute[i].value.clusterDim.y =
-          launchPropList[i].value.clusterDim[1];
-      launch_attribute[i].value.clusterDim.z =
-          launchPropList[i].value.clusterDim[0];
-      break;
-    }
-    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE: {
-      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
-      launch_attribute[i].value.cooperative =
-          launchPropList[i].value.cooperative;
-      break;
-    }
-    default: {
-      return UR_RESULT_ERROR_INVALID_ENUMERATION;
-    }
-    }
-  }
 
   // Early exit for zero size kernel
   if (*pGlobalWorkSize == 0) {
@@ -573,6 +544,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
   uint32_t LocalSize = hKernel->getLocalSize();
   CUfunction CuFunc = hKernel->get();
+
+  for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
+    switch (launchPropList[i].id) {
+    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE: {
+      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_IGNORE;
+      break;
+    }
+    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
+
+      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
+      // Note that cuda orders from right to left wrt SYCL dimensional order.
+      if (workDim == 3) {
+        launch_attribute[i].value.clusterDim.x =
+            launchPropList[i].value.clusterDim[2];
+        launch_attribute[i].value.clusterDim.y =
+            launchPropList[i].value.clusterDim[1];
+        launch_attribute[i].value.clusterDim.z =
+            launchPropList[i].value.clusterDim[0];
+      } else if (workDim == 2) {
+        launch_attribute[i].value.clusterDim.x =
+            launchPropList[i].value.clusterDim[1];
+        launch_attribute[i].value.clusterDim.y =
+            launchPropList[i].value.clusterDim[0];
+        launch_attribute[i].value.clusterDim.z =
+            launchPropList[i].value.clusterDim[2];
+      } else {
+        launch_attribute[i].value.clusterDim.x =
+            launchPropList[i].value.clusterDim[0];
+        launch_attribute[i].value.clusterDim.y =
+            launchPropList[i].value.clusterDim[1];
+        launch_attribute[i].value.clusterDim.z =
+            launchPropList[i].value.clusterDim[2];
+      }
+
+      UR_CHECK_ERROR(cuFuncSetAttribute(
+          CuFunc, CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED, 1));
+
+      break;
+    }
+    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE: {
+      launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
+      launch_attribute[i].value.cooperative =
+          launchPropList[i].value.cooperative;
+      break;
+    }
+    default: {
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    }
+  }
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
   // using the standard UR_CHECK_ERROR

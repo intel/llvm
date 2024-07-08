@@ -53,7 +53,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRelease
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
 ) {
     auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
 
@@ -507,7 +507,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName) {
+        if (UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -557,7 +557,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceRelease
 __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t
+        hDevice ///< [in][release] handle of the device to release.
 ) {
     auto pfnRelease = context.urDdiTable.Device.pfnRelease;
 
@@ -852,7 +853,8 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t
+        hContext ///< [in][release] handle of the context to release.
 ) {
     auto pfnRelease = context.urDdiTable.Context.pfnRelease;
 
@@ -1082,6 +1084,22 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
+        if (pImageDesc && pImageDesc->numMipLevel != 0) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->numSamples != 0) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
+        if (pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
         if (pHost == NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
@@ -1207,7 +1225,8 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRelease
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t
+        hMem ///< [in][release] handle of the memory object to release
 ) {
     auto pfnRelease = context.urDdiTable.Mem.pfnRelease;
 
@@ -1290,7 +1309,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -1302,10 +1322,6 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 
     if (context.enableParameterValidation) {
         if (NULL == hMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -1619,7 +1635,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 /// @brief Intercept function for urSamplerRelease
 __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to release
+        hSampler ///< [in][release] handle of the sampler object to release
 ) {
     auto pfnRelease = context.urDdiTable.Sampler.pfnRelease;
 
@@ -2114,7 +2130,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRelease
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
 ) {
     auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
 
@@ -2592,7 +2608,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
 /// @brief Intercept function for urPhysicalMemRelease
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to release.
+        hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 ) {
     auto pfnRelease = context.urDdiTable.PhysicalMem.pfnRelease;
 
@@ -2897,7 +2913,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRelease
 __urdlllocal ur_result_t UR_APICALL urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t
+        hProgram ///< [in][release] handle for the Program to release
 ) {
     auto pfnRelease = context.urDdiTable.Program.pfnRelease;
 
@@ -3558,7 +3575,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t UR_APICALL urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t
+        hKernel ///< [in][release] handle for the Kernel to release
 ) {
     auto pfnRelease = context.urDdiTable.Kernel.pfnRelease;
 
@@ -4079,7 +4097,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRelease
 __urdlllocal ur_result_t UR_APICALL urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t
+        hQueue ///< [in][release] handle of the queue object to release
 ) {
     auto pfnRelease = context.urDdiTable.Queue.pfnRelease;
 
@@ -4397,7 +4416,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRelease
 __urdlllocal ur_result_t UR_APICALL urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
 ) {
     auto pfnRelease = context.urDdiTable.Event.pfnRelease;
 
@@ -6839,7 +6858,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnUnsampledImageHandleDestroyExp =
         context.urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
@@ -6885,7 +6904,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnSampledImageHandleDestroyExp =
         context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
@@ -6990,7 +7009,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+        hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
 
@@ -7351,9 +7370,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
         context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
@@ -7521,7 +7541,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
 ) {
     auto pfnReleaseInteropExp =
         context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
@@ -7624,7 +7644,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 ) {
     auto pfnDestroyExternalSemaphoreExp =
         context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
@@ -7856,7 +7876,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 /// @brief Intercept function for urCommandBufferReleaseExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][release] Handle of the command-buffer object.
 ) {
     auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
 
@@ -8749,7 +8769,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 /// @brief Intercept function for urCommandBufferReleaseCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][release] Handle of the command-buffer command.
 ) {
     auto pfnReleaseCommandExp =
         context.urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
@@ -9516,6 +9536,77 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t
+        pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
+                          ///< immediately.
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies the work that has
+                ///< been enqueued in nativeEnqueueFunc.
+) {
+    auto pfnNativeCommandExp =
+        context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
+
+    if (nullptr == pfnNativeCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pfnNativeEnqueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phEvent) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pProperties &&
+            UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    ur_result_t result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
+        pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -9992,6 +10083,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
     pDdiTable->pfnTimestampRecordingExp =
         ur_validation_layer::urEnqueueTimestampRecordingExp;
+
+    dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
+    pDdiTable->pfnNativeCommandExp =
+        ur_validation_layer::urEnqueueNativeCommandExp;
 
     return result;
 }

@@ -280,9 +280,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
     ur_event_handle_t hEvent{};
-    ur_result_t result = pfnKernelLaunch(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
+    ur_result_t result =
+        pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                        pGlobalWorkSize, LaunchInfo.LocalWorkSize.data(),
+                        numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         UR_CALL(

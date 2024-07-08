@@ -44,6 +44,18 @@ struct ze_global_memsize {
   uint64_t value;
 };
 
+enum ur_ze_external_memory_desc_type {
+  UR_ZE_EXTERNAL_OPAQUE_FD,
+  UR_ZE_EXTERNAL_WIN32,
+};
+
+struct ur_ze_external_memory_data {
+  void *importExtensionDesc;
+  ur_mem_handle_t urMemoryHandle;
+  enum ur_ze_external_memory_desc_type type;
+  size_t size;
+};
+
 struct ur_device_handle_t_ : _ur_object {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)

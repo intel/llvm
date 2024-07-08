@@ -260,13 +260,6 @@ class SanitizerInterceptor {
     AllocationMap m_AllocationMap;
     ur_shared_mutex m_AllocationMapMutex;
 
-    // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-    uint64_t cl_Debug = 0;
-    uint64_t cl_MinRZSize = 16;
-    uint64_t cl_MaxRZSize = 2048;
-    uint32_t cl_MaxQuarantineSizeMB = 0;
-    bool cl_DetectLocals = true;
-
     std::unique_ptr<Quarantine> m_Quarantine;
 };
 

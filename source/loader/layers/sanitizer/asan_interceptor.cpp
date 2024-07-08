@@ -12,6 +12,7 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "asan_options.hpp"
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
@@ -143,65 +144,9 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 } // namespace
 
 SanitizerInterceptor::SanitizerInterceptor() {
-    auto Options = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
-    if (!Options.has_value()) {
-        return;
-    }
-
-    auto KV = Options->find("debug");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        cl_Debug = Value == "1" || Value == "true" ? 1 : 0;
-    }
-
-    KV = Options->find("redzone");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        try {
-            cl_MinRZSize = std::stoul(Value);
-            if (cl_MinRZSize < 16) {
-                cl_MinRZSize = 16;
-                context.logger.warning("Trying to set redzone size to a value "
-                                       "less than 16 is ignored");
-            }
-        } catch (...) {
-            die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
-        }
-    }
-    KV = Options->find("max_redzone");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        try {
-            cl_MaxRZSize = std::stoul(Value);
-            if (cl_MaxRZSize > 2048) {
-                cl_MaxRZSize = 2048;
-                context.logger.warning("Trying to set max redzone size to a "
-                                       "value greater than 2048 is ignored");
-            }
-        } catch (...) {
-            die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
-        }
-    }
-
-    KV = Options->find("quarantine_size_mb");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        try {
-            cl_MaxQuarantineSizeMB = std::stoul(Value);
-        } catch (...) {
-            die("<SANITIZER>[ERROR]: \"cl_MaxQuarantineSizeMB\" should be an "
-                "integer");
-        }
-    }
-    if (cl_MaxQuarantineSizeMB) {
-        m_Quarantine =
-            std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB * 1024 * 1024);
-    }
-
-    KV = Options->find("detect_locals");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        cl_DetectLocals = Value == "1" || Value == "true" ? true : false;
+    if (Options().MaxQuarantineSizeMB) {
+        m_Quarantine = std::make_unique<Quarantine>(
+            static_cast<uint64_t>(Options().MaxQuarantineSizeMB) * 1024 * 1024);
     }
 }
 
@@ -241,7 +186,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         Alignment = MinAlignment;
     }
 
-    uptr RZLog = ComputeRZLog(Size, cl_MinRZSize, cl_MaxRZSize);
+    uptr RZLog = ComputeRZLog(Size, Options().MinRZSize, Options().MaxRZSize);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
     uptr NeededSize = RoundedSize + RZSize * 2;
@@ -409,16 +354,23 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Result = context.urDdiTable.Queue.pfnFinish(Queue);
 
     if (Result == UR_RESULT_SUCCESS) {
-        const auto &AH = LaunchInfo.Data->SanitizerReport;
-        if (!AH.Flag) {
-            return UR_RESULT_SUCCESS;
-        }
-        if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
-            ReportUseAfterFree(AH, Kernel, GetContext(Queue));
-        } else if (AH.ErrorType == DeviceSanitizerErrorType::OUT_OF_BOUNDS) {
-            ReportOutOfBoundsError(AH, Kernel);
-        } else {
-            ReportGenericError(AH);
+        for (const auto &AH : LaunchInfo.Data->SanitizerReport) {
+            if (!AH.Flag) {
+                continue;
+            }
+            if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
+                ReportUseAfterFree(AH, Kernel, GetContext(Queue));
+            } else if (AH.ErrorType ==
+                           DeviceSanitizerErrorType::OUT_OF_BOUNDS ||
+                       AH.ErrorType == DeviceSanitizerErrorType::MISALIGNED ||
+                       AH.ErrorType == DeviceSanitizerErrorType::NULL_POINTER) {
+                ReportOutOfBoundsError(AH, Kernel);
+            } else {
+                ReportGenericError(AH);
+            }
+            if (!AH.IsRecover) {
+                exit(1);
+            }
         }
     }
 
@@ -746,7 +698,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         };
 
         // Write debug
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &cl_Debug, sizeof(cl_Debug));
+        // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
+        uint64_t Debug = Options().Debug ? 1 : 0;
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
@@ -760,16 +714,21 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type,
                            sizeof(DeviceInfo->Type));
 
-        if (DeviceInfo->Type == DeviceType::CPU) {
-            break;
-        }
-
         if (LaunchInfo.LocalWorkSize.empty()) {
-            LaunchInfo.LocalWorkSize.reserve(3);
-            // FIXME: This is W/A until urKernelSuggestGroupSize is added
-            LaunchInfo.LocalWorkSize[0] = 1;
-            LaunchInfo.LocalWorkSize[1] = 1;
-            LaunchInfo.LocalWorkSize[2] = 1;
+            LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+            auto URes = context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+                Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+                LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+            if (URes != UR_RESULT_SUCCESS) {
+                if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+                    return URes;
+                }
+                // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we fallback
+                // to inefficient implementation
+                for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+                    LaunchInfo.LocalWorkSize[Dim] = 1;
+                }
+            }
         }
 
         const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
@@ -779,56 +738,109 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                      LocalWorkSize[Dim];
         }
 
-        auto EnqueueAllocateDevice = [Context, &DeviceInfo, Queue,
-                                      NumWG](size_t Size, uptr &Ptr) {
+        auto EnqueueAllocateShadowMemory = [Context, &DeviceInfo,
+                                            Queue](size_t Size, uptr &Ptr) {
+            void *Allocated = nullptr;
             auto URes = context.urDdiTable.USM.pfnDeviceAlloc(
                 Context, DeviceInfo->Handle, nullptr, nullptr, Size,
-                (void **)&Ptr);
+                &Allocated);
             if (URes != UR_RESULT_SUCCESS) {
-                context.logger.error(
-                    "Failed to allocate shadow memory for local memory: {}",
-                    URes);
-                context.logger.error(
-                    "Maybe the number of workgroup ({}) too large", NumWG);
                 return URes;
             }
-            // Initialize shadow memory of local memory
-            URes = urEnqueueUSMSet(Queue, (void *)Ptr, 0, Size);
-            if (URes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
-                context.logger.error(
-                    "Failed to allocate shadow memory for local memory: {}",
-                    URes);
-                context.logger.error(
-                    "Maybe the number of workgroup ({}) too large", NumWG);
-                return URes;
+            // Initialize shadow memory
+            URes = urEnqueueUSMSet(Queue, Allocated, 0, Size);
+            if (URes != UR_RESULT_SUCCESS) {
+                [[maybe_unused]] auto URes =
+                    context.urDdiTable.USM.pfnFree(Context, Allocated);
+                assert(URes == UR_RESULT_SUCCESS &&
+                       "urUSMFree failed at allocating shadow memory");
+                Allocated = nullptr;
             }
+            Ptr = (uptr)Allocated;
             return URes;
         };
 
+        auto LocalMemoryUsage =
+            GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
+        auto PrivateMemoryUsage =
+            GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
+
+        context.logger.info("KernelInfo {} (LocalMemory={}, PrivateMemory={})",
+                            (void *)Kernel, LocalMemoryUsage,
+                            PrivateMemoryUsage);
+
         // Write shadow memory offset for local memory
-        if (cl_DetectLocals) {
+        if (Options().DetectLocals) {
             // CPU needn't this
             if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-                size_t LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
-                size_t LocalShadowMemorySize =
+                const size_t LocalMemorySize =
+                    GetDeviceLocalMemorySize(DeviceInfo->Handle);
+                const size_t LocalShadowMemorySize =
                     (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
                 context.logger.debug(
-                    "LocalMemoryInfo(WorkGroup={}, LocalMemorySize={}, "
+                    "LocalMemory(WorkGroup={}, LocalMemorySize={}, "
                     "LocalShadowMemorySize={})",
                     NumWG, LocalMemorySize, LocalShadowMemorySize);
 
-                UR_CALL(EnqueueAllocateDevice(
-                    LocalShadowMemorySize, LaunchInfo.Data->LocalShadowOffset));
+                if (EnqueueAllocateShadowMemory(
+                        LocalShadowMemorySize,
+                        LaunchInfo.Data->LocalShadowOffset) !=
+                    UR_RESULT_SUCCESS) {
+                    context.logger.warning(
+                        "Failed to allocate shadow memory for local "
+                        "memory, maybe the number of workgroup ({}) is too "
+                        "large",
+                        NumWG);
+                    context.logger.warning(
+                        "Skip checking local memory of kernel <{}>",
+                        GetKernelName(Kernel));
+                } else {
+                    LaunchInfo.Data->LocalShadowOffsetEnd =
+                        LaunchInfo.Data->LocalShadowOffset +
+                        LocalShadowMemorySize - 1;
 
-                LaunchInfo.Data->LocalShadowOffsetEnd =
-                    LaunchInfo.Data->LocalShadowOffset + LocalShadowMemorySize -
-                    1;
+                    context.logger.info(
+                        "ShadowMemory(Local, {} - {})",
+                        (void *)LaunchInfo.Data->LocalShadowOffset,
+                        (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+                }
+            }
+        }
 
-                context.logger.info(
-                    "ShadowMemory(Local, {} - {})",
-                    (void *)LaunchInfo.Data->LocalShadowOffset,
-                    (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+        // Write shadow memory offset for private memory
+        if (Options().DetectPrivates) {
+            if (DeviceInfo->Type == DeviceType::CPU) {
+                LaunchInfo.Data->PrivateShadowOffset = DeviceInfo->ShadowOffset;
+            } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+                const size_t PrivateShadowMemorySize =
+                    (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
+
+                context.logger.debug("PrivateMemory(WorkGroup={}, "
+                                     "PrivateShadowMemorySize={})",
+                                     NumWG, PrivateShadowMemorySize);
+
+                if (EnqueueAllocateShadowMemory(
+                        PrivateShadowMemorySize,
+                        LaunchInfo.Data->PrivateShadowOffset) !=
+                    UR_RESULT_SUCCESS) {
+                    context.logger.warning(
+                        "Failed to allocate shadow memory for private "
+                        "memory, maybe the number of workgroup ({}) is too "
+                        "large",
+                        NumWG);
+                    context.logger.warning(
+                        "Skip checking private memory of kernel <{}>",
+                        GetKernelName(Kernel));
+                } else {
+                    LaunchInfo.Data->PrivateShadowOffsetEnd =
+                        LaunchInfo.Data->PrivateShadowOffset +
+                        PrivateShadowMemorySize - 1;
+                    context.logger.info(
+                        "ShadowMemory(Private, {} - {})",
+                        (void *)LaunchInfo.Data->PrivateShadowOffset,
+                        (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+                }
             }
         }
     } while (false);
@@ -843,7 +855,12 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     if (It == m_AllocationMap.begin()) {
         return std::optional<AllocationIterator>{};
     }
-    return --It;
+    --It;
+    // Make sure we got the right AllocInfo
+    assert(Address >= It->second->AllocBegin &&
+           Address < It->second->AllocBegin + It->second->AllocSize &&
+           "Wrong AllocInfo for the address");
+    return It;
 }
 
 ur_result_t USMLaunchInfo::initialize() {

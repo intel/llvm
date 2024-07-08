@@ -219,7 +219,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
-    ScopedContext Active(phEventWaitList[0]->getQueue()->getDevice());
+    // Interop events don't have an associated queue, so get device through
+    // context
+    ScopedContext Active(phEventWaitList[0]->getContext()->getDevices()[0]);
 
     auto WaitFunc = [](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
