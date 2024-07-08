@@ -77,17 +77,15 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             for (auto i = 0u; i < static_cast<uint32_t>(NumDevices); ++i) {
               hipDevice_t Device;
               UR_CHECK_ERROR(hipDeviceGet(&Device, i));
-              hipCtx_t Context;
-              UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               hipEvent_t EvBase;
               UR_CHECK_ERROR(hipEventCreate(&EvBase));
 
               // Use the default stream to record base event counter
               UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
-              Platform.Devices.emplace_back(new ur_device_handle_t_{
-                  Device, Context, EvBase, &Platform, i});
+              Platform.Devices.emplace_back(
+                  new ur_device_handle_t_{Device, EvBase, &Platform, i});
 
-              ScopedContext Active(Platform.Devices.front().get());
+              ScopedDevice Active(Platform.Devices.front().get());
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
