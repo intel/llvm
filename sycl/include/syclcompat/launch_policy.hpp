@@ -41,9 +41,12 @@ namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 // Wrapper for kernel sycl_exp::properties
 template <typename Properties> struct kernel_properties {
+  static_assert(sycl_exp::is_property_list_v<Properties>);
+  using Props = Properties;
+
   template <typename... Props>
   kernel_properties(Props... properties) : props{properties...} {}
-  using Props = Properties;
+
   Properties props;
 };
 
@@ -52,9 +55,12 @@ kernel_properties(Props... props) -> kernel_properties<decltype(sycl_exp::proper
 
 // Wrapper for launch sycl_exp::properties
 template <typename Properties> struct launch_properties {
+  static_assert(sycl_exp::is_property_list_v<Properties>);
+  using Props = Properties;
+
   template <typename... Props>
   launch_properties(Props... properties) : props{properties...} {}
-  using Props = Properties;
+
   Properties props;
 };
 
@@ -63,8 +69,7 @@ launch_properties(Props... props) -> launch_properties<decltype(sycl_exp::proper
 
 // Wrapper for local memory size
 struct local_mem_size {
-  local_mem_size(size_t size) : size{size} {};
-  local_mem_size() : size{} {};
+  local_mem_size(size_t size = 0) : size{size} {};
   size_t size;
 };
 
