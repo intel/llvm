@@ -802,11 +802,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
     bool Supported = false;
     CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
         cl_adapter::cast<cl_device_id>(hDevice),
         {"cl_intel_program_scope_host_pipe"}, Supported));
+    return ReturnValue(Supported);
+  }
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT: {
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_global_variable_access"}, Supported));
     return ReturnValue(Supported);
   }
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
@@ -842,7 +852,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     /* CL type: cl_bool
      * UR type: ur_bool_t */
@@ -975,6 +984,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UUID);
   }
 
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+    return ReturnValue(false);
+  }
   /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in

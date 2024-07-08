@@ -29,6 +29,8 @@ void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
 }
 
 hipStream_t ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
+  if (getThreadLocalStream() != hipStream_t{0})
+    return getThreadLocalStream();
   uint32_t Stream_i;
   uint32_t Token;
   while (true) {
@@ -63,7 +65,9 @@ hipStream_t ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
 
 hipStream_t ur_queue_handle_t_::getNextComputeStream(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_stream_quard &Guard, uint32_t *StreamToken) {
+    ur_stream_guard &Guard, uint32_t *StreamToken) {
+  if (getThreadLocalStream() != hipStream_t{0})
+    return getThreadLocalStream();
   for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
     uint32_t Token = EventWaitList[i]->getComputeStreamToken();
     if (EventWaitList[i]->getQueue() == this && canReuseStream(Token)) {
@@ -76,7 +80,7 @@ hipStream_t ur_queue_handle_t_::getNextComputeStream(
         if (StreamToken) {
           *StreamToken = Token;
         }
-        Guard = ur_stream_quard{std::move(ComputeSyncGuard)};
+        Guard = ur_stream_guard{std::move(ComputeSyncGuard)};
         hipStream_t Res = EventWaitList[i]->getStream();
         computeStreamWaitForBarrierIfNeeded(Res, Stream_i);
         return Res;
@@ -88,6 +92,8 @@ hipStream_t ur_queue_handle_t_::getNextComputeStream(
 }
 
 hipStream_t ur_queue_handle_t_::getNextTransferStream() {
+  if (getThreadLocalStream() != hipStream_t{0})
+    return getThreadLocalStream();
   if (TransferStreams.empty()) { // for example in in-order queue
     return getNextComputeStream();
   }

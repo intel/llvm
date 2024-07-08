@@ -33,6 +33,8 @@ void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
 }
 
 CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   uint32_t StreamI;
   uint32_t Token;
   while (true) {
@@ -68,6 +70,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
 CUstream ur_queue_handle_t_::getNextComputeStream(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_stream_guard_ &Guard, uint32_t *StreamToken) {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
     uint32_t Token = EventWaitList[i]->getComputeStreamToken();
     if (reinterpret_cast<ur_queue_handle_t>(EventWaitList[i]->getQueue()) ==
@@ -94,6 +98,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(
 }
 
 CUstream ur_queue_handle_t_::getNextTransferStream() {
+  if (getThreadLocalStream() != CUstream{0})
+    return getThreadLocalStream();
   if (TransferStreams.empty()) { // for example in in-order queue
     return getNextComputeStream();
   }

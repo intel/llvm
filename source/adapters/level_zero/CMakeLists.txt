@@ -19,9 +19,9 @@ if (NOT UR_LEVEL_ZERO_LOADER_LIBRARY STREQUAL "")
   file(COPY ${UR_LEVEL_ZERO_LOADER_LIBRARY} DESTINATION ${LEVEL_ZERO_COPY_DIR} FOLLOW_SYMLINK_CHAIN)
 endif()
 if (NOT UR_LEVEL_ZERO_INCLUDE_DIR STREQUAL "")
-  set(LEVEL_ZERO_INCLUDE_DIR ${LEVEL_ZERO_COPY_DIR}/level_zero)
+  set(LEVEL_ZERO_INCLUDE_DIR ${LEVEL_ZERO_COPY_DIR})
   message(STATUS "Level Zero Adapter: Copying Level Zero headers to local build tree")
-  file(COPY ${UR_LEVEL_ZERO_INCLUDE_DIR}/level_zero DESTINATION ${LEVEL_ZERO_COPY_DIR})
+  file(COPY ${UR_LEVEL_ZERO_INCLUDE_DIR}/ DESTINATION ${LEVEL_ZERO_COPY_DIR})
 endif()
 
 if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
@@ -42,7 +42,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
     endif()
     if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
-        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.0)
+        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.6)
     endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
@@ -110,12 +110,16 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_factory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
@@ -125,10 +129,12 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
 )
 
 if(NOT WIN32)

@@ -21,7 +21,7 @@ TEST_P(urCudaEventGetNativeHandleTest, Success) {
                                           0, buffer_size, 0, nullptr,
                                           event.ptr()));
 
-    ur_native_handle_t native_event = nullptr;
+    ur_native_handle_t native_event = 0;
     ASSERT_SUCCESS(urEventGetNativeHandle(event, &native_event));
     CUevent cuda_event = reinterpret_cast<CUevent>(native_event);
 

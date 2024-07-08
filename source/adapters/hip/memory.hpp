@@ -437,6 +437,3 @@ struct ur_mem_handle_t_ {
     }
   }
 };
-
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
-                                          const ur_device_handle_t);

@@ -225,6 +225,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,               ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 226,         ///< Enumerator for ::urBindlessImagesImportExternalMemoryExp
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,      ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
+    UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -281,6 +282,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,               ///< ::ur_exp_sampler_cubemap_properties_t
+    UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,        ///< ::ur_exp_enqueue_native_command_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -392,7 +394,7 @@ typedef struct ur_queue_handle_t_ *ur_queue_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a native object
-typedef struct ur_native_handle_t_ *ur_native_handle_t;
+typedef uintptr_t ur_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a Sampler object
@@ -479,7 +481,8 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 55,                            ///< [Validation] image format is not supported by the device
     UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 56,                               ///< [Validation] native binary is not supported by the device
     UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 57,                                 ///< [Validation] global variable is not found in the program
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 58,                               ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE = 58,                      ///< [Validation] function name is in the program but its address could not
+                                                                              ///< be determined
     UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 59,                        ///< [Validation] group size dimension is not valid for the kernel or
                                                                               ///< device
     UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 60,                      ///< [Validation] global width dimension is not valid for the kernel or
@@ -619,7 +622,7 @@ urLoaderConfigRetain(
 ///         + `NULL == hLoaderConfig`
 UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigRelease(
-    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+    ur_loader_config_handle_t hLoaderConfig ///< [in][release] config handle to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -842,7 +845,7 @@ urAdapterGet(
 ///         + `NULL == hAdapter`
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1595,10 +1598,14 @@ typedef enum ur_device_info_t {
                                                                      ///< this composite device.
     UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                           ///< [::ur_device_handle_t] The composite device containing this component
                                                                      ///< device.
+    UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT = 118,                    ///< [::ur_bool_t] return true if the device supports the
+                                                                     ///< `EnqueueDeviceGlobalVariableWrite` and
+                                                                     ///< `EnqueueDeviceGlobalVariableRead` entry points.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,       ///< [::ur_bool_t] Returns true if the device supports updating the kernel
                                                                      ///< commands in a command-buffer.
+    UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,                      ///< [::ur_bool_t] return true if enqueue Cluster Launch is supported
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,             ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                      ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001,  ///< [::ur_bool_t] returns true if the device supports the creation of
@@ -1648,6 +1655,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 3D sampled image data.
     UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
+    UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,      ///< [::ur_bool_t] returns true if the device supports enqueueing of native
+                                                                     ///< work
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1673,7 +1682,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1755,7 +1764,7 @@ urDeviceRetain(
 ///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t hDevice ///< [in][release] handle of the device to release.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2262,7 +2271,7 @@ typedef enum ur_context_info_t {
 ///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t hContext ///< [in][release] handle of the context to release.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2551,8 +2560,8 @@ typedef struct ur_image_desc_t {
     size_t arraySize;          ///< [in] image array size
     size_t rowPitch;           ///< [in] image row pitch
     size_t slicePitch;         ///< [in] image slice pitch
-    uint32_t numMipLevel;      ///< [in] number of MIP levels
-    uint32_t numSamples;       ///< [in] number of samples
+    uint32_t numMipLevel;      ///< [in] number of MIP levels, must be `0`
+    uint32_t numSamples;       ///< [in] number of samples, must be `0`
 
 } ur_image_desc_t;
 
@@ -2596,6 +2605,10 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && pImageDesc->numMipLevel != 0`
+///         + `pImageDesc && pImageDesc->numSamples != 0`
+///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
+///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -2748,7 +2761,7 @@ urMemRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t hMem ///< [in][release] handle of the memory object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2820,6 +2833,8 @@ urMemBufferPartition(
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid device handle to return the
+///       native mem handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2828,7 +2843,7 @@ urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///         + `NULL == hDevice`
+///         + If `hDevice == NULL` and the implementation requires a valid device.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -2836,7 +2851,8 @@ urMemBufferPartition(
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(
     ur_mem_handle_t hMem,           ///< [in] handle of the mem.
-    ur_device_handle_t hDevice,     ///< [in] handle of the device that the native handle will be resident on.
+    ur_device_handle_t hDevice,     ///< [in][optional] handle of the device that the native handle will be
+                                    ///< resident on.
     ur_native_handle_t *phNativeMem ///< [out] a pointer to the native handle of the mem.
 );
 
@@ -3137,7 +3153,7 @@ urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(
-    ur_sampler_handle_t hSampler ///< [in] handle of the sampler object to release
+    ur_sampler_handle_t hSampler ///< [in][release] handle of the sampler object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3696,7 +3712,7 @@ urUSMPoolRetain(
 ///         + `NULL == pPool`
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4045,7 +4061,7 @@ urPhysicalMemRetain(
 ///         + `NULL == hPhysicalMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRelease(
-    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to release.
+    ur_physical_mem_handle_t hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 );
 
 #if !defined(__GNUC__)
@@ -4338,7 +4354,7 @@ urProgramRetain(
 ///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t hProgram ///< [in][release] handle for the Program to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4347,8 +4363,8 @@ urProgramRelease(
 /// @details
 ///     - Retrieves a pointer to the functions with the given name and defined
 ///       in the given program.
-///     - ::UR_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function
-///       can not be obtained.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the
+///       function can not be obtained.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
@@ -4368,6 +4384,10 @@ urProgramRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFunctionName`
 ///         + `NULL == ppFunctionPointer`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
+///         + If `pFunctionName` couldn't be found in `hProgram`.
+///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
+///         + If `pFunctionName` could be located, but its address couldn't be retrieved.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetFunctionPointer(
     ur_device_handle_t hDevice,   ///< [in] handle of the device to retrieve pointer for.
@@ -4769,7 +4789,7 @@ urKernelSetArgLocal(
 /// @brief Get Kernel object information
 typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< [char[]] Return null-terminated kernel function name.
-    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [size_t] Return Kernel number of arguments.
+    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [uint32_t] Return Kernel number of arguments.
     UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
                                         ///< The reference count returned should be considered immediately stale.
                                         ///< It is unsuitable for general use in applications. This feature is
@@ -4985,7 +5005,7 @@ urKernelRetain(
 ///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t hKernel ///< [in][release] handle for the Kernel to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5496,7 +5516,7 @@ urQueueRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t hQueue ///< [in][release] handle of the queue object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5683,6 +5703,7 @@ typedef enum ur_command_t {
     UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
     UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
     UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,      ///< Event created by ::urEnqueueTimestampRecordingExp
+    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,           ///< Event created by ::urEnqueueNativeCommandExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5884,7 +5905,7 @@ urEventRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7530,7 +7551,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7555,7 +7576,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7615,7 +7636,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext,       ///< [in] handle of the context object
     ur_device_handle_t hDevice,         ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hImageMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7829,7 +7850,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7920,7 +7941,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext,           ///< [in] handle of the context object
     ur_device_handle_t hDevice,             ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t hInteropMem ///< [in] handle of interop memory to be freed
+    ur_exp_interop_mem_handle_t hInteropMem ///< [in][release] handle of interop memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7976,7 +7997,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext,                       ///< [in] handle of the context object
     ur_device_handle_t hDevice,                         ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+    ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8250,7 +8271,7 @@ urCommandBufferRetainExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in][release] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8798,7 +8819,7 @@ urCommandBufferRetainCommandExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in][release] Handle of the command-buffer command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9495,6 +9516,80 @@ urUsmP2PPeerAccessGetInfoExp(
                                       ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                       ///< pPropValue is not used.
     size_t *pPropSizeRet              ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for enqueuing work through native APIs
+#if !defined(__GNUC__)
+#pragma region native enqueue(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Native enqueue properties
+typedef uint32_t ur_exp_enqueue_native_command_flags_t;
+typedef enum ur_exp_enqueue_native_command_flag_t {
+    UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_TBD = UR_BIT(0), ///< reserved for future use.
+    /// @cond
+    UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_enqueue_native_command_flag_t;
+/// @brief Bit Mask for validating ur_exp_enqueue_native_command_flags_t
+#define UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Native enqueue properties
+typedef struct ur_exp_enqueue_native_command_properties_t {
+    ur_structure_type_t stype;                   ///< [in] type of this structure, must be
+                                                 ///< ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES
+    void *pNext;                                 ///< [in,out][optional] pointer to extension-specific structure
+    ur_exp_enqueue_native_command_flags_t flags; ///< [in] native enqueue flags
+
+} ur_exp_enqueue_native_command_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function enqueueing work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_enqueue_native_command_function_t)(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pUserData           ///< [in][out] pointer to data to be passed to callback
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Immediately enqueue work through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeEnqueue`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue,                                      ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t pfnNativeEnqueue,     ///< [in] function calling the native underlying API, to be executed
+                                                                   ///< immediately.
+    void *data,                                                    ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList,                                     ///< [in] size of the mem list
+    const ur_mem_handle_t *phMemList,                              ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                                                                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+                                                                   ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+                                                                   ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList,                                  ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,                      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                   ///< events that must be complete before the kernel execution.
+                                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *phEvent                                     ///< [in,out] return an event object that identifies the work that has
+                                                                   ///< been enqueued in nativeEnqueueFunc.
 );
 
 #if !defined(__GNUC__)
@@ -10915,6 +11010,22 @@ typedef struct ur_enqueue_timestamp_recording_exp_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_timestamp_recording_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueNativeCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_native_command_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_exp_enqueue_native_command_function_t *ppfnNativeEnqueue;
+    void **pdata;
+    uint32_t *pnumMemsInMemList;
+    const ur_mem_handle_t **pphMemList;
+    const ur_exp_enqueue_native_command_properties_t **ppProperties;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_native_command_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesUnsampledImageHandleDestroyExp

@@ -130,9 +130,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
                      ur_native_handle_t *phNativeMem) {
+  UR_ASSERT(Device != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   try {
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-        std::get<BufferMem>(hMem->Mem).getPtr(Device));
+    *phNativeMem = std::get<BufferMem>(hMem->Mem).getPtr(Device);
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -207,16 +207,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
   UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_ARRAY,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->numMipLevel == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->numSamples == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  if (!pHost) {
-    UR_ASSERT(pImageDesc->rowPitch == 0,
-              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-    UR_ASSERT(pImageDesc->slicePitch == 0,
-              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  }
 
   // We only support RBGA channel order
   // TODO: check SYCL CTS and spec. May also have to support BGRA

@@ -84,7 +84,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRelease
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -611,7 +611,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceRelease
 __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t
+        hDevice ///< [in][release] handle of the device to release.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -887,7 +888,8 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t
+        hContext ///< [in][release] handle of the context to release.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1191,7 +1193,8 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRelease
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t
+        hMem ///< [in][release] handle of the memory object to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1259,7 +1262,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_device_handle_t
-        hDevice, ///< [in] handle of the device that the native handle will be resident on.
+        hDevice, ///< [in][optional] handle of the device that the native handle will be
+                 ///< resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -1276,7 +1280,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     hMem = reinterpret_cast<ur_mem_object_t *>(hMem)->handle;
 
     // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
 
     // forward to device-platform
     result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
@@ -1546,7 +1552,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 /// @brief Intercept function for urSamplerRelease
 __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to release
+        hSampler ///< [in][release] handle of the sampler object to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1980,7 +1986,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRelease
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -2368,7 +2374,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
 /// @brief Intercept function for urPhysicalMemRelease
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to release.
+        hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -2613,7 +2619,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRelease
 __urdlllocal ur_result_t UR_APICALL urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t
+        hProgram ///< [in][release] handle for the Program to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3202,7 +3209,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t UR_APICALL urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t
+        hKernel ///< [in][release] handle for the Kernel to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3647,7 +3655,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRelease
 __urdlllocal ur_result_t UR_APICALL urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t
+        hQueue ///< [in][release] handle of the queue object to release
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3954,7 +3963,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRelease
 __urdlllocal ur_result_t UR_APICALL urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5809,7 +5818,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5843,7 +5852,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5922,7 +5931,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+        hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6216,9 +6225,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6350,7 +6360,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6434,7 +6444,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6683,7 +6693,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 /// @brief Intercept function for urCommandBufferReleaseExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][release] Handle of the command-buffer object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7428,7 +7438,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 /// @brief Intercept function for urCommandBufferReleaseCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][release] Handle of the command-buffer command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8096,6 +8106,78 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_enqueue_native_command_function_t
+        pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
+                          ///< immediately.
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies the work that has
+                ///< been enqueued in nativeEnqueueFunc.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnNativeCommandExp = dditable->ur.EnqueueExp.pfnNativeCommandExp;
+    if (nullptr == pfnNativeCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handles to platform handles
+    auto phMemListLocal = std::vector<ur_mem_handle_t>(numMemsInMemList);
+    for (size_t i = 0; i < numMemsInMemList; ++i) {
+        phMemListLocal[i] =
+            reinterpret_cast<ur_mem_object_t *>(phMemList[i])->handle;
+    }
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemListLocal.data(),
+        pProperties, numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phEvent = reinterpret_cast<ur_event_handle_t>(
+            ur_event_factory.getInstance(*phEvent, dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
 } // namespace ur_loader
 
 #if defined(__cplusplus)
@@ -8535,6 +8617,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
                 ur_loader::urEnqueueCooperativeKernelLaunchExp;
             pDdiTable->pfnTimestampRecordingExp =
                 ur_loader::urEnqueueTimestampRecordingExp;
+            pDdiTable->pfnNativeCommandExp =
+                ur_loader::urEnqueueNativeCommandExp;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =

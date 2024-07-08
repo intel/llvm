@@ -884,7 +884,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_quard Guard;
+    ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
