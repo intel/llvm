@@ -19,7 +19,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/properties/context_properties.hpp>
 #include <sycl/property_list.hpp>
 
 #include <algorithm>
@@ -61,21 +60,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  if (getBackend() == backend::ext_oneapi_cuda) {
-    const bool UseCUDAPrimaryContext = MPropList.has_property<
-        ext::oneapi::cuda::property::context::use_primary_context>();
-    const pi_context_properties Props[] = {
-        static_cast<pi_context_properties>(
-            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
-        static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
-
-    getPlugin()->call<PiApiKind::piContextCreate>(
-        Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
-  } else {
-    getPlugin()->call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
-                                                  DeviceIds.data(), nullptr,
-                                                  nullptr, &MContext);
-  }
+  getPlugin()->call<PiApiKind::piContextCreate>(
+      nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 
   MKernelProgramCache.setContextPtr(this);
 }
