@@ -80,29 +80,18 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-/// TODO: Unused. Remove with ABI break.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool)
-    : handler(Queue, false, /*CallerNeedsEvent=*/true) {}
-
-/// TODO: Unused. Remove with ABI break.
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool)
-    : handler(Queue, PrimaryQueue, SecondaryQueue, false,
-              /*CallerNeedsEvent=*/true) {}
-
-handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, false, CallerNeedsEvent) {}
+    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool CallerNeedsEvent)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue),
                                                    CallerNeedsEvent)),
-      MQueue(std::move(Queue)), MIsHost(false) {}
+      MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -967,6 +956,15 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setType(detail::CG::FillUSM);
+}
+
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
                                        const void *Src, size_t SrcPitch,
                                        size_t Width, size_t Height) {
@@ -997,7 +995,7 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                        size_t Width, size_t Height) {
   // Checks done in callers.
   MDstPtr = Dest;
-  MPattern.push_back(static_cast<char>(Value));
+  MPattern.push_back(static_cast<unsigned char>(Value));
   MImpl->MDstPitch = DestPitch;
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;
@@ -1623,6 +1621,13 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   range<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                        Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
+}
+
+backend handler::getDeviceBackend() const {
+  if (MGraph)
+    return MGraph->getDevice().get_backend();
+  else
+    return MQueue->getDeviceImplPtr()->getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,

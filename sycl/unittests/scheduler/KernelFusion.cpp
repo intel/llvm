@@ -22,7 +22,7 @@ template <typename T, int Dim>
 detail::Command *CreateTaskCommand(MockScheduler &MS,
                                    detail::QueueImplPtr DevQueue,
                                    buffer<T, Dim> &buf) {
-  MockHandlerCustomFinalize MockCGH(DevQueue, false,
+  MockHandlerCustomFinalize MockCGH(DevQueue,
                                     /*CallerNeedsEvent=*/true);
 
   auto acc = buf.get_access(static_cast<sycl::handler &>(MockCGH));

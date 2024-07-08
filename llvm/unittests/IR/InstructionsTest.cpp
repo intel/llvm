@@ -25,11 +25,14 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm-c/Core.h"
 #include "gmock/gmock-matchers.h"
 #include "gtest/gtest.h"
 #include <memory>
+
+extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
 
 namespace llvm {
 namespace {
@@ -1459,6 +1462,8 @@ TEST(InstructionsTest, GetSplat) {
 
 TEST(InstructionsTest, SkipDebug) {
   LLVMContext C;
+  bool OldDbgValueMode = UseNewDbgInfoFormat;
+  UseNewDbgInfoFormat = false;
   std::unique_ptr<Module> M = parseIR(C,
                                       R"(
       declare void @llvm.dbg.value(metadata, metadata, metadata)
@@ -1494,6 +1499,7 @@ TEST(InstructionsTest, SkipDebug) {
 
   // After the terminator, there are no non-debug instructions.
   EXPECT_EQ(nullptr, Term->getNextNonDebugInstruction());
+  UseNewDbgInfoFormat = OldDbgValueMode;
 }
 
 TEST(InstructionsTest, PhiMightNotBeFPMathOperator) {

@@ -2980,18 +2980,32 @@ argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
 **parallel_for** in SYCL. This allows the compiler to optimize the
 generated code appropriately for the kernel to which attribute is applied.
 
-While semantic of this attribute is the same between OpenCL and SYCL,
-spelling is a bit different: 
+The arguments to ``reqd_work_group_size`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest. In SYCL, the last argument is the index that increments
+the fastest.
 
-SYCL 2020 describes the ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling
-in detail. This attribute indicates that the kernel must be launched with the
-specified work-group size. The order of the arguments matches the constructor
-of the group class. Each argument to the attribute must be an integral constant
-expression. The dimensionality of the attribute variant used must match the
-dimensionality of the work-group used to invoke the kernel. This spelling
-allows the Y and Z arguments to be optional. If not provided by the user, the
-value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
-details.
+In OpenCL C, this attribute is available with the GNU spelling
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``) and all three arguments
+are required. See section 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2
+specification for details.
+
+.. code-block:: c++
+
+  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest. The
+number of arguments passed to the attribute must match the dimensionality of
+the kernel the attribute is applied to.
+
+SYCL 2020 describes the ``[[sycl::reqd_work_group_size(dim0, dim1, dim2)]]``
+spelling in detail. This attribute indicates that the kernel must be launched
+with the specified work-group size. The order of the arguments matches the
+constructor of the ``range`` class. Each argument to the attribute must be an
+integral constant expression. The dimensionality of the attribute variant used
+must match the dimensionality of the work-group used to invoke the kernel. See
+section 5.8.1 Kernel Attributes for more details.
 
 In SYCL 1.2.1 mode, the ``cl::reqd_work_group_size`` and
 ``sycl::reqd_work_group_size`` attributes are propagated from the function they
@@ -3016,18 +3030,9 @@ attributes are not propagated to the kernel.
   template <int N, int N1, int N2>
   [[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
 
-The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
-``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
+The ``[[cl::reqd_work_group_size(dim0, dim1, dim2)]]`` and
+``__attribute__((reqd_work_group_size(dim0, dim1, dim2)))`` spellings are both
 deprecated in SYCL 2020.
-
-In OpenCL C, this attribute is available with the GNU spelling
-(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
-6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
-
-.. code-block:: c++
-
-  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
-
   }];
 }
 
@@ -3041,6 +3046,15 @@ unsigned. The number of dimensional values defined provide additional
 information to the compiler on the dimensionality most likely to be used when
 launching the kernel at runtime.
 
+The arguments to ``work_group_size_hint`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest. In SYCL, the last argument is the index that increments
+the fastest.
+
+In OpenCL C, this attribute is available with the GNU spelling
+(``__attribute__((work_group_size_hint(X, Y, Z)))``) and all three arguments
+are required.
+
 The GNU spelling is deprecated in SYCL mode.
 
 .. code-block:: c++
@@ -3051,15 +3065,6 @@ The GNU spelling is deprecated in SYCL mode.
   public:
     [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
   };
-
-The arguments to ``work_group_size_hint`` are ordered based on which index
-increments the fastest. In OpenCL, the first argument is the index that
-increments the fastest, and in SYCL, the last argument is the index that
-increments the fastest.
-
-In OpenCL C, this attribute is available with the GNU spelling
-(``__attribute__((work_group_size_hint(X, Y, Z)))``) and all 
-three arguments are required.
 
 In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest. The
@@ -3077,9 +3082,11 @@ def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
   let Heading = "intel::max_work_group_size";
   let Content = [{
 Applies to a device function/lambda function. Indicates the maximum dimensions
-of a work group. Values must be positive integers. This is similar to
-reqd_work_group_size, but allows work groups that are smaller or equal to the
-specified sizes.
+of a work group. Values must be positive integers. This attribute behaves
+similarly to ``reqd_work_group_size``, but allows work groups that are smaller
+or equal to the specified sizes. The dimensionality behaves the same as with
+the SYCL ``reqd_work_group_size`` attribute, but *all* dimensions must be
+provided.
 
 In SYCL 1.2.1 mode, the ``intel::max_work_group_size`` attribute is propagated
 from the function it is applied to onto the kernel which calls the function.
@@ -7364,18 +7371,22 @@ experimental at this time.
 def PreserveNoneDocs : Documentation {
   let Category = DocCatCallingConvs;
   let Content = [{
-On X86-64 target, this attribute changes the calling convention of a function.
+On X86-64 and AArch64 targets, this attribute changes the calling convention of a function.
 The ``preserve_none`` calling convention tries to preserve as few general
 registers as possible. So all general registers are caller saved registers. It
 also uses more general registers to pass arguments. This attribute doesn't
-impact floating-point registers (XMMs/YMMs). Floating-point registers still
-follow the c calling convention. ``preserve_none``'s ABI is still unstable, and
+impact floating-point registers. ``preserve_none``'s ABI is still unstable, and
 may be changed in the future.
 
-- Only RSP and RBP are preserved by callee.
-
-- Register R12, R13, R14, R15, RDI, RSI, RDX, RCX, R8, R9, R11, and RAX now can
-  be used to pass function arguments.
+- On X86-64, only RSP and RBP are preserved by the callee.
+  Registers R12, R13, R14, R15, RDI, RSI, RDX, RCX, R8, R9, R11, and RAX now can
+  be used to pass function arguments. Floating-point registers (XMMs/YMMs) still
+  follow the C calling convention.
+- On AArch64, only LR and FP are preserved by the callee.
+  Registers X20-X28, X0-X7, and X9-X14 are used to pass function arguments.
+  X8, X16-X19, SIMD and floating-point registers follow the AAPCS calling
+  convention. X15 is not available for argument passing on Windows, but is
+  used to pass arguments on other platforms.
   }];
 }
 
@@ -9807,3 +9818,72 @@ Attribute used by `clspv`_ (OpenCL-C to Vulkan SPIR-V compiler) to identify func
 .. _`libclc`: https://libclc.llvm.org
 }];
 }
+
+def DocCatNonBlockingNonAllocating : DocumentationCategory<"Performance Constraint Attributes"> {
+  let Content = [{
+The ``nonblocking``, ``blocking``, ``nonallocating`` and ``allocating`` attributes can be attached
+to function types, including blocks, C++ lambdas, and member functions. The attributes declare
+constraints about a function's behavior pertaining to blocking and heap memory allocation.
+
+There are several rules for function types with these attributes, enforced with
+compiler warnings:
+
+- When assigning or otherwise converting to a function pointer of ``nonblocking`` or
+  ``nonallocating`` type, the source must also be a function or function pointer of
+  that type, unless it is a null pointer, i.e. the attributes should not be "spoofed". Conversions
+  that remove the attributes are transparent and valid.
+
+- An override of a ``nonblocking`` or ``nonallocating`` virtual method must also be declared
+  with that same attribute (or a stronger one.) An overriding method may add an attribute.
+
+- A redeclaration of a ``nonblocking`` or ``nonallocating`` function must also be declared with
+  the same attribute (or a stronger one). A redeclaration may add an attribute.
+
+The warnings are controlled by ``-Wfunction-effects``, which is enabled by default.
+
+In a future commit, the compiler will diagnose function calls from ``nonblocking`` and ``nonallocating``
+functions to other functions which lack the appropriate attribute.
+  }];
+}
+
+def NonBlockingDocs : Documentation {
+  let Category = DocCatNonBlockingNonAllocating;
+  let Heading = "nonblocking";
+  let Content = [{
+Declares that a function or function type either does or does not block in any way, according
+to the optional, compile-time constant boolean argument, which defaults to true. When the argument
+is false, the attribute is equivalent to ``blocking``.
+
+For the purposes of diagnostics, ``nonblocking`` is considered to include the
+``nonallocating`` guarantee and is therefore a "stronger" constraint or attribute.
+  }];
+}
+
+def NonAllocatingDocs : Documentation {
+  let Category = DocCatNonBlockingNonAllocating;
+  let Heading = "nonallocating";
+  let Content = [{
+Declares that a function or function type either does or does not allocate heap memory, according
+to the optional, compile-time constant boolean argument, which defaults to true. When the argument
+is false, the attribute is equivalent to ``allocating``.
+  }];
+}
+
+def BlockingDocs : Documentation {
+  let Category = DocCatNonBlockingNonAllocating;
+  let Heading = "blocking";
+  let Content = [{
+Declares that a function potentially blocks, and prevents any potential inference of ``nonblocking``
+by the compiler.
+  }];
+}
+
+def AllocatingDocs : Documentation {
+  let Category = DocCatNonBlockingNonAllocating;
+  let Heading = "allocating";
+  let Content = [{
+Declares that a function potentially allocates heap memory, and prevents any potential inference
+of ``nonallocating`` by the compiler.
+  }];
+}
+

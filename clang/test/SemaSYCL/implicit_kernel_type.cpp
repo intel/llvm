@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s -Werror=sycl-strict -DERROR
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s  -Wsycl-strict -DWARN
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s  -Werror=sycl-strict -DERROR
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -verify %s -Werror=sycl-strict -DERROR
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -verify %s  -Wsycl-strict -DWARN
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify %s -Werror=sycl-strict -DERROR
 
 // This test verifies that incorrect kernel names are diagnosed correctly.
 

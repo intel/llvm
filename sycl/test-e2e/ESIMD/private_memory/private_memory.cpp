@@ -66,7 +66,7 @@ ESIMD_NOINLINE bool test(queue Q, int PrivateArrayLen) {
            for (int I = 0; I < ArrayLen; I++) {
              simd<int, 1> IV(static_cast<int>(Id) * PrivateArrayLen + I);
              simd<T, 1> TV = IV;
-             TV.template copy_to(PrivateArray + I);
+             TV.template copy_to<sizeof(T)>(PrivateArray + I);
            }
 
            simd<T, PrivateArrayLenConst> BigVec(PrivateArray);

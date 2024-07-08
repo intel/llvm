@@ -61,12 +61,12 @@ inline pi_result redefined_piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *,
   return PI_SUCCESS;
 }
 
-thread_local size_t counter_piextUSMEnqueueMemset = 0;
-inline pi_result redefined_piextUSMEnqueueMemset(pi_queue, void *, pi_int32,
-                                                 size_t, pi_uint32,
-                                                 const pi_event *,
-                                                 pi_event *event) {
-  ++counter_piextUSMEnqueueMemset;
+thread_local size_t counter_piextUSMEnqueueFill = 0;
+inline pi_result redefined_piextUSMEnqueueFill(pi_queue, void *, const void *,
+                                               size_t, size_t, pi_uint32,
+                                               const pi_event *,
+                                               pi_event *event) {
+  ++counter_piextUSMEnqueueFill;
   EXPECT_EQ(event, nullptr);
   return PI_SUCCESS;
 }
@@ -112,7 +112,7 @@ protected:
   void SetUp() override {
     counter_piEnqueueKernelLaunch = 0;
     counter_piextUSMEnqueueMemcpy = 0;
-    counter_piextUSMEnqueueMemset = 0;
+    counter_piextUSMEnqueueFill = 0;
     counter_piextUSMEnqueuePrefetch = 0;
     counter_piextUSMEnqueueMemAdvise = 0;
     counter_piEnqueueEventsWaitWithBarrier = 0;
@@ -362,8 +362,8 @@ TEST_F(EnqueueFunctionsEventsTests, CopyShortcutNoEvent) {
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitMemsetNoEvent) {
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefined_piextUSMEnqueueMemset);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
+      redefined_piextUSMEnqueueFill);
 
   constexpr size_t N = 1024;
   int *Dst = malloc_shared<int>(N, Q);
@@ -372,21 +372,21 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemsetNoEvent) {
     oneapiext::memset(CGH, Dst, int{1}, sizeof(int) * N);
   });
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemset, size_t{1});
+  ASSERT_EQ(counter_piextUSMEnqueueFill, size_t{1});
 
   free(Dst, Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, MemsetShortcutNoEvent) {
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefined_piextUSMEnqueueMemset);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
+      redefined_piextUSMEnqueueFill);
 
   constexpr size_t N = 1024;
   int *Dst = malloc_shared<int>(N, Q);
 
   oneapiext::memset(Q, Dst, 1, sizeof(int) * N);
 
-  ASSERT_EQ(counter_piextUSMEnqueueMemset, size_t{1});
+  ASSERT_EQ(counter_piextUSMEnqueueFill, size_t{1});
 
   free(Dst, Q);
 }

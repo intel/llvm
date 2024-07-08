@@ -29,7 +29,7 @@ queue q;
 [[sycl::device_has()]] void func3() {}
 
 // CHECK: FunctionDecl {{.*}} used func4 'void ()'
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
@@ -75,8 +75,8 @@ void func5() {}
 
 // CHECK: FunctionDecl {{.*}} func7 'void ()'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
-// CHECK-NEXT: TemplateArgument integral 2
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::gpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
@@ -90,7 +90,7 @@ void func5() {}
 
 // CHECK: FunctionDecl {{.*}} func7 'void ()'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
@@ -111,9 +111,9 @@ template <sycl::aspect... Asp>
 // CHECK-NEXT: DeclRefExpr {{.*}} NonTypeTemplateParm {{.*}} 'AspPack' 'sycl::aspect'
 
 // CHECK-NEXT: FunctionDecl {{.*}} func8
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'

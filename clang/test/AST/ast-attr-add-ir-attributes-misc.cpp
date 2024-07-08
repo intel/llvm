@@ -173,7 +173,7 @@ class SubClass2 : BaseClass1 {};
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:   TemplateArgument type 'float'
 // CHECK-NEXT:     BuiltinType {{.*}} 'float'
-// CHECK-NEXT:   TemplateArgument integral 3
+// CHECK-NEXT:   TemplateArgument integral '3'
 // CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:       value: LValue
@@ -224,7 +224,7 @@ class SubClass2 : BaseClass1 {};
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:   TemplateArgument type 'bool'
 // CHECK-NEXT:     BuiltinType {{.*}} 'bool'
-// CHECK-NEXT:   TemplateArgument integral 2
+// CHECK-NEXT:   TemplateArgument integral '2'
 // CHECK-NEXT:   CXXRecordDecl {{.*}} implicit struct TemplateClass1
 // CHECK-NEXT:   CXXMethodDecl {{.*}} TemplateClassMethod 'void (int)'
 // CHECK-NEXT:     ParmVarDecl {{.*}} 'int'

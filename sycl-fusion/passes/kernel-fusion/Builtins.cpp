@@ -6,6 +6,7 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/PassManagerImpl.h"
 #include "llvm/Support/ModRef.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 

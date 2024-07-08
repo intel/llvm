@@ -122,7 +122,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_BINARY;
   case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
     return PI_ERROR_INVALID_VALUE;
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
     return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
   case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
     return PI_ERROR_INVALID_WORK_DIMENSION;
@@ -2453,18 +2453,8 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    size_t NumArgs = 0;
-    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
-                                  sizeof(NumArgs), &NumArgs, nullptr));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = sizeof(uint32_t);
-    }
-    if (ParamValue) {
-      if (ParamValueSize != sizeof(uint32_t))
-        return PI_ERROR_INVALID_BUFFER_SIZE;
-      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
-    }
-    return PI_SUCCESS;
+    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
+    break;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;
@@ -3923,11 +3913,12 @@ inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   return PI_SUCCESS;
 }
 
-inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                       pi_int32 Value, size_t Count,
-                                       pi_uint32 NumEventsInWaitList,
-                                       const pi_event *EventsWaitList,
-                                       pi_event *OutEvent) {
+inline pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                     const void *Pattern, size_t PatternSize,
+                                     size_t Count,
+                                     pi_uint32 NumEventsInWaitList,
+                                     const pi_event *EventsWaitList,
+                                     pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   if (!Ptr) {
     return PI_ERROR_INVALID_VALUE;
@@ -3939,8 +3930,7 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
 
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  size_t PatternSize = 1;
-  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, Pattern, Count,
                                  NumEventsInWaitList, UrEventsWaitList,
                                  UREvent));
 

@@ -24,6 +24,8 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Attr.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -6629,4 +6631,44 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
     TSI = getASTContext().getTrivialTypeSourceInfo(Ty, LParen);
 
   return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+}
+
+void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
+  // The 'sycl_kernel' attribute applies only to function templates.
+  const auto *FD = cast<FunctionDecl>(D);
+  const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
+  assert(FT && "Function template is expected");
+
+  // Function template must have at least two template parameters so it
+  // can be used in OpenCL kernel generation.
+  const TemplateParameterList *TL = FT->getTemplateParameters();
+  if (TL->size() < 2) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
+    return;
+  }
+
+  // The first two template parameters must be typenames.
+  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
+    const NamedDecl *TParam = TL->getParam(I);
+    if (isa<NonTypeTemplateParmDecl>(TParam)) {
+      Diag(FT->getLocation(),
+           diag::warn_sycl_kernel_invalid_template_param_type);
+      return;
+    }
+  }
+
+  // Function must have at least one parameter.
+  if (getFunctionOrMethodNumParams(D) < 1) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
+    return;
+  }
+
+  // Function must return void.
+  QualType RetTy = getFunctionOrMethodResultType(D);
+  if (!RetTy->isVoidType()) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
+    return;
+  }
+
+  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
 }

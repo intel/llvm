@@ -14,7 +14,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -1450,45 +1449,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
-}
-
-void ProgramManager::flushSpecConstants(const program_impl &Prg,
-                                        sycl::detail::pi::PiProgram NativePrg,
-                                        const RTDeviceBinaryImage *Img) {
-  if (DbgProgMgr > 2) {
-    std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
-              << ",...)\n";
-  }
-  if (!Prg.hasSetSpecConstants())
-    return; // nothing to do
-  pi::PiProgram PrgHandle = Prg.getHandleRef();
-  // program_impl can't correspond to two different native programs
-  assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
-  NativePrg = NativePrg ? NativePrg : PrgHandle;
-
-  if (!Img) {
-    // caller hasn't provided the image object - find it
-    { // make sure NativePrograms map access is synchronized
-      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      auto It = NativePrograms.find(NativePrg);
-      if (It == NativePrograms.end())
-        throw sycl::exception(
-            sycl::errc::invalid,
-            "spec constant is set in a program w/o a binary image");
-      Img = It->second;
-    }
-    if (!Img->supportsSpecConstants()) {
-      if (DbgProgMgr > 0)
-        std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
-                  << &Img->getRawData() << " doesn't support spec constants\n";
-      // This device binary image does not support runtime setting of
-      // specialization constants; compiler must have generated default values.
-      // NOTE: Can't throw here, as it would always take place with AOT
-      //-compiled code. New Khronos 2020 spec should fix this inconsistency.
-      return;
-    }
-  }
-  Prg.flush_spec_constants(*Img, NativePrg);
 }
 
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {

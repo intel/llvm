@@ -237,7 +237,7 @@ protected:
   Module &getInputModule() { return Input.getModule(); }
 
   std::unique_ptr<Module> releaseInputModule() {
-    return std::move(Input.releaseModulePtr());
+    return Input.releaseModulePtr();
   }
 
 public:
@@ -274,9 +274,9 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
+void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *msg = "", int Tab = 0);
+                     const char *Msg = "", int Tab = 0);
 #endif // NDEBUG
 
 struct SplitModule {

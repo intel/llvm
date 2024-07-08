@@ -119,13 +119,6 @@ public:
   cl_device_id get() const;
 #endif
 
-  /// Check if device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
@@ -145,8 +138,7 @@ public:
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
   /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
-  /// is a host device then the SYCL platform must be a host platform.
+  /// underlying OpenCL cl_device_id of this SYCL device.
   /// The value returned must be equal to that returned by
   /// get_info<info::device::platform>().
   ///
@@ -239,9 +231,6 @@ public:
   bool has_extension(const std::string &extension_name) const;
 
   /// Query available SYCL devices
-  ///
-  /// The returned std::vector must contain a single SYCL device
-  /// that is a host device, permitted by the deviceType parameter
   ///
   /// \param deviceType is one of the values described in A.3 of SYCL Spec
   /// \return a std::vector containing all SYCL devices available in the system

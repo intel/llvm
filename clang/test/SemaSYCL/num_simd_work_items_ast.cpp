@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -sycl-std=2017 -ast-dump | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -ast-dump | FileCheck %s
 
 // The test checks AST of [[intel::num_simd_work_items()]] attribute.
 
@@ -53,8 +53,6 @@ int ver() {
   funcc<8>();
   return 0;
 }
-
-[[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intel::num_simd_work_items(42)]] void operator()() const {}
@@ -115,14 +113,6 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     h.single_task<class test_kernel2>(
         []() [[intel::num_simd_work_items(8)]] {});
-
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class test_kernel3>(
-        []() { func_do_not_ignore(); });
 
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4

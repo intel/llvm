@@ -48,8 +48,8 @@ pi_result redefinedUSMEnqueueMemcpyAfter(pi_queue, pi_bool, void *,
   return PI_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemsetAfter(pi_queue, void *, pi_int32, size_t,
-                                         pi_uint32, const pi_event *,
+pi_result redefinedUSMEnqueueMemsetAfter(pi_queue, void *, const void *, size_t,
+                                         size_t, pi_uint32, const pi_event *,
                                          pi_event *Event) {
   // Set MEMSET to the event produced by the original USMEnqueueMemcpy
   MEMSET = *Event;
@@ -64,7 +64,7 @@ TEST(USM, NoOpPreservesDependencyChain) {
       redefinedEnqueueEventsWaitAfter);
   Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueMemcpy>(
       redefinedUSMEnqueueMemcpyAfter);
-  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueFill>(
       redefinedUSMEnqueueMemsetAfter);
 
   context Ctx{Plt.get_devices()[0]};

@@ -392,10 +392,6 @@ protected:
   // allows for profiling, even if the queue does not have profiling enabled.
   bool MProfilingTagEvent = false;
 
-  friend std::vector<sycl::detail::pi::PiEvent>
-  getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                  std::shared_ptr<sycl::detail::context_impl> Context);
-
   std::atomic_bool MIsEnqueued{false};
 
   // Events constructed without a context will lazily use the default context

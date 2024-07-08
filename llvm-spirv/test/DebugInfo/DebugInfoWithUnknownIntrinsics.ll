@@ -24,7 +24,8 @@ entry:
   ret i32 %add, !dbg !17
 }
 
-; LLVM: declare void @llvm.dbg.value(metadata, metadata, metadata)
+; LLVM: #dbg_value(i32 %x, ![[#]], !DIExpression(), ![[#]])
+; LLVM: #dbg_value(i32 %y, ![[#]], !DIExpression(), ![[#]])
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 

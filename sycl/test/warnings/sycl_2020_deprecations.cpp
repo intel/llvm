@@ -183,8 +183,6 @@ int main() {
   sycl::gpu_selector gs;
   // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
   sycl::accelerator_selector as;
-  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
-  sycl::host_selector hs;
 
   // expected-warning@+1{{Use SYCL 2020 callable device selectors instead.}}
   class user_defined_device_selector : public sycl::device_selector {
@@ -201,8 +199,6 @@ int main() {
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::device ad{as};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::device hd{hs};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::device udd{uds};
 
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
@@ -214,8 +210,6 @@ int main() {
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::platform ap{as};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::platform hp{hs};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::platform udp{uds};
 
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
@@ -226,8 +220,6 @@ int main() {
   sycl::queue gq1{gs};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue aq1{as};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::queue hq1{hs};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq1{uds};
 
@@ -242,8 +234,6 @@ int main() {
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue aq2{ctx, as};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::queue hq2{ctx, hs};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq2{ctx, uds};
 
   auto ah = [](sycl::exception_list) {};
@@ -257,8 +247,6 @@ int main() {
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue aq3{as, ah};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::queue hq3{hs, ah};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq3{uds, ah};
 
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
@@ -269,8 +257,6 @@ int main() {
   sycl::queue gq4{ctx, gs, ah};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue aq4{ctx, as, ah};
-  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
-  sycl::queue hq4{ctx, hs, ah};
   // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
   sycl::queue udq4{ctx, uds, ah};
 
