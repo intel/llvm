@@ -130,8 +130,10 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueKernelLaunch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
-  auto Queue = this;
+  UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
+  auto Queue = this;
   ze_kernel_handle_t ZeKernel{};
   UR_CALL(getZeKernel(Queue, Kernel, &ZeKernel));
 
@@ -337,6 +339,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueCooperativeKernelLaunchExp(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
   auto Queue = this;
   auto ZeDevice = Queue->Device->ZeDevice;
 
