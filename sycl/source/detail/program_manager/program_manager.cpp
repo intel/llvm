@@ -732,12 +732,11 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     if (!DeviceCodeWasInCache) {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
-      // If we linked some extra device images, cache the same program for them
-      for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
-        PersistentDeviceCodeCache::putItemToDisc(Device, *BinImg, SpecConsts,
-                                                 CompileOpts + LinkOpts,
-                                                 BuiltProgram.get());
-      }
+      // Even though DeviceImagesToLink may contain device images with other
+      // kernels, we don't create extra on-disk cache entries for those (like we
+      // do for in-memory cache below) to avoid wasting disk space, because we
+      // expect the order of kernel execution within the app to be mostly stable
+      // between invocations.
     }
     return BuiltProgram.release();
   };
