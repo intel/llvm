@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This file includes some utilities that are used by image accessors on host
-// device
+// This file includes some utilities that are used by image accessors in host
+// code
 //
 
 #pragma once
@@ -447,10 +447,9 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
     // TODO: Missing information in OpenCL spec.
-    throw sycl::feature_not_supported(
-        "Currently unsupported datatype conversion from image_channel_type "
-        "to cl_half4.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Currently unsupported datatype conversion from "
+                          "image_channel_type to cl_half4.");
   case image_channel_type::signed_int8:
   case image_channel_type::signed_int16:
   case image_channel_type::signed_int32:
@@ -579,10 +578,9 @@ convertWriteData(const float4 WriteData,
     return processFloatDataToPixel<ChannelType>(WriteData, 65535.0f);
   case image_channel_type::unorm_short_565:
     // TODO: Missing information in OpenCL spec.
-    throw sycl::feature_not_supported(
-        "Currently unsupported datatype conversion from image_channel_type "
-        "to cl_float4.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Currently unsupported datatype conversion from "
+                          "image_channel_type to cl_float4.");
   case image_channel_type::unorm_short_555:
     // TODO: Missing information in OpenCL spec.
     // Check if the below code is correct after the spec is updated.
@@ -657,10 +655,9 @@ convertWriteData(const half4 WriteData,
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
     // TODO: Missing information in OpenCL spec.
-    throw sycl::feature_not_supported(
-        "Currently unsupported datatype conversion from image_channel_type "
-        "to cl_half4.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Currently unsupported datatype conversion from "
+                          "image_channel_type to cl_half4.");
   case image_channel_type::signed_int8:
   case image_channel_type::signed_int16:
   case image_channel_type::signed_int32:
@@ -685,7 +682,7 @@ convertWriteData(const half4 WriteData,
 }
 
 // imageWriteHostImpl method is called by the write API in image accessors for
-// host device. Steps:
+// host code. Steps:
 // 1. Calculates the offset from the base ptr of the image where the pixel
 // denoted by Coord is located.(getImageOffset method.)
 // 2. Converts the ptr to the appropriate datatype based on
@@ -1045,11 +1042,10 @@ DataT imageReadSamplerHostImpl(
     switch (SmplAddrMode) {
     case addressing_mode::mirrored_repeat:
     case addressing_mode::repeat:
-      throw sycl::feature_not_supported(
-          "Sampler used with unsupported configuration of "
-          "mirrored_repeat/repeat filtering mode with unnormalized "
-          "coordinates. ",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "Sampler used with unsupported configuration of "
+                            "mirrored_repeat/repeat filtering mode with "
+                            "unnormalized coordinates. ");
     case addressing_mode::clamp_to_edge:
     case addressing_mode::clamp:
     case addressing_mode::none:

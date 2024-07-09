@@ -21,13 +21,13 @@
 int main() {
   try {
     sycl::range<1> Range(32);
-    std::vector<cl_float> Data(Range.size() * 4, 0.0f);
+    std::vector<float> Data(Range.size() * 4, 0.0f);
     sycl::image<1> Image(Data.data(), sycl::image_channel_order::rgba,
                          sycl::image_channel_type::fp32, Range);
     sycl::queue Queue;
 
     Queue.submit([&](sycl::handler &CGH) {
-      sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read,
+      sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
                      sycl::access::target::image,
                      sycl::access::placeholder::false_t>
           A(Image, CGH);
@@ -35,7 +35,7 @@ int main() {
     });
     Queue.wait_and_throw();
 
-    sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read,
+    sycl::accessor<sycl::int4, 1, sycl::access::mode::read,
                    sycl::access::target::host_image,
                    sycl::access::placeholder::false_t>
         A(Image);

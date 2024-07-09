@@ -169,7 +169,8 @@ jobs:
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DSYCL_PI_TESTS=OFF"
+          --cmake-opt="-DSYCL_PI_TESTS=OFF" \
+          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build

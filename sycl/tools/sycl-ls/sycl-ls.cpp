@@ -346,6 +346,7 @@ int main(int argc, char **argv) {
   if (DiscardFilters && FilterEnvVars.size()) {
     return unsetFilterEnvVarsAndFork();
   }
+  SetErrorMode(SEM_FAILCRITICALERRORS); // no need to restore in sycl-ls
 #endif
 
   try {
