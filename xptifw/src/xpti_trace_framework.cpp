@@ -14,8 +14,8 @@
 /// metrics and events.
 
 #include "xpti/xpti_trace_framework.hpp"
-#include "emhash/hash_set8.hpp"
 #include "emhash/hash_table7.hpp"
+#include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
@@ -599,13 +599,13 @@ public:
   ///
   /// This type alias represents a hash map designed to efficiently associate
   /// 128-bit unique identifiers (UIDs) with their corresponding tracepoint
-  /// instances. The `emhash7::HashMap` is utilized for its performance
+  /// instances. The `phmap::node_hash_map` is utilized for its performance
   /// characteristics, including efficient handling of hash collisions and
   /// optimized insertions and lookups. This mapping is crucial within the trace
   /// framework for organizing and accessing tracepoint instances by their UIDs,
   /// facilitating quick updates, retrievals, and management of tracepoint data
   /// across the system.
-  using uid_tracepoints_lut = emhash7::HashMap<uid128_t, uid_instances_t>;
+  using uid_tracepoints_lut = phmap::flat_hash_map<uid128_t, uid_instances_t>;
 
   /// @typedef uid64_validity_lut
   /// @brief Represents a set for tracking the validity of 64-bit unique
@@ -614,11 +614,11 @@ public:
   /// This type alias defines a flat hash set optimized for fast lookup,
   /// insertion, and deletion operations. It is used within the trace framework
   /// to maintain a collection of 64-bit UIDs that have been validated or are
-  /// known to be in use. The `emhash8::HashSet` is chosen for its
+  /// known to be in use. The `phmap::flat_hash_set` is chosen for its
   /// performance efficiency, particularly in scenarios where the set size is
   /// large and performance is critical. This set acts as a registry to quickly
   /// verify the validity of UIDs encountered during trace operations.
-  using uid64_validity_lut = emhash8::HashSet<uint64_t>;
+  using uid64_validity_lut = phmap::flat_hash_set<uint64_t>;
 
   /// @struct PayloadInstance
   /// @brief Represents an instance of a payload associated with its unique
