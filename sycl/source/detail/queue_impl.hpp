@@ -106,16 +106,15 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
-      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList),
-        MIsInorder(has_property<property::queue::in_order>()),
+      : MPropList(PropList), MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
+        MIsInorder(MPropList.has_property<property::queue::in_order>()),
         MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+            MPropList.has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(MPropList.has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
-    if (has_property<property::queue::enable_profiling>()) {
-      if (has_property<ext::oneapi::property::queue::discard_events>())
+    if (MPropList.has_property<property::queue::enable_profiling>()) {
+      if (MPropList.has_property<ext::oneapi::property::queue::discard_events>())
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
@@ -131,8 +130,8 @@ public:
                               "does not have the queue_profiling aspect");
       }
     }
-    if (has_property<ext::intel::property::queue::compute_index>()) {
-      int Idx = get_property<ext::intel::property::queue::compute_index>()
+    if (MPropList.has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = MPropList.get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
       int NumIndices =
           createSyclObjFromImpl<device>(Device)
@@ -143,7 +142,7 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (has_property<
+    if (MPropList.has_property<
             ext::codeplay::experimental::property::queue::enable_fusion>() &&
         !MDevice->get_info<
             ext::codeplay::experimental::info::device::supports_fusion>()) {
@@ -212,8 +211,8 @@ public:
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
-    if (has_property<ext::oneapi::property::queue::discard_events>() &&
-        has_property<property::queue::enable_profiling>()) {
+    if (MPropList.has_property<ext::oneapi::property::queue::discard_events>() &&
+        MPropList.has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
@@ -279,10 +278,10 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler),
-        MIsInorder(has_property<property::queue::in_order>()),
+        MIsInorder(MPropList.has_property<property::queue::in_order>()),
         MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+            MPropList.has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(MPropList.has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -297,11 +296,11 @@ public:
   /// \param PropList is the queue properties.
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MIsInorder(has_property<property::queue::in_order>()),
+      : MPropList(PropList), MContext(Context), MAsyncHandler(AsyncHandler),
+        MIsInorder(MPropList.has_property<property::queue::in_order>()),
         MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()) {
+            MPropList.has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(MPropList.has_property<property::queue::enable_profiling>()) {
     queue_impl_interop(PiQueue);
   }
 
@@ -559,8 +558,8 @@ public:
 
     sycl::detail::pi::PiQueueProperties Properties[] = {
         PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
-    if (has_property<ext::intel::property::queue::compute_index>()) {
-      int Idx = get_property<ext::intel::property::queue::compute_index>()
+    if (MPropList.has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = MPropList.get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
       Properties[2] = PI_QUEUE_COMPUTE_INDEX;
       Properties[3] = static_cast<sycl::detail::pi::PiQueueProperties>(Idx);
@@ -620,19 +619,6 @@ public:
       return MQueues[0];
 
     return getExclusiveQueueHandleRef();
-  }
-
-  /// \return true if the queue was constructed with property specified by
-  /// PropertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// \return a copy of the property of type PropertyT that the queue was
-  /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -777,6 +763,7 @@ public:
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
           &Graph);
 
+  const property_list MPropList;
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -952,7 +939,6 @@ protected:
   std::vector<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
-  const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
   std::vector<sycl::detail::pi::PiQueue> MQueues;
@@ -1009,7 +995,6 @@ public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
-
 protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
