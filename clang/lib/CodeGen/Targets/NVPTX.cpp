@@ -261,6 +261,29 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
     }
 
+    if (const auto *MWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      llvm::SmallVector<std::optional<int64_t>, 3> Ops;
+      // Index-flip and pad out any missing elements. Note the misleading
+      // nomenclature of the methods: getXDimVal doesn't return the X dimension;
+      // it returns the left-most dimension (dim0). This could correspond to
+      // CUDA's X, Y, or Z, depending on the number of operands provided.
+      if (auto Dim0 = MWGS->getXDimVal())
+        Ops.push_back(Dim0->getExtValue());
+      if (auto Dim1 = MWGS->getYDimVal())
+        Ops.push_back(Dim1->getExtValue());
+      if (auto Dim2 = MWGS->getZDimVal())
+        Ops.push_back(Dim2->getExtValue());
+      std::reverse(Ops.begin(), Ops.end());
+      Ops.append(3 - Ops.size(), std::nullopt);
+
+      if (auto X = Ops[0])
+        addNVVMMetadata(F, "reqntidx", *X);
+      if (auto Y = Ops[1])
+        addNVVMMetadata(F, "reqntidy", *Y);
+      if (auto Z = Ops[2])
+        addNVVMMetadata(F, "reqntidz", *Z);
+    }
+
     auto attrValue = [&](Expr *E) {
       const auto *CE = cast<ConstantExpr>(E);
       std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
