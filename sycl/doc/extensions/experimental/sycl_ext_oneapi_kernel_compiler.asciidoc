@@ -357,9 +357,9 @@ that include file.
 When the source language is `source_language::sycl`, the source code can have
 `#include` statements where the name and content of the include file is
 defined by this property.
-For example, if the source code has `#include "foo.h"`, the compilation process
-will look at the `include_files` property to see if there is an entry whose
-_Name_ is `foo.h`.
+For example, if the source code has `#include "foo/bar.h"`, the compilation
+process will look at the `include_files` property to see if there is an entry
+whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
