@@ -92,9 +92,8 @@ __syclcompat_inline__ uint32_t nvvm_get_smem_pointer(void *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return (intptr_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
 #else
-  throw sycl::runtime_error(
-      "nvvm_get_smem_pointer is only supported on Nvidia devices.",
-      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(sycl::errc::runtime),
+                    "nvvm_get_smem_pointer is only supported on Nvidia devices.");
 #endif
 }
 
@@ -102,9 +101,8 @@ __syclcompat_inline__ size_t cvta_generic_to_shared(void *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return (size_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
 #else
-  throw sycl::runtime_error(
-      "cvta_generic_to_shared is only supported on Nvidia devices.",
-      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(sycl::errc::runtime),
+                    "cvta_generic_to_shared is only supported on Nvidia devices.");
 #endif
 }
 
