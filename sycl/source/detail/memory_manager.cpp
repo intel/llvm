@@ -1110,8 +1110,9 @@ void MemoryManager::memset_2d_usm(
         "NULL pointer argument in 2D memory memset operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height, {Value},
-                             DepEvents, OutEvent, nullptr);
+  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
+                             {static_cast<unsigned char>(Value)}, DepEvents,
+                             OutEvent, nullptr);
 }
 
 static void

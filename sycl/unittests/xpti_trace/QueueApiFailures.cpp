@@ -228,13 +228,9 @@ TEST_F(QueueApiFailures, QueueCopy) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-ur_result_t redefinedEnqueueMemBufferFill(void *) {
-  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-}
-
 TEST_F(QueueApiFailures, QueueFill) {
-  mock::getCallbacks().set_replace_callback("urEnqueueMemBufferFill",
-                                            &redefinedEnqueueMemBufferFill);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill",
+                                            &redefinedEnqueueUSMFill);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
