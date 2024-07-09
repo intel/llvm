@@ -44,7 +44,7 @@ queue q;
 // CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func5 'void ()'
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral '1'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
@@ -61,7 +61,7 @@ template <int N>
 // CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func6 'void ()'
-// CHECK-NEXT: TemplateArgument integral 5
+// CHECK-NEXT: TemplateArgument integral '5'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
 // CHECK-NEXT: ConstantExpr{{.*}}'int'

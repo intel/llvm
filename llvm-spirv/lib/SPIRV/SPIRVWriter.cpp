@@ -953,12 +953,19 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is 1.
-      int LocID = 0;
+      int IsRuntimeAligned = 0;
       if (!isa<MDString>(RuntimeAligned->getOperand(ArgNo)) &&
           !isa<MDNode>(RuntimeAligned->getOperand(ArgNo)))
-        LocID = getMDOperandAsInt(RuntimeAligned, ArgNo);
-      if (LocID == 1)
-        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL, LocID);
+        IsRuntimeAligned = getMDOperandAsInt(RuntimeAligned, ArgNo);
+      if (IsRuntimeAligned == 1) {
+        // TODO: to replace non-conformant to the spec decoration generation
+        // with:
+        // BM->addExtension(ExtensionID::SPV_INTEL_runtime_aligned);
+        // BM->addCapability(CapabilityRuntimeAlignedAttributeINTEL);
+        // BA->addAttr(FunctionParameterAttributeRuntimeAlignedINTEL);
+        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL,
+                        IsRuntimeAligned);
+      }
     }
   }
   if (Attrs.hasRetAttr(Attribute::ZExt))
