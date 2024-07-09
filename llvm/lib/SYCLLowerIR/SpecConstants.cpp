@@ -9,9 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SpecConstants.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/SYCLLowerIR/Support.h"
-#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -934,7 +932,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
           uint64_t Align = M.getDataLayout().getABITypeAlign(SCTy).value();
 
-
           // Ensure correct alignment
           if (CurrentOffset % Align != 0) {
             // Compute necessary padding to correctly align the constant.
@@ -949,14 +946,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             updatePaddingInLastMDNode(Ctx, SCMetadata, Padding);
           }
 
-          if (sycl::utils::isSYCLNativeCPU(M) && isa<StructType>(DefaultValue->getType())) {
-            auto STy = cast<StructType>(DefaultValue->getType());
-            SCMetadata[SymID] = generateSpecConstantMetadata(
-                M, SymID, STy, NextID, /* is native spec constant */ false);
-          } else {
-            SCMetadata[SymID] = generateSpecConstantMetadata(
-                M, SymID, SCTy, NextID, /* is native spec constant */ false);
-          }
+          auto *DefValTy = DefaultValue->getType();
+          SCMetadata[SymID] = generateSpecConstantMetadata(
+              M, SymID, DefValTy, NextID, /* is native spec constant */ false);
 
           ++NextID.ID;
           NextOffset += Size;
