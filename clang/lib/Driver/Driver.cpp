@@ -806,24 +806,30 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
   return RT;
 }
 
-static bool isValidSYCLTriple(llvm::Triple T) {
-  // NVPTX is valid for SYCL.
-  if (T.isNVPTX())
+static bool isValidSYCLTriple(llvm::Triple TargetTriple) {
+  // Check for invalid SYCL device triple values for NVidia GPU targets.
+  // nvptx64-nvidia-cuda is the valid triple for NVidia targets.
+  if (TargetTriple.getArchTypeName(TargetTriple.getArch()) == "nvptx64" &&
+      TargetTriple.getVendorTypeName(TargetTriple.getVendor()) == "nvidia" &&
+      TargetTriple.getOSTypeName(TargetTriple.getOS()) == "cuda" &&
+      !TargetTriple.hasEnvironment())
     return true;
+  else
+    return false;
 
   // AMDGCN is valid for SYCL
-  if (T.isAMDGCN())
+  if (TargetTriple.isAMDGCN())
     return true;
 
   // Check for invalid SYCL device triple values.
   // Non-SPIR/SPIRV arch.
-  if (!T.isSPIROrSPIRV())
+  if (!TargetTriple.isSPIROrSPIRV())
     return false;
   // SPIR/SPIRV arch, but has invalid SubArch for AOT.
-  StringRef A(T.getArchName());
-  if (T.getSubArch() == llvm::Triple::NoSubArch &&
-      ((T.getArch() == llvm::Triple::spir && A != "spir") ||
-       (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
+  StringRef A(TargetTriple.getArchName());
+  if (TargetTriple.getSubArch() == llvm::Triple::NoSubArch &&
+      ((TargetTriple.getArch() == llvm::Triple::spir && A != "spir") ||
+       (TargetTriple.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
   return true;
 }

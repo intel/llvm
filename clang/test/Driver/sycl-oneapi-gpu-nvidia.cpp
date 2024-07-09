@@ -43,6 +43,18 @@
 // RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
 // BAD_NVIDIA_INPUT: error: SYCL target is invalid: 'nvidia_gpu_bad'
 
+// RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'nvptx64-nvidia-cuda-sycl'
+
+// RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda1 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda1 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'nvptx64-nvidia-cuda1'
+
 /// Test for proper creation of fat object
 // RUN: %clangxx -c -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc \
