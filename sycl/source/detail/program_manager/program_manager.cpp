@@ -622,8 +622,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
     return BuildF();
 
-  auto BuildResult =
-      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -713,8 +712,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return make_tuple(Kernel, nullptr, ArgMask, Program);
   }
 
-  auto BuildResult =
-      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
@@ -842,8 +840,8 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
   if (LibPair != DeviceLibNames.end())
     Lib = Native ? LibPair->second.first : LibPair->second.second;
   if (Lib == nullptr)
-    throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::build),
+                    "Unhandled (new?) device library extension");
   return Lib;
 }
 
@@ -868,8 +866,8 @@ static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   auto Ext = DeviceLibExtensionStrs.find(Extension);
   if (Ext == DeviceLibExtensionStrs.end())
-    throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::build),
+                    "Unhandled (new?) device library extension");
   return Ext->second;
 }
 
@@ -893,8 +891,8 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(std::string("Failed to load ") + LibFileName,
-                                PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::build),
+                    std::string("Failed to load ") + LibFileName);
   }
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -910,8 +908,10 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
           "", 0, nullptr, nullptr, nullptr, nullptr);
   if (Error != PI_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(
-        ProgramManager::getProgramBuildLog(LibProg, Context), Error);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::build),
+                  ProgramManager::getProgramBuildLog(LibProg, Context)),
+        Error);
   }
 
   return LibProg;
@@ -1203,8 +1203,10 @@ ProgramManager::ProgramPtr ProgramManager::build(
             Program.get(), /*num devices =*/1, &Device, Options.c_str(),
             nullptr, nullptr);
     if (Error != PI_SUCCESS)
-      throw compile_program_error(getProgramBuildLog(Program.get(), Context),
-                                  Error);
+      throw detail::set_pi_error(
+          exception(make_error_code(errc::build),
+                    getProgramBuildLog(Program.get(), Context)),
+          Error);
     return Program;
   }
 
@@ -1235,8 +1237,10 @@ ProgramManager::ProgramPtr ProgramManager::build(
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
       // an incomplete (but valid) LinkedProg, and throw.
-      throw compile_program_error(getProgramBuildLog(LinkedProg, Context),
-                                  Error);
+      throw detail::set_pi_error(
+          exception(make_error_code(errc::build),
+                    getProgramBuildLog(LinkedProg, Context)),
+          Error);
     }
     Plugin->checkPiResult(Error);
   }
@@ -2260,9 +2264,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  // TODO: Throw SYCL2020 style exception
-  auto BuildResult =
-      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2285,7 +2287,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = PiDeviceAdd;
-    Cache.getOrBuild<compile_program_error>(GetCachedBuildF, CacheOtherDevices);
+    Cache.getOrBuild<errc::build>(GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2350,8 +2352,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return make_tuple(Kernel, nullptr, ArgMask);
   }
 
-  auto BuildResult =
-      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   // If caching is enabled, one copy of the kernel handle will be

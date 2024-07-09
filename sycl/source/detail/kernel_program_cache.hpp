@@ -233,7 +233,7 @@ public:
   /// Exception thrown by build procedure are rethrown.
   ///
   /// \tparam RetT type of entity to get
-  /// \tparam ExceptionT type of exception to throw on awaiting thread if the
+  /// \tparam Errc error code of exception to throw on awaiting thread if the
   ///         building thread fails build step.
   /// \tparam KeyT key (in cache) to fetch built entity with
   /// \tparam AcquireFT type of function which will acquire the locked version
@@ -247,7 +247,7 @@ public:
   ///
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
-  template <typename ExceptionT, typename GetCachedBuildFT, typename BuildFT>
+  template <errc Errc, typename GetCachedBuildFT, typename BuildFT>
   auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build) {
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
@@ -269,7 +269,9 @@ public:
         if (NewState == BuildState::BS_Failed ||
             AttemptCounter + 1 == MaxAttempts) {
           if (BuildResult->Error.isFilledIn())
-            throw ExceptionT(BuildResult->Error.Msg, BuildResult->Error.Code);
+            throw detail::set_pi_error(
+                exception(make_error_code(Errc), BuildResult->Error.Msg),
+                BuildResult->Error.Code);
           else
             throw exception();
         }
