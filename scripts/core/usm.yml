@@ -449,7 +449,7 @@ details:
 params:
     - type: $x_usm_pool_handle_t
       name: pPool
-      desc: "[in] pointer to USM memory pool"
+      desc: "[in][release] pointer to USM memory pool"
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
 --- #--------------------------------------------------------------------------

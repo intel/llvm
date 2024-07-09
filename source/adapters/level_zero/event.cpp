@@ -59,8 +59,8 @@ bool WaitListEmptyOrAllEventsFromSameQueue(
   return true;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
-    ur_queue_handle_t UrQueue,    ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueEventsWait( ///< [in] handle of
+                                                          ///< the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -72,7 +72,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = Legacy(UrQueue);
+  auto Queue = this;
   if (EventWaitList) {
     bool UseCopyEngine = false;
 
@@ -152,8 +152,9 @@ static const bool InOrderBarrierBySignal = [] {
   return (UrRet ? std::atoi(UrRet) : true);
 }();
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
-    ur_queue_handle_t UrQueue,    ///< [in] handle of the queue object
+ur_result_t
+ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
+                                                         ///< queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -165,7 +166,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = Legacy(UrQueue);
+  auto Queue = this;
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
@@ -493,8 +494,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
                                   : Event->Context->Devices[0];
 
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxValue =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
@@ -661,8 +661,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
-    ur_queue_handle_t UrQueue,    ///< [in] handle of the queue object
+ur_result_t ur_queue_handle_legacy_t_::enqueueTimestampRecordingExp(
     bool Blocking,                ///< [in] blocking or non-blocking enqueue
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
@@ -676,7 +675,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
         *OutEvent ///< [in,out] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = Legacy(UrQueue);
+  auto Queue = this;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -926,7 +925,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
-  if (NativeEvent == nullptr) {
+  if (reinterpret_cast<ze_event_handle_t>(NativeEvent) == nullptr) {
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
@@ -1022,7 +1021,6 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
 
   // Save pointer to the queue before deleting/resetting event.
   auto Queue = Legacy(Event->UrQueue);
-  auto URQueue = Event->UrQueue;
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
@@ -1054,8 +1052,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // created so that we can avoid ur_queue_handle_t is released before the
   // associated ur_event_handle_t is released. Here we have to decrement it so
   // ur_queue_handle_t can be released successfully.
-  if (URQueue) {
-    UR_CALL(urQueueReleaseInternal(URQueue));
+  if (Queue) {
+    UR_CALL(urQueueReleaseInternal(Queue));
   }
 
   return UR_RESULT_SUCCESS;

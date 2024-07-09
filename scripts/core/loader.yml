@@ -67,7 +67,7 @@ details:
 params:
     - type: $x_loader_config_handle_t
       name: hLoaderConfig
-      desc: "[in] config handle to release"
+      desc: "[in][release] config handle to release"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported loader info"

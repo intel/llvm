@@ -549,6 +549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // native asserts are in progress
     std::string SupportedExtensions = "";
     SupportedExtensions += "pi_ext_intel_devicelib_assert ";
+    SupportedExtensions += "ur_exp_usm_p2p ";
 
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
@@ -886,6 +887,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
 
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(false);
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
@@ -980,7 +983,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
+  *phNativeHandle = hDevice->get();
   return UR_RESULT_SUCCESS;
 }
 
