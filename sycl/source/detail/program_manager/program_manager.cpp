@@ -526,7 +526,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   // objects are valid between different kernels (which could be in different
   // device images).
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
-  // KernelA may use some set-a, which is also used by KernelB that is in turn
+  // KernelA may use some set-a, which is also used by KernelB that in turn
   // uses set-b, meaning that this search should be recursive. The set below
   // is used to stop that recursion, i.e. to avoid looking at sets we have
   // already seen.
@@ -570,7 +570,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // If device image uses the same virtual function set, then we only
       // link it if it is compatible.
       // However, if device image provides virtual function set and it is
-      // incompatible, then should link its "dummy" version to avoid link
+      // incompatible, then we should link its "dummy" version to avoid link
       // errors about unresolved external symbols.
       if (doesDevSupportDeviceRequirements(Dev, *BinImage))
         DeviceImagesToLink.insert(BinImage);
@@ -686,8 +686,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     std::vector<sycl::detail::pi::PiProgram> ProgramsToLink;
-    // If we had a program in cache, then it should have been the finally
-    // linked program already.
+    // If we had a program in cache, then it should have been the fully linked
+    // program already.
     if (!DeviceCodeWasInCache) {
       for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
         device_image_plain DevImagePlain =
@@ -701,7 +701,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
             *BinImg, Context, Device, CompileOpts + LinkOpts, ImgSpecConsts);
         assert(!DeviceCodeWasInCache &&
-               "we don't expect dependencies to be alreacy cached whilst a "
+               "we don't expect dependencies to be already cached whilst the "
                "main program is not cached");
         std::ignore = DeviceCodeWasInCache;
 
@@ -715,7 +715,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
               ProgramsToLink);
-    // Those extra programs won't be used anymore, just a final linked result
+    // Those extra programs won't be used anymore, just the final linked result
     for (sycl::detail::pi::PiProgram Prg : ProgramsToLink)
       Plugin->call<PiApiKind::piProgramRelease>(Prg);
 
