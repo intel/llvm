@@ -814,8 +814,6 @@ static bool isValidSYCLTriple(llvm::Triple TargetTriple) {
       TargetTriple.getOSTypeName(TargetTriple.getOS()) == "cuda" &&
       !TargetTriple.hasEnvironment())
     return true;
-  else
-    return false;
 
   // AMDGCN is valid for SYCL
   if (TargetTriple.isAMDGCN())
