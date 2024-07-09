@@ -36,13 +36,15 @@ int main() {
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
   exp_ext::dynamic_parameter InputParam(GraphA, InputDataDevice1);
+  auto KernelLambda = [=]() {
+    for (size_t i = 0; i < Size; i++) {
+      OutputDataDevice1[i] = InputDataDevice1[i];
+    }
+  };
+
   GraphA.add([&](handler &CGH) {
     CGH.set_arg(1, InputParam);
-    CGH.single_task([=]() {
-      for (size_t i = 0; i < Size; i++) {
-        OutputDataDevice1[i] = InputDataDevice1[i];
-      }
-    });
+    CGH.single_task(KernelLambda);
   });
 
   auto GraphExecA = GraphA.finalize();
@@ -59,13 +61,7 @@ int main() {
   InputParam.update(InputDataDevice2);
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
 
-  GraphB.add([&](handler &CGH) {
-    CGH.single_task([=]() {
-      for (size_t i = 0; i < Size; i++) {
-        OutputDataDevice1[i] = InputDataDevice1[i];
-      }
-    });
-  });
+  GraphB.add([&](handler &CGH) { CGH.single_task(KernelLambda); });
 
   auto GraphExecB = GraphB.finalize(exp_ext::property::graph::updatable{});
   GraphExecB.update(GraphA);

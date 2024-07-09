@@ -90,6 +90,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_gpu: ${{ matrix.reset_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''

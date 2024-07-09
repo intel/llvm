@@ -47,15 +47,15 @@ class Test {};
 
 ESIMD_INLINE void ESIMD_CALLEE_nbarrier(nd_item<1> *ndi) SYCL_ESIMD_FUNCTION {
   const uint8_t BARNUM = 32;
-  experimental_esimd::named_barrier_init<1>();
+  esimd::named_barrier_init<1>();
 
   uint8_t barrier_id = __ESIMD_ENS::named_barrier_allocate<BARNUM>();
   uint8_t producer_consumer_mode = 0;
   uint32_t num_producers = 16;
   uint32_t num_consumers = 16;
-  __ESIMD_ENS::named_barrier_signal(barrier_id, producer_consumer_mode,
-                                    num_producers, num_consumers);
-  __ESIMD_ENS::named_barrier_wait(barrier_id);
+  __ESIMD_NS::named_barrier_signal(barrier_id, producer_consumer_mode,
+                                   num_producers, num_consumers);
+  __ESIMD_NS::named_barrier_wait(barrier_id);
 }
 
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall SIMD_CALLEE_nbarrier(

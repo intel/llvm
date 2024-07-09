@@ -230,4 +230,7 @@ _PI_API(piextVirtualMemGetInfo)
 // Enqueue native command
 _PI_API(piextEnqueueNativeCommand)
 
+// Kernel Launch Properties
+_PI_API(piextEnqueueKernelLaunchCustom)
+
 #undef _PI_API

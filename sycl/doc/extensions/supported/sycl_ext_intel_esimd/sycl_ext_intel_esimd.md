@@ -644,13 +644,8 @@ The following usual math functions are supported for all element types:
 #### Other non-standard math functions
 
 ESIMD supports the following non-standard math functions implemented in hardware:
-- Dot product (various flavors) - `dp2`, `dp3`, `dp4`, `dph`, `dp4a`
-  (with accumulator).
-- Linear equation - `line`. Solves a component-wise line equation
-  `v = p * u + q` (where `u`, `v` are vectors and `p`, `q` are scalars)
 - Fraction - `frc`,  extracts the fractional parts of the input vector elements.
 - Count leading zeroes - `lzd`.
-- Linear interpolation - `lrp`. Basically computes `src1 * src0 + src2 * (1.0f - src0)`
 - Plane equation - `plane`. Solves a component-wise plane equation
   `w = p*u + q*v + r` where `u`, `v`, `w` are vectors and `p`, `q`, `r` are scalars.
 

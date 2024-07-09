@@ -13,10 +13,6 @@
 
 // Mem Object info: Retrieve the raw CUDA pointer from a cl_mem
 #define __SYCL_PI_CUDA_RAW_POINTER (0xFF01)
-// Context creation: Use a primary CUDA context instead of a custom one by
-//                   providing a property value of PI_TRUE for the following
-//                   property ID.
-#define __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY (0xFF02)
 
 // PI Command Queue using Default stream
 #define __SYCL_PI_CUDA_USE_DEFAULT_STREAM (0xFF03)

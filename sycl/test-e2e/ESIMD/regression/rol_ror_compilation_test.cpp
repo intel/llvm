@@ -1,4 +1,3 @@
-// REQUIRES: gpu-intel-gen11
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- rol_ror_compilation_test.cpp - Test for compilation of rol/ror functions
@@ -61,13 +60,13 @@ int test(sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_rol,
       __ESIMD_NS::simd<TRes, 1> scalar_result;
       __ESIMD_NS::simd<TRes, SIMD> result;
 
-      result = rol<TArg1>(input_vec, arg2);
-      scalar_result = rol<TArg1>(arg1, arg2);
+      result = __ESIMD_NS::rol<TArg1>(input_vec, arg2);
+      scalar_result = __ESIMD_NS::rol<TArg1>(arg1, arg2);
       result.copy_to(rol_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_rol_ptr);
 
-      result = ror<TArg1>(input_vec, arg2);
-      scalar_result = ror<TArg1>(arg1, arg2);
+      result = __ESIMD_NS::ror<TArg1>(input_vec, arg2);
+      scalar_result = __ESIMD_NS::ror<TArg1>(arg1, arg2);
       result.copy_to(ror_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_ror_ptr);
     });

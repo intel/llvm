@@ -52,6 +52,9 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
         MPtr.get_decorated());
 }
 
+template <typename NonUniformGroup>
+inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
+
 namespace spirv {
 
 template <typename Group>

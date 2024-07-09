@@ -36,7 +36,8 @@ public:
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
-          MImpl->MKernelIsCooperative, getCodeLoc()));
+          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          getCodeLoc()));
       break;
     }
     default:
