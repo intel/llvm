@@ -70,6 +70,8 @@ public:
 
 // Forward declare to declare as a friend in sycl::excepton.
 __SYCL_EXPORT int32_t get_pi_error(const exception &e);
+// TODO: Should it be exported at all?
+__SYCL_EXPORT exception set_pi_error(exception &&e, int32_t pi_err);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -145,6 +147,13 @@ protected:
             const char *WhatArg);
 
   friend __SYCL_EXPORT int32_t detail::get_pi_error(const exception &);
+  // To be used like this:
+  //   throw/return detail::set_pi_error(exception(...), some_pi_error);
+  // *only* when such a error is coming from the PI/UR level. Otherwise it
+  // *should be left unset/default-initialized and exception should be thrown
+  // as-is using public ctors.
+  friend __SYCL_EXPORT exception detail::set_pi_error(exception &&e,
+                                                      int32_t pi_err);
 };
 
 class __SYCL2020_DEPRECATED(
@@ -237,21 +246,6 @@ public:
   invalid_object_error(const std::string &Msg, int32_t Err)
       : device_error(make_error_code(errc::invalid), Msg, Err) {}
 };
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::feature_not_supported instead.")
-    feature_not_supported : public device_error {
-public:
-  feature_not_supported()
-      : device_error(make_error_code(errc::feature_not_supported)) {}
-
-  feature_not_supported(const char *Msg, int32_t Err)
-      : feature_not_supported(std::string(Msg), Err) {}
-
-  feature_not_supported(const std::string &Msg, int32_t Err)
-      : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
-};
-
 } // namespace _V1
 } // namespace sycl
 

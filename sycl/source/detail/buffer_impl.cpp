@@ -85,7 +85,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
       Plugin->call(urMemRetain, NativeMem);
     }
 
-    ur_native_handle_t Handle = nullptr;
+    ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.

@@ -550,7 +550,7 @@ bool platform_impl::supports_usm() const {
 
 ur_native_handle_t platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
-  ur_native_handle_t Handle = nullptr;
+  ur_native_handle_t Handle = 0;
   Plugin->call(urPlatformGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }

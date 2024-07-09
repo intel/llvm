@@ -21,7 +21,6 @@ namespace sycl {
 inline namespace _V1 {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
-
 void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();

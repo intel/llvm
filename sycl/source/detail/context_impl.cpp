@@ -19,7 +19,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/properties/context_properties.hpp>
 #include <sycl/property_list.hpp>
 
 #include <algorithm>
@@ -116,7 +115,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
 cl_context context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call(urContextRetain, MUrContext);
-  ur_native_handle_t nativeHandle = nullptr;
+  ur_native_handle_t nativeHandle = 0;
   getPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }

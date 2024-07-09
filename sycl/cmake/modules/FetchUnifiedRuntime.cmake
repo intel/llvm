@@ -120,7 +120,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Fri Jul 5 09:44:30 2024 +0100
   #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
   #     [L0] Fix immediate command list use in Command Queues
-  set(UNIFIED_RUNTIME_TAG aaron/mockAdapterPreRebase)
+  set(UNIFIED_RUNTIME_TAG aaron/mockAdapter)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

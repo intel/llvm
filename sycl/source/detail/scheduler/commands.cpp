@@ -303,7 +303,8 @@ bool Command::isFusable() const {
   }
   const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
   return (CG.getType() == CG::CGTYPE::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
+         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -2353,7 +2354,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative) {
+    bool IsCooperative, bool KernelUsesClusterLaunch) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const PluginPtr &Plugin = Queue->getPlugin();
 
@@ -2392,7 +2393,35 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  if (KernelUsesClusterLaunch) {
+    std::vector<ur_exp_launch_property_t> property_list;
 
+    ur_exp_launch_property_value_t launch_property_value_cluster_range;
+    launch_property_value_cluster_range.clusterDim[0] =
+        NDRDesc.ClusterDimensions[0];
+    launch_property_value_cluster_range.clusterDim[1] =
+        NDRDesc.ClusterDimensions[1];
+    launch_property_value_cluster_range.clusterDim[2] =
+        NDRDesc.ClusterDimensions[2];
+
+    property_list.push_back(
+        {UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+         launch_property_value_cluster_range});
+
+    if (IsCooperative) {
+      ur_exp_launch_property_value_t launch_property_value_cooperative;
+      launch_property_value_cooperative.cooperative = 1;
+      property_list.push_back(
+          {UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
+           launch_property_value_cooperative});
+    }
+
+    return Plugin->call_nocheck(urEnqueueKernelLaunchCustomExp,
+        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
+        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+  }
   ur_result_t Error =
       [&](auto... Args) {
         if (IsCooperative) {
@@ -2542,7 +2571,7 @@ ur_result_t enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig,
-    const bool KernelIsCooperative) {
+    const bool KernelIsCooperative, const bool KernelUsesClusterLaunch) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2631,10 +2660,10 @@ ur_result_t enqueueImpKernel(
           sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc,
-                                     KernelIsCooperative);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+        KernelIsCooperative, KernelUsesClusterLaunch);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2832,7 +2861,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
-        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+        Fill->getLength(), Fill->getPattern(), std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
@@ -2983,7 +3012,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
+        ExecKernel->MKernelUsesClusterLaunch);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2996,7 +3026,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event,
+                            Fill->getPattern(), std::move(RawEvents), Event,
                             MEvent);
 
     return UR_RESULT_SUCCESS;

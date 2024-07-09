@@ -29,7 +29,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
-#include <sycl/properties/context_properties.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
@@ -334,7 +334,7 @@ public:
 
   cl_command_queue get() {
     getPlugin()->call(urQueueRetain, MUrQueues[0]);
-    ur_native_handle_t nativeHandle = nullptr;
+    ur_native_handle_t nativeHandle = 0;
     getPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr,
                       &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);

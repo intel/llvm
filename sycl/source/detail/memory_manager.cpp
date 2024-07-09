@@ -792,7 +792,7 @@ void MemoryManager::copy(
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
+                         size_t PatternSize, const unsigned char *Pattern,
                          unsigned int Dim, sycl::range<3> MemRange,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
@@ -931,7 +931,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<unsigned char> &Pattern,
                              std::vector<ur_event_handle_t> DepEvents,
                              ur_event_handle_t *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -952,9 +952,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  unsigned char FillByte = static_cast<unsigned char>(Pattern);
-  Plugin->call(urEnqueueUSMFill, Queue->getHandleRef(), Mem, sizeof(FillByte),
-               &FillByte, Length, DepEvents.size(), DepEvents.data(), OutEvent);
+  Plugin->call(urEnqueueUSMFill, Queue->getHandleRef(), Mem, Pattern.size(),
+      Pattern.data(), Length, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(
@@ -1061,7 +1060,7 @@ void MemoryManager::copy_2d_usm(
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<char> &Pattern,
+    const std::vector<unsigned char> &Pattern,
     std::vector<ur_event_handle_t> DepEvents,
     ur_event_handle_t *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
@@ -1534,8 +1533,9 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
-    ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem, size_t Len,
-    int Pattern, std::vector<ur_exp_command_buffer_sync_point_t> Deps,
+    ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem,
+    size_t Len, const std::vector<unsigned char> &Pattern,
+    std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
 
   if (!DstMem)
@@ -1543,18 +1543,17 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                         UR_RESULT_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  // Pattern is interpreted as an unsigned char so pattern size is always 1.
-  size_t PatternSize = 1;
-  Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem, &Pattern,
-               PatternSize, Len, Deps.size(), Deps.data(), OutSyncPoint);
+  Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem,
+               Pattern.data(), Pattern.size(), Len, Deps.size(), Deps.data(),
+               OutSyncPoint);
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
-    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
-    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
-    unsigned int ElementSize,
+    void *Mem, size_t PatternSize, const unsigned char *Pattern,
+    unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
+    sycl::id<3> AccessOffset, unsigned int ElementSize,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");

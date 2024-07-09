@@ -59,6 +59,7 @@ inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
       {CommandType::KERNEL, *params.pnumEventsInWaitList});
   return UR_RESULT_SUCCESS;
 }
+
 inline ur_result_t customEnqueueUSMFill(void *pParams) {
   auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
   ExecutedCommands.push_back(

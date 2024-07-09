@@ -100,7 +100,7 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    ur_native_handle_t nativeHandle = nullptr;
+    ur_native_handle_t nativeHandle = 0;
     getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }

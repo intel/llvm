@@ -57,7 +57,7 @@ int main() {
     assert(Context == WillContextCopy);
   }
   {
-    auto AsyncHandler = [](const sycl::exception_list &EL) {};
+    auto AsyncHandler = [](const sycl::exception_list) {};
     sycl::context Context1(sycl::property_list{});
     sycl::context Context2(AsyncHandler, sycl::property_list{});
     sycl::context Context3(deviceA, sycl::property_list{});

@@ -463,7 +463,7 @@ ur_native_handle_t event_impl::getNative() {
   if (MIsDefaultConstructed && !MEvent) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
-    Plugin->call(urEventCreateWithNativeHandle, nullptr, TempContext,
+    Plugin->call(urEventCreateWithNativeHandle, 0, TempContext,
                  &NativeProperties, &MEvent);
   }
   if (MContext->getBackend() == backend::opencl)

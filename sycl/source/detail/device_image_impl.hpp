@@ -294,7 +294,7 @@ public:
 
     if (ContextImplPtr->getBackend() == backend::opencl)
       Plugin->call(urProgramRetain, MURProgram);
-    ur_native_handle_t NativeProgram = nullptr;
+    ur_native_handle_t NativeProgram = 0;
     Plugin->call(urProgramGetNativeHandle, MURProgram, &NativeProgram);
 
     return NativeProgram;

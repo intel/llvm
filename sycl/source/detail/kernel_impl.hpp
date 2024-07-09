@@ -79,7 +79,7 @@ public:
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
     getPlugin()->call(urKernelRetain, MURKernel);
-    ur_native_handle_t nativeHandle = nullptr;
+    ur_native_handle_t nativeHandle = 0;
     getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
     return ur::cast<cl_kernel>(nativeHandle);
   }

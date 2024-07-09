@@ -25,12 +25,12 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
-    : device_impl(nullptr, Device, Platform, Platform->getPlugin()) {}
+    : device_impl(0, Device, Platform, Platform->getPlugin()) {}
 
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, const PluginPtr &Plugin)
-    : device_impl(nullptr, Device, nullptr, Plugin) {}
+    : device_impl(0, Device, nullptr, Plugin) {}
 
 device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
                          ur_device_handle_t Device, PlatformImplPtr Platform,
@@ -202,10 +202,9 @@ std::vector<device> device_impl::create_sub_devices(
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw sycl::feature_not_supported(
-        "Device does not support "
-        "sycl::info::partition_property::partition_equally.",
-        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support "
+                          "sycl::info::partition_property::partition_equally.");
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -231,10 +230,10 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_counts.",
-        UR_RESULT_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_counts.");
   }
 
   std::vector<ur_device_partition_property_t> Props{};
@@ -277,16 +276,15 @@ std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_affinity_domain.",
-        UR_RESULT_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_affinity_domain.");
   }
   if (!is_affinity_supported(AffinityDomain)) {
-    throw sycl::feature_not_supported(
-        "Device does not support " + affinityDomainToString(AffinityDomain) +
-            ".",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support " +
+                              affinityDomainToString(AffinityDomain) + ".");
   }
 
   ur_device_partition_property_t Prop;
@@ -310,10 +308,10 @@ std::vector<device> device_impl::create_sub_devices(
 std::vector<device> device_impl::create_sub_devices() const {
   if (!is_partition_supported(
           info::partition_property::ext_intel_partition_by_cslice)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
-        UR_RESULT_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
   ur_device_partition_property_t Prop;
@@ -385,6 +383,8 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_host_allocations>();
   case aspect::ext_intel_mem_channel:
     return get_info<info::device::ext_intel_mem_channel>();
+  case aspect::ext_oneapi_cuda_cluster_group:
+    return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
     return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
                                  info::device::usm_host_allocations>::
@@ -831,11 +831,14 @@ uint64_t device_impl::getCurrentDeviceTime() {
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      // NOTE(pi2ur): Removed the call to GetLastError because  we shouldn't be
+      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't be
       // calling it after ERROR_INVALID_OPERATION: there is no
-      // adapter-specific error. We should double check this is ok.
-      throw sycl::feature_not_supported(
-          "Device and/or backend does not support querying timestamp", Result);
+      // adapter-specific error.
+      throw detail::set_pi_error(
+          sycl::exception(
+              make_error_code(errc::feature_not_supported),
+              "Device and/or backend does not support querying timestamp."),
+          UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
       Plugin->checkUrResult(Result);
     }
