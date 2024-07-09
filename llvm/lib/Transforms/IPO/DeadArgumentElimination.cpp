@@ -1280,8 +1280,10 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
                              "grid_constant annotations for fn: "
                           << NF->getName() << "\n");
         // The 'value' operand is a list of integers denoting parameter indices
-        auto *OldGridConstParamIdxs =
-            cast<MDNode>(MetadataNode->getOperand(I + 1));
+        const auto *OldGridConstParamIdxs =
+            dyn_cast<MDNode>(MetadataNode->getOperand(I + 1));
+        assert(OldGridConstParamIdxs &&
+               "Unexpected NVVM annotation format: expected MDNode operand");
         // For each parameter that's identified as a grid_constant, count how
         // many arguments before that position are dead, and shift the number
         // down by that amount.
