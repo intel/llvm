@@ -2,6 +2,7 @@
 // RUN:  %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN:  %{run} %t.out
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 #include <syclcompat/memory.hpp>
 
 using namespace sycl;

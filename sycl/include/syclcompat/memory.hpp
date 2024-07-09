@@ -54,6 +54,7 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/traits.hpp>
+#include <syclcompat/defs.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
