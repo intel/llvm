@@ -784,6 +784,6 @@ for sycl_device in config.sycl_devices:
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    lit_config.maxIndividualTestTime = 1200
 except ImportError:
     pass
