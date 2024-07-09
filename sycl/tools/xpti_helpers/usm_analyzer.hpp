@@ -414,7 +414,7 @@ public:
 
   static void
   handleKernelSetArgPointer(const ur_kernel_set_arg_pointer_params_t *Params) {
-    void *Ptr = *(void **)(const_cast<void *>(*Params->ppArgValue));
+    void *Ptr = (const_cast<void *>(*Params->ppArgValue));
     CheckPointerValidness(
         "kernel parameter with index = " + std::to_string(*Params->pargIndex),
         Ptr, 0 /*no data how it will be used in kernel*/, "kernel");
