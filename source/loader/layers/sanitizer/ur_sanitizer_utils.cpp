@@ -128,8 +128,9 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
         uptr Ptr;
-        ur_result_t Result = context.urDdiTable.USM.pfnDeviceAlloc(
-            Context, Device, nullptr, nullptr, 4, (void **)&Ptr);
+        [[maybe_unused]] ur_result_t Result =
+            context.urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,
+                                                  nullptr, 4, (void **)&Ptr);
         context.logger.debug("GetDeviceType: {}", (void *)Ptr);
         assert(Result == UR_RESULT_SUCCESS &&
                "getDeviceType() failed at allocating device USM");
