@@ -2,7 +2,6 @@
 // RUN:  %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN:  %{run} %t.out
 #include <sycl/detail/core.hpp>
-#include <syclcompat.hpp>
 #include <syclcompat/memory.hpp>
 
 using namespace sycl;
@@ -29,10 +28,10 @@ template <class T> void test(queue stream) {
 
           T addr;
           if constexpr (std::is_same_v<size_t, T>) {
-            addr = syclcompat::experimental::cvta_generic_to_shared(
+            addr = syclcompat::cvta_generic_to_shared(
                 reinterpret_cast<char *>(data) + (id % 8) * 16);
           } else { // T == uint32_t
-            addr = syclcompat::experimental::nvvm_get_smem_pointer(
+            addr = syclcompat::nvvm_get_smem_pointer(
                 reinterpret_cast<char *>(data) + (id % 8) * 16);
           }
 

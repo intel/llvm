@@ -203,11 +203,11 @@ to translate from the local memory pointers introduced above to `uint32_t` or
 (local refers to`.shared` in nvptx) memory state space.
 
 ``` c++
-namespace syclcompat::experimental {
-inline __SYCL_ALWAYS_INLINE uint32_t nvvm_get_smem_pointer(void *ptr);
+namespace syclcompat {
+__syclcompat_inline__ uint32_t nvvm_get_smem_pointer(void *ptr);
 
-inline __SYCL_ALWAYS_INLINE size_t cvta_generic_to_shared(void *ptr);
-} // syclcompat::experimental
+__syclcompat_inline__ size_t cvta_generic_to_shared(void *ptr);
+} // syclcompat
 ```
 
 These variables can be used in inline PTX instructions that take address
@@ -220,10 +220,10 @@ A simplified example usage of the above functions is as follows:
   // ...
   T addr;
   if constexpr (std::is_same_v<size_t, T>) {
-    addr = syclcompat::experimental::cvta_generic_to_shared(
+    addr = syclcompat::cvta_generic_to_shared(
         reinterpret_cast<char *>(data) + (id % 8) * 16);
   } else { // T == uint32_t
-    addr = syclcompat::experimental::nvvm_get_smem_pointer(
+    addr = syclcompat::nvvm_get_smem_pointer(
         reinterpret_cast<char *>(data) + (id % 8) * 16);
   }
 
