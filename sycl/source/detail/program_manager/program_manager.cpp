@@ -759,22 +759,18 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   sycl::detail::pi::PiProgram ResProgram = BuildResult->Val;
   auto Plugin = ContextImpl->getPlugin();
-  auto UpdateRefCountF = [ResProgram, &Plugin]() {
-    // For every cached copy of the program, we need to increment its refcount
-    Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
-    return ResProgram;
-  };
+
   // If we linked any extra device images for virtual functions, then we need to
   // cache them as well.
   for (const RTDeviceBinaryImage *BImg : DeviceImagesToLink) {
     // CacheKey is captured by reference by GetCachedBuildF, so we can simply
     // update it here and re-use that lambda.
     CacheKey.first.second = BImg->getImageID();
-    // TODO: Use SYCL 2020 exceptions
-    auto TempRes = Cache.getOrBuild<compile_program_error>(GetCachedBuildF,
-                                                           UpdateRefCountF);
-    std::ignore = TempRes;
-    assert(TempRes != nullptr && "Invalid build result");
+    bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
+    if (DidInsert) {
+      // For every cached copy of the program, we need to increment its refcount
+      Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
+    }
   }
 
   // If caching is enabled, one copy of the program handle will be
