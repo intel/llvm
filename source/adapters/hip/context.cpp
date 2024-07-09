@@ -108,8 +108,9 @@ urContextRetain(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
-    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
+                         ur_native_handle_t *phNativeContext) {
   // FIXME: this entry point has been deprecated in the SYCL RT and should be
   // changed to unsupported once the deprecation period has elapsed
   // The below is extremely dodgy but is the equivalent for what went before
@@ -119,7 +120,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
   // devices and is meaningless for our purposes; all hipCtx_t APIs were added
   // for cuda compatibility only and are deprecated by HIP.
 
-  hipCtx_t *Ctx;
+  hipCtx_t *Ctx = nullptr;
   UR_CHECK_ERROR(hipCtxGetCurrent(Ctx));
   *phNativeContext = reinterpret_cast<ur_native_handle_t>(Ctx);
   return UR_RESULT_SUCCESS;

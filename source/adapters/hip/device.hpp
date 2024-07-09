@@ -95,7 +95,7 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
 namespace {
 /// Scoped Device is used across all UR HIP plugin implementation to activate
 /// the native Device on the current thread. The ScopedDevice does not
-/// reinstate the previous device as all operations in the hip adapter that
+/// reinstate the previous device as all operations in the HIP adapter that
 /// require an active device, set the active device and don't rely on device
 /// reinstation
 class ScopedDevice {
