@@ -89,9 +89,11 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 context_t::context_t() {
     mock::getCallbacks().set_replace_callback("urPlatformGetApiVersion",
                                               &mock_urPlatformGetApiVersion);
-    mock::getCallbacks().set_replace_callback("urPlatformGetInfo",
-                                              &mock_urPlatformGetInfo);
-    mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                              &mock_urDeviceGetInfo);
+    // Set the default info stuff as before overrides, this way any application
+    // passing in an override for them in any slot will take precedence.
+    mock::getCallbacks().set_before_callback("urPlatformGetInfo",
+                                             &mock_urPlatformGetInfo);
+    mock::getCallbacks().set_before_callback("urDeviceGetInfo",
+                                             &mock_urDeviceGetInfo);
 }
 } // namespace driver
