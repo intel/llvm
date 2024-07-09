@@ -794,7 +794,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Write shadow memory offset for local memory
         if (Options().DetectLocals) {
             // CPU needn't this
-            if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+                DeviceInfo->Type == DeviceType::GPU_DG2) {
                 const size_t LocalMemorySize =
                     GetDeviceLocalMemorySize(DeviceInfo->Handle);
                 const size_t LocalShadowMemorySize =
@@ -834,7 +835,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         if (Options().DetectPrivates) {
             if (DeviceInfo->Type == DeviceType::CPU) {
                 LaunchInfo.Data->PrivateShadowOffset = DeviceInfo->ShadowOffset;
-            } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+                       DeviceInfo->Type == DeviceType::GPU_DG2) {
                 const size_t PrivateShadowMemorySize =
                     (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
 
