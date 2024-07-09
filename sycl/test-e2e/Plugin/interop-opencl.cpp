@@ -15,7 +15,7 @@
 #include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/interop_handle.hpp>
+#include <sycl/interop_handle.hpp>
 
 using namespace sycl;
 
