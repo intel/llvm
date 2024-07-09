@@ -1,5 +1,5 @@
 // Test not intended to run on PVC
-// UNSUPPORTED: architecture-intel_gpu_pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 //
 // TODO: enable when Jira ticket resolved
 // XFAIL: gpu

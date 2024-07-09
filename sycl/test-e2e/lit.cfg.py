@@ -762,7 +762,7 @@ for sycl_device in config.sycl_devices:
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
-    architecture_feature = set("architecture-" + s for s in architectures)
+    architecture_feature = set("arch-" + s for s in architectures)
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)

@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-dg2 || architecture-intel_gpu_pvc
+// REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- bfloat16Constructor.cpp - Test to verify use of bfloat16 constructor -==//

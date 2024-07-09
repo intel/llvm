@@ -8,7 +8,7 @@
 // This test validates operations between simd vector and scalars for
 // bfloat16 and tfloat32 types that are available only on PVC.
 //===----------------------------------------------------------------------===//
-// REQUIRES: architecture-intel_gpu_pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
