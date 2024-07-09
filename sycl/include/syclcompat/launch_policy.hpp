@@ -82,7 +82,7 @@ class launch_policy {
   static_assert(sycl_exp::is_property_list_v<LProps>);
   static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
   static_assert(syclcompat::detail::is_nd_range_v<Range> || !LocalMem,
-                "\nsycl::range kernel launches are incompatible with local "
+                "sycl::range kernel launches are incompatible with local "
                 "memory usage!");
 
 public:
@@ -106,6 +106,10 @@ private:
         _local_mem_size{
             detail::local_mem_getter<local_mem_size, std::tuple<Ts...>>()(
                 std::tuple<Ts...>(ts...))} {
+    check_variadic_args(ts...);
+  }
+
+  template <typename... Ts> void check_variadic_args(Ts... ts) {
     static_assert(
         std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
                                             detail::is_launch_properties<Ts>,
@@ -119,17 +123,20 @@ public:
   template <typename... Ts>
   launch_policy(Range range, Ts... ts) : launch_policy(ts...) {
     _range = range;
+    check_variadic_args(ts...);
   }
 
   template <typename... Ts>
   launch_policy(dim3 global_range, Ts... ts) : launch_policy(ts...) {
     _range = Range{global_range};
+    check_variadic_args(ts...);
   }
 
   template <typename... Ts>
   launch_policy(dim3 global_range, dim3 local_range, Ts... ts)
       : launch_policy(ts...) {
     _range = Range{global_range, local_range};
+    check_variadic_args(ts...);
   }
 
   KProps get_kernel_properties() { return _kernel_properties.props; }
