@@ -909,15 +909,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     /* Independent forward progress query is only supported as of OpenCL 2.1
      * if version is older we return a default false. */
     if (DevVer >= oclv::V2_1) {
-        cl_bool CLValue;
-        CL_RETURN_ON_FAILURE(
-            clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                            sizeof(cl_bool), &CLValue, nullptr));
+      cl_bool CLValue;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                          sizeof(cl_bool), &CLValue, nullptr));
 
-        /* cl_bool is uint32_t and ur_bool_t is bool */
-        return ReturnValue(static_cast<ur_bool_t>(CLValue));
+      /* cl_bool is uint32_t and ur_bool_t is bool */
+      return ReturnValue(static_cast<ur_bool_t>(CLValue));
     } else {
-        return ReturnValue(false);
+      return ReturnValue(false);
     }
   }
   case UR_DEVICE_INFO_VENDOR_ID:
