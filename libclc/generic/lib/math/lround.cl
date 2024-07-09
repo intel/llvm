@@ -1,8 +1,24 @@
+
 #include <clc/clc.h>
- #include <spirv/spirv.h>
- 
- #include <clcmacro.h>
- 
- #define __CLC_BUILTIN __spirv_ocl_lround
- #define __CLC_FUNCTION lround
- #include <math/unary_builtin.inc>
+#include <spirv/spirv.h>
+
+#include "../../libspirv/math/tables.h"
+#include <clcmacro.h>
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif // cl_khr_fp64
+
+_CLC_OVERLOAD _CLC_DEF long int lround(float x) {
+    return __spirv_ocl_lround(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long int, lround, float);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DEF long int lround(double x) {
+    return __spirv_ocl_lround(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long int, log10, double);
+#endif // cl_khr_fp64
