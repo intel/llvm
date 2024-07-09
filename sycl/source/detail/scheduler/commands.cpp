@@ -2318,8 +2318,10 @@ void SetArgBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
-    Plugin->call(urKernelSetArgPointer, Kernel, NextTrueIndex, nullptr,
-                 Arg.MPtr);
+    // We need to de-rerence this to get the actual USM allocation - that's the
+    // pointer UR is expecting.
+    const void *Ptr = *static_cast<const void *const *>(Arg.MPtr);
+    Plugin->call(urKernelSetArgPointer, Kernel, NextTrueIndex, nullptr, Ptr);
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
@@ -2874,9 +2876,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
-                         MCommandGroup->getRequirements().size() == 0);
-
   // We can omit creating a UR event and create a "discarded" event if either
   // the queue has the discard property or the command has been explicitly
   // marked as not needing an event, e.g. if the user did not ask for one, and
@@ -2886,7 +2885,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                         MCommandGroup->getRequirements().size() == 0;
 
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
-  detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
+  detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
 
