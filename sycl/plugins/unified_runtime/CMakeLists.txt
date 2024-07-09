@@ -99,16 +99,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
-    # commit 7cccfc77e6016312cdeec11eeab4cfe2832c6528
-    # Author: Duncan Brawley <duncan.brawley@codeplay.com>
-    # Date:   Mon, 10 Jun 2024 17:27:17 +0100
-    #     [Bindless][Exp] Create mapping of host and device handle
-  set(UNIFIED_RUNTIME_TAG 7cccfc77e6016312cdeec11eeab4cfe2832c6528)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
+  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
+  # Merge: 01af5602 79be9c5f
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jul 8 13:52:48 2024 +0100
+  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
+  #     Refactor Level Zero Command-Buffer implementation
+  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit a7e929a198ef384534b83cf23a96b89dbee313b9
+    # Author: Duncan Brawley <duncan.brawley@codeplay.com>
+    # Date:   Mon, 10 Jun 2024 17:27:17 +0100
+    #     [Bindless][Exp] Create mapping of host and device handle
+    a7e929a198ef384534b83cf23a96b89dbee313b9
   )
 
   fetch_adapter_source(opencl
