@@ -1259,13 +1259,15 @@ inline pi_result mock_piextUSMFree(pi_context context, void *ptr) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                            pi_int32 value, size_t count,
-                                            pi_uint32 num_events_in_waitlist,
-                                            const pi_event *events_waitlist,
-                                            pi_event *event) {
+inline pi_result mock_piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                          const void *pattern,
+                                          size_t patternSize, size_t count,
+                                          pi_uint32 num_events_in_waitlist,
+                                          const pi_event *events_waitlist,
+                                          pi_event *event) {
   if (event)
     *event = createDummyHandle<pi_event>();
+
   return PI_SUCCESS;
 }
 
@@ -1654,5 +1656,15 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 }
 
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
   return PI_SUCCESS;
 }
