@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "platform.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 
@@ -938,17 +939,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    // Have to convert size_t to uint32_t
-    size_t SubGroupSizesSize = 0;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
-                        nullptr, &SubGroupSizesSize));
-    std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        SubGroupSizesSize, SubGroupSizes.data(), nullptr));
-    return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
-                                                     SubGroupSizes.size());
+    size_t ExtSize = 0;
+    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr, &ExtSize);
+    std::string ExtStr(ExtSize, 0);
+    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, ExtSize, ExtStr.data(), nullptr);
+    if (ExtStr.find("cl_intel_required_subgroup_size")!=std::string::npos) { 
+      // Have to convert size_t to uint32_t
+      size_t SubGroupSizesSize = 0;
+      CL_RETURN_ON_FAILURE(
+              clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+                  nullptr, &SubGroupSizesSize));
+      std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
+      CL_RETURN_ON_FAILURE(
+              clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                  SubGroupSizesSize, SubGroupSizes.data(), nullptr));
+      return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
+              SubGroupSizes.size());
+    } else {
+      return ReturnValue.template operator()<uint32_t>(std::data({1}),1);
+    }
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
