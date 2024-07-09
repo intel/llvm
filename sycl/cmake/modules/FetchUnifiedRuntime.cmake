@@ -136,7 +136,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "de53693352507e75a20eb3edf65c47c890cad3e2"
   )
 
   fetch_adapter_source(opencl
