@@ -198,6 +198,12 @@ struct ur_device_handle_t_ : _ur_object {
                .ZeIndex >= 0;
   }
 
+  uint64_t getTimestampMask() {
+    auto ValidBits = ZeDeviceProperties->kernelTimestampValidBits;
+    assert(ValidBits <= 64);
+    return ValidBits == 64 ? ~0ULL : (1ULL << ValidBits) - 1ULL;
+  }
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;

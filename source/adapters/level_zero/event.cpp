@@ -494,8 +494,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
                                   : Event->Context->Devices[0];
 
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxValue =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
