@@ -1,4 +1,4 @@
-//==------------ pi_win_proxy_loader.hpp - SYCL standard header file ------==//
+//==------------ ur_win_proxy_loader.hpp - SYCL standard header file ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,6 +14,4 @@
 
 __declspec(dllexport) void *getPreloadedPlugin(
     const std::filesystem::path &PluginPath);
-// TODO: Remove this version during ABI breakage window
-__declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath);
 #endif
