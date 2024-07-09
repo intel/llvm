@@ -11,7 +11,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/pi_utils.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 

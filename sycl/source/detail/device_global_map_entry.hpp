@@ -16,7 +16,7 @@
 #include <set>
 #include <unordered_set>
 
-#include <detail/pi_utils.hpp>
+#include <detail/ur_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
@@ -37,7 +37,7 @@ struct DeviceGlobalUSMMem {
 
   void *const &getPtr() const noexcept { return MPtr; }
 
-  // Gets the initialization event if it exists. If not the OwnedPiEvent
+  // Gets the initialization event if it exists. If not the OwnedUrEvent
   // will contain no event.
   OwnedUrEvent getInitEvent(const PluginPtr &Plugin);
 
