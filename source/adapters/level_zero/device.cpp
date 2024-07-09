@@ -247,6 +247,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     SupportedExtensions += ("ur_exp_command_buffer ");
     // Return supported for the UR multi-device compile experimental feature
     SupportedExtensions += ("ur_exp_multi_device_compile ");
+    SupportedExtensions += ("ur_exp_usm_p2p ");
 
     return ReturnValue(SupportedExtensions.c_str());
   }
@@ -803,7 +804,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
     // currently not supported in level zero runtime
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(ur_bool_t{false});
@@ -987,11 +988,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
+
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
                   logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
@@ -1549,8 +1555,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 ) {
   const uint64_t &ZeTimerResolution =
       Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxCount =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxCount = Device->getTimestampMask();
   uint64_t DeviceClockCount, Dummy;
 
   ZE2UR_CALL(zeDeviceGetGlobalTimestamps,

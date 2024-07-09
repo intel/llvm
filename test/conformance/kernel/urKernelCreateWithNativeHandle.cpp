@@ -21,7 +21,7 @@ struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
     }
 
-    ur_native_handle_t native_kernel_handle = nullptr;
+    ur_native_handle_t native_kernel_handle = 0;
     ur_kernel_handle_t native_kernel = nullptr;
     ur_kernel_native_properties_t properties = {
         UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES, /*sType*/

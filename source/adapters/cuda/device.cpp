@@ -1075,6 +1075,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
@@ -1185,10 +1187,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice) {
   std::ignore = pProperties;
 
-  // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
-  // instead
-  CUdevice CuDevice = 0;
-  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
+  CUdevice CuDevice = static_cast<CUdevice>(hNativeDevice);
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;

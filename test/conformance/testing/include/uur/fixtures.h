@@ -1486,6 +1486,13 @@ struct urGlobalVariableTest : uur::urKernelExecutionTest {
                              UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
                              metadataData.size(), metadata_value});
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+        bool global_var_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT,
+            sizeof(global_var_support), &global_var_support, nullptr));
+        if (!global_var_support) {
+            GTEST_SKIP() << "Global variable access is not supported";
+        }
     }
 
     /* We pad the first 8 bytes of the metadata since they are ignored */
