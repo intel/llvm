@@ -278,7 +278,8 @@ event handler::finalize() {
         Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                   MKernel, MKernelName.c_str(), RawEvents,
                                   NewEvent, nullptr, MImpl->MKernelCacheConfig,
-                                  MImpl->MKernelIsCooperative);
+                                  MImpl->MKernelIsCooperative,
+                                  MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -341,7 +342,8 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName.c_str(), std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+        MImpl->MKernelUsesClusterLaunch, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -1726,6 +1728,13 @@ void handler::setKernelCacheConfig(
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
+}
+
+void handler::setKernelUsesClusterLaunch() {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  MImpl->MKernelUsesClusterLaunch = true;
 }
 
 void handler::ext_oneapi_graph(
