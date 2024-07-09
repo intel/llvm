@@ -5,7 +5,7 @@
 //
 #pragma once
 
-#include "parallel_hashmap/phmap.h"
+#include "emhash/hash_table7.hpp"
 #include "xpti/xpti_data_types.h"
 
 #include <atomic>
@@ -25,8 +25,8 @@ namespace xpti {
 /// implementation used STL containers protected with std::mutex.
 class StringTable {
 public:
-  using st_forward_t = phmap::node_hash_map<std::string, int32_t>;
-  using st_reverse_t = phmap::flat_hash_map<int32_t, const char *>;
+  using st_forward_t = std::unordered_map<std::string, int32_t>;
+  using st_reverse_t = emhash7::HashMap<int32_t, const char *>;
 
   StringTable(int size = 65536) : MStringToID(size), MIDToString(size) {
     MIds = 1;

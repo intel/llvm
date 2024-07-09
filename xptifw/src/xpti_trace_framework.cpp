@@ -14,7 +14,8 @@
 /// metrics and events.
 
 #include "xpti/xpti_trace_framework.hpp"
-#include "parallel_hashmap/phmap.h"
+#include "emhash/hash_set8.hpp"
+#include "emhash/hash_table7.hpp"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
@@ -574,12 +575,9 @@ public:
   /// @typedef uid_payload_lut
   /// @brief A type alias for an unordered map from uid_t to uid_entry_t.
   /// This type is used to create a lookup table (lut) that maps unique
-  /// identifiers (uids) to their corresponding payload entries. emhash8 is a
-  /// flat_hash_map implementation that is one of the better performing hash
-  /// maps under many circumstances with erase/delete being a bit slower than
-  /// other hash map implementations. Since we plan to keep the payload
-  /// information until the end of the application lifetime, we should be able
-  /// to use the references.
+  /// identifiers (uids) to their corresponding payload entries. Since we plan
+  /// to keep the payload information until the end of the application lifetime,
+  /// we should be able to use the references.
   using uid_payload_lut = std::unordered_map<xpti::uid128_t, uid_entry_t>;
 
   /// @typedef uid_instances_t
@@ -588,13 +586,12 @@ public:
   ///
   /// This type alias represents a hash map where the key is a 64-bit unsigned
   /// integer representing the unique instance of a tracepoint, and the value is
-  /// an instance of `xpti::TracePointImpl`. The `phmap::node_hash_map` is
+  /// an instance of `xpti::TracePointImpl`. The `emhash7::HashMap` is
   /// chosen for its efficiency in managing hash collisions and overall
   /// performance in insertions and lookups. This map is used within the trace
   /// framework to efficiently manage and access tracepoint instances by their
   /// UIDs, allowing for quick updates and retrievals of tracepoint data.
-  using uid_instances_t =
-      phmap::flat_hash_map<uint64_t, xpti::TracePointImpl *>;
+  using uid_instances_t = emhash7::HashMap<uint64_t, xpti::TracePointImpl *>;
 
   /// @typedef uid_tracepoints_lut
   /// @brief Maps 128-bit unique identifiers to their corresponding tracepoint
@@ -602,13 +599,13 @@ public:
   ///
   /// This type alias represents a hash map designed to efficiently associate
   /// 128-bit unique identifiers (UIDs) with their corresponding tracepoint
-  /// instances. The `phmap::node_hash_map` is utilized for its performance
+  /// instances. The `emhash7::HashMap` is utilized for its performance
   /// characteristics, including efficient handling of hash collisions and
   /// optimized insertions and lookups. This mapping is crucial within the trace
   /// framework for organizing and accessing tracepoint instances by their UIDs,
   /// facilitating quick updates, retrievals, and management of tracepoint data
   /// across the system.
-  using uid_tracepoints_lut = phmap::flat_hash_map<uid128_t, uid_instances_t>;
+  using uid_tracepoints_lut = emhash7::HashMap<uid128_t, uid_instances_t>;
 
   /// @typedef uid64_validity_lut
   /// @brief Represents a set for tracking the validity of 64-bit unique
@@ -617,11 +614,11 @@ public:
   /// This type alias defines a flat hash set optimized for fast lookup,
   /// insertion, and deletion operations. It is used within the trace framework
   /// to maintain a collection of 64-bit UIDs that have been validated or are
-  /// known to be in use. The `phmap::flat_hash_set` is chosen for its
+  /// known to be in use. The `emhash8::HashSet` is chosen for its
   /// performance efficiency, particularly in scenarios where the set size is
   /// large and performance is critical. This set acts as a registry to quickly
   /// verify the validity of UIDs encountered during trace operations.
-  using uid64_validity_lut = phmap::flat_hash_set<uint64_t>;
+  using uid64_validity_lut = emhash8::HashSet<uint64_t>;
 
   /// @struct PayloadInstance
   /// @brief Represents an instance of a payload associated with its unique
