@@ -67,8 +67,8 @@ class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx,
-                   const event &Evt, bool OwnNativeHandle = true) {
+make_buffer_helper(ur_native_handle_t Handle, const context &Ctx, const event
+                   &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
 }
@@ -112,8 +112,8 @@ protected:
                bool IsConstPtr);
 
   buffer_plain(ur_native_handle_t MemObject, const context &SyclContext,
-               std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
-               bool OwnNativeHandle, const event &AvailableEvent);
+               std::unique_ptr<detail::SYCLMemObjAllocator> Allocator, bool
+               OwnNativeHandle, const event &AvailableEvent);
 
   buffer_plain(const std::shared_ptr<detail::buffer_impl> &impl) : impl(impl) {}
 
@@ -731,7 +731,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, const event &,
+  detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
@@ -746,7 +746,7 @@ private:
 
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  buffer(pi_native_handle MemObject, const context &SyclContext,
+  buffer(ur_native_handle_t MemObject, const context &SyclContext,
          bool OwnNativeHandle, const event &AvailableEvent,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(MemObject, SyclContext,

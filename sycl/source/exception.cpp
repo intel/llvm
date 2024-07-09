@@ -95,9 +95,9 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-pi_int32 get_pi_error(const exception &e) { return e.MPIErr; }
+int32_t get_pi_error(const exception &e) { return e.MPIErr; }
 
-exception set_pi_error(exception &&e, pi_int32 pi_err) {
+exception set_pi_error(exception &&e, int32_t pi_err) {
   e.MPIErr = pi_err;
   return std::move(e);
 }
