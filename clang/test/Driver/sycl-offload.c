@@ -837,3 +837,13 @@
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
+
+/// ###########################################################################
+
+/// Check -fsycl-decompose-functor behaviors from source
+// RUN:   %clang -### -fsycl-decompose-functor -target x86_64-unknown-linux-gnu -fsycl -o %t.out %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DECOMP %s
+// RUN:   %clang -### -fno-sycl-decompose-functor -target x86_64-unknown-linux-gnu -fsycl -o %t.out %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NODECOMP %s
+// CHK-DECOMP: -fsycl-decompose-functor
+// CHK-NODECOMP: -fno-sycl-decompose-functor

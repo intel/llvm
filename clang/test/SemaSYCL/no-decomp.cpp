@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL,NODECOMP
-// RUN: %clang_cc1 -fsycl-is-device -fno-sycl-decompose-functor -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL,NODECOMP
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL,DECOMP
+// RUN: %clang_cc1 -fsycl-is-device -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL -check-prefix=NODECOMP
+// RUN: %clang_cc1 -fsycl-is-device -fno-sycl-decompose-functor -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL -check-prefix=NODECOMP
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor -triple nvptx64-nvidia-cuda -ast-dump %s | FileCheck %s -check-prefix=ALL -check-prefix=DECOMP
 
 #include "Inputs/sycl.hpp"
 
