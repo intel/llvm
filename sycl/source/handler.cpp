@@ -1819,6 +1819,12 @@ void handler::SetHostTask(std::function<void()> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
+void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
+  SetNDRangeDescriptor(range<1>(1));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  setType(detail::CGType::CodeplayHostTask);
+}
+
 void handler::AddAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());

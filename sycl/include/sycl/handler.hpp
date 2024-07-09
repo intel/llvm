@@ -1813,6 +1813,7 @@ private:
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> &&Func);
+  void SetHostTask(std::function<void(interop_handle)> &&Func);
 
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
