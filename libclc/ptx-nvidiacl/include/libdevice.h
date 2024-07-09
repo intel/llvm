@@ -260,8 +260,6 @@ double __nv_logb(double);
 float __nv_logbf(float);
 float __nv_logf(float);
 double __nv_longlong_as_double(long);
-long int __nv_lround(double);
-long int __nv_lroundf(float);
 int __nv_max(int, int);
 int __nv_min(int, int);
 double __nv_modf(double, double *);
