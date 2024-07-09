@@ -97,6 +97,7 @@ protected:
   void SetUp() override {
     counter_urEnqueueKernelLaunch = 0;
     counter_urUSMEnqueueMemcpy = 0;
+    counter_urUSMEnqueueFill = 0;
     counter_urUSMEnqueuePrefetch = 0;
     counter_urUSMEnqueueMemAdvise = 0;
     counter_urEnqueueEventsWaitWithBarrier = 0;

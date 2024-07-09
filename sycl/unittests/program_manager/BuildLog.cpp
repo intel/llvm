@@ -52,6 +52,7 @@ static void setupCommonTestAPIs(sycl::unittest::UrMock<> &Mock) {
 }
 
 TEST(BuildLog, OutputNothingOnLevel1) {
+  sycl::unittest::UrMock<> mock;
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "1",
@@ -78,6 +79,7 @@ TEST(BuildLog, OutputNothingOnLevel1) {
 }
 
 TEST(BuildLog, OutputLogOnLevel2) {
+  sycl::unittest::UrMock<> mock;
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "2",

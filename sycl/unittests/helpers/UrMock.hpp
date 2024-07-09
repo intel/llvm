@@ -416,6 +416,14 @@ inline ur_result_t mock_urUsmP2PPeerAccessGetInfoExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
+  auto params = reinterpret_cast<ur_virtual_mem_reserve_params_t *>(pParams);
+  **params->pppStart = *params->ppStart
+                           ? const_cast<void *>(*params->ppStart)
+                           : mock::createDummyHandle<void *>(*params->psize);
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace MockAdapter
 
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
@@ -460,6 +468,7 @@ public:
                          mock_urDeviceGetGlobalTimestamps)
     ADD_DEFAULT_OVERRIDE(urUsmP2PPeerAccessGetInfoExp,
                          mock_urUsmP2PPeerAccessGetInfoExp)
+    ADD_DEFAULT_OVERRIDE(urVirtualMemReserve, mock_urVirtualMemReserve)
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;

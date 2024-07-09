@@ -26,11 +26,11 @@ ur_result_t redefine_urDeviceGet(void *pParams) {
     **params.ppNumDevices = 3;
   if (*params.pphDevices) {
     if (*params.pNumEntries > 0)
-      *params.pphDevices[0] = COMPONENT_DEVICE_A;
+      (*params.pphDevices)[0] = COMPONENT_DEVICE_A;
     if (*params.pNumEntries > 1)
-      *params.pphDevices[1] = COMPONENT_DEVICE_B;
+      (*params.pphDevices)[1] = COMPONENT_DEVICE_B;
     if (*params.pNumEntries > 2)
-      *params.pphDevices[2] = COMPONENT_DEVICE_C;
+      (*params.pphDevices)[2] = COMPONENT_DEVICE_C;
   }
   return UR_RESULT_SUCCESS;
 }
