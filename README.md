@@ -1,5 +1,5 @@
 This is the Intel staging area for llvm.org contributions and the home for
-Intel LLVM-based projects:
+Intel LLVM-based compiler projects:
 
 - [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
