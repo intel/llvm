@@ -242,8 +242,6 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
       Self, Length, Advice);
-
-  return event();
 }
 
 event queue_impl::memcpyToDeviceGlobal(
@@ -260,8 +258,6 @@ event queue_impl::memcpyToDeviceGlobal(
         MemoryManager::copy_to_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
-
-  return event();
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
@@ -278,8 +274,6 @@ event queue_impl::memcpyFromDeviceGlobal(
         MemoryManager::copy_from_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
-
-  return event();
 }
 
 event queue_impl::getLastEvent() {
