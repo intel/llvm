@@ -37,8 +37,6 @@ template <class, int, template <class, int> class> class TestID;
 
 const char *to_string(LSCAtomicOp op) {
   switch (op) {
-  case LSCAtomicOp::predec:
-    return "lsc::predec";
   case LSCAtomicOp::add:
     return "lsc::add";
   case LSCAtomicOp::sub:
