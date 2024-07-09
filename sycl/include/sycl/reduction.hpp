@@ -1178,7 +1178,7 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost, CGH.eventNeeded());
+  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
   if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
     AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);

@@ -301,20 +301,20 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for bf16 math functions
+// Specialization for cuda cluster group
 template <>
-struct get_device_info_impl<bool,
-                            info::device::ext_oneapi_bfloat16_math_functions> {
+struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
-
-    sycl::detail::pi::PiResult Err =
-        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(),
-            PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
-            sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
+    if (Dev->getBackend() == backend::ext_oneapi_cuda) {
+      sycl::detail::pi::PiResult Err =
+          Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+              Dev->getHandleRef(),
+              PiInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
+              sizeof(result), &result, nullptr);
+      if (Err != PI_SUCCESS) {
+        return false;
+      }
     }
     return result;
   }

@@ -173,8 +173,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr & /*Context*/,
-                                   bool InitFromUserData, void *&HostPtr,
+void SYCLMemObjT::determineHostPtr(bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
@@ -205,13 +204,16 @@ void SYCLMemObjT::detachMemoryObject(
   // For L0 context could be created with two ownership strategies - keep and
   // transfer. If user keeps ownership - we could not enable deferred buffer
   // release due to resource release conflict.
+  // MRecord->MCurContext == nullptr means that last submission to buffer is on
+  // host (host task), this execution doesn't depend on device context and fully
+  // controlled by RT. In this case deferred buffer destruction is allowed.
   bool InteropObjectsUsed =
       !MOwnNativeHandle ||
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
-  if (MRecord && MRecord->MCurContext &&
-      MRecord->MCurContext->isOwnedByRuntime() && !InteropObjectsUsed &&
-      (!MHostPtrProvided || MIsInternal)) {
+  if (MRecord &&
+      (!MRecord->MCurContext || MRecord->MCurContext->isOwnedByRuntime()) &&
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
     bool okToDefer = GlobalHandler::instance().isOkToDefer();
     if (okToDefer)
       Scheduler::getInstance().deferMemObjRelease(Self);

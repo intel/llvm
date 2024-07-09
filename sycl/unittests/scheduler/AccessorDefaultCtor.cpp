@@ -21,7 +21,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
 
   std::vector<detail::Command *> ToEnqueue;
 
-  MockHandlerCustomFinalize MockCGH(QueueDevImpl, false,
+  MockHandlerCustomFinalize MockCGH(QueueDevImpl,
                                     /*CallerNeedsEvent=*/true);
 
   sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>

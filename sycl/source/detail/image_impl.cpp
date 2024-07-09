@@ -330,7 +330,7 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                               void *HostPtr,
                               sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
 
   sycl::detail::pi::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&

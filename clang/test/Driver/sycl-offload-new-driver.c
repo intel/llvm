@@ -6,16 +6,16 @@
 // OFFLOAD-NEW-DRIVER: 1: append-footer, {0}, c++, (host-sycl)
 // OFFLOAD-NEW-DRIVER: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
 // OFFLOAD-NEW-DRIVER: 3: compiler, {2}, ir, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 4: input, "[[INPUT]]", c++, (device-sycl, sm_50)
-// OFFLOAD-NEW-DRIVER: 5: preprocessor, {4}, c++-cpp-output, (device-sycl, sm_50)
-// OFFLOAD-NEW-DRIVER: 6: compiler, {5}, ir, (device-sycl, sm_50)
-// OFFLOAD-NEW-DRIVER: 7: backend, {6}, ir, (device-sycl, sm_50)
-// OFFLOAD-NEW-DRIVER: 8: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {7}, ir
-// OFFLOAD-NEW-DRIVER: 9: input, "[[INPUT]]", c++, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 10: preprocessor, {9}, c++-cpp-output, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 11: compiler, {10}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 12: backend, {11}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 13: offload, "device-sycl (spir64-unknown-unknown)" {12}, ir
+// OFFLOAD-NEW-DRIVER: 4: input, "[[INPUT]]", c++, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 6: compiler, {5}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 7: backend, {6}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, ir
+// OFFLOAD-NEW-DRIVER: 9: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// OFFLOAD-NEW-DRIVER: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, sm_50)
+// OFFLOAD-NEW-DRIVER: 11: compiler, {10}, ir, (device-sycl, sm_50)
+// OFFLOAD-NEW-DRIVER: 12: backend, {11}, ir, (device-sycl, sm_50)
+// OFFLOAD-NEW-DRIVER: 13: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {12}, ir
 // OFFLOAD-NEW-DRIVER: 14: clang-offload-packager, {8, 13}, image, (device-sycl)
 // OFFLOAD-NEW-DRIVER: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {14}, ir
 // OFFLOAD-NEW-DRIVER: 16: backend, {15}, assembler, (host-sycl)
