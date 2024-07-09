@@ -343,8 +343,7 @@ public:
 
   static std::size_t memory_required(sycl::memory_scope scope,
                                      size_t range_size) {
-    return 2 * joint_sorter<>::template memory_required<T>(
-                   scope, range_size * ElementsPerWorkItem);
+    return 2 * range_size * ElementsPerWorkItem * sizeof(T) + alignof(T);
   }
 };
 
@@ -451,9 +450,9 @@ public:
 
   static std::size_t memory_required(sycl::memory_scope scope,
                                      std::size_t range_size) {
-    return group_sorter<std::tuple<KeyTy, ValueTy>, CompareT,
-                        ElementsPerWorkItem>::memory_required(scope,
-                                                              range_size);
+    return 2 * range_size * ElementsPerWorkItem *
+               (sizeof(KeyTy) + sizeof(ValueTy)) +
+           alignof(KeyTy) + alignof(ValueTy);
   }
 };
 } // namespace default_sorters
