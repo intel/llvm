@@ -861,6 +861,8 @@ using OCLSampledImageArrayTyRead =
 
 #define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
 
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(raw_handle, NDims) raw_handle
+
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageFetch<DataT>(raw_handle, coords)
 
