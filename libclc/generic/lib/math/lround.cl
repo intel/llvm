@@ -20,5 +20,5 @@ _CLC_OVERLOAD _CLC_DEF long int lround(double x) {
     return __spirv_ocl_lround(x);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long int, log10, double);
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long int, lround, double);
 #endif // cl_khr_fp64
