@@ -80,17 +80,19 @@ struct max_work_group_size_key
                                  std::integral_constant<size_t, Dim2>>;
 };
 
-struct min_work_groups_per_cu_key
-    : detail::compile_time_property_key<detail::PropKind::MinWorkGroupsPerCU> {
+struct min_work_groups_per_multiprocessor_key
+    : detail::compile_time_property_key<
+          detail::PropKind::MinWorkGroupsPerMultiprocessor> {
   template <uint32_t Size>
-  using value_t = property_value<min_work_groups_per_cu_key,
+  using value_t = property_value<min_work_groups_per_multiprocessor_key,
                                  std::integral_constant<uint32_t, Size>>;
 };
 
-struct max_work_groups_per_mp_key
-    : detail::compile_time_property_key<detail::PropKind::MaxWorkGroupsPerMP> {
+struct max_work_groups_per_cluster_key
+    : detail::compile_time_property_key<
+          detail::PropKind::MaxWorkGroupsPerCluster> {
   template <uint32_t Size>
-  using value_t = property_value<max_work_groups_per_mp_key,
+  using value_t = property_value<max_work_groups_per_cluster_key,
                                  std::integral_constant<uint32_t, Size>>;
 };
 
@@ -178,25 +180,23 @@ struct property_value<max_work_group_size_key,
 };
 
 template <uint32_t Size>
-struct property_value<min_work_groups_per_cu_key,
+struct property_value<min_work_groups_per_multiprocessor_key,
                       std::integral_constant<uint32_t, Size>> {
-  static_assert(
-      Size != 0,
-      "min_work_groups_per_cu_key property must contain a non-zero value.");
+  static_assert(Size != 0, "min_work_groups_per_multiprocessor_key property "
+                           "must contain a non-zero value.");
 
-  using key_t = min_work_groups_per_cu_key;
+  using key_t = min_work_groups_per_multiprocessor_key;
   using value_t = std::integral_constant<uint32_t, Size>;
   static constexpr uint32_t value = Size;
 };
 
 template <uint32_t Size>
-struct property_value<max_work_groups_per_mp_key,
+struct property_value<max_work_groups_per_cluster_key,
                       std::integral_constant<uint32_t, Size>> {
-  static_assert(
-      Size != 0,
-      "max_work_groups_per_mp_key property must contain a non-zero value.");
+  static_assert(Size != 0, "max_work_groups_per_cluster_key property must "
+                           "contain a non-zero value.");
 
-  using key_t = max_work_groups_per_mp_key;
+  using key_t = max_work_groups_per_cluster_key;
   using value_t = std::integral_constant<uint32_t, Size>;
   static constexpr uint32_t value = Size;
 };
@@ -224,12 +224,12 @@ inline constexpr max_work_group_size_key::value_t<Dim0, Dim1, Dim2>
     max_work_group_size;
 
 template <uint32_t Size>
-inline constexpr min_work_groups_per_cu_key::value_t<Size>
-    min_work_groups_per_cu;
+inline constexpr min_work_groups_per_multiprocessor_key::value_t<Size>
+    min_work_groups_per_multiprocessor;
 
 template <uint32_t Size>
-inline constexpr max_work_groups_per_mp_key::value_t<Size>
-    max_work_groups_per_mp;
+inline constexpr max_work_groups_per_cluster_key::value_t<Size>
+    max_work_groups_per_cluster;
 
 struct work_group_progress_key
     : detail::compile_time_property_key<detail::PropKind::WorkGroupProgress> {
@@ -351,13 +351,13 @@ struct PropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dim1, Dim2>> {
   static constexpr const char *value = SizeListToStr<Dim0, Dim1, Dim2>::value;
 };
 template <uint32_t Size>
-struct PropertyMetaInfo<min_work_groups_per_cu_key::value_t<Size>> {
-  static constexpr const char *name = "sycl-min-work-groups-per-cu";
+struct PropertyMetaInfo<min_work_groups_per_multiprocessor_key::value_t<Size>> {
+  static constexpr const char *name = "sycl-min-work-groups-per-multiprocessor";
   static constexpr uint32_t value = Size;
 };
 template <uint32_t Size>
-struct PropertyMetaInfo<max_work_groups_per_mp_key::value_t<Size>> {
-  static constexpr const char *name = "sycl-max-work-groups-per-mp";
+struct PropertyMetaInfo<max_work_groups_per_cluster_key::value_t<Size>> {
+  static constexpr const char *name = "sycl-max-work-groups-per-cluster";
   static constexpr uint32_t value = Size;
 };
 

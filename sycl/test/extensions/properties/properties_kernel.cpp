@@ -52,8 +52,10 @@ int main() {
   static_assert(is_property_value<decltype(sub_group_size<7>)>::value);
   static_assert(
       is_property_value<decltype(max_work_group_size<8, 8, 8>)>::value);
-  static_assert(is_property_value<decltype(min_work_groups_per_cu<8>)>::value);
-  static_assert(is_property_value<decltype(max_work_groups_per_mp<8>)>::value);
+  static_assert(is_property_value<
+                decltype(min_work_groups_per_multiprocessor<8>)>::value);
+  static_assert(
+      is_property_value<decltype(max_work_groups_per_cluster<8>)>::value);
 
   static_assert(
       std::is_same_v<work_group_size_key, decltype(work_group_size<8>)::key_t>);
@@ -73,10 +75,12 @@ int main() {
   static_assert(
       std::is_same_v<max_work_group_size_key,
                      decltype(max_work_group_size<14, 14, 14>)::key_t>);
-  static_assert(std::is_same_v<min_work_groups_per_cu_key,
-                               decltype(min_work_groups_per_cu<14>)::key_t>);
-  static_assert(std::is_same_v<max_work_groups_per_mp_key,
-                               decltype(max_work_groups_per_mp<14>)::key_t>);
+  static_assert(
+      std::is_same_v<min_work_groups_per_multiprocessor_key,
+                     decltype(min_work_groups_per_multiprocessor<14>)::key_t>);
+  static_assert(
+      std::is_same_v<max_work_groups_per_cluster_key,
+                     decltype(max_work_groups_per_cluster<14>)::key_t>);
 
   static_assert(work_group_size<15>[0] == 15);
   static_assert(work_group_size<16, 17>[0] == 16);
@@ -94,8 +98,8 @@ int main() {
   static_assert(max_work_group_size<28, 29, 30>[0] == 28);
   static_assert(max_work_group_size<28, 29, 30>[1] == 29);
   static_assert(max_work_group_size<28, 29, 30>[2] == 30);
-  static_assert(min_work_groups_per_cu<28>.value == 28);
-  static_assert(max_work_groups_per_mp<29>.value == 29);
+  static_assert(min_work_groups_per_multiprocessor<28>.value == 28);
+  static_assert(max_work_groups_per_cluster<29>.value == 29);
 
   static_assert(std::is_same_v<decltype(sub_group_size<28>)::value_t,
                                std::integral_constant<uint32_t, 28>>);

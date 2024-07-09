@@ -213,8 +213,8 @@ enum PropKind : uint32_t {
   RegisteredKernelNames = 72,
   ClusterLaunch = 73,
   MaxWorkGroupSize = 74,
-  MinWorkGroupsPerCU = 75,
-  MaxWorkGroupsPerMP = 76,
+  MinWorkGroupsPerMultiprocessor = 75,
+  MaxWorkGroupsPerCluster = 76,
   // PropKindSize must always be the last value.
   PropKindSize = 77,
 };

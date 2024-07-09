@@ -8,8 +8,8 @@ int main() {
   sycl::queue Q;
 
   constexpr auto Props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::min_work_groups_per_cu<8>,
-      sycl::ext::oneapi::experimental::max_work_groups_per_mp<4>,
+      sycl::ext::oneapi::experimental::min_work_groups_per_multiprocessor<8>,
+      sycl::ext::oneapi::experimental::max_work_groups_per_cluster<4>,
   };
 
   // CHECK-IR: define{{.*}}void @[[LaunchBoundsKernelFn:.*LaunchBoundsKernel0]](){{.*}} #[[LaunchBoundsAttrs:[0-9]+]]
@@ -19,8 +19,8 @@ int main() {
 }
 
 // CHECK-IR: attributes #[[LaunchBoundsAttrs]] = {
-// CHECK-IR-SAME: "sycl-max-work-groups-per-mp"="4"
-// CHECK-IR-SAME: "sycl-min-work-groups-per-cu"="8"
+// CHECK-IR-SAME: "sycl-max-work-groups-per-cluster"="4"
+// CHECK-IR-SAME: "sycl-min-work-groups-per-multiprocessor"="8"
 
 // CHECK-IR-DAG: !{ptr @[[LaunchBoundsKernelFn]], !"kernel", i32 1}
 // CHECK-IR-DAG: !{ptr @[[LaunchBoundsKernelFn]], !"minctasm", i32 8}

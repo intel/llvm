@@ -401,8 +401,9 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   static constexpr std::pair<const char *, const char *> SimpleI32Attrs[] = {
       {"sycl-sub-group-size", "intel_reqd_sub_group_size"},
-      {"sycl-min-work-groups-per-cu", "min_work_groups_per_cu"},
-      {"sycl-max-work-groups-per-mp", "max_work_groups_per_mp"},
+      {"sycl-min-work-groups-per-multiprocessor",
+       "min_work_groups_per_multiprocessor"},
+      {"sycl-max-work-groups-per-cluster", "max_work_groups_per_cluster"},
   };
 
   for (auto [AttrKind, MDStr] : SimpleI32Attrs) {

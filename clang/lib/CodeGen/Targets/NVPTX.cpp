@@ -294,7 +294,8 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
         HasMinWorkGroupPerCU = true;
       }
-    } else if (auto Attr = F->getFnAttribute("sycl-min-work-groups-per-cu");
+    } else if (auto Attr =
+                   F->getFnAttribute("sycl-min-work-groups-per-multiprocessor");
                Attr.isValid()) {
       int Value = 0;
       bool Error = Attr.getValueAsString().getAsInteger(10, Value);
@@ -313,7 +314,8 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         // The value is guaranteed to be > 0, pass it to the metadata.
         addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
       }
-    } else if (auto Attr = F->getFnAttribute("sycl-max-work-groups-per-mp");
+    } else if (auto Attr =
+                   F->getFnAttribute("sycl-max-work-groups-per-cluster");
                Attr.isValid()) {
       int Value = 0;
       bool Error = Attr.getValueAsString().getAsInteger(10, Value);
