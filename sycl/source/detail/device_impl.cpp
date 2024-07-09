@@ -701,11 +701,12 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_oneapi_is_component: {
     typename sycl_to_ur<device>::type Result;
-    bool CallSuccessful = getPlugin()->call_nocheck(
-        urDeviceGetInfo, getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::composite_device>::value,
-        sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, getHandleRef(),
+            UrInfoCode<ext::oneapi::experimental::info::device::
+                           composite_device>::value,
+            sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
 
     return CallSuccessful && Result != nullptr;
   }
@@ -758,8 +759,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_virtual_mem: {
     ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck(urDeviceGetInfo,
-            MUrDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -831,8 +832,8 @@ uint64_t device_impl::getCurrentDeviceTime() {
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't be
-      // calling it after ERROR_INVALID_OPERATION: there is no
+      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
+      // be calling it after ERROR_INVALID_OPERATION: there is no
       // adapter-specific error.
       throw detail::set_pi_error(
           sycl::exception(

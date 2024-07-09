@@ -534,10 +534,9 @@ class CGSemaphoreWait : public CG {
   std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(
-      ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
-      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreWait(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+                  std::optional<uint64_t> WaitValue,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
   }
@@ -554,10 +553,10 @@ class CGSemaphoreSignal : public CG {
   std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(
-      ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
-      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreSignal(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+                    std::optional<uint64_t> SignalValue,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle),
         MSignalValue(SignalValue) {}

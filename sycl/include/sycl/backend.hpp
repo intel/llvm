@@ -339,8 +339,9 @@ make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
     const async_handler &Handler = {}) {
-  return detail::make_context(detail::ur::cast<ur_native_handle_t>(BackendObject),
-                              Handler, Backend, false /* KeepOwnership */);
+  return detail::make_context(
+      detail::ur::cast<ur_native_handle_t>(BackendObject), Handler, Backend,
+      false /* KeepOwnership */);
 }
 
 template <backend Backend>

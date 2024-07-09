@@ -377,7 +377,8 @@ public:
                           *Params->psize, "memcpy");
   }
 
-  static void handleUSMEnqueueFill(const ur_enqueue_usm_memcpy_params_t *Params) {
+  static void
+  handleUSMEnqueueFill(const ur_enqueue_usm_memcpy_params_t *Params) {
     CheckPointerValidness("input parameter", *Params->ppDst, *Params->psize,
                           "fill");
   }

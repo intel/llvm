@@ -131,13 +131,13 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
   const device Device = device{BackendObject.Device};
   bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
       BackendObject.NativeHandle);
-  ur_native_handle_t Handle = IsImmCmdList
-                                ? reinterpret_cast<ur_native_handle_t>(
-                                      *(std::get_if<ze_command_list_handle_t>(
-                                          &BackendObject.NativeHandle)))
-                                : reinterpret_cast<ur_native_handle_t>(
-                                      *(std::get_if<ze_command_queue_handle_t>(
-                                          &BackendObject.NativeHandle)));
+  ur_native_handle_t Handle =
+      IsImmCmdList ? reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_list_handle_t>(
+                             &BackendObject.NativeHandle)))
+                   : reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_queue_handle_t>(
+                             &BackendObject.NativeHandle)));
 
   return sycl::detail::make_queue(
       Handle, IsImmCmdList, TargetContext, &Device,

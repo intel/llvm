@@ -45,17 +45,13 @@ uint8_t getImageNumberChannels(image_channel_order Order);
 // utility function: Returns the number of bytes per image element
 uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
 
-ur_image_channel_order_t
-convertChannelOrder(image_channel_order Order);
+ur_image_channel_order_t convertChannelOrder(image_channel_order Order);
 
-image_channel_order
-convertChannelOrder(ur_image_channel_order_t Order);
+image_channel_order convertChannelOrder(ur_image_channel_order_t Order);
 
-ur_image_channel_type_t
-convertChannelType(image_channel_type Type);
+ur_image_channel_type_t convertChannelType(image_channel_type Type);
 
-image_channel_type
-convertChannelType(ur_image_channel_type_t Type);
+image_channel_type convertChannelType(ur_image_channel_type_t Type);
 
 class image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;

@@ -67,8 +67,8 @@ class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(ur_native_handle_t Handle, const context &Ctx, const event
-                   &Evt, bool OwnNativeHandle = true) {
+make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
+                   const event &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
 }
@@ -112,8 +112,8 @@ protected:
                bool IsConstPtr);
 
   buffer_plain(ur_native_handle_t MemObject, const context &SyclContext,
-               std::unique_ptr<detail::SYCLMemObjAllocator> Allocator, bool
-               OwnNativeHandle, const event &AvailableEvent);
+               std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
+               bool OwnNativeHandle, const event &AvailableEvent);
 
   buffer_plain(const std::shared_ptr<detail::buffer_impl> &impl) : impl(impl) {}
 
@@ -849,14 +849,14 @@ template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
     -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
-buffer(Container &, const property_list & = {})
-    -> buffer<typename Container::value_type, 1>;
+buffer(Container &,
+       const property_list & = {}) -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
        const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
-buffer(const T *, const range<dimensions> &, const property_list & = {})
-    -> buffer<T, dimensions>;
+buffer(const T *, const range<dimensions> &,
+       const property_list & = {}) -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace _V1

@@ -85,8 +85,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     ur_usm_alloc_location_desc_t UsmLocationDesc{};
     UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         Ctxt.get_platform().has_extension(
             "cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
@@ -156,8 +156,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
     // Buffer location is only supported on FPGA devices
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
           PropList
@@ -192,8 +192,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.flags &= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
     }
 
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
           PropList

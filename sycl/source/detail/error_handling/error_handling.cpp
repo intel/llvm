@@ -36,10 +36,10 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
-      const PluginPtr &Plugin = DeviceImpl.getPlugin();
-      uint32_t NumRegisters = 0;
-      Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
-                   sizeof(NumRegisters), &NumRegisters, nullptr);
+    const PluginPtr &Plugin = DeviceImpl.getPlugin();
+    uint32_t NumRegisters = 0;
+    Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
+                 sizeof(NumRegisters), &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::

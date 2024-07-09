@@ -377,11 +377,10 @@ public:
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr
-  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        bool EventNeeded,
-        ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-        const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+  EventImplPtr addCG(
+      std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+      bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.

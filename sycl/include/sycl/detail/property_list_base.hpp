@@ -10,7 +10,7 @@
 
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 #include <sycl/exception.hpp>              // for invalid_object_error
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_VALUE
+#include <ur_api.h>                        // for UR_RESULT_ERROR_INVALID_VALUE
 
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
