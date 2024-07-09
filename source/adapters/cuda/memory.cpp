@@ -132,8 +132,7 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
                      ur_native_handle_t *phNativeMem) {
   UR_ASSERT(Device != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   try {
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-        std::get<BufferMem>(hMem->Mem).getPtr(Device));
+    *phNativeMem = std::get<BufferMem>(hMem->Mem).getPtr(Device);
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {

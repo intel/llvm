@@ -76,7 +76,8 @@ ur_result_t UR_APICALL urLoaderConfigRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hLoaderConfig`
 ur_result_t UR_APICALL urLoaderConfigRelease(
-    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][release] config handle to release
     ) try {
     return ur_lib::urLoaderConfigRelease(hLoaderConfig);
 } catch (...) {
@@ -313,7 +314,7 @@ ur_result_t UR_APICALL urAdapterGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ur_result_t UR_APICALL urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
     ) try {
     auto pfnAdapterRelease =
         ur_lib::context->urDdiTable.Global.pfnAdapterRelease;
@@ -947,7 +948,8 @@ ur_result_t UR_APICALL urDeviceRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ur_result_t UR_APICALL urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t
+        hDevice ///< [in][release] handle of the device to release.
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Device.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -1283,7 +1285,8 @@ ur_result_t UR_APICALL urContextRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ur_result_t UR_APICALL urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t
+        hContext ///< [in][release] handle of the context to release.
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Context.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -1648,7 +1651,8 @@ ur_result_t UR_APICALL urMemRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t
+        hMem ///< [in][release] handle of the memory object to release
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Mem.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -2049,7 +2053,7 @@ ur_result_t UR_APICALL urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to release
+        hSampler ///< [in][release] handle of the sampler object to release
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Sampler.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -2516,7 +2520,7 @@ ur_result_t UR_APICALL urUSMPoolRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == pPool`
 ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
     ) try {
     auto pfnPoolRelease = ur_lib::context->urDdiTable.USM.pfnPoolRelease;
     if (nullptr == pfnPoolRelease) {
@@ -2902,7 +2906,7 @@ ur_result_t UR_APICALL urPhysicalMemRetain(
 ///         + `NULL == hPhysicalMem`
 ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to release.
+        hPhysicalMem ///< [in][release] handle of the physical memory object to release.
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.PhysicalMem.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -3207,7 +3211,8 @@ ur_result_t UR_APICALL urProgramRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hProgram`
 ur_result_t UR_APICALL urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t
+        hProgram ///< [in][release] handle for the Program to release
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Program.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -3835,7 +3840,8 @@ ur_result_t UR_APICALL urKernelRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ur_result_t UR_APICALL urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t
+        hKernel ///< [in][release] handle for the Kernel to release
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Kernel.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -4336,7 +4342,8 @@ ur_result_t UR_APICALL urQueueRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t
+        hQueue ///< [in][release] handle of the queue object to release
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Queue.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -4687,7 +4694,7 @@ ur_result_t UR_APICALL urEventRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
     ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Event.pfnRelease;
     if (nullptr == pfnRelease) {
@@ -6537,7 +6544,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnUnsampledImageHandleDestroyExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
@@ -6573,7 +6580,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnSampledImageHandleDestroyExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
@@ -6656,7 +6663,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+        hImageMem ///< [in][release] handle of image memory to be freed
     ) try {
     auto pfnImageFreeExp =
         ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageFreeExp;
@@ -6945,9 +6952,10 @@ ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
     ) try {
     auto pfnMipmapFreeExp =
         ur_lib::context->urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
@@ -7075,7 +7083,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
     ) try {
     auto pfnReleaseInteropExp =
         ur_lib::context->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
@@ -7156,7 +7164,7 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
     auto pfnDestroyExternalSemaphoreExp =
         ur_lib::context->urDdiTable.BindlessImagesExp
@@ -7360,7 +7368,7 @@ ur_result_t UR_APICALL urCommandBufferRetainExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][release] Handle of the command-buffer object.
     ) try {
     auto pfnReleaseExp =
         ur_lib::context->urDdiTable.CommandBufferExp.pfnReleaseExp;
@@ -8160,7 +8168,7 @@ ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][release] Handle of the command-buffer command.
     ) try {
     auto pfnReleaseCommandExp =
         ur_lib::context->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;

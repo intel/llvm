@@ -137,7 +137,7 @@ isSharedAllocationReadOnlyOnDevice(const pool_descriptor &desc) {
 inline bool pool_descriptor::operator==(const pool_descriptor &other) const {
     const pool_descriptor &lhs = *this;
     const pool_descriptor &rhs = other;
-    ur_native_handle_t lhsNative = nullptr, rhsNative = nullptr;
+    ur_native_handle_t lhsNative = 0, rhsNative = 0;
 
     // We want to share a memory pool for sub-devices and sub-sub devices.
     // Sub-devices and sub-sub-devices might be represented by different ur_device_handle_t but
@@ -264,7 +264,7 @@ namespace std {
 /// @brief hash specialization for usm::pool_descriptor
 template <> struct hash<usm::pool_descriptor> {
     inline size_t operator()(const usm::pool_descriptor &desc) const {
-        ur_native_handle_t native = nullptr;
+        ur_native_handle_t native = 0;
         if (desc.hDevice) {
             auto ret = urDeviceGetNativeHandle(desc.hDevice, &native);
             if (ret != UR_RESULT_SUCCESS) {

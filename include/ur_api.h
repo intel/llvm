@@ -394,7 +394,7 @@ typedef struct ur_queue_handle_t_ *ur_queue_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a native object
-typedef struct ur_native_handle_t_ *ur_native_handle_t;
+typedef uintptr_t ur_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a Sampler object
@@ -622,7 +622,7 @@ urLoaderConfigRetain(
 ///         + `NULL == hLoaderConfig`
 UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigRelease(
-    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+    ur_loader_config_handle_t hLoaderConfig ///< [in][release] config handle to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -845,7 +845,7 @@ urAdapterGet(
 ///         + `NULL == hAdapter`
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1764,7 +1764,7 @@ urDeviceRetain(
 ///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t hDevice ///< [in][release] handle of the device to release.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2271,7 +2271,7 @@ typedef enum ur_context_info_t {
 ///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t hContext ///< [in][release] handle of the context to release.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2761,7 +2761,7 @@ urMemRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t hMem ///< [in][release] handle of the memory object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3153,7 +3153,7 @@ urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(
-    ur_sampler_handle_t hSampler ///< [in] handle of the sampler object to release
+    ur_sampler_handle_t hSampler ///< [in][release] handle of the sampler object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3712,7 +3712,7 @@ urUSMPoolRetain(
 ///         + `NULL == pPool`
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4061,7 +4061,7 @@ urPhysicalMemRetain(
 ///         + `NULL == hPhysicalMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRelease(
-    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to release.
+    ur_physical_mem_handle_t hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 );
 
 #if !defined(__GNUC__)
@@ -4354,7 +4354,7 @@ urProgramRetain(
 ///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t hProgram ///< [in][release] handle for the Program to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5005,7 +5005,7 @@ urKernelRetain(
 ///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t hKernel ///< [in][release] handle for the Kernel to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5516,7 +5516,7 @@ urQueueRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t hQueue ///< [in][release] handle of the queue object to release
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5905,7 +5905,7 @@ urEventRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7551,7 +7551,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7576,7 +7576,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7636,7 +7636,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext,       ///< [in] handle of the context object
     ur_device_handle_t hDevice,         ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hImageMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7850,7 +7850,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7941,7 +7941,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext,           ///< [in] handle of the context object
     ur_device_handle_t hDevice,             ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t hInteropMem ///< [in] handle of interop memory to be freed
+    ur_exp_interop_mem_handle_t hInteropMem ///< [in][release] handle of interop memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7997,7 +7997,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext,                       ///< [in] handle of the context object
     ur_device_handle_t hDevice,                         ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+    ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8271,7 +8271,7 @@ urCommandBufferRetainExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in][release] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8819,7 +8819,7 @@ urCommandBufferRetainCommandExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in][release] Handle of the command-buffer command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////

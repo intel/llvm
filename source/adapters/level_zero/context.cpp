@@ -733,6 +733,10 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
           !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
+      // Only allow to reuse Regular Command Lists
+      if (ZeCommandListIt->second.IsImmediate) {
+        continue;
+      }
       auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
