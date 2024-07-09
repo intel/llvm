@@ -199,7 +199,7 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
-// 16.58 Renamed interop related structs/funcs/enums:
+// 17.58 Renamed interop related structs/funcs/enums:
 //       - with keyword "external" over "interop":
 //         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT to
 //           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT
@@ -221,8 +221,8 @@
 //           ext_oneapi_external_semaphore_export
 //       - piextMemReleaseInterop to piextMemReleaseExternalMemory
 
-#define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 57
+#define _PI_H_VERSION_MAJOR 17
+#define _PI_H_VERSION_MINOR 58
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
