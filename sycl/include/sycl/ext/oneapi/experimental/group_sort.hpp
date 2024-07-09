@@ -127,7 +127,7 @@ sort_over_group([[maybe_unused]] Group g,
   return sorter(g, values, properties);
 #else
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
