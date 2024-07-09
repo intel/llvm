@@ -99,7 +99,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
   # commit 4c2cee156988da9ba7d5de6e2f44f8d0f248dd83
   # Author: Sean Stirling <sean.stirling@codeplay.com>
   # Date:   Tue, 4 Jun 2024 13:52:21 +0100
@@ -109,13 +109,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f404f4deab8182aafa03caf27438ea7b62d1a24a (HEAD, origin/main, origin/HEAD)
-    # Merge: 4a60029d 686cf44d
-    # Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    # Date:   Mon Jul 8 13:33:20 2024 -0700
-    #     Merge pull request #1806 from againull/review/againull/fix_overflow
-    #     [UR][L0] Fix undefined behavior caused by shifting more than bits count
-    f404f4deab8182aafa03caf27438ea7b62d1a24a
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
