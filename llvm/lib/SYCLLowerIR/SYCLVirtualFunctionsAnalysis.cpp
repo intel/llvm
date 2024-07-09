@@ -37,13 +37,17 @@ void emitDiagnostic(SmallVector<const Function *> &Stack) {
 
 void checkKernelImpl(const Function *F, CallGraphTy &CG,
                      SmallVector<const Function *> &Stack) {
+  llvm::outs() << "looking at function " << F->getName() << "\n";
   Stack.push_back(F);
   for (Value *V : CG[F]) {
     auto *Callee = dyn_cast<Function>(V);
-    if (Callee)
+    if (Callee) {
       checkKernelImpl(Callee, CG, Stack);
-    else
+    }
+    else {
+      llvm::outs() << "emitting a diagnostic\n";
       emitDiagnostic(Stack);
+    }
   }
 
   Stack.pop_back();
@@ -83,6 +87,7 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Build call graph for each of them
   for (size_t I = 0; I < WorkList.size(); ++I) {
     const Function *F = WorkList[I];
+    llvm::outs() << "Analyzing function " << F->getName() << "\n";
     for (const Instruction &I : instructions(F)) {
       const auto *CI = dyn_cast<CallInst>(&I);
       if (!CI)
@@ -90,10 +95,16 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
       bool ToAdd = false;
       if (const auto *CF = CI->getCalledFunction()) {
+        if (CF->isDeclaration())
+          continue;
+
         WorkList.insert(CF);
         ToAdd = true;
-      } else if (CI->isIndirectCall() && CI->hasFnAttr("virtual-call"))
+        llvm::outs() << "\tfound direct call to " << CF->getName() << "\n";
+      } else if (CI->isIndirectCall() && CI->hasFnAttr("virtual-call")) {
         ToAdd = true;
+        llvm::outs() << "\tfound virtual call\n";
+      }
 
       if (ToAdd)
         CallGraph[F].insert(CI->getCalledOperand());
@@ -102,15 +113,19 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   // Emit a diagnostic if a kernel performs virtual function calls
   for (const auto *K : Kernels) {
+    llvm::outs() << "analyzing kernel " << K->getName() << "\n";
     checkKernel(K, CallGraph);
   }
 
   // build call graph that starts from SYCL kernels
-  //   in form of Function -> Value map to be able to handle both direct and indirect calls
+  //   in form of Function -> Value map to be able to handle both direct and
+  //   indirect calls
   // analyze each call graph separately
-  //   if a kernel is annotated with calls_indirectly property, we do nothing. We can even omit such kernel from call graph
-  //   if a kernel is not annotated with calls_indirectly property, we analyze it call graph to see if there are any virtual function calls performed by it and emit an error for each case we found (including call chain)
-
+  //   if a kernel is annotated with calls_indirectly property, we do nothing.
+  //   We can even omit such kernel from call graph if a kernel is not annotated
+  //   with calls_indirectly property, we analyze it call graph to see if there
+  //   are any virtual function calls performed by it and emit an error for each
+  //   case we found (including call chain)
 
   return PreservedAnalyses::all();
 }
