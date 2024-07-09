@@ -197,7 +197,7 @@ The second interface allows users to allocate device local memory at runtime.
 SYCLcompat provides this functionality through its kernel launch interface,
 `launch<function>`, defined in the following section.
 
-Finally, the following cuda backend specific functions are introduced in order
+The following cuda backend specific functions are introduced in order
 to translate from the local memory pointers introduced above to `uint32_t` or
 `size_t` variables that contain a byte address to the local
 (local refers to`.shared` in nvptx) memory state space.
