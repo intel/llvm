@@ -15,7 +15,7 @@
 #include <sycl/detail/item_base.hpp>           // for id
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
 #include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
-#include <sycl/exception.hpp>                  // for nd_range_error
+#include <sycl/exception.hpp>
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
 #include <sycl/id.hpp>                         // for id

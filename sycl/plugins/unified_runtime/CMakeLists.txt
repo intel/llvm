@@ -110,7 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit f404f4deab8182aafa03caf27438ea7b62d1a24a (HEAD, origin/main, origin/HEAD)
+    # Merge: 4a60029d 686cf44d
+    # Author: Neil R. Spruit <neil.r.spruit@intel.com>
+    # Date:   Mon Jul 8 13:33:20 2024 -0700
+    #     Merge pull request #1806 from againull/review/againull/fix_overflow
+    #     [UR][L0] Fix undefined behavior caused by shifting more than bits count
+    f404f4deab8182aafa03caf27438ea7b62d1a24a
   )
 
   fetch_adapter_source(opencl
