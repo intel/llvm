@@ -4407,6 +4407,7 @@
 ?set_flag@stream@_V1@sycl@@AEBAXI@Z
 ?set_flag@stream@_V1@sycl@@AEBAXII@Z
 ?set_manipulator@stream@_V1@sycl@@AEBAXW4stream_manipulator@23@@Z
+?set_pi_error@detail@_V1@sycl@@YA?AVexception@23@$$QEAV423@H@Z
 ?set_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEAAXPEBDPEAX_K@Z
 ?set_write_back@buffer_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?set_write_back@image_plain@detail@_V1@sycl@@IEAAX_N@Z
