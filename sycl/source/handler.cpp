@@ -1857,12 +1857,12 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
-void handler::SetNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
-                                int Dims) {
+void handler::SetNDRangeDescriptorPadded(sycl::range<3> N,
+                                         bool SetNumWorkGroups, int Dims) {
   impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
 }
-void handler::SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems, sycl::id<3> Offset,
-                                int Dims) {
+void handler::SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+                                         sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
 }
 void handler::SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,

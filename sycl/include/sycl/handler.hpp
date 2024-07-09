@@ -3676,7 +3676,7 @@ private:
   template <int Dims>
   void SetNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
                             sycl::id<Dims> Offset) {
-    return SetNDRangeDescriptorPadded(PadRange(NumWorkItems, 0), PadId(Offset),
+    return SetNDRangeDescriptorPadded(PadRange(NumWorkItems, 1), PadId(Offset),
                                       Dims);
   }
   template <int Dims>
