@@ -87,8 +87,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "load";
   case DWORDAtomicOp::store:
     return "store";
-  case DWORDAtomicOp::predec:
-    return "predec";
   }
   return "<unknown>";
 }

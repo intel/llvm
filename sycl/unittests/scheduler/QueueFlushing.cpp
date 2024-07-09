@@ -122,21 +122,15 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 
-    device HostDevice = detail::createSyclObjFromImpl<device>(
-        detail::device_impl::getHostDeviceImpl());
-    detail::QueueImplPtr DefaultHostQueue{
-        new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
     detail::AllocaCommand HostAllocaCmd =
-        detail::AllocaCommand(DefaultHostQueue, MockReq);
+        detail::AllocaCommand(nullptr, MockReq);
 
-    detail::MemCpyCommand MemCpyCmd{MockReq,    &AllocaCmd,
-                                    MockReq,    &HostAllocaCmd,
-                                    QueueImplA, DefaultHostQueue};
+    detail::MemCpyCommand MemCpyCmd{MockReq,        &AllocaCmd, MockReq,
+                                    &HostAllocaCmd, QueueImplA, nullptr};
     testCommandEnqueue(&MemCpyCmd, QueueImplB, MockReq);
 
-    detail::MemCpyCommandHost MemCpyCmdHost{MockReq,    &AllocaCmd,
-                                            MockReq,    &MockHostPtr,
-                                            QueueImplA, DefaultHostQueue};
+    detail::MemCpyCommandHost MemCpyCmdHost{MockReq,      &AllocaCmd, MockReq,
+                                            &MockHostPtr, QueueImplA, nullptr};
     testCommandEnqueue(&MemCpyCmdHost, QueueImplB, MockReq);
 
     std::unique_ptr<detail::CG> CG{
@@ -147,7 +141,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                /*SharedPtrStorage*/ {},
                                /*Requirements*/ {},
                                /*Events*/ {}))};
-    detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA};
+    detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA,
+                                    /*EventNeeded=*/true};
     MockReq.MDims = 1;
     (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),
                            ToCleanUp);

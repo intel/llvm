@@ -15,7 +15,7 @@
 #include <sycl/detail/item_base.hpp>           // for id
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
 #include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
-#include <sycl/exception.hpp>                  // for nd_range_error
+#include <sycl/exception.hpp>
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
 #include <sycl/id.hpp>                         // for id
@@ -50,8 +50,8 @@ public:
   int MIndex;
 };
 
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions.
+// The structure represents NDRange - global, local sizes, global offset,
+// number of dimensions, and the cluster dimensions if applicable.
 class NDRDescT {
   // The method initializes all sizes for dimensions greater than the passed one
   // to the default values, so they will not affect execution.
@@ -128,6 +128,17 @@ public:
     Dims = Dims_;
   }
 
+  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
+    if (Dims_ != Dims) {
+      throw std::runtime_error(
+          "Dimensionality of cluster, global and local ranges must be same");
+    }
+
+    for (int I = 0; I < Dims_; ++I) {
+      ClusterDimensions[I] = N[I];
+    }
+  }
+
   sycl::range<3> GlobalSize;
   sycl::range<3> LocalSize;
   sycl::id<3> GlobalOffset;
@@ -135,6 +146,7 @@ public:
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
   sycl::range<3> NumWorkGroups;
+  sycl::range<3> ClusterDimensions{1, 1, 1};
   size_t Dims;
 };
 
@@ -259,7 +271,7 @@ public:
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
     }
     // If local size for host is not set explicitly, let's adjust it to 1,
-    // so nd_range_error for zero local size is not thrown.
+    // so an exception for zero local size is not thrown.
     if (AdjustedRange.LocalSize[0] == 0)
       for (size_t I = 0; I < AdjustedRange.Dims; ++I)
         AdjustedRange.LocalSize[I] = 1;
@@ -352,8 +364,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_ERROR_INVALID_WORK_GROUP_SIZE);
+        throw sycl::exception(make_error_code(errc::nd_range),
+                              "Invalid local size for global size");
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
@@ -395,8 +407,8 @@ public:
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_ERROR_INVALID_WORK_GROUP_SIZE);
+        throw sycl::exception(make_error_code(errc::nd_range),
+                              "Invalid local size for global size");
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
