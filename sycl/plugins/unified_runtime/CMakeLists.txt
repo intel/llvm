@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
-  # Merge: 01af5602 79be9c5f
+  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
+  # Merge: 5be5aa49 649c5f04
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 13:52:48 2024 +0100
-  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
-  #     Refactor Level Zero Command-Buffer implementation
-  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
+  # Date:   Tue Jul 9 11:20:06 2024 +0100
+  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
+  #     [L0] Fix Queue get info and fix Queue release decrement
+  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f404f4deab8182aafa03caf27438ea7b62d1a24a (HEAD, origin/main, origin/HEAD)
-    # Merge: 4a60029d 686cf44d
-    # Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    # Date:   Mon Jul 8 13:33:20 2024 -0700
-    #     Merge pull request #1806 from againull/review/againull/fix_overflow
-    #     [UR][L0] Fix undefined behavior caused by shifting more than bits count
-    f404f4deab8182aafa03caf27438ea7b62d1a24a
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
