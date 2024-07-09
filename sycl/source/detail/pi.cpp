@@ -504,8 +504,8 @@ template <backend BE> const PluginPtr &getPlugin() {
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "pi::getPlugin couldn't find plugin");
 }
 
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
