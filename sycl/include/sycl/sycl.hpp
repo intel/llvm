@@ -103,6 +103,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/ext/oneapi/interop_handle.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>

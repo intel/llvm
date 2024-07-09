@@ -26,6 +26,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/interop_handle.hpp>
 #include <sycl/stream.hpp>
 using namespace sycl;
 

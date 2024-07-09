@@ -8,6 +8,7 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/interop_handle.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
