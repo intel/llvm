@@ -232,6 +232,11 @@ VkResult setupDevice(std::string device) {
 #endif
   };
 
+  // Make lowercase to fix inconsistent capitalization between SYCL and Vulkan
+  // device naming.
+  std::transform(device.begin(), device.end(), device.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
   // From all physical devices, find the first one that supports all our
   // required device extensions.
   for (int i = 0; i < physicalDeviceCount; i++) {
@@ -239,6 +244,10 @@ VkResult setupDevice(std::string device) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk_physical_device, &props);
     std::string name(props.deviceName);
+
+    // Make lowercase for comparision.
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
 
     if (name.find(device) == std::string::npos) {
       continue;
@@ -261,7 +270,8 @@ VkResult setupDevice(std::string device) {
     }
 
     foundDevice = true;
-    std::cout << "Found suitable Vulkan device: " << name << std::endl;
+    std::cout << "Found suitable Vulkan device: " << props.deviceName
+              << std::endl;
     break;
   }
 

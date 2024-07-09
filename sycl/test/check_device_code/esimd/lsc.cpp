@@ -1,9 +1,9 @@
 // RUN: %clangxx -O0 -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx -O0 -fsycl -fsycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation.
@@ -171,7 +171,6 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
                   cache_hint::cached>(ptr, data_width, data_height, data_pitch,
                                       x, y);
 
-  lsc_fence<lsc_memory_kind::shared_local, lsc_fence_op::none, lsc_scope::group,
-            16>();
+  fence<memory_kind::local, fence_flush_op::none, fence_scope::group>();
   // CHECK: call void @llvm.genx.lsc.fence.v16i1(<16 x i1> {{[^)]+}}, i8 3, i8 0, i8 0)
 }

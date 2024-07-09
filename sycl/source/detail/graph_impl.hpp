@@ -703,8 +703,10 @@ private:
         sycl::detail::CGFillUSM *FillUSM =
             static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
         Stream << "Dst: " << FillUSM->getDst()
-               << " Length: " << FillUSM->getLength()
-               << " Pattern: " << FillUSM->getFill() << "\\n";
+               << " Length: " << FillUSM->getLength() << " Pattern: ";
+        for (auto byte : FillUSM->getPattern())
+          Stream << byte;
+        Stream << "\\n";
       }
       break;
     case sycl::detail::CG::CGTYPE::PrefetchUSM:
@@ -1184,26 +1186,26 @@ public:
   size_t getNumberOfNodes() const { return MNodeStorage.size(); }
 
   /// Traverse the graph recursively to get the events associated with the
-  /// output nodes of this graph.
+  /// output nodes of this graph associated with a specific queue.
+  /// @param[in] Queue The queue exit nodes must have been recorded from.
   /// @return vector of events associated to exit nodes.
-  std::vector<sycl::detail::EventImplPtr> getExitNodesEvents();
-
-  /// Removes all Barrier nodes from the list of extra dependencies
-  /// MExtraDependencies.
-  /// @return vector of events associated to previous barrier nodes.
   std::vector<sycl::detail::EventImplPtr>
-  removeBarriersFromExtraDependencies() {
-    std::vector<sycl::detail::EventImplPtr> Events;
-    for (auto It = MExtraDependencies.begin();
-         It != MExtraDependencies.end();) {
-      if ((*It)->MCGType == sycl::detail::CG::Barrier) {
-        Events.push_back(getEventForNode(*It));
-        It = MExtraDependencies.erase(It);
-      } else {
-        ++It;
-      }
-    }
-    return Events;
+  getExitNodesEvents(std::weak_ptr<sycl::detail::queue_impl> Queue);
+
+  /// Store the last barrier node that was submitted to the queue.
+  /// @param[in] Queue The queue the barrier was recorded from.
+  /// @param[in] BarrierNodeImpl The created barrier node.
+  void setBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue,
+                     std::shared_ptr<node_impl> BarrierNodeImpl) {
+    MBarrierDependencyMap[Queue] = BarrierNodeImpl;
+  }
+
+  /// Get the last barrier node that was submitted to the queue.
+  /// @param[in] Queue The queue to find the last barrier node of. An empty
+  /// shared_ptr is returned if no barrier node has been recorded to the queue.
+  std::shared_ptr<node_impl>
+  getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
+    return MBarrierDependencyMap[Queue];
   }
 
 private:
@@ -1281,11 +1283,11 @@ private:
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
 
-  /// List of nodes that must be added as extra dependencies to new nodes when
-  /// added to this graph.
-  /// This list is mainly used by barrier nodes which must be considered
-  /// as predecessors for all nodes subsequently added to the graph.
-  std::list<std::shared_ptr<node_impl>> MExtraDependencies;
+  /// Mapping from queues to barrier nodes. For each queue the last barrier
+  /// node recorded to the graph from the queue is stored.
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+      MBarrierDependencyMap;
 };
 
 /// Class representing the implementation of command_graph<executable>.
