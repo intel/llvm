@@ -1133,6 +1133,11 @@ public:
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   SemaDiagnosticBuilder::DeferredDiagnosticsType DeviceDeferredDiags;
+  /// Used to track deferred diagnostic that happened in an initializer of a
+  /// constexpr variable. When it is known that a variable doesn't have
+  /// constexpr initializer content of this container is pushed to
+  /// DeviceDeferredDiags.
+  SemaDiagnosticBuilder::DeferredDiagnosticsType MaybeDeviceDeferredDiags;
 
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
@@ -2167,6 +2172,8 @@ public:
   /// Used to change context to isConstantEvaluated without pushing a heavy
   /// ExpressionEvaluationContextRecord object.
   bool isConstantEvaluatedOverride = false;
+
+  bool InConstexprVarInit = false;
 
   bool isConstantEvaluatedContext() const {
     return currentEvaluationContext().isConstantEvaluated() ||
