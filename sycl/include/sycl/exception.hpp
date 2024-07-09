@@ -176,32 +176,6 @@ protected:
   runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
-    : public runtime_error {
-public:
-  nd_range_error() : runtime_error(make_error_code(errc::nd_range)) {}
-
-  nd_range_error(const char *Msg, pi_int32 Err)
-      : nd_range_error(std::string(Msg), Err) {}
-
-  nd_range_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_parameter_error : public runtime_error {
-public:
-  invalid_parameter_error()
-      : runtime_error(make_error_code(errc::kernel_argument)) {}
-
-  invalid_parameter_error(const char *Msg, pi_int32 Err)
-      : invalid_parameter_error(std::string(Msg), Err) {}
-
-  invalid_parameter_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel_argument), Msg, Err) {}
-};
 
 } // namespace _V1
 } // namespace sycl
