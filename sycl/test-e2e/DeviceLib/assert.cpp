@@ -91,10 +91,12 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
+#include "sycl/backend/opencl.hpp"
 #include <array>
 #include <assert.h>
 #include <iostream>
 #include <stdlib.h>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -123,10 +125,8 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
   });
   device dev = deviceQueue.get_device();
   bool unsupported = true;
-  for (auto &ext : dev.get_info<info::device::extensions>()) {
-    if (ext == "cl_intel_devicelib_assert") {
-      unsupported = false;
-    }
+  if (sycl::opencl::has_extension(dev, "cl_intel_devicelib_assert")) {
+    unsupported = false;
   }
   if (unsupported && getenv("SKIP_IF_NO_EXT")) {
     fprintf(stderr, "Device has no support for cl_intel_devicelib_assert, "

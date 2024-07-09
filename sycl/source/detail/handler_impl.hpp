@@ -115,6 +115,7 @@ public:
   ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
 
   bool MKernelIsCooperative = false;
+  bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
   ur_image_desc_t MImageDesc;

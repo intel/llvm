@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
+#include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
 #include <sycl/exception.hpp>          // for runtime_error
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for GetMask

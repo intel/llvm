@@ -369,12 +369,20 @@ public:
     }
   }
 
+<<<<<<< HEAD
   static void
   handleUSMEnqueueMemcpy(const ur_enqueue_usm_memcpy_params_t *Params) {
     CheckPointerValidness("source memory block", *Params->ppSrc, *Params->psize,
                           "memcpy");
     CheckPointerValidness("destination memory block", *Params->ppDst,
                           *Params->psize, "memcpy");
+=======
+  static void handleUSMEnqueueFill(const pi_plugin &, std::optional<pi_result>,
+                                   pi_queue, void *ptr, const void *, size_t,
+                                   size_t numBytes, pi_uint32, const pi_event *,
+                                   pi_event *) {
+    CheckPointerValidness("input parameter", ptr, numBytes, "fill");
+>>>>>>> sycl
   }
 
   static void
