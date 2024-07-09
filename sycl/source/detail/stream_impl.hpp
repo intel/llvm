@@ -37,14 +37,6 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // Initialize flush buffers on host.
-  void initStreamHost(QueueImplPtr Queue);
-
-  // Enqueue task to copy stream buffer to the host and print the contents
-  // The host task event is then registered for post processing in the
-  // LeadEvent as well as in queue LeadEvent associated with.
-  void flush(const EventImplPtr &LeadEvent);
-
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
@@ -56,6 +48,8 @@ public:
   template <typename propertyT> propertyT get_property() const {
     return PropList_.get_property<propertyT>();
   }
+
+  void generateFlushCommand(handler &cgh);
 
 private:
   // Size of the stream buffer
