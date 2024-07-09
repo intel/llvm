@@ -10,23 +10,24 @@
 
 
 //CHECK_ACTIONS:                     +- 0: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (host-sycl)
-//CHECK_ACTIONS:            +- 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
-//CHECK_ACTIONS:            |     +- 2: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (device-sycl)
-//CHECK_ACTIONS:            |  +- 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
-//CHECK_ACTIONS:            |- 4: compiler, {3}, ir, (device-sycl)
-//CHECK_ACTIONS:         +- 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (x86_64-unknown-linux-gnu)" {4}, c++-cpp-output
-//CHECK_ACTIONS:      +- 6: compiler, {5}, ir, (host-sycl)
-//CHECK_ACTIONS:   +- 7: backend, {6}, assembler, (host-sycl)
-//CHECK_ACTIONS:+- 8: assembler, {7}, object, (host-sycl)
+//CHECK_ACTIONS:               +- 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+//CHECK_ACTIONS:               |     +- 2: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (device-sycl)
+//CHECK_ACTIONS:               |  +- 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+//CHECK_ACTIONS:               |- 4: compiler, {3}, ir, (device-sycl)
+//CHECK_ACTIONS:            +- 5: offload, "host-sycl ({{.*}})" {1}, "device-sycl ({{.*}})" {4}, c++-cpp-output
+//CHECK_ACTIONS:         +- 6: compiler, {5}, ir, (host-sycl)
+//CHECK_ACTIONS:      +- 7: backend, {6}, assembler, (host-sycl)
+//CHECK_ACTIONS:   +- 8: assembler, {7}, object, (host-sycl)
+
 //CHECK_ACTIONS:|           +- 9: linker, {4}, ir, (device-sycl)
 //CHECK_ACTIONS:|           |- 10: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
 //CHECK_ACTIONS:|        +- 11: linker, {9, 10}, ir, (device-sycl)
 //CHECK_ACTIONS:|     +- 12: backend, {11}, assembler, (device-sycl)
 //CHECK_ACTIONS:|  +- 13: assembler, {12}, object, (device-sycl)
-//CHECK_ACTIONS:|- 14: offload, "device-sycl (x86_64-unknown-linux-gnu)" {13}, object
+//CHECK_ACTIONS:|- 14: offload, "device-sycl ({{.*}})" {13}, object
 //CHECK_ACTIONS:|     +- 15: sycl-post-link, {11}, tempfiletable, (device-sycl)
 //CHECK_ACTIONS:|  +- 16: clang-offload-wrapper, {15}, object, (device-sycl)
-//CHECK_ACTIONS:|- 17: offload, "device-sycl (x86_64-unknown-linux-gnu)" {16}, object
+//CHECK_ACTIONS:|- 17: offload, "device-sycl ({{.*}})" {16}, object
 //CHECK_ACTIONS:18: linker, {8, 14, 17}, image, (host-sycl)
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
