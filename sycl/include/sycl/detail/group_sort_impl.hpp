@@ -12,6 +12,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#include <climits>
+
 #include <sycl/builtins.hpp>
 #include <sycl/detail/key_value_iterator.hpp>
 #include <sycl/group_algorithm.hpp>

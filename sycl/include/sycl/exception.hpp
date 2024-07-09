@@ -70,6 +70,8 @@ public:
 
 // Forward declare to declare as a friend in sycl::excepton.
 __SYCL_EXPORT pi_int32 get_pi_error(const exception &e);
+// TODO: Should it be exported at all?
+__SYCL_EXPORT exception set_pi_error(exception &&e, pi_int32 pi_err);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -128,35 +130,30 @@ private:
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, std::string(Msg), PIErr, Context) {}
+  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr)
+      : exception(Ec, std::string(Msg), PIErr) {}
 
-  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(Ec, Context, Msg + " " + detail::codeToString(PIErr)) {
+  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
+      : exception(Ec, nullptr, Msg + " " + detail::codeToString(PIErr)) {
     MPIErr = PIErr;
   }
 
-  exception(const std::string &Msg)
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr){}
-#else
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {
-  }
-#endif
-
-        // base constructor for all SYCL 2020 constructors
-        // exception(context *ctxPtr, std::error_code Ec, const std::string
-        // &what_arg);
-        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-                  const std::string &what_arg)
-      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
-  }
+  // base constructor for all SYCL 2020 constructors
+  // exception(context *, std::error_code, const std::string);
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
 
   friend __SYCL_EXPORT pi_int32 detail::get_pi_error(const exception &);
+  // To be used like this:
+  //   throw/return detail::set_pi_error(exception(...), some_pi_error);
+  // *only* when such a error is coming from the PI/UR level. Otherwise it
+  // *should be left unset/default-initialized and exception should be thrown
+  // as-is using public ctors.
+  friend __SYCL_EXPORT exception detail::set_pi_error(exception &&e,
+                                                      pi_int32 pi_err);
 };
 
 class __SYCL2020_DEPRECATED(
@@ -249,20 +246,6 @@ public:
 
   invalid_object_error(const std::string &Msg, pi_int32 Err)
       : device_error(make_error_code(errc::invalid), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::feature_not_supported instead.")
-    feature_not_supported : public device_error {
-public:
-  feature_not_supported()
-      : device_error(make_error_code(errc::feature_not_supported)) {}
-
-  feature_not_supported(const char *Msg, pi_int32 Err)
-      : feature_not_supported(std::string(Msg), Err) {}
-
-  feature_not_supported(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
 };
 
 } // namespace _V1

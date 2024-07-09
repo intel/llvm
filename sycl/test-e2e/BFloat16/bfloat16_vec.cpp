@@ -10,9 +10,6 @@
 // TODO enable opaque pointers support on CPU.
 // UNSUPPORTED: cpu || accelerator
 
-// https://github.com/intel/llvm/issues/14397
-// UNSUPPORTED: windows && gpu-intel-gen12
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}

@@ -301,6 +301,9 @@ void BackendConsumer::HandleTranslationUnit(ASTContext &C) {
   Ctx.setDiagnosticHandler(std::make_unique<ClangDiagnosticHandler>(
       CodeGenOpts, this));
 
+  Ctx.setDefaultTargetCPU(TargetOpts.CPU);
+  Ctx.setDefaultTargetFeatures(llvm::join(TargetOpts.Features, ","));
+
   // The diagnostic handler is now processed in OptRecordFileRAII.
 
   // The parallel_for_work_group legalization pass can emit calls to
@@ -1270,6 +1273,9 @@ void CodeGenAction::ExecuteAction() {
   Ctx.setDiscardValueNames(false);
   Ctx.setDiagnosticHandler(
       std::make_unique<ClangDiagnosticHandler>(CodeGenOpts, &Result));
+
+  Ctx.setDefaultTargetCPU(TargetOpts.CPU);
+  Ctx.setDefaultTargetFeatures(llvm::join(TargetOpts.Features, ","));
 
   Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
       setupLLVMOptimizationRemarks(
