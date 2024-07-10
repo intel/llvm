@@ -939,15 +939,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     /* CL_DEVICE_SUB_GROUP_SIZES_INTEL is only supported if the device has the
-     * cl_intel_required_subgroup_size extension, if it does not have it we
-     * return a default subgroups sizes list of {1}
+     * cl_intel_required_subgroup_size extension.
      * */
-    size_t ExtSize = 0;
-    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr, &ExtSize);
-    std::string ExtStr(ExtSize, 0);
-    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, ExtSize, ExtStr.data(),
-                    nullptr);
-    if (ExtStr.find("cl_intel_required_subgroup_size") != std::string::npos) {
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_required_subgroup_size"}, Supported));
+    if (Supported) {
       // Have to convert size_t to uint32_t
       size_t SubGroupSizesSize = 0;
       CL_RETURN_ON_FAILURE(
@@ -960,7 +958,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                        SubGroupSizes.size());
     } else {
-      return ReturnValue.template operator()<uint32_t>(std::data({1}), 1);
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
