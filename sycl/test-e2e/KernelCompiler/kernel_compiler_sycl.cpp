@@ -107,8 +107,8 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   Queue.wait();
 
   for (int i = 0; i < Range; i++) {
-    std::cout << usmPtr[i] << " ";
-    assert(usmPtr[i] = i + seed);
+    std::cout << usmPtr[i] << "=" << (i + seed) << " ";
+    assert(usmPtr[i] == i + seed);
   }
   std::cout << std::endl;
 
@@ -177,8 +177,8 @@ void test_build_and_run() {
   // clang-format on
 
   // Test the kernels.
-  test_1(q, k, 37 + 5); // AddEm will add 5 more.
-  test_1(q, k2, 39);
+  test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
+  test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 }
 
 void test_error() {
