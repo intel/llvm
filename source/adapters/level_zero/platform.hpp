@@ -28,6 +28,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // internal driver handle to allow calls to driver experimental apis.
   ze_driver_handle_t ZeDriverHandleExpTranslated;
 
+  // Helper wrapper for working with Driver Version String extension in Level
+  // Zero.
+  ZeDriverVersionStringExtension ZeDriverVersionString;
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
