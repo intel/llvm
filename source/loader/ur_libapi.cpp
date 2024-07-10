@@ -3116,6 +3116,11 @@ ur_result_t UR_APICALL urProgramCompile(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
+///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
+///       will contain an unspecified program or `nullptr`. Implementations may
+///       use the build log of this program (accessible via
+///       ::urProgramGetBuildInfo) to provide an error log for the linking
+///       failure.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3147,6 +3152,9 @@ ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLink = ur_lib::context->urDdiTable.Program.pfnLink;
     if (nullptr == pfnLink) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -5887,7 +5895,6 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -6702,6 +6709,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
@@ -6754,6 +6762,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
@@ -7538,7 +7547,6 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -8667,6 +8675,11 @@ ur_result_t UR_APICALL urProgramCompileExp(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `phDevices`.
+///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
+///       will contain an unspecified program or `nullptr`. Implementations may
+///       use the build log of this program (accessible via
+///       ::urProgramGetBuildInfo) to provide an error log for the linking
+///       failure.
 ///
 /// @remarks
 ///   _Analogues_
@@ -8702,6 +8715,9 @@ ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLinkExp = ur_lib::context->urDdiTable.ProgramExp.pfnLinkExp;
     if (nullptr == pfnLinkExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -8949,7 +8965,6 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNativeEnqueue`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -8973,8 +8988,8 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< events that must be complete before the kernel execution.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
-        phEvent ///< [in,out] return an event object that identifies the work that has
-                ///< been enqueued in nativeEnqueueFunc.
+        phEvent ///< [out][optional] return an event object that identifies the work that has
+    ///< been enqueued in nativeEnqueueFunc.
     ) try {
     auto pfnNativeCommandExp =
         ur_lib::context->urDdiTable.EnqueueExp.pfnNativeCommandExp;
