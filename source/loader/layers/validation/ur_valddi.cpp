@@ -5979,10 +5979,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if ((patternSize & (patternSize - 1)) != 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
         if (size % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
