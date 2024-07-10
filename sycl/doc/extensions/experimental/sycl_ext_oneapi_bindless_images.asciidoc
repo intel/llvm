@@ -1549,7 +1549,7 @@ The device aspect descriptors for these queries are:
 importing external memory resources.
 |`aspect::ext_oneapi_external_memory_export` | Indicates if the device supports 
 exporting internal memory resources.
-|`aspect::ext_oneapi_external_semaphore_import`` | Indicates if the device 
+|`aspect::ext_oneapi_external_semaphore_import` | Indicates if the device 
 supports importing external semaphore resources.
 |`aspect::ext_oneapi_external_semaphore_export` | Indicates if the device 
 supports exporting internal event resources.
@@ -1692,7 +1692,7 @@ behaviour.
 Once a user has finished operating on imported memory, they must ensure that 
 they destroy the imported memory handle through `release_external_memory`.
 
-`release_external_memory` can only accept `external_mems` that were
+`release_external_memory` can only accept `external_mem` objects that were
 created through `import_external_memory`.
 
 ```cpp

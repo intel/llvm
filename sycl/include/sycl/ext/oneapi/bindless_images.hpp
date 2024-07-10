@@ -222,10 +222,10 @@ __SYCL_EXPORT external_mem import_external_memory(
  *  @param   syclQueue The queue in which we create our external memory
  *  @return  Imported opaque external memory
  */
-template <typename ExternalMemHandleType>
-__SYCL_EXPORT external_mem import_external_memory(
-    external_mem_descriptor<ExternalMemHandleType> externalMemDesc,
-    const sycl::queue &syclQueue);
+template <typename ResourceType>
+__SYCL_EXPORT external_mem
+import_external_memory(external_mem_descriptor<ResourceType> externalMemDesc,
+                       const sycl::queue &syclQueue);
 
 /**
  *  @brief   [Deprecated] Maps an interop memory handle to an image memory
@@ -313,10 +313,9 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
  *  @param   syclQueue The queue in which we create our external semaphore
  *  @return  Imported opaque external semaphore
  */
-template <typename ExternalSemaphoreHandleType>
+template <typename ResourceType>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
-    external_semaphore_descriptor<ExternalSemaphoreHandleType>
-        externalSemaphoreDesc,
+    external_semaphore_descriptor<ResourceType> externalSemaphoreDesc,
     const sycl::queue &syclQueue);
 
 /**

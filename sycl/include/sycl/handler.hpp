@@ -3266,7 +3266,7 @@ public:
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands submitted to the queue have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to signal.
   ///
   /// \param extSemaphore is an opaque external semaphore object
