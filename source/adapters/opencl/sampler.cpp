@@ -165,7 +165,7 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   if (pPropValue && CheckPropSize != propSize) {
     return UR_RESULT_ERROR_INVALID_SIZE;
   }
-  CL_RETURN_ON_FAILURE(Err);
+  UR_RETURN_ON_FAILURE(Err);
   if (pPropSizeRet) {
     *pPropSizeRet = CheckPropSize;
   }
