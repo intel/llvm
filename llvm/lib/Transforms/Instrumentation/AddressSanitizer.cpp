@@ -179,6 +179,8 @@ const char kAMDGPUAddressPrivateName[] = "llvm.amdgcn.is.private";
 const char kAMDGPUBallotName[] = "llvm.amdgcn.ballot.i64";
 const char kAMDGPUUnreachableName[] = "llvm.amdgcn.unreachable";
 
+const char kAsanMemToShadow[] = "__asan_mem_to_shadow";
+
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
 static const size_t kNumberOfAccessSizes = 5;
 
@@ -447,7 +449,7 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
 static cl::opt<bool>
     ClSpirOffloadPrivates("asan-spir-privates",
                           cl::desc("instrument private pointer"), cl::Hidden,
-                          cl::init(false));
+                          cl::init(true));
 
 static cl::opt<bool> ClSpirOffloadGlobals("asan-spir-globals",
                                           cl::desc("instrument global pointer"),
@@ -820,14 +822,15 @@ struct AddressSanitizer {
                                  Value *SizeArgument, uint32_t Exp,
                                  RuntimeCallInserter &RTCI);
   void instrumentMemIntrinsic(MemIntrinsic *MI, RuntimeCallInserter &RTCI);
-  Value *memToShadow(Value *Shadow, IRBuilder<> &IRB);
+  Value *memToShadow(Value *Shadow, IRBuilder<> &IRB,
+                     uint32_t AddressSpace = kSpirOffloadPrivateAS);
   bool suppressInstrumentationSiteForDebug(int &Instrumented);
   bool instrumentFunction(Function &F, const TargetLibraryInfo *TLI);
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
   void instrumentSyclStaticLocalMemory(CallInst *CI);
-  void instrumentSyclDynamicLocalMemory(Function &F);
+  bool instrumentSyclDynamicLocalMemory(Function &F);
 
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
@@ -899,6 +902,8 @@ private:
   FunctionCallee AMDGPUAddressPrivate;
   int InstrumentationWithCallsThreshold;
   uint32_t MaxInlinePoisoningSize;
+
+  FunctionCallee AsanMemToShadow;
 };
 
 class ModuleAddressSanitizer {
@@ -1067,7 +1072,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         DIB(*F.getParent(), /*AllowUnresolved*/ false), C(ASan.C),
         IntptrTy(ASan.IntptrTy), IntptrPtrTy(PointerType::get(IntptrTy, 0)),
         Mapping(ASan.Mapping),
-        PoisonStack(ClStack &&
+        PoisonStack((ClStack || ClSpirOffloadPrivates) &&
                     !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
 
   bool runOnFunction() {
@@ -1179,8 +1184,10 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   /// Collect Alloca instructions we want (and can) handle.
   void visitAllocaInst(AllocaInst &AI) {
     // FIXME: Handle scalable vectors instead of ignoring them.
-    if (!ASan.isInterestingAlloca(AI) ||
-        isa<ScalableVectorType>(AI.getAllocatedType())) {
+    const Type *AllocaType = AI.getAllocatedType();
+    const auto *STy = dyn_cast<StructType>(AllocaType);
+    if (!ASan.isInterestingAlloca(AI) || isa<ScalableVectorType>(AllocaType) ||
+        (STy && STy->containsHomogeneousScalableVectorTypes())) {
       if (AI.isStaticAlloca()) {
         // Skip over allocas that are present *before* the first instrumented
         // alloca, we don't want to move those around.
@@ -1273,7 +1280,8 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+        F.hasFnAttribute(Attribute::SanitizeAddress)) {
       SpirFixupFuncs.emplace_back(&F);
     }
   }
@@ -1289,9 +1297,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       Types.push_back(I->getType());
     }
 
-    // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
-    // it can also be treated as a pointer point to the base address of private
-    // shadow memory
+    // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
     Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
@@ -1350,7 +1356,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   }
 
   // Fixup all users
-  for (auto [F, NewF] : SpirFuncs) {
+  for (auto &[F, NewF] : SpirFuncs) {
     SmallVector<User *, 16> Users(F->users());
     for (User *U : Users) {
       if (auto *CI = dyn_cast<CallInst>(U)) {
@@ -1405,7 +1411,22 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIR()) {
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    bool HasESIMDKernel = false;
+
+    // ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    for (Function &F : M)
+      if (F.hasMetadata("sycl_explicit_simd")) {
+        F.removeFnAttr(Attribute::SanitizeAddress);
+        HasESIMDKernel = true;
+      }
+
+    // FIXME: we can't check if the kernel is ESIMD kernel at UR, so we
+    // have to disable ASan completely in this case
+    if (HasESIMDKernel)
+      return PreservedAnalyses::all();
+
     ExtendSpirKernelArgs(M, FAM);
   }
 
@@ -1544,13 +1565,13 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
-Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB) {
-  if (TargetTriple.isSPIR()) {
-    // ((Shadow & 0xffffffff) >> 3) + __AsanShadowMemoryPrivateStart;
-    Shadow = IRB.CreateAnd(Shadow, ConstantInt::get(IntptrTy, 0xffffffff));
-    Shadow = IRB.CreateLShr(Shadow, Mapping.Scale);
-    Value *ShadowBase = IRB.CreateLoad(IntptrTy, AsanShadowDevicePrivate);
-    return IRB.CreateAdd(Shadow, ShadowBase);
+Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
+                                     uint32_t AddressSpace) {
+  if (TargetTriple.isSPIROrSPIRV()) {
+    return IRB.CreateCall(
+        AsanMemToShadow,
+        {Shadow, ConstantInt::get(IRB.getInt32Ty(), AddressSpace)},
+        "shadow_ptr");
   }
   // Shadow >> scale
   Shadow = IRB.CreateLShr(Shadow, Mapping.Scale);
@@ -1619,7 +1640,7 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
 }
 
 // Instument dynamic local memory
-void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
+bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
 
   // Save "__asan_launch" into local memory "__AsanLaunchInfo"
@@ -1631,13 +1652,12 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
     Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
-    // Local address space
-    if (PtrTy && PtrTy->getPointerAddressSpace() == 3)
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
       LocalArgs.push_back(&Arg);
   }
 
   if (LocalArgs.empty())
-    return;
+    return false;
 
   AllocaInst *ArgsArray = IRB.CreateAlloca(
       IntptrTy, ConstantInt::get(Int32Ty, LocalArgs.size()), "local_args");
@@ -1649,6 +1669,7 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {IRB.CreatePointerCast(ArgsArray, IntptrTy),
                   ConstantInt::get(Int32Ty, LocalArgs.size())});
+  return true;
 }
 
 // Instrument memset/memmove/memcpy
@@ -1699,7 +1720,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
       return true;
   } else {
@@ -2193,7 +2214,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0) {
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 5> Args;
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
@@ -2275,7 +2296,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0) {
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 6> Args;
         Args.push_back(AddrLong);
         Args.push_back(Size);
@@ -3107,7 +3128,7 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     // Add module metadata "device.sanitizer" for sycl-post-link
     LLVMContext &Ctx = M.getContext();
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
@@ -3170,7 +3191,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       //   unsigned int line,
       //   char* func
       // )
-      if (TargetTriple.isSPIR()) {
+      if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
             Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
@@ -3231,15 +3252,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     AsanShadowGlobal = M.getOrInsertGlobal("__asan_shadow",
                                            ArrayType::get(IRB.getInt8Ty(), 0));
 
-  if (TargetTriple.isSPIR()) {
-    AsanShadowDevicePrivate =
-        M.getOrInsertGlobal("__AsanShadowMemoryPrivateStart", IntptrTy, [&] {
-          return new GlobalVariable(M, IntptrTy, true,
-                                    GlobalVariable::ExternalLinkage, nullptr,
-                                    "__AsanShadowMemoryPrivateStart", nullptr,
-                                    GlobalVariable::NotThreadLocal, 1);
-        });
-
+  if (TargetTriple.isSPIROrSPIRV()) {
     // __asan_set_shadow_static_local(
     //   uptr ptr,
     //   size_t size,
@@ -3263,6 +3276,9 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });
+
+    AsanMemToShadow = M.getOrInsertFunction(kAsanMemToShadow, IntptrTy,
+                                            IntptrTy, Type::getInt32Ty(*C));
   }
 
   AMDGPUAddressShared =
@@ -3360,8 +3376,16 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
   if (F.getName().starts_with("__asan_")) return false;
-  if (F.getName().contains("__sycl_service_kernel__"))
-    return false;
+
+  if (TargetTriple.isSPIROrSPIRV()) {
+    if (F.getName().contains("__sycl_service_kernel__"))
+      return false;
+    // Skip referenced-indirectly function as we insert access to shared local
+    // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
+    // function isn't supported yet in intel-graphics-compiler.
+    if (F.hasFnAttribute("referenced-indirectly"))
+      return false;
+  }
 
   bool FunctionModified = false;
 
@@ -3390,10 +3414,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   // We can't instrument allocas used with llvm.localescape. Only static allocas
   // can be passed to that intrinsic.
   markEscapedLocalAllocas(F);
-
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-    instrumentSyclDynamicLocalMemory(F);
-  }
 
   // We want to instrument every address only once per basic block (unless there
   // are calls between uses).
@@ -3453,7 +3473,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
             NoReturnCalls.push_back(CB);
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-          if (TargetTriple.isSPIR() && CI->getCalledFunction() &&
+          if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&
               CI->getCalledFunction()->getCallingConv() ==
                   llvm::CallingConv::SPIR_FUNC &&
               CI->getCalledFunction()->getName() ==
@@ -3483,7 +3503,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                     F.getParent()->getDataLayout(), RTCI);
     FunctionModified = true;
   }
-  if (TargetTriple.isSPIR()) {
+  if (TargetTriple.isSPIROrSPIRV()) {
     for (auto *CI : SyclAllocateLocalMemoryCalls) {
       instrumentSyclStaticLocalMemory(CI);
       FunctionModified = true;
@@ -3513,6 +3533,11 @@ bool AddressSanitizer::instrumentFunction(Function &F,
 
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
+
+  // We need to instrument dynamic local arguments after stack poisoner
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    FunctionModified |= instrumentSyclDynamicLocalMemory(F);
+  }
 
   LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "
                     << F << "\n");
@@ -3999,32 +4024,39 @@ void FunctionStackPoisoner::processStaticAllocas() {
     AI->replaceAllUsesWith(NewAllocaPtr);
   }
 
+  auto TargetTriple = Triple(F.getParent()->getTargetTriple());
+
   // The left-most redzone has enough space for at least 4 pointers.
-  // Write the Magic value to redzone[0].
   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);
-  IRB.CreateStore(ConstantInt::get(IntptrTy, kCurrentStackFrameMagic),
-                  BasePlus0);
-  // Write the frame description constant to redzone[1].
-  Value *BasePlus1 = IRB.CreateIntToPtr(
-      IRB.CreateAdd(LocalStackBase,
-                    ConstantInt::get(IntptrTy, ASan.LongSize / 8)),
-      IntptrPtrTy);
-  GlobalVariable *StackDescriptionGlobal =
-      createPrivateGlobalForString(*F.getParent(), DescriptionString,
-                                   /*AllowMerging*/ true, kAsanGenPrefix);
-  Value *Description = IRB.CreatePointerCast(StackDescriptionGlobal, IntptrTy);
-  IRB.CreateStore(Description, BasePlus1);
-  // Write the PC to redzone[2].
-  Value *BasePlus2 = IRB.CreateIntToPtr(
-      IRB.CreateAdd(LocalStackBase,
-                    ConstantInt::get(IntptrTy, 2 * ASan.LongSize / 8)),
-      IntptrPtrTy);
-  IRB.CreateStore(IRB.CreatePointerCast(&F, IntptrTy), BasePlus2);
+  // SPIRV doesn't use the following metadata
+  if (!TargetTriple.isSPIROrSPIRV()) {
+    // Write the Magic value to redzone[0].
+    IRB.CreateStore(ConstantInt::get(IntptrTy, kCurrentStackFrameMagic),
+                    BasePlus0);
+    // Write the frame description constant to redzone[1].
+    Value *BasePlus1 = IRB.CreateIntToPtr(
+        IRB.CreateAdd(LocalStackBase,
+                      ConstantInt::get(IntptrTy, ASan.LongSize / 8)),
+        IntptrPtrTy);
+    GlobalVariable *StackDescriptionGlobal =
+        createPrivateGlobalForString(*F.getParent(), DescriptionString,
+                                     /*AllowMerging*/ true, kAsanGenPrefix);
+    Value *Description =
+        IRB.CreatePointerCast(StackDescriptionGlobal, IntptrTy);
+    IRB.CreateStore(Description, BasePlus1);
+    // Write the PC to redzone[2].
+    Value *BasePlus2 = IRB.CreateIntToPtr(
+        IRB.CreateAdd(LocalStackBase,
+                      ConstantInt::get(IntptrTy, 2 * ASan.LongSize / 8)),
+        IntptrPtrTy);
+    IRB.CreateStore(IRB.CreatePointerCast(&F, IntptrTy), BasePlus2);
+  }
 
   const auto &ShadowAfterScope = GetShadowBytesAfterScope(SVD, L);
 
   // Poison the stack red zones at the entry.
-  Value *ShadowBase = ASan.memToShadow(LocalStackBase, IRB);
+  Value *ShadowBase =
+      ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase);

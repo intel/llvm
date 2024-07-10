@@ -16,6 +16,7 @@
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/OpenACCMPCommon/Interfaces/AtomicInterfaces.td"
+include "mlir/Dialect/OpenACCMPCommon/Interfaces/OpenACCMPOpsInterfaces.td"
 include "mlir/Dialect/OpenMP/OpenMPAttrDefs.td"
 include "mlir/Dialect/OpenMP/OpenMPOpBase.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
@@ -28,7 +29,7 @@ include "mlir/IR/SymbolInterfaces.td"
 // 2.19.4 Data-Sharing Attribute Clauses
 //===----------------------------------------------------------------------===//
 
-def PrivateClauseOp : OpenMP_Op<"private", [IsolatedFromAbove]> {
+def PrivateClauseOp : OpenMP_Op<"private", [IsolatedFromAbove, RecipeInterface]> {
   let summary = "Provides declaration of [first]private logic.";
   let description = [{
     This operation provides a declaration of how to implement the
@@ -152,13 +153,9 @@ def ParallelOp : OpenMP_Op<"parallel", [
     variable should be passed into the reduction region by value or by reference
     in `reduction_vars_byref`. Each reduction is identified by the accumulator
     it uses and accumulators must not be repeated in the same reduction. The
-    `omp.reduction` operation accepts the accumulator and a partial value which
-    is considered to be produced by the thread for the given reduction. If
-    multiple values are produced for the same accumulator, i.e. there are
-    multiple `omp.reduction`s, the last value is taken. The reduction
-    declaration specifies how to combine the values from each thread into the
-    final value, which is available in the accumulator after all the threads
-    complete.
+    reduction declaration specifies how to combine the values from each thread
+    into the final value, which is available in the accumulator after all the
+    threads complete.
 
     The optional $proc_bind_val attribute controls the thread affinity for the execution
     of the parallel region.
@@ -182,6 +179,10 @@ def ParallelOp : OpenMP_Op<"parallel", [
     OpBuilder<(ins CArg<"const ParallelClauseOps &">:$clauses)>
   ];
   let extraClassDeclaration = [{
+    unsigned getNumAllocateVars() { return getAllocateVars().size(); }
+
+    unsigned getNumAllocatorsVars() { return getAllocatorsVars().size(); }
+
     /// Returns the number of reduction variables.
     unsigned getNumReductionVars() { return getReductionVars().size(); }
   }];
@@ -307,13 +308,9 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments,
     accumulator variables in `reduction_vars` and symbols referring to reduction
     declarations in the `reductions` attribute. Each reduction is identified
     by the accumulator it uses and accumulators must not be repeated in the same
-    reduction. The `omp.reduction` operation accepts the accumulator and a
-    partial value which is considered to be produced by the section for the
-    given reduction. If multiple values are produced for the same accumulator,
-    i.e. there are multiple `omp.reduction`s, the last value is taken. The
-    reduction declaration specifies how to combine the values from each section
-    into the final value, which is available in the accumulator after all the
-    sections complete.
+    reduction. The reduction declaration specifies how to combine the values
+    from each section into the final value, which is available in the
+    accumulator after all the sections complete.
 
     The $allocators_vars and $allocate_vars parameters are a variadic list of values
     that specify the memory allocator to be used to obtain storage for private values.
@@ -547,7 +544,8 @@ def WsloopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              UnitAttr:$simd_modifier,
              UnitAttr:$nowait,
              ConfinedAttr<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$ordered_val,
-             OptionalAttr<OrderKindAttr>:$order_val);
+             OptionalAttr<OrderKindAttr>:$order_val,
+             OptionalAttr<OrderModifierAttr>:$order_mod);
 
   let builders = [
     OpBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
@@ -571,7 +569,7 @@ def WsloopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
                 $schedule_chunk_var, type($schedule_chunk_var)) `)`
           |`nowait` $nowait
           |`ordered` `(` $ordered_val `)`
-          |`order` `(` custom<ClauseAttr>($order_val) `)`
+          |`order` `(` custom<OrderClause>($order_val, $order_mod) `)`
     ) custom<Wsloop>($region, $reduction_vars, type($reduction_vars),
                      $reduction_vars_byref, $reductions) attr-dict
   }];
@@ -637,6 +635,7 @@ def SimdOp : OpenMP_Op<"simd", [AttrSizedOperandSegments,
              Optional<I1>:$if_expr,
              Variadic<OpenMP_PointerLikeType>:$nontemporal_vars,
              OptionalAttr<OrderKindAttr>:$order_val,
+             OptionalAttr<OrderModifierAttr>:$order_mod,
              ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$simdlen,
              ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$safelen
      );
@@ -653,7 +652,7 @@ def SimdOp : OpenMP_Op<"simd", [AttrSizedOperandSegments,
                                    $alignment_values) `)`
           |`if` `(` $if_expr `)`
           |`nontemporal` `(`  $nontemporal_vars `:` type($nontemporal_vars) `)`
-          |`order` `(` custom<ClauseAttr>($order_val) `)`
+          |`order` `(` custom<OrderClause>($order_val, $order_mod) `)`
           |`simdlen` `(` $simdlen  `)`
           |`safelen` `(` $safelen  `)`
     ) $region attr-dict
@@ -735,7 +734,8 @@ def DistributeOp : OpenMP_Op<"distribute", [AttrSizedOperandSegments,
              Optional<IntLikeType>:$chunk_size,
              Variadic<AnyType>:$allocate_vars,
              Variadic<AnyType>:$allocators_vars,
-             OptionalAttr<OrderKindAttr>:$order_val);
+             OptionalAttr<OrderKindAttr>:$order_val,
+             OptionalAttr<OrderModifierAttr>:$order_mod);
 
   let regions = (region AnyRegion:$region);
 
@@ -746,7 +746,7 @@ def DistributeOp : OpenMP_Op<"distribute", [AttrSizedOperandSegments,
   let assemblyFormat = [{
     oilist(`dist_schedule_static` $dist_schedule_static
           |`chunk_size` `(` $chunk_size `:` type($chunk_size) `)`
-          |`order` `(` custom<ClauseAttr>($order_val) `)`
+          |`order` `(` custom<OrderClause>($order_val, $order_mod) `)`
           |`allocate` `(`
              custom<AllocateAndAllocator>(
                $allocate_vars, type($allocate_vars),
@@ -912,11 +912,7 @@ def TaskloopOp : OpenMP_Op<"taskloop", [AttrSizedOperandSegments,
     variables in `reduction_vars` or `in_reduction_vars` and symbols referring
     to reduction declarations in the `reductions` or `in_reductions` attribute.
     Each reduction is identified by the accumulator it uses and accumulators
-    must not be repeated in the same reduction. The `omp.reduction` operation
-    accepts the accumulator and a partial value which is considered to be
-    produced by the current loop iteration for the given reduction. If multiple
-    values are produced for the same accumulator, i.e. there are multiple
-    `omp.reduction`s, the last value is taken. The reduction declaration
+    must not be repeated in the same reduction. The reduction declaration
     specifies how to combine the values from each iteration into the final
     value, which is available in the accumulator after the loop completes.
 
@@ -2103,7 +2099,8 @@ def CancellationPointOp : OpenMP_Op<"cancellation_point"> {
 //===----------------------------------------------------------------------===//
 
 def DeclareReductionOp : OpenMP_Op<"declare_reduction", [Symbol,
-                                                         IsolatedFromAbove]> {
+                                                         IsolatedFromAbove,
+                                                         RecipeInterface]> {
   let summary = "declares a reduction kind";
 
   let description = [{
@@ -2157,26 +2154,6 @@ def DeclareReductionOp : OpenMP_Op<"declare_reduction", [Symbol,
     }
   }];
   let hasRegionVerifier = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// 2.19.5.4 reduction clause
-//===----------------------------------------------------------------------===//
-
-def ReductionOp : OpenMP_Op<"reduction"> {
-  let summary = "reduction construct";
-  let description = [{
-    Indicates the value that is produced by the current reduction-participating
-    entity for a reduction requested in some ancestor. The reduction is
-    identified by the accumulator, but the value of the accumulator may not be
-    updated immediately.
-  }];
-
-  let arguments= (ins AnyType:$operand, OpenMP_PointerLikeType:$accumulator);
-  let assemblyFormat = [{
-    $operand `,` $accumulator attr-dict `:` type($operand) `,` type($accumulator)
-  }];
-  let hasVerifier = 1;
 }
 
 #endif // OPENMP_OPS

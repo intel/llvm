@@ -368,6 +368,17 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
   return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
 
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#endif
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

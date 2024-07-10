@@ -38,7 +38,7 @@ class host_accessor;
 
 namespace detail {
 
-class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
+class buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
@@ -48,9 +48,9 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
-          "The use_host_ptr property requires host pointer to be provided",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_host_ptr property requires host pointer to be provided");
   }
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
@@ -60,9 +60,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -74,9 +74,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -89,9 +89,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(std::const_pointer_cast<void>(HostData),
                           RequiredAlign, IsConstPtr);
@@ -105,9 +105,9 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(CopyFromInput, RequiredAlign, IsConstPtr);
   }
@@ -128,22 +128,6 @@ public:
               bool OwnNativeHandle, event AvailableEvent)
       : BaseT(MemObject, SyclContext, OwnNativeHandle,
               std::move(AvailableEvent), std::move(Allocator)) {}
-
-  // TODO: remove the following 2 constructors when it is allowed to break ABI.
-  buffer_impl(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              event AvailableEvent)
-      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
-                    SizeInBytes, std::move(Allocator),
-                    std::move(AvailableEvent)) {}
-
-  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
-              const size_t SizeInBytes,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              event AvailableEvent)
-      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
-              std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr,

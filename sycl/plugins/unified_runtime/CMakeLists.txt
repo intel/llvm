@@ -105,7 +105,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon May 20 15:50:02 2024 +0100
   #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
   #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 709d3bcb4769a8b1381aa9d7b1358a962d207027)
+  set(UNIFIED_RUNTIME_TAG 3916840dffdd8c08d59c6e07fb7ce89d812004fe)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -281,7 +281,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

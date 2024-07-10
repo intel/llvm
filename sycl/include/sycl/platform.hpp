@@ -159,13 +159,6 @@ public:
       "use platform::has() function with aspects APIs instead")
   bool has_extension(const std::string &ExtensionName) const;
 
-  /// Checks if this SYCL platform is a host platform.
-  ///
-  /// \return true if this SYCL platform is a host platform.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Returns all SYCL devices associated with this platform.
   ///
   /// If this SYCL platform is a host platform, resulting vector contains only

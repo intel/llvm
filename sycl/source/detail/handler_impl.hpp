@@ -31,9 +31,11 @@ enum class HandlerSubmissionState : std::uint8_t {
 class handler_impl {
 public:
   handler_impl(std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
-               std::shared_ptr<queue_impl> SubmissionSecondaryQueue)
+               std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
+               bool EventNeeded)
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
-        MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)){};
+        MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
+        MEventNeeded(EventNeeded) {};
 
   handler_impl() = default;
 
@@ -74,6 +76,10 @@ public:
   /// submission is a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
 
+  /// Bool stores information about whether the event resulting from the
+  /// corresponding work is required.
+  bool MEventNeeded = true;
+
   // Stores auxiliary resources used by internal operations.
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 
@@ -110,6 +116,7 @@ public:
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 
   bool MKernelIsCooperative = false;
+  bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
   sycl::detail::pi::PiMemImageDesc MImageDesc;
@@ -123,6 +130,8 @@ public:
 
   // Extra information for semaphore interoperability
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  std::optional<uint64_t> MWaitValue;
+  std::optional<uint64_t> MSignalValue;
 
   // The user facing node type, used for operations which are recorded to a
   // graph. Since some operations may actually be a different type than the user

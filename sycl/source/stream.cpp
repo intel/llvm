@@ -26,10 +26,9 @@ static constexpr size_t MAX_STATEMENT_SIZE =
 // allocated, avoiding memory leaks.
 static size_t CheckMaxStatementSize(const size_t &MaxStatementSize) {
   if (MaxStatementSize > MAX_STATEMENT_SIZE) {
-    throw sycl::invalid_parameter_error(
-        "Maximum statement size exceeds limit of " +
-            std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
-        PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Maximum statement size exceeds limit of " +
+                              std::to_string(MAX_STATEMENT_SIZE) + " bytes.");
   }
   return MaxStatementSize;
 }
@@ -56,7 +55,7 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
   detail::getSyclObjImpl(GlobalFlushBuf)->PerWI = true;
 }
 
-size_t stream::size() const noexcept { return impl->get_size(); }
+size_t stream::size() const noexcept { return impl->size(); }
 
 size_t stream::get_work_item_buffer_size() const {
   return impl->get_work_item_buffer_size();

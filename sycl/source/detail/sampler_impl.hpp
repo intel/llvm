@@ -25,7 +25,7 @@ enum class filtering_mode : unsigned int;
 enum class coordinate_normalization_mode : unsigned int;
 
 namespace detail {
-class __SYCL_EXPORT sampler_impl {
+class sampler_impl {
 public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
                addressing_mode addressingMode, filtering_mode filteringMode,
@@ -50,8 +50,8 @@ public:
 
   /// Gets the specified property of this sampler_impl.
   ///
-  /// Throws invalid_object_error if this sampler_impl does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this sampler_impl
+  /// does not have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
   template <typename propertyT> propertyT get_property() const {
