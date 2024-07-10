@@ -464,7 +464,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     break;
   }
 
-  pi_uint32 NumDevices = 0;
+  uint32_t NumDevices = 0;
   MPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
                 0, // CP info::device_type::all
                 nullptr, &NumDevices);

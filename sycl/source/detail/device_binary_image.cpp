@@ -59,7 +59,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   return Out;
 }
 
-pi_uint32 DeviceBinaryProperty::asUint32() const {
+uint32_t DeviceBinaryProperty::asUint32() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");

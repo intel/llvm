@@ -18,7 +18,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>

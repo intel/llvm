@@ -67,7 +67,7 @@ context::context(const std::vector<device> &DeviceList,
                   }))
     throw invalid_parameter_error(
         "Can't add devices across platforms to a single context.",
-        PI_ERROR_INVALID_DEVICE);
+        UR_RESULT_ERROR_INVALID_DEVICE);
   else
     impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
                                                   PropList);

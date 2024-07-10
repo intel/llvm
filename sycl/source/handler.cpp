@@ -954,7 +954,7 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MImpl->MAdvice = static_cast<pi_mem_advice>(Advice);
+  MImpl->MAdvice = static_cast<ur_usm_advice_flags_t>(Advice);
   setType(detail::CG::AdviseUSM);
 }
 

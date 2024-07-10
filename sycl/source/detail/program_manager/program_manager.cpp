@@ -74,7 +74,7 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const std::vector<ur_program_metadata_t> &Metadata) {
   const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
-  pi_uint32 NumDevices = 0;
+  uint32_t NumDevices = 0;
   Plugin->call(urContextGetInfo, Context->getHandleRef(),
                UR_CONTEXT_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
                /*param_value_size_ret=*/nullptr);
@@ -547,8 +547,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
                                  sizeof(ur_bool_t), &MustBuildOnSubdevice,
                                  nullptr);
 
-  DeviceImplPtr Dev =
-      (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
+  DeviceImplPtr Dev = (MustBuildOnSubdevice == true) ? DeviceImpl : RootDevImpl;
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   auto Device = createSyclObjFromImpl<device>(Dev);
   const RTDeviceBinaryImage &Img =
@@ -1025,7 +1024,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
         getURDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
-  pi_uint32 ImgInd = 0;
+  uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   getSyclObjImpl(Context)->getPlugin()->call(
@@ -1103,7 +1102,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   auto ImageIterator = ImageSet.begin();
   for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
     RawImgs[i] = const_cast<pi_device_binary>(&(*ImageIterator)->getRawData());
-  pi_uint32 ImgInd = 0;
+  uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
 
@@ -1573,16 +1572,16 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   // Call piextDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
-  pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
+  uint32_t SuitableImageID = std::numeric_limits<uint32_t>::max();
   pi_device_binary DevBin =
       const_cast<pi_device_binary>(&BinImage->getRawData());
 
   ur_device_binary_t UrBinary{};
   UrBinary.pDeviceTargetSpec = getURDeviceTarget(DevBin->DeviceTargetSpec);
 
-  ur_result_t Error = Plugin->call_nocheck(
-      urDeviceSelectBinary, URDeviceHandle, &UrBinary,
-      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
+  ur_result_t Error =
+      Plugin->call_nocheck(urDeviceSelectBinary, URDeviceHandle, &UrBinary,
+                           /*num bin images = */ (uint32_t)1, &SuitableImageID);
   if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
                         UR_RESULT_ERROR_INVALID_VALUE);
@@ -2381,10 +2380,12 @@ ProgramManager::getOrCreateKernel(const context &Context,
     Plugin->call(urKernelCreate, Program, KernelName.c_str(), &Kernel);
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
-    if (Ctx->getPlatformImpl()->supports_usm())
+    if (Ctx->getPlatformImpl()->supports_usm()) {
+      bool EnableAccess = true;
       Plugin->call(urKernelSetExecInfo, Kernel,
                    UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
-                   nullptr, &PI_TRUE);
+                   nullptr, &EnableAccess);
+    }
 
     // Ignore possible m_UseSpvFile for now.
     // TODO consider making m_UseSpvFile interact with kernel bundles as well.

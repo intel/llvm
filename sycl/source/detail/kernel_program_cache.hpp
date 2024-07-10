@@ -38,7 +38,7 @@ public:
   /// class instance.
   struct BuildError {
     std::string Msg;
-    pi_int32 Code;
+    int32_t Code;
 
     bool isFilledIn() const { return !Msg.empty(); }
   };

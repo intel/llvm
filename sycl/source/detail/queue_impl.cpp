@@ -233,7 +233,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice,
+                             ur_usm_advice_flags_t Advice,
                              const std::vector<event> &DepEvents,
                              bool CallerNeedsEvent) {
   return submitMemOpHelper(

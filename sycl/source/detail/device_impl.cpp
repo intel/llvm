@@ -176,7 +176,7 @@ std::vector<device> device_impl::create_sub_devices(
     const ur_device_partition_properties_t *Properties,
     size_t SubDevicesCount) const {
   std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
-  pi_uint32 ReturnedSubDevices = 0;
+  uint32_t ReturnedSubDevices = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, Properties,
                                     SubDevicesCount, SubDevices.data(),
@@ -297,7 +297,7 @@ std::vector<device> device_impl::create_sub_devices(
   Properties.PropCount = 1;
   Properties.pProperties = &Prop;
 
-  pi_uint32 SubDevicesCount = 0;
+  uint32_t SubDevicesCount = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, &Properties,
                                     0, nullptr, &SubDevicesCount);
@@ -322,7 +322,7 @@ std::vector<device> device_impl::create_sub_devices() const {
   Properties.pProperties = &Prop;
   Properties.PropCount = 1;
 
-  pi_uint32 SubDevicesCount = 0;
+  uint32_t SubDevicesCount = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call(urDevicePartition, MUrDevice, &Properties, 0, nullptr,
                &SubDevicesCount);

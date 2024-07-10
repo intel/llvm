@@ -43,10 +43,6 @@ public:
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
-  kernel_impl(pi_kernel Kernel, ContextImplPtr Context,
-              KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask = nullptr);
-
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
   /// kernel_bundle and / PiKernel.
   ///
@@ -230,7 +226,7 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
   const auto &Handle = getHandleRef();
   const auto MaxWorkGroupSize =
       Queue.get_device().get_info<info::device::max_work_group_size>();
-  pi_uint32 GroupCount = 0;
+  uint32_t GroupCount = 0;
   Plugin->call(urKernelSuggestMaxCooperativeGroupCountExp, Handle,
                MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
   return GroupCount;

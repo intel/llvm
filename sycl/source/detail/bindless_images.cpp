@@ -13,7 +13,6 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/image_impl.hpp>
-#include <detail/plugin_printers.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <memory>

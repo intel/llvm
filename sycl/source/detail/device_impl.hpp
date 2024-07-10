@@ -288,8 +288,6 @@ public:
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
-  std::string get_device_info_string(pi_device_info InfoCode) const;
-
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
 
   /// Get device architecture

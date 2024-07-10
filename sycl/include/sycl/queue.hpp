@@ -697,7 +697,7 @@ public:
   /// \return an event representing advice operation.
   __SYCL2020_DEPRECATED("use the overload with int Advice instead")
   event mem_advise(
-      const void *Ptr, size_t Length, pi_mem_advice Advice,
+      const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Provides additional information to the underlying runtime about how

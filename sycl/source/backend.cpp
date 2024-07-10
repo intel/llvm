@@ -47,25 +47,6 @@ static const PluginPtr &getPlugin(backend Backend) {
   }
 }
 
-backend convertBackend(pi_platform_backend PiBackend) {
-  switch (PiBackend) {
-  case PI_EXT_PLATFORM_BACKEND_UNKNOWN:
-    return backend::all; // No specific backend
-  case PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO:
-    return backend::ext_oneapi_level_zero;
-  case PI_EXT_PLATFORM_BACKEND_OPENCL:
-    return backend::opencl;
-  case PI_EXT_PLATFORM_BACKEND_CUDA:
-    return backend::ext_oneapi_cuda;
-  case PI_EXT_PLATFORM_BACKEND_HIP:
-    return backend::ext_oneapi_hip;
-  case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
-    return backend::ext_oneapi_native_cpu;
-  }
-  throw sycl::runtime_error{"convertBackend: Unsupported backend",
-                            UR_RESULT_ERROR_INVALID_OPERATION};
-}
-
 backend convertUrBackend(ur_platform_backend_t UrBackend) {
   switch (UrBackend) {
   case UR_PLATFORM_BACKEND_LEVEL_ZERO:
