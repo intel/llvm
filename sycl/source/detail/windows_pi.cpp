@@ -15,7 +15,7 @@
 #include <winreg.h>
 
 #include "detail/windows_os_utils.hpp"
-#include "pi_win_proxy_loader.hpp"
+#include "ur_win_proxy_loader.hpp"
 
 namespace sycl {
 inline namespace _V1 {
