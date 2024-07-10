@@ -53,7 +53,8 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
 }
 
 DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope, uint32_t semantics);
-void __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
+__SYCL_CONVERGENT__ DEVICE_EXTERNAL void
+__spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
   __mux_mem_barrier(Memory, Semantics);
 }
 
