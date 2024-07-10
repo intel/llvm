@@ -100,16 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit aaf08109f2a05adb61f50478824ae2739526daee
-  # Author: Ben Tracy <ben.tracy@codeplay.com>
-  # Date:   Mon Jun 17 14:49:53 2024 +0100
-  #     [CMDBUF] Fix coverity issue in command buffers
-  #     - Fix incorrect conditions for copy engine usage that were reported on coverity.
-  set(UNIFIED_RUNTIME_TAG aaf08109f2a05adb61f50478824ae2739526daee)
+  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
+  # Merge: 6b33a1bb 5dc794cb
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jul 10 15:05:31 2024 +0100
+  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
+  #     [L0] Use Intel Level Zero Driver String extension
+  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
 
   fetch_adapter_source(level_zero
-    https://github.com/nrspruit/unified-runtime.git
-    5dc794cbcf5f64a739f0da33e1cfd7ab101c0272
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
