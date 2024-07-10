@@ -43,9 +43,6 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 // Dummy kernel functions for testing
 // =======================================================================
 
-#define DO_LAUNCH
-#define SUPPORT_DIM3
-
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
 using sycl::ext::oneapi::experimental::empty_properties_t;
@@ -161,7 +158,6 @@ int test_basic_launch() {
   compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}}, my_k_props,
                                       my_l_props);
 
-#ifdef DO_LAUNCH
   sycl::queue q = syclcompat::get_default_queue();
 
   int dummy_int{1};
@@ -172,7 +168,6 @@ int test_basic_launch() {
   compat_exp::launch<empty_kernel>(my_config, q);
   compat_exp::launch<int_kernel>(my_config, q, dummy_int);
 
-#endif
   return 0;
 }
 
@@ -181,7 +176,6 @@ int test_range_launch() {
 
   compat_exp::launch_policy my_config(sycl::range<1>{32});
 
-#ifdef DO_LAUNCH
   sycl::queue q = syclcompat::get_default_queue();
 
   int dummy_int{1};
@@ -192,7 +186,6 @@ int test_range_launch() {
   compat_exp::launch<empty_kernel>(my_config, q);
   compat_exp::launch<int_kernel>(my_config, q, dummy_int);
 
-#endif
   return 0;
 }
 
@@ -216,7 +209,6 @@ int test_lmem_launch() {
       compat_exp::launch_properties{},
       compat_exp::local_mem_size(local_mem_size));
 
-#ifdef DO_LAUNCH
   compat_exp::launch<dynamic_local_mem_empty_kernel>(my_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
 
@@ -230,36 +222,62 @@ int test_lmem_launch() {
   for (int i = 0; i < num_elements; i++) {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
   }
-#endif
 
   syclcompat::free(h_a);
   return 0;
 }
 
-#ifdef SUPPORT_DIM3
 int test_dim3_launch_policy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  compat_exp::launch_policy my_range_config(syclcompat::dim3{32});
+  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32});
 
   static_assert(
-      std::is_same_v<decltype(my_range_config)::RangeT, sycl::range<3>>);
+      std::is_same_v<decltype(my_dim3_config)::RangeT, sycl::range<3>>);
+
+  compat_exp::launch_policy my_dim3_dim3_config(syclcompat::dim3{32},
+                                               syclcompat::dim3{32});
+
+  static_assert(
+      std::is_same_v<decltype(my_dim3_dim3_config)::RangeT, sycl::nd_range<3>>);
 
   compat_exp::launch_policy my_nd_range_config(syclcompat::dim3{32},
                                                syclcompat::dim3{32});
 
-  static_assert(
-      std::is_same_v<decltype(my_nd_range_config)::RangeT, sycl::nd_range<3>>);
-
-  compat_exp::launch<empty_kernel>(my_range_config).wait();
+  compat_exp::launch<empty_kernel>(my_dim3_config).wait();
   std::cout << "Launched 1 succesfully" << std::endl;
-  compat_exp::launch<empty_kernel>(my_nd_range_config).wait();
+  compat_exp::launch<empty_kernel>(my_dim3_dim3_config).wait();
   std::cout << "Launched 2 succesfully" << std::endl;
 
   return 0;
 }
-#endif
-// TODO: negative testing for traits/templates
+
+int test_dim3_lmem_launch() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  compat_exp::launch_policy my_dim3_dim3_config(syclcompat::dim3{32},
+                                               syclcompat::dim3{32}, compat_exp::local_mem_size{0});
+
+  static_assert(
+      std::is_same_v<decltype(my_dim3_dim3_config)::RangeT, sycl::nd_range<3>>);
+
+  compat_exp::launch<dynamic_local_mem_empty_kernel>(my_dim3_dim3_config).wait();
+  std::cout << "Launched 1 succesfully" << std::endl;
+
+  return 0;
+}
+
+int test_dim3_props_launch() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32},
+                                           compat_exp::kernel_properties{});
+
+  static_assert(
+      std::is_same_v<decltype(my_dim3_config)::RangeT, sycl::range<3>>);
+
+  compat_exp::launch<int_kernel>(my_dim3_config, 9001);
+  return 0;
+}
 
 int main() {
   // TODO: check return values!
@@ -267,7 +285,7 @@ int main() {
   test_basic_launch();
   test_range_launch();
   test_lmem_launch();
-#ifdef SUPPORT_DIM3
   test_dim3_launch_policy();
-#endif
+  test_dim3_lmem_launch();
+  test_dim3_props_launch();
 }
