@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
-  # Merge: 7b640455 abab204d
+  # commit 9d3bce6ad92e6f0a4af0139f9744584b5a402827
+  # Merge: e0775441 1c9c2d0b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 2 13:52:21 2024 +0100
-  #     Merge pull request #1696 from nrspruit/l0_windows_interop
-  #     [L0] Support for Bindless Image Import
-  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
+  # Date:   Tue Jul 9 15:57:44 2024 +0100
+  #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
+  #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
+  set(UNIFIED_RUNTIME_TAG 9d3bce6ad92e6f0a4af0139f9744584b5a402827)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

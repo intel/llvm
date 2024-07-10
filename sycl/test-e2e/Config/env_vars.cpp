@@ -28,10 +28,12 @@ int main() {
         auto B = buf.get_access<access::mode::read_write>(cgh);
         cgh.single_task<class kernel_name1>([=]() { B[0] = 0; });
       });
-    } catch (sycl::exception &e) {
+    } catch (sycl::runtime_error &e) {
       // Exit immediately, otherwise the buffer destructor may actually try to
       // enqueue the command once again, and throw another exception.
-      if (e.code() == errc::build || e.code() == errc::runtime)
+      exit(0);
+    } catch (sycl::exception &e) {
+      if (e.code() == errc::build)
         exit(0);
     }
     assert(0 && "Expected exception was *not* thrown");
