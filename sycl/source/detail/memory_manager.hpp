@@ -180,13 +180,11 @@ public:
                             ur_event_handle_t *OutEvent,
                             const detail::EventImplPtr &OutEventImpl);
 
-  static void
-  copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
-                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
-                        const void *SrcMem,
-                        const std::vector<ur_event_handle_t> &DepEvents,
-                        ur_event_handle_t *OutEvent,
-                        const detail::EventImplPtr &OutEventImpl);
+  static void copy_to_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, const void *SrcMem,
+      const std::vector<ur_event_handle_t> &DepEvents,
+      ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl);
 
   static void copy_from_device_global(
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
@@ -235,21 +233,19 @@ public:
 
   static void ext_oneapi_fill_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,
-      ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem,
-      size_t Len, const std::vector<unsigned char> &Pattern,
+      ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem, size_t Len,
+      const std::vector<unsigned char> &Pattern,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
-  static void
-  ext_oneapi_fill_cmd_buffer(sycl::detail::ContextImplPtr Context,
-                             ur_exp_command_buffer_handle_t CommandBuffer,
-                             SYCLMemObjI *SYCLMemObj, void *Mem,
-                             size_t PatternSize, const unsigned char *Pattern,
-                             unsigned int Dim, sycl::range<3> Size,
-                             sycl::range<3> AccessRange,
-                             sycl::id<3> AccessOffset, unsigned int ElementSize,
-                             std::vector<ur_exp_command_buffer_sync_point_t> Deps,
-                             ur_exp_command_buffer_sync_point_t *OutSyncPoint);
+  static void ext_oneapi_fill_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
+      void *Mem, size_t PatternSize, const unsigned char *Pattern,
+      unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
+      sycl::id<3> AccessOffset, unsigned int ElementSize,
+      std::vector<ur_exp_command_buffer_sync_point_t> Deps,
+      ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_prefetch_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,

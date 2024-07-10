@@ -793,7 +793,7 @@ exec_graph_impl::~exec_graph_impl() {
       for (const auto &Iter : Partition->MUrCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
           ur_result_t Res =
-            Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
+              Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
         }

@@ -633,8 +633,8 @@ ur_result_t enqueueImpKernel(
     const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    ur_kernel_cache_config_t KernelCacheConfig,
-    bool KernelIsCooperative, const bool KernelUsesClusterLaunch);
+    ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
+    const bool KernelUsesClusterLaunch);
 
 class KernelFusionCommand;
 
@@ -644,8 +644,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-      bool EventNeeded,
-      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;

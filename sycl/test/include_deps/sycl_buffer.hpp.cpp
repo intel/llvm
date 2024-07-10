@@ -23,11 +23,6 @@
 // CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: detail/pi.hpp
-// CHECK-NEXT: detail/os_util.hpp
-// CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/pi_error.def
-// CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
@@ -39,6 +34,7 @@
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
+// CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
 // CHECK-NEXT: property_list.hpp

@@ -30,7 +30,6 @@ __SYCL_EXPORT device make_device(const platform &Platform,
       PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
 }
 
-
 } // namespace ext::oneapi::level_zero::detail
 } // namespace _V1
 } // namespace sycl

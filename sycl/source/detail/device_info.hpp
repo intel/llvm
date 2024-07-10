@@ -323,11 +323,10 @@ struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
     if (Dev->getBackend() == backend::ext_oneapi_cuda) {
-      auto Err =
-          Dev->getPlugin()->call_nocheck(urDeviceGetInfo,
-              Dev->getHandleRef(),
-              UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
-              sizeof(result), &result, nullptr);
+      auto Err = Dev->getPlugin()->call_nocheck(
+          urDeviceGetInfo, Dev->getHandleRef(),
+          UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
+          sizeof(result), &result, nullptr);
       if (Err != UR_RESULT_SUCCESS) {
         return false;
       }

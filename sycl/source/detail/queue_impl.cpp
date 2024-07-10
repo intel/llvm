@@ -58,9 +58,8 @@ getUREvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getPlugin()->call(urQueueGetInfo, MUrQueues[0],
-                    UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-                    nullptr);
+  getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
+                    sizeof(result), &result, nullptr);
   return result;
 }
 
