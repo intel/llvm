@@ -75,8 +75,10 @@ struct ur_program_handle_t_ : _ur_object {
   }
 
   // Construct a program in NATIVE.
-  ur_program_handle_t_(state St, ur_context_handle_t Context, ur_device_handle_t Device, const ur_program_properties_t *Properties, const void *Input,
-                       size_t Length)
+  ur_program_handle_t_(state St, ur_context_handle_t Context,
+                       ur_device_handle_t Device,
+                       const ur_program_properties_t *Properties,
+                       const void *Input, size_t Length)
       : Context{Context}, NativeDevice(Device), NativeProperties(Properties),
         OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
         CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
@@ -116,7 +118,6 @@ struct ur_program_handle_t_ : _ur_object {
   bool resourcesReleased = false;
 
   const ur_context_handle_t Context; // Context of the program.
-
 
   // Device Handle used for the Native Build
   ur_device_handle_t NativeDevice;
