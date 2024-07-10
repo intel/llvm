@@ -96,8 +96,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   // information to distinguish the cases.
 
   try {
-    ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Native, Context, Device, Properties, Binary, Size);
+    ur_program_handle_t_ *UrProgram =
+        new ur_program_handle_t_(ur_program_handle_t_::Native, Context, Device,
+                                 Properties, Binary, Size);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -658,7 +659,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
           }
         }
       }
-      return ReturnValue(devices);
+      return ReturnValue(devices.data(), devices.size());
     } else {
       return ReturnValue(Program->Context->Devices[0]);
     }
@@ -678,7 +679,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
                      (ZeModulePair.second, &binarySize, nullptr));
           binarySizes.push_back(binarySize);
         }
-        return ReturnValue(binarySizes);
+        return ReturnValue(binarySizes.data(), binarySizes.size());
       } else {
         ZE2UR_CALL(zeModuleGetNativeBinary,
                    (Program->ZeModule, &SzBinary, nullptr));
