@@ -2,8 +2,6 @@
 
 #include "../graph_common.hpp"
 
-#include <sycl/detail/core.hpp>
-
 int main() {
   queue Queue{};
 

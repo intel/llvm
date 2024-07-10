@@ -9,7 +9,6 @@
 // SYCL
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
-#include <sycl/detail/core.hpp>
 #include <sycl/interop_handle.hpp>
 
 bool is_discrete(const device &Device) {
