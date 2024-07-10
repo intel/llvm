@@ -91,6 +91,7 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-// CHECK: ---> urProgramBuild
-// CHECK-SAME: -vc-codegen
-// CHECK-SAME: -> UR_RESULT_SUCCESS
+// Don't use -NEXT here to split the line because we need to allow for the
+// possbility of a BuildExp( that fails with UNSUPPORTED followed by a Build(
+// that results in SUCCESS
+// CHECK: ---> urProgramBuild{{(Exp)?}}({{.*}}-vc-codegen{{.*}} -> UR_RESULT_SUCCESS
