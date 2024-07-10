@@ -84,8 +84,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of Program object created.
 ) {
-  std::ignore = Device;
-  std::ignore = Properties;
   // In OpenCL, clCreateProgramWithBinary() can be used to load any of the
   // following: "program executable", "compiled program", or "library of
   // compiled programs".  In addition, the loaded program can be either
@@ -99,7 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 
   try {
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Native, Context, Binary, Size);
+        ur_program_handle_t_::Native, Context, Device, Properties, Binary, Size);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
