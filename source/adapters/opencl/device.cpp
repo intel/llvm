@@ -10,7 +10,6 @@
 #include "common.hpp"
 #include "platform.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cassert>
 
