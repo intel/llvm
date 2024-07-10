@@ -37,17 +37,20 @@ void emitDiagnostic(SmallVector<const Function *> &Stack) {
 
 void checkKernelImpl(const Function *F, CallGraphTy &CG,
                      SmallVector<const Function *> &Stack) {
-  llvm::outs() << "looking at function " << F->getName() << "\n";
   Stack.push_back(F);
-  for (Value *V : CG[F]) {
+  CallGraphTy::iterator It = CG.find(F);
+  if (It == CG.end()) {
+    // It could be that the function itself is a leaf and doesn't call anything
+    return;
+  }
+
+  SmallPtrSet<Value *, 8> &Callees = It->getSecond();
+  for (const Value *V : Callees) {
     auto *Callee = dyn_cast<Function>(V);
-    if (Callee) {
+    if (Callee)
       checkKernelImpl(Callee, CG, Stack);
-    }
-    else {
-      llvm::outs() << "emitting a diagnostic\n";
+    else
       emitDiagnostic(Stack);
-    }
   }
 
   Stack.pop_back();
