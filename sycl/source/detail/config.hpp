@@ -381,7 +381,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }
@@ -596,8 +596,13 @@ public:
     const char *ValStr = getCachedValue();
 
     if (!ValStr)
-      return DefaultValue;
-
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw exception(make_error_code(errc::runtime), Msg);
+    }
     return ValStr[0] == '1';
   }
 

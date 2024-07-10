@@ -2917,8 +2917,8 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   default:
-    throw runtime_error("CG type not implemented for command buffers.",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "CG type not implemented for command buffers.");
   }
 }
 
