@@ -32,20 +32,7 @@
     }                                                                          \
   }
 
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
-
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(X, ERRC)
 
 namespace sycl {
 inline namespace _V1 {
