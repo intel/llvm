@@ -12,6 +12,7 @@
 ///
 /// \ingroup sycl_ur
 
+#include <detail/config.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <iostream>
@@ -20,6 +21,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 namespace ur {
+bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

@@ -484,7 +484,7 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CG::None:
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+    if (detail::ur::trace()) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
 

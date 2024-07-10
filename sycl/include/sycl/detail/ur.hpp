@@ -24,6 +24,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 namespace ur {
+// Return true if we want to trace UR related activities.
+bool trace();
+
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);
 

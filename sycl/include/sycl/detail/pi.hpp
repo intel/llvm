@@ -47,17 +47,6 @@ __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace pi {
 
-// The SYCL_PI_TRACE sets what we will trace.
-// This is a bit-mask of various things we'd want to trace.
-enum TraceLevel {
-  PI_TRACE_BASIC = 0x1,
-  PI_TRACE_CALLS = 0x2,
-  PI_TRACE_ALL = -1
-};
-
-// Return true if we want to trace UR related activities.
-bool trace(TraceLevel level);
-
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              ur_context_extended_deleter_t func,
                                              void *user_data);

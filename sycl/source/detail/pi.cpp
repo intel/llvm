@@ -1,4 +1,4 @@
-//===-- pi.cpp - UR utilities implementation -------------------*- C++ -*--===//
+//===-- pi.cpp - PI utilities implementation -------------------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -74,11 +74,6 @@ void contextSetExtendedDeleter(const sycl::context &context,
   auto contextHandle = impl->getHandleRef();
   const auto &Plugin = impl->getPlugin();
   Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
-}
-
-bool trace(TraceLevel Level) {
-  auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
-  return (TraceLevelMask & Level) == Level;
 }
 
 // Initializes all available Plugins.

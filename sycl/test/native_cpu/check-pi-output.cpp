@@ -46,5 +46,5 @@ int main() {
   return 0;
 }
 
-//CHECK: SYCL_PI_TRACE[all]:   platform: SYCL_NATIVE_CPU
-//CHECK: SYCL_PI_TRACE[all]:   device: SYCL Native CPU
+//CHECK: SYCL_UR_TRACE:   platform: SYCL_NATIVE_CPU
+//CHECK: SYCL_UR_TRACE:   device: SYCL Native CPU
