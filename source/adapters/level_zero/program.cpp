@@ -599,11 +599,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     void **GlobalVariablePointerRet ///< [out] Returns the pointer to the global
                                     ///< variable if it is found in the program.
 ) {
-  std::ignore = Device;
   std::scoped_lock<ur_shared_mutex> lock(Program->Mutex);
 
+  ze_module_handle_t ZeModuleEntry{};
+  ZeModuleEntry = Program->ZeModule;
+  if (!Program->ZeModuleMap.empty()) {
+    auto It = Program->ZeModuleMap.find(Device->ZeDevice);
+    if (It != Program->ZeModuleMap.end()) {
+      ZeModuleEntry = It->second;
+    }
+  }
+
   ze_result_t ZeResult =
-      zeModuleGetGlobalPointer(Program->ZeModule, GlobalVariableName,
+      zeModuleGetGlobalPointer(ZeModuleEntry, GlobalVariableName,
                                GlobalVariableSizeRet, GlobalVariablePointerRet);
 
   if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -634,11 +642,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(Program->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
-    // TODO: return true number of devices this program exists for.
-    return ReturnValue(uint32_t{1});
+    if (!Program->ZeModuleMap.empty())
+      return ReturnValue(
+          uint32_t{ur_cast<uint32_t>(Program->ZeModuleMap.size())});
+    else
+      return ReturnValue(uint32_t{1});
   case UR_PROGRAM_INFO_DEVICES:
-    // TODO: return all devices this program exists for.
-    return ReturnValue(Program->Context->Devices[0]);
+    if (!Program->ZeModuleMap.empty()) {
+      std::vector<ur_device_handle_t> devices;
+      for (auto &ZeModulePair : Program->ZeModuleMap) {
+        auto It = Program->ZeModuleMap.find(ZeModulePair.first);
+        if (It != Program->ZeModuleMap.end()) {
+          for (auto &Device : Program->Context->Devices) {
+            if (Device->ZeDevice == ZeModulePair.first) {
+              devices.push_back(Device);
+            }
+          }
+        }
+      }
+      return ReturnValue(devices);
+    } else {
+      return ReturnValue(Program->Context->Devices[0]);
+    }
   case UR_PROGRAM_INFO_BINARY_SIZES: {
     std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
     size_t SzBinary;
@@ -647,8 +672,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
         Program->State == ur_program_handle_t_::Object) {
       SzBinary = Program->CodeLength;
     } else if (Program->State == ur_program_handle_t_::Exe) {
-      ZE2UR_CALL(zeModuleGetNativeBinary,
-                 (Program->ZeModule, &SzBinary, nullptr));
+      if (!Program->ZeModuleMap.empty()) {
+        std::vector<size_t> binarySizes;
+        for (auto &ZeModulePair : Program->ZeModuleMap) {
+          size_t binarySize = 0;
+          ZE2UR_CALL(zeModuleGetNativeBinary,
+                     (ZeModulePair.second, &binarySize, nullptr));
+          binarySizes.push_back(binarySize);
+        }
+        return ReturnValue(binarySizes);
+      } else {
+        ZE2UR_CALL(zeModuleGetNativeBinary,
+                   (Program->ZeModule, &SzBinary, nullptr));
+        return ReturnValue(SzBinary);
+      }
     } else {
       return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
@@ -657,9 +694,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
   }
   case UR_PROGRAM_INFO_BINARIES: {
     // The caller sets "ParamValue" to an array of pointers, one for each
-    // device.  Since Level Zero supports only one device, there is only one
-    // pointer.  If the pointer is NULL, we don't do anything.  Otherwise, we
-    // copy the program's binary image to the buffer at that pointer.
+    // device.
     uint8_t **PBinary = nullptr;
     if (ProgramInfo) {
       PBinary = ur_cast<uint8_t **>(ProgramInfo);
@@ -668,6 +703,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
       }
     }
     std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
+    // If the caller is using a Program which is IL, Native or an object, then
+    // the program has not been built for multiple devices so a single IL is
+    // returned.
     if (Program->State == ur_program_handle_t_::IL ||
         Program->State == ur_program_handle_t_::Native ||
         Program->State == ur_program_handle_t_::Object) {
@@ -677,13 +715,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
         std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
       }
     } else if (Program->State == ur_program_handle_t_::Exe) {
+      // If the caller is using a Program which is a built binary, then
+      // the program returned will either be a single module if this is a native
+      // binary or the native binary for each device will be returned.
       size_t SzBinary = 0;
       uint8_t *NativeBinaryPtr = nullptr;
       if (PBinary) {
         NativeBinaryPtr = PBinary[0];
       }
-      ZE2UR_CALL(zeModuleGetNativeBinary,
-                 (Program->ZeModule, &SzBinary, NativeBinaryPtr));
+      if (!Program->ZeModuleMap.empty()) {
+        uint32_t deviceIndex = 0;
+        for (auto &ZeDeviceModule : Program->ZeModuleMap) {
+          size_t binarySize = 0;
+          ZE2UR_CALL(
+              zeModuleGetNativeBinary,
+              (ZeDeviceModule.second, &binarySize, PBinary[deviceIndex++]));
+          SzBinary += binarySize;
+        }
+      } else {
+        ZE2UR_CALL(zeModuleGetNativeBinary,
+                   (Program->ZeModule, &SzBinary, NativeBinaryPtr));
+      }
       if (PropSizeRet)
         *PropSizeRet = SzBinary;
     } else {
@@ -693,15 +745,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
   }
   case UR_PROGRAM_INFO_NUM_KERNELS: {
     std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
-    uint32_t NumKernels;
+    uint32_t NumKernels = 0;
     if (Program->State == ur_program_handle_t_::IL ||
         Program->State == ur_program_handle_t_::Native ||
         Program->State == ur_program_handle_t_::Object) {
       return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
     } else if (Program->State == ur_program_handle_t_::Exe) {
-      NumKernels = 0;
-      ZE2UR_CALL(zeModuleGetKernelNames,
-                 (Program->ZeModule, &NumKernels, nullptr));
+      if (!Program->ZeModuleMap.empty()) {
+        ZE2UR_CALL(
+            zeModuleGetKernelNames,
+            (Program->ZeModuleMap.begin()->second, &NumKernels, nullptr));
+      } else {
+        ZE2UR_CALL(zeModuleGetKernelNames,
+                   (Program->ZeModule, &NumKernels, nullptr));
+      }
     } else {
       return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
@@ -717,11 +774,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
         return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
       } else if (Program->State == ur_program_handle_t_::Exe) {
         uint32_t Count = 0;
-        ZE2UR_CALL(zeModuleGetKernelNames,
-                   (Program->ZeModule, &Count, nullptr));
-        std::unique_ptr<const char *[]> PNames(new const char *[Count]);
-        ZE2UR_CALL(zeModuleGetKernelNames,
-                   (Program->ZeModule, &Count, PNames.get()));
+        std::unique_ptr<const char *[]> PNames;
+        if (!Program->ZeModuleMap.empty()) {
+          ZE2UR_CALL(zeModuleGetKernelNames,
+                     (Program->ZeModuleMap.begin()->second, &Count, nullptr));
+          PNames = std::make_unique<const char *[]>(Count);
+          ZE2UR_CALL(
+              zeModuleGetKernelNames,
+              (Program->ZeModuleMap.begin()->second, &Count, PNames.get()));
+        } else {
+          ZE2UR_CALL(zeModuleGetKernelNames,
+                     (Program->ZeModule, &Count, nullptr));
+          PNames = std::make_unique<const char *[]>(Count);
+          ZE2UR_CALL(zeModuleGetKernelNames,
+                     (Program->ZeModule, &Count, PNames.get()));
+        }
         for (uint32_t I = 0; I < Count; ++I) {
           PINames += (I > 0 ? ";" : "");
           PINames += PNames[I];
