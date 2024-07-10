@@ -84,8 +84,8 @@ public:
 
   /// Gets the specified property of this context_impl.
   ///
-  /// Throws invalid_object_error if this context_impl does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this context_impl
+  /// does not have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
   template <typename propertyT> propertyT get_property() const {

@@ -81,91 +81,41 @@ struct is_key_value_sorter<
                        std::tuple<Key, Value>> &&
         sycl::is_group_v<Group>>> : std::true_type {};
 
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename Properties, size_t ElementsPerWorkItem, typename = void>
+struct is_array_key_value_sorter : std::false_type {};
+
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename Properties, size_t ElementsPerWorkItem>
+struct is_array_key_value_sorter<
+    Sorter, Group, Key, Value, Properties, ElementsPerWorkItem,
+    std::enable_if_t<
+        std::is_same_v<std::invoke_result_t<
+                           Sorter, Group, sycl::span<Key, ElementsPerWorkItem>,
+                           sycl::span<Value, ElementsPerWorkItem>, Properties>,
+                       void> &&
+        sycl::is_group_v<Group>>> : std::true_type {};
+
+template <typename GroupHelper, typename = void>
+struct is_sort_group_helper : std::false_type {};
+
+template <typename GroupHelper>
+struct is_sort_group_helper<
+    GroupHelper,
+    std::enable_if_t<
+        sycl::is_group_v<decltype(std::declval<GroupHelper>().get_group())> &&
+        std::is_same_v<decltype(std::declval<GroupHelper>().get_memory()),
+                       sycl::span<std::byte>>>> : std::true_type {};
+
+template <typename Comp, typename T, typename = void>
+struct is_comparator : std::false_type {};
+
+template <typename Comp, typename T>
+struct is_comparator<Comp, T,
+                     std::enable_if_t<std::is_convertible_v<
+                         std::invoke_result_t<Comp, T, T>, bool>>>
+    : std::true_type {};
 } // namespace detail
-
-// ---- sort_over_group
-template <typename Group, typename T, typename Sorter>
-std::enable_if_t<detail::is_sorter<Sorter, Group, T>::value, T>
-sort_over_group([[maybe_unused]] Group group, [[maybe_unused]] T value,
-                [[maybe_unused]] Sorter sorter) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sorter(group, value);
-#else
-  throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-      "Group algorithms are not supported on host device.");
-#endif
-}
-
-template <typename Group, typename T, typename Compare, size_t Extent>
-std::enable_if_t<!detail::is_sorter<Compare, Group, T>::value, T>
-sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                T value, Compare comp) {
-  return sort_over_group(
-      exec.get_group(), value,
-      default_sorters::group_sorter<T, Compare, 1>(exec.get_memory(), comp));
-}
-
-template <typename Group, typename T, size_t Extent>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, T>
-sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                T value) {
-  return sort_over_group(exec.get_group(), value,
-                         default_sorters::group_sorter<T>(exec.get_memory()));
-}
-
-template <typename Group, typename T, std::size_t ElementsPerWorkItem,
-          typename Sorter,
-          typename Properties = ext::oneapi::experimental::empty_properties_t>
-std::enable_if_t<sycl::ext::oneapi::experimental::is_property_list_v<
-                     std::decay_t<Properties>>,
-                 void>
-sort_over_group([[maybe_unused]] Group g,
-                [[maybe_unused]] sycl::span<T, ElementsPerWorkItem> values,
-                [[maybe_unused]] Sorter sorter,
-                [[maybe_unused]] Properties properties = {}) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sorter(g, values, properties);
-#else
-  throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-      "Group algorithms are not supported on host device.");
-#endif
-}
-
-template <typename Group, typename T, std::size_t Extent,
-          std::size_t ElementsPerWorkItem,
-          typename Properties = ext::oneapi::experimental::empty_properties_t>
-std::enable_if_t<sycl::ext::oneapi::experimental::is_property_list_v<
-                     std::decay_t<Properties>>,
-                 void>
-sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                sycl::span<T, ElementsPerWorkItem> values,
-                Properties properties = {}) {
-  return sort_over_group(
-      exec.get_group(), values,
-      default_sorters::group_sorter<T, std::less<T>, ElementsPerWorkItem>(
-          exec.get_memory()),
-      properties);
-}
-
-template <typename Group, typename T, std::size_t Extent,
-          std::size_t ElementsPerWorkItem, typename Compare,
-          typename Properties = ext::oneapi::experimental::empty_properties_t>
-std::enable_if_t<!sycl::ext::oneapi::experimental::is_property_list_v<
-                     std::decay_t<Compare>> &&
-                     sycl::ext::oneapi::experimental::is_property_list_v<
-                         std::decay_t<Properties>>,
-                 void>
-sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                sycl::span<T, ElementsPerWorkItem> values, Compare comp,
-                Properties properties = {}) {
-  return sort_over_group(
-      exec.get_group(), values,
-      default_sorters::group_sorter<T, Compare, ElementsPerWorkItem>(
-          exec.get_memory(), comp),
-      properties);
-}
 
 // ---- joint_sort
 template <typename Group, typename Iter, typename Sorter>
@@ -181,20 +131,47 @@ joint_sort([[maybe_unused]] Group group, [[maybe_unused]] Iter first,
 #endif
 }
 
-template <typename Group, typename Iter, typename Compare, size_t Extent>
-std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value, void>
-joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
-           Iter last, Compare comp) {
-  joint_sort(exec.get_group(), first, last,
-             default_sorters::joint_sorter<Compare>(exec.get_memory(), comp));
+template <typename GroupHelper, typename Iter>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value>
+joint_sort(GroupHelper gh, Iter first, Iter last) {
+  joint_sort(gh.get_group(), first, last,
+             default_sorters::joint_sorter<>(gh.get_memory()));
 }
 
-template <typename Group, typename Iter, size_t Extent>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
-joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
-           Iter last) {
-  joint_sort(exec.get_group(), first, last,
-             default_sorters::joint_sorter<>(exec.get_memory()));
+template <typename GroupHelper, typename Iter, typename Compare>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value>
+joint_sort(GroupHelper gh, Iter first, Iter last, Compare comp) {
+  joint_sort(gh.get_group(), first, last,
+             default_sorters::joint_sorter<Compare>(gh.get_memory(), comp));
+}
+
+// ---- sort_over_group
+template <typename Group, typename T, typename Sorter>
+std::enable_if_t<detail::is_sorter<Sorter, Group, T>::value, T>
+sort_over_group([[maybe_unused]] Group group, [[maybe_unused]] T value,
+                [[maybe_unused]] Sorter sorter) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sorter(group, value);
+#else
+  throw sycl::exception(
+      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      "Group algorithms are not supported on host device.");
+#endif
+}
+
+template <typename GroupHelper, typename T>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value, T>
+sort_over_group(GroupHelper gh, T value) {
+  return sort_over_group(gh.get_group(), value,
+                         default_sorters::group_sorter<T>(gh.get_memory()));
+}
+
+template <typename GroupHelper, typename T, typename Compare>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value, T>
+sort_over_group(GroupHelper gh, T value, Compare comp) {
+  return sort_over_group(
+      gh.get_group(), value,
+      default_sorters::group_sorter<T, Compare, 1>(gh.get_memory(), comp));
 }
 
 template <typename Group, typename KeyTy, typename ValueTy, typename Sorter>
@@ -213,30 +190,132 @@ sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] KeyTy key,
 #endif
 }
 
-template <typename Group, typename KeyTy, typename ValueTy, typename Compare,
-          std::size_t Extent>
-std::enable_if_t<
-    !detail::is_key_value_sorter<Compare, Group, KeyTy, ValueTy>::value,
-    std::tuple<KeyTy, ValueTy>>
-sort_key_value_over_group(
-    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
-    ValueTy value, Compare comp) {
+template <typename GroupHelper, typename KeyTy, typename ValueTy>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value,
+                 std::tuple<KeyTy, ValueTy>>
+sort_key_value_over_group(GroupHelper gh, KeyTy key, ValueTy value) {
   return sort_key_value_over_group(
-      exec.get_group(), key, value,
-      default_sorters::group_key_value_sorter<KeyTy, ValueTy, Compare>(
-          exec.get_memory(), comp));
+      gh.get_group(), key, value,
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy>(gh.get_memory()));
 }
 
-template <typename KeyTy, typename ValueTy, typename Group, std::size_t Extent>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>,
+template <typename GroupHelper, typename KeyTy, typename ValueTy,
+          typename Compare>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value,
                  std::tuple<KeyTy, ValueTy>>
-sort_key_value_over_group(
-    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
-    ValueTy value) {
+sort_key_value_over_group(GroupHelper gh, KeyTy key, ValueTy value,
+                          Compare comp) {
   return sort_key_value_over_group(
-      exec.get_group(), key, value,
-      default_sorters::group_key_value_sorter<KeyTy, ValueTy>(
-          exec.get_memory()));
+      gh.get_group(), key, value,
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy, Compare>(
+          gh.get_memory(), comp));
+}
+
+// ---- functions with fixed-size arrays
+template <typename Group, typename T, std::size_t ElementsPerWorkItem,
+          typename Sorter,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_over_group([[maybe_unused]] Group g,
+                [[maybe_unused]] sycl::span<T, ElementsPerWorkItem> values,
+                [[maybe_unused]] Sorter sorter,
+                [[maybe_unused]] Properties properties = {}) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sorter(g, values, properties);
+#else
+  throw sycl::exception(
+      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      "Group algorithms are not supported on host device.");
+#endif
+}
+
+template <typename GroupHelper, typename T, std::size_t ElementsPerWorkItem,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_over_group(GroupHelper gh, sycl::span<T, ElementsPerWorkItem> values,
+                Properties properties = {}) {
+  return sort_over_group(
+      gh.get_group(), values,
+      default_sorters::group_sorter<T, std::less<T>, ElementsPerWorkItem>(
+          gh.get_memory()),
+      properties);
+}
+
+template <typename GroupHelper, typename T, std::size_t ElementsPerWorkItem,
+          typename Compare,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value &&
+                     detail::is_comparator<Compare, T>::value &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_over_group(GroupHelper gh, sycl::span<T, ElementsPerWorkItem> values,
+                Compare comp, Properties properties = {}) {
+  return sort_over_group(
+      gh.get_group(), values,
+      default_sorters::group_sorter<T, Compare, ElementsPerWorkItem>(
+          gh.get_memory(), comp),
+      properties);
+}
+
+template <typename Group, typename KeyTy, typename ValueTy,
+          std::size_t ElementsPerWorkItem, typename Sorter,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<sycl::ext::oneapi::experimental::is_property_list_v<
+                     std::decay_t<Properties>> &&
+                     detail::is_array_key_value_sorter<
+                         Sorter, Group, KeyTy, ValueTy, Properties,
+                         ElementsPerWorkItem>::value,
+                 void>
+sort_key_value_over_group(Group group,
+                          sycl::span<KeyTy, ElementsPerWorkItem> keys,
+                          sycl::span<ValueTy, ElementsPerWorkItem> values,
+                          Sorter sorter, Properties properties = {}) {
+  sorter(group, keys, values, properties);
+}
+
+template <typename GroupHelper, typename KeyTy, typename ValueTy,
+          std::size_t ElementsPerWorkItem,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_key_value_over_group(GroupHelper gh,
+                          sycl::span<KeyTy, ElementsPerWorkItem> keys,
+                          sycl::span<ValueTy, ElementsPerWorkItem> values,
+                          Properties properties = {}) {
+  return experimental::sort_key_value_over_group(
+      gh.get_group(), keys, values,
+      typename experimental::default_sorters::group_key_value_sorter<
+          KeyTy, ValueTy, std::less<KeyTy>, ElementsPerWorkItem>(
+          gh.get_memory()),
+      properties);
+}
+
+template <typename GroupHelper, typename KeyTy, typename ValueTy,
+          std::size_t ElementsPerWorkItem, typename Compare,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+std::enable_if_t<detail::is_sort_group_helper<GroupHelper>::value &&
+                     detail::is_comparator<Compare, KeyTy>::value &&
+                     sycl::ext::oneapi::experimental::is_property_list_v<
+                         std::decay_t<Properties>>,
+                 void>
+sort_key_value_over_group(GroupHelper gh,
+                          sycl::span<KeyTy, ElementsPerWorkItem> keys,
+                          sycl::span<ValueTy, ElementsPerWorkItem> values,
+                          Compare comp, Properties properties = {}) {
+  return experimental::sort_key_value_over_group(
+      gh.get_group(), keys, values,
+      typename experimental::default_sorters::group_key_value_sorter<
+          KeyTy, ValueTy, Compare, ElementsPerWorkItem>(gh.get_memory(), comp),
+      properties);
 }
 
 } // namespace ext::oneapi::experimental

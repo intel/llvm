@@ -8,6 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
+#include "clang/Basic/Cuda.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace clang;
@@ -79,6 +80,9 @@ public:
   // resulting MDNode to the nvvm.annotations MDNode.
   static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
                               int Operand);
+
+  static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
+                              const std::vector<int> &Operands);
 
 private:
   static void emitBuiltinSurfTexDeviceCopy(CodeGenFunction &CGF, LValue Dst,
@@ -218,6 +222,28 @@ RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   llvm_unreachable("NVPTX does not support varargs");
 }
 
+// Get current OffloadArch and ignore any unknown values
+// Copied from CGOpenMPRuntimeGPU
+static OffloadArch getOffloadArch(CodeGenModule &CGM) {
+  if (!CGM.getTarget().hasFeature("ptx"))
+    return OffloadArch::UNKNOWN;
+  for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
+    if (Feature.getValue()) {
+      OffloadArch Arch = StringToOffloadArch(Feature.getKey());
+      if (Arch != OffloadArch::UNKNOWN)
+        return Arch;
+    }
+  }
+  return OffloadArch::UNKNOWN;
+}
+
+static bool supportsGridConstant(OffloadArch Arch) {
+  assert((Arch == OffloadArch::UNKNOWN || IsNVIDIAOffloadArch(Arch)) &&
+         "Unexpected architecture");
+  static_assert(OffloadArch::UNKNOWN < OffloadArch::SM_70);
+  return Arch >= OffloadArch::SM_70;
+}
+
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
   if (GV->isDeclaration())
@@ -248,6 +274,22 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "kernel", 1);
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
+
+      if (M.getLangOpts().SYCLIsDevice &&
+          supportsGridConstant(getOffloadArch(M))) {
+        // Add grid_constant annotations to all relevant kernel-function
+        // parameters. We can guarantee that in SYCL, all by-val kernel
+        // parameters are "grid_constant".
+        std::vector<int> GridConstantParamIdxs;
+        for (auto [Idx, Arg] : llvm::enumerate(F->args())) {
+          if (Arg.getType()->isPointerTy() && Arg.hasByValAttr()) {
+            // Note - the parameter indices are numbered from 1.
+            GridConstantParamIdxs.push_back(Idx + 1);
+          }
+        }
+        if (!GridConstantParamIdxs.empty())
+          addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
+      }
     }
     bool HasMaxWorkGroupSize = false;
     bool HasMinWorkGroupPerCU = false;
@@ -325,6 +367,28 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
       llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
       llvm::ConstantAsMetadata::get(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+  // Append metadata to nvvm.annotations
+  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+}
+
+void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
+                                             StringRef Name,
+                                             const std::vector<int> &Operands) {
+  llvm::Module *M = GV->getParent();
+  llvm::LLVMContext &Ctx = M->getContext();
+
+  // Get "nvvm.annotations" metadata node
+  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
+
+  llvm::SmallVector<llvm::Metadata *, 8> MDOps;
+  for (int Op : Operands) {
+    MDOps.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Op)));
+  }
+  auto *OpList = llvm::MDNode::get(Ctx, MDOps);
+
+  llvm::Metadata *MDVals[] = {llvm::ConstantAsMetadata::get(GV),
+                              llvm::MDString::get(Ctx, Name), OpList};
   // Append metadata to nvvm.annotations
   MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
 }

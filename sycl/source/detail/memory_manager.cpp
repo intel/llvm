@@ -452,10 +452,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
       pi::cast<sycl::detail::pi::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
-    throw invalid_object_error(
-        "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment",
-        PI_ERROR_INVALID_VALUE);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::invalid),
+                  "Specified offset of the sub-buffer being constructed is not "
+                  "a multiple of the memory base address alignment"),
+        Error);
 
   if (Error != PI_SUCCESS) {
     Plugin->reportPiError(Error, "allocateMemSubBuffer()");
