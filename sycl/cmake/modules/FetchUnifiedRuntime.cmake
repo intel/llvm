@@ -31,6 +31,8 @@ set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_TRACING ON)
+# Override default to enable symbolizer from unified-runtime
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_L0 ON)
