@@ -2849,6 +2849,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLink = context.urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnLink) {
@@ -9277,6 +9280,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
 
     if (nullptr == pfnLinkExp) {
