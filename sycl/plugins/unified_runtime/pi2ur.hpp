@@ -2074,12 +2074,16 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
 
+  // If it fails, urProgramLinkExp will clear the pointer
+  ur_program_handle_t UrProgramForExp;
   auto urResult =
       urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
-                       UrInputPrograms, Options, UrProgram);
+                       UrInputPrograms, Options, &UrProgramForExp);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
                              Options, UrProgram);
+  } else {
+    *UrProgram = UrProgramForExp;
   }
   return ur2piResult(urResult);
 }
