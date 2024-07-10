@@ -283,7 +283,7 @@ event handler::finalize() {
         enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
                          MKernelName.c_str(), RawEvents, NewEvent, nullptr,
                          MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
-                         MImpl->MKernelUsesClusterLaunch, BInImage);
+                         MImpl->MKernelUsesClusterLaunch, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {

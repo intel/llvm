@@ -7,10 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLSpecConstMaterializer.h"
+
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include <llvm/ADT/StringRef.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Debug.h>
 
 #define DEBUG_TYPE "sycl-spec-const-materializer"
 
