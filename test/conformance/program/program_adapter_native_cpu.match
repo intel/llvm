@@ -127,6 +127,9 @@
 {{OPT}}urProgramLinkTest.InvalidNullPointerProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramLinkTest.InvalidNullPointerInputPrograms/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramLinkTest.InvalidSizeCount/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urProgramLinkTest.SetOutputOnZeroCount/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urProgramLinkErrorTest.LinkFailure/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urProgramLinkErrorTest.SetOutputOnLinkError/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramReleaseTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramReleaseTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramRetainTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_

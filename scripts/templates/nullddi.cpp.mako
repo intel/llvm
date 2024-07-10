@@ -38,6 +38,7 @@ namespace driver
         )
     try {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
+        ${th.get_initial_null_set(obj)}
 
         // if the driver has created a custom function, then call it instead of using the generic path
         auto ${th.make_pfn_name(n, tags, obj)} = d_context.${n}DdiTable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};

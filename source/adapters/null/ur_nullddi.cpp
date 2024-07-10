@@ -1920,6 +1920,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnLink = d_context.urDdiTable.Program.pfnLink;
@@ -5728,6 +5731,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnLinkExp = d_context.urDdiTable.ProgramExp.pfnLinkExp;
@@ -5890,8 +5896,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< events that must be complete before the kernel execution.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
-        phEvent ///< [in,out] return an event object that identifies the work that has
-                ///< been enqueued in nativeEnqueueFunc.
+        phEvent ///< [out][optional] return an event object that identifies the work that has
+    ///< been enqueued in nativeEnqueueFunc.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5904,7 +5910,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
             pProperties, numEventsInWaitList, phEventWaitList, phEvent);
     } else {
         // generic implementation
-        *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+        }
     }
 
     return result;

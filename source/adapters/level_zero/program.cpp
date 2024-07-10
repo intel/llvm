@@ -300,6 +300,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   for (uint32_t i = 0; i < numDevices; i++) {
     UR_ASSERT(hContext->isValidDevice(phDevices[i]),
               UR_RESULT_ERROR_INVALID_DEVICE);
@@ -445,11 +448,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
       // because the ZeBuildLog tells which symbols are unresolved.
       if (ZeResult == ZE_RESULT_SUCCESS) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-          UrResult =
-              UR_RESULT_ERROR_UNKNOWN; // TODO:
-                                       // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
-        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        if (ZeResult != ZE_RESULT_SUCCESS) {
           return ze2urResult(ZeResult);
         }
       }
