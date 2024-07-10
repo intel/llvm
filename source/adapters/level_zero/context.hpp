@@ -311,34 +311,45 @@ struct ur_context_handle_t_ : _ur_object {
   ze_context_handle_t getZeHandle() const;
 
 private:
+  enum EventCacheType {
+    HostVisibleProfilingCacheType,
+    HostVisibleRegularCacheType,
+    HostInvisibleProfilingCacheType,
+    HostInvisibleRegularCacheType,
+    CounterBasedRegularCacheType,
+    CounterBasedImmediateCacheType
+  };
   // Get the cache of events for a provided scope and profiling mode.
   auto getEventCache(bool HostVisible, bool WithProfiling,
                      ur_device_handle_t Device) {
     if (HostVisible) {
       if (Device) {
         auto EventCachesMap =
-            WithProfiling ? &EventCachesDeviceMap[0] : &EventCachesDeviceMap[1];
+            WithProfiling ? &EventCachesDeviceMap[HostVisibleProfilingCacheType]
+                          : &EventCachesDeviceMap[HostVisibleRegularCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
+          EventCaches.insert(std::make_pair(Device, EventCaches.size() - 1));
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return WithProfiling ? &EventCaches[0] : &EventCaches[1];
+        return WithProfiling ? &EventCaches[HostVisibleProfilingCacheType]
+                             : &EventCaches[HostVisibleRegularCacheType];
       }
     } else {
       if (Device) {
         auto EventCachesMap =
-            WithProfiling ? &EventCachesDeviceMap[2] : &EventCachesDeviceMap[3];
+            WithProfiling
+                ? &EventCachesDeviceMap[HostInvisibleProfilingCacheType]
+                : &EventCachesDeviceMap[HostInvisibleRegularCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
+          EventCaches.insert(std::make_pair(Device, EventCaches.size() - 1));
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+        return WithProfiling ? &EventCaches[HostInvisibleProfilingCacheType]
+                             : &EventCaches[HostInvisibleRegularCacheType];
       }
     }
   };
@@ -346,27 +357,27 @@ private:
                                  ur_device_handle_t Device) {
     if (UsingImmediateCmdList) {
       if (Device) {
-        auto EventCachesMap = &EventCachesDeviceMap[4];
+        auto EventCachesMap =
+            &EventCachesDeviceMap[CounterBasedImmediateCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
+          EventCaches.insert(std::make_pair(Device, EventCaches.size() - 1));
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return &EventCaches[4];
+        return &EventCaches[CounterBasedImmediateCacheType];
       }
     } else {
       if (Device) {
-        auto EventCachesMap = &EventCachesDeviceMap[5];
+        auto EventCachesMap =
+            &EventCachesDeviceMap[CounterBasedRegularCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
+          EventCaches.insert(std::make_pair(Device, EventCaches.size() - 1));
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return &EventCaches[5];
+        return &EventCaches[CounterBasedRegularCacheType];
       }
     }
   }
