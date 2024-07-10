@@ -284,7 +284,7 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     throw sycl::runtime_error("Unhandled type of command group",
-                              PI_ERROR_INVALID_OPERATION);
+                              UR_RESULT_ERROR_INVALID_OPERATION);
 
     return nullptr;
   }

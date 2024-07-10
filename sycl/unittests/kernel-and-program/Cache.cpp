@@ -13,7 +13,7 @@
 
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include "sycl/detail/pi.h"
+#include "sycl/detail/ur.hpp"
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/UrMock.hpp>
