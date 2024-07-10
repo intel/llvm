@@ -18,7 +18,7 @@ int main() {
   } s;
 
   q.submit([&](handler &h) {
-    // CHECK: define{{.*}} void @[[FUNC1:.*kernel_grid_const_params]](ptr noundef byval(%struct.S) align 4 %_arg_s)
+    // CHECK: define{{.*}} void @[[FUNC1:.*kernel_grid_const_params]](ptr noundef byval(%class.anon) align 4 %_arg__sycl_functor)
     h.single_task<class kernel_grid_const_params>([=]() { (void) s;});
   });
 
