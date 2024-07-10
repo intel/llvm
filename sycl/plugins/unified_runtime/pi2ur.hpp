@@ -5674,7 +5674,7 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 inline pi_result
-piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+piextReleaseExternalSemaphore(pi_context Context, pi_device Device,
                               pi_interop_semaphore_handle SemHandle) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
@@ -5684,7 +5684,7 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
   auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
 
-  HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
+  HANDLE_ERRORS(urBindlessImagesReleaseExternalSemaphoreExp(UrContext, UrDevice,
                                                             UrSemHandle));
 
   return PI_SUCCESS;

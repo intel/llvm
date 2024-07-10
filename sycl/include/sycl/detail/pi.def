@@ -211,7 +211,7 @@ _PI_API(piextMemReleaseInterop)
 _PI_API(piextMemMapExternalArray)
 _PI_API(piextImportExternalSemaphoreOpaqueFD)
 _PI_API(piextImportExternalSemaphore)
-_PI_API(piextDestroyExternalSemaphore)
+_PI_API(piextReleaseExternalSemaphore)
 _PI_API(piextWaitExternalSemaphore)
 _PI_API(piextSignalExternalSemaphore)
 

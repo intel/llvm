@@ -199,9 +199,10 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
+// 17.58 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
 
-#define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 57
+#define _PI_H_VERSION_MAJOR 17
+#define _PI_H_VERSION_MINOR 58
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3190,14 +3191,14 @@ piextImportExternalSemaphore(pi_context context, pi_device device,
                              pi_external_semaphore_descriptor *sem_descriptor,
                              pi_interop_semaphore_handle *ret_handle);
 
-/// API to destroy the external semaphore handle.
+/// API to release the external semaphore.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
 /// \param sem_handle is the interop semaphore handle to the external semaphore
 /// to be destroyed
 __SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context context, pi_device device,
+piextReleaseExternalSemaphore(pi_context context, pi_device device,
                               pi_interop_semaphore_handle sem_handle);
 
 /// API to instruct the queue with a non-blocking wait on an external semaphore.

@@ -137,12 +137,12 @@
 ??$get_info_impl@Uext_intel_max_mem_bandwidth@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uext_intel_mem_channel@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uext_intel_pci_address@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
+??$get_info_impl@Uext_oneapi_cuda_cluster_group@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uext_oneapi_max_global_work_groups@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_1d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$00@12@XZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_2d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$01@12@XZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_3d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$02@12@XZ
 ??$get_info_impl@Uext_oneapi_srgb@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
-??$get_info_impl@Uext_oneapi_cuda_cluster_group@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uextensions@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uextensions@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Ufree_memory@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
@@ -3931,8 +3931,6 @@
 ?depends_on@handler@_V1@sycl@@IEAAXAEBV?$vector@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@2@@std@@@Z
 ?depends_on@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?depends_on@handler@_V1@sycl@@QEAAXVevent@23@@Z
-?destroy_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_semaphore_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
-?destroy_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_semaphore_handle@12345@AEBVqueue@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUsampled_image_handle@12345@AEBVqueue@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
@@ -4366,6 +4364,8 @@
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXAEAVdynamic_parameter_base@detail@experimental@oneapi@ext@23@H@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_mem_handle@12345@AEBVqueue@45@@Z
+?release_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_semaphore_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?release_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_semaphore_handle@12345@AEBVqueue@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVcontext@45@@Z
 ?release_from_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBXAEBVqueue@45@@Z
 ?removeDuplicateDevices@detail@_V1@sycl@@YA?BV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV45@@Z

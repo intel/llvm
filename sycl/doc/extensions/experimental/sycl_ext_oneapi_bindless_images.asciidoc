@@ -1904,16 +1904,16 @@ the `ext_oneapi_signal_external_semaphore` call complete.
 are non-blocking, asynchronous operations.
 
 The user must ensure to destroy all external semaphore objects once they are no 
-longer required through `destroy_external_semaphore`.
+longer required through `release_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                                 const sycl::device &syclDevice,
                                 const sycl::context &syclContext);
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                                 const sycl::queue &syclQueue);
 
 }
@@ -2579,9 +2579,9 @@ try {
       input_interop_mem_handle, queue);
   sycl::ext::oneapi::experimental::release_external_memory(
       output_interop_mem_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       wait_interop_semaphore_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       done_interop_semaphore_handle, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
@@ -2806,4 +2806,6 @@ These features still need to be handled:
 |5.12|2024-06-19| - Add support for sampled image arrays.
                   - Sample image arrays with `sample_image_array` API.
                   - Fetch sampled image arrays with `fetch_image_array` API.
+|5.13|2024-07-10| - Rename `destroy_external_semaphore` to 
+                    `release_external_semaphore`.
 |======================

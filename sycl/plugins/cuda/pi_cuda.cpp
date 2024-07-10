@@ -502,9 +502,9 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+piextReleaseExternalSemaphore(pi_context Context, pi_device Device,
                               pi_interop_semaphore_handle SemHandle) {
-  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
+  return pi2ur::piextReleaseExternalSemaphore(Context, Device, SemHandle);
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
