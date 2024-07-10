@@ -945,21 +945,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     size_t ExtSize = 0;
     urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr, &ExtSize);
     std::string ExtStr(ExtSize, 0);
-    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, ExtSize, ExtStr.data(), nullptr);
-    if (ExtStr.find("cl_intel_required_subgroup_size")!=std::string::npos) { 
+    urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, ExtSize, ExtStr.data(),
+                    nullptr);
+    if (ExtStr.find("cl_intel_required_subgroup_size") != std::string::npos) {
       // Have to convert size_t to uint32_t
       size_t SubGroupSizesSize = 0;
       CL_RETURN_ON_FAILURE(
-              clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
-                  nullptr, &SubGroupSizesSize));
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                          0, nullptr, &SubGroupSizesSize));
       std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
       CL_RETURN_ON_FAILURE(
-              clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                  SubGroupSizesSize, SubGroupSizes.data(), nullptr));
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                          SubGroupSizesSize, SubGroupSizes.data(), nullptr));
       return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
-              SubGroupSizes.size());
+                                                       SubGroupSizes.size());
     } else {
-      return ReturnValue.template operator()<uint32_t>(std::data({1}),1);
+      return ReturnValue.template operator()<uint32_t>(std::data({1}), 1);
     }
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
