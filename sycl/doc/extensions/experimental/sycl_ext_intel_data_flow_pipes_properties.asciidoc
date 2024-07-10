@@ -332,9 +332,11 @@ This property is only valid when passed as a function argument of a device side 
 
 This property is a tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
 
-** `A` is the ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
-** `B` is an enum value: The type of control from the set {`latency_control_type::exact`, `latency_control_type::max`, `latency_control_type::min`}.
-** `C` is the relative clock cycle difference between the target anchor and the current function call that the constraint should infer subject to the type of the control (exact, min, max).
+`A` is the ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
+ 
+`B` is an enum value: The type of control from the set {`latency_control_type::exact`, `latency_control_type::max`, `latency_control_type::min`}.
+
+`C` is the relative clock cycle difference between the target anchor and the current function call that the constraint should infer subject to the type of the control (exact, min, max).
 
 This property is only valud when passed as a function argument of a device side read/write method as a properties object.
 
