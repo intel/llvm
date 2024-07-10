@@ -1259,13 +1259,15 @@ inline pi_result mock_piextUSMFree(pi_context context, void *ptr) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                            pi_int32 value, size_t count,
-                                            pi_uint32 num_events_in_waitlist,
-                                            const pi_event *events_waitlist,
-                                            pi_event *event) {
+inline pi_result mock_piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                          const void *pattern,
+                                          size_t patternSize, size_t count,
+                                          pi_uint32 num_events_in_waitlist,
+                                          const pi_event *events_waitlist,
+                                          pi_event *event) {
   if (event)
     *event = createDummyHandle<pi_event>();
+
   return PI_SUCCESS;
 }
 
@@ -1350,6 +1352,61 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
     const pi_event *event_wait_list, pi_event *event) {
   if (event)
     *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device,
+                                       pi_virtual_mem_granularity_info, size_t,
+                                       void *, size_t *) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPhysicalMemCreate(pi_context, pi_device, size_t,
+                            pi_physical_mem *ret_physical_mem) {
+  *ret_physical_mem = createDummyHandle<pi_physical_mem>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRetain(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRelease(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemReserve(pi_context, const void *start,
+                                             size_t range_size,
+                                             void **ret_ptr) {
+  *ret_ptr =
+      start ? const_cast<void *>(start) : createDummyHandle<void *>(range_size);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemFree(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemMap(pi_context, const void *, size_t,
+                                         pi_physical_mem, size_t,
+                                         pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemUnmap(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemSetAccess(pi_context, const void *, size_t,
+                                               pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemGetInfo(pi_context, const void *, size_t,
+                                             pi_virtual_mem_info, size_t,
+                                             void *, size_t *) {
   return PI_SUCCESS;
 }
 
@@ -1514,6 +1571,14 @@ inline pi_result mock_piextCommandBufferAdviseUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextEnqueueNativeCommand(pi_queue,
+                                                void (*)(pi_queue, void *),
+                                                void *, uint32_t,
+                                                const pi_mem *, pi_uint32,
+                                                const pi_event *, pi_event *) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
@@ -1591,5 +1656,15 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 }
 
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
   return PI_SUCCESS;
 }

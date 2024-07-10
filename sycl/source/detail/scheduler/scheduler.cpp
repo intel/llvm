@@ -103,21 +103,6 @@ EventImplPtr Scheduler::addCG(
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
-  std::vector<StreamImplPtr> Streams;
-
-  if (Type == CG::Kernel) {
-    auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
-    Streams = CGExecKernelPtr->getStreams();
-    CGExecKernelPtr->clearStreams();
-    // Stream's flush buffer memory is mainly initialized in stream's __init
-    // method. However, this method is not available on host device.
-    // Initializing stream's flush buffer on the host side in a separate task.
-    if (Queue->is_host()) {
-      for (const StreamImplPtr &Stream : Streams) {
-        Stream->initStreamHost(Queue);
-      }
-    }
-  }
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
   CommandGroup->clearAuxiliaryResources();
@@ -129,14 +114,13 @@ EventImplPtr Scheduler::addCG(
     Command *NewCmd = nullptr;
     switch (Type) {
     case CG::UpdateHost:
-      NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
-                                             DefaultHostQueue, AuxiliaryCmds);
+      NewCmd =
+          MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       NewEvent = NewCmd->getEvent();
       break;
     case CG::CodeplayHostTask: {
-      auto Result =
-          MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
-                              AuxiliaryCmds, EventNeeded);
+      auto Result = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
+                                        AuxiliaryCmds, EventNeeded);
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
@@ -156,10 +140,6 @@ EventImplPtr Scheduler::addCG(
 
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
-
-    for (const auto &StreamImplPtr : Streams) {
-      StreamImplPtr->flush(NewEvent);
-    }
   }
 
   if (!AuxiliaryResources.empty())
@@ -231,7 +211,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   {
     WriteLockT Lock = acquireWriteLock();
     NewCmd = MGraphBuilder.addCopyBack(Req, AuxiliaryCmds);
-    // Command was not creted because there were no operations with
+    // Command was not created because there were no operations with
     // buffer.
     if (!NewCmd)
       return nullptr;
@@ -256,7 +236,9 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
   } catch (...) {
-    NewCmd->getQueue()->reportAsyncException(std::current_exception());
+    auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
+    assert(WorkerQueue && "WorkerQueue for CopyBack command must be not null");
+    WorkerQueue->reportAsyncException(std::current_exception());
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
@@ -398,18 +380,6 @@ void Scheduler::enqueueUnblockedCommands(
                           PI_ERROR_INVALID_OPERATION);
   }
 }
-
-Scheduler::Scheduler() {
-  sycl::device HostDevice =
-      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
-  sycl::context HostContext{HostDevice};
-  DefaultHostQueue = QueueImplPtr(
-      new queue_impl(detail::getSyclObjImpl(HostDevice),
-                     detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
-}
-
-Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
@@ -746,12 +716,10 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   // don't represent actual dependencies. Calling getContextImpl() would set
   // their context, which we wish to avoid as it is expensive.
   // NOP events also don't represent actual dependencies.
-  if ((!SyclEventImplPtr->isContextInitialized() &&
-       !SyclEventImplPtr->is_host()) ||
-      SyclEventImplPtr->isNOP()) {
+  if (SyclEventImplPtr->isDefaultConstructed() || SyclEventImplPtr->isNOP()) {
     return true;
   }
-  if (SyclEventImplPtr->is_host()) {
+  if (SyclEventImplPtr->isHost()) {
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.

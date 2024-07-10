@@ -3,7 +3,7 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Mem advise command not supported for OpenCL
+// Intended - Mem advise command not supported for OpenCL
 // UNSUPPORTED: opencl
 
 // Since Mem advise is only a memory hint that doesn't
