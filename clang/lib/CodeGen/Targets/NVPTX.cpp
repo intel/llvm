@@ -343,7 +343,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       }
     }
 
-    if (auto Attr = F->getFnAttribute("sycl-max-total-work-group-size");
+    if (auto Attr = F->getFnAttribute("sycl-max-linear-work-group-size");
         Attr.isValid()) {
       size_t Value = 0;
       bool Error = Attr.getValueAsString().getAsInteger(10, Value);

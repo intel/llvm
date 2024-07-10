@@ -8,7 +8,7 @@ int main() {
   sycl::queue Q;
 
   constexpr auto Props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::max_total_work_group_size<4>,
+      sycl::ext::oneapi::experimental::max_linear_work_group_size<4>,
   };
   // CHECK-IR: spir_kernel void @{{.*}}LaunchBoundsKernel(){{.*}} #[[LaunchBoundsAttrs:[0-9]+]]
   Q.single_task<class LaunchBoundsKernel>(Props, []() {});
@@ -17,4 +17,4 @@ int main() {
 }
 
 // CHECK-IR: attributes #[[LaunchBoundsAttrs]] = {
-// CHECK-IR-SAME: "sycl-max-total-work-group-size"="4"
+// CHECK-IR-SAME: "sycl-max-linear-work-group-size"="4"

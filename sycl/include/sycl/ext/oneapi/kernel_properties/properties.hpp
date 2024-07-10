@@ -78,11 +78,11 @@ struct max_work_group_size_key
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct max_total_work_group_size_key
+struct max_linear_work_group_size_key
     : detail::compile_time_property_key<
-          detail::PropKind::MaxTotalWorkGroupSize> {
+          detail::PropKind::MaxLinearWorkGroupSize> {
   template <size_t Size>
-  using value_t = property_value<max_total_work_group_size_key,
+  using value_t = property_value<max_linear_work_group_size_key,
                                  std::integral_constant<size_t, Size>>;
 };
 
@@ -171,8 +171,8 @@ struct property_value<max_work_group_size_key,
   }
 };
 
-template <> struct property_value<max_total_work_group_size_key> {
-  using key_t = max_total_work_group_size_key;
+template <> struct property_value<max_linear_work_group_size_key> {
+  using key_t = max_linear_work_group_size_key;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -198,8 +198,8 @@ inline constexpr max_work_group_size_key::value_t<Dim0, Dims...>
     max_work_group_size;
 
 template <size_t Size>
-inline constexpr max_total_work_group_size_key::value_t<Size>
-    max_total_work_group_size;
+inline constexpr max_linear_work_group_size_key::value_t<Size>
+    max_linear_work_group_size;
 
 struct work_group_progress_key
     : detail::compile_time_property_key<detail::PropKind::WorkGroupProgress> {
@@ -321,8 +321,8 @@ struct PropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dims...>> {
   static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
 };
 template <size_t Size>
-struct PropertyMetaInfo<max_total_work_group_size_key::value_t<Size>> {
-  static constexpr const char *name = "sycl-max-total-work-group-size";
+struct PropertyMetaInfo<max_linear_work_group_size_key::value_t<Size>> {
+  static constexpr const char *name = "sycl-max-linear-work-group-size";
   static constexpr size_t value = Size;
 };
 
