@@ -938,6 +938,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    /* CL_DEVICE_SUB_GROUP_SIZES_INTEL is only supported if the device has the
+     * cl_intel_required_subgroup_size extension, if it does not have it we
+     * return a default subgroups sizes list of {1}
+     * */
     size_t ExtSize = 0;
     urDeviceGetInfo(hDevice, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr, &ExtSize);
     std::string ExtStr(ExtSize, 0);
