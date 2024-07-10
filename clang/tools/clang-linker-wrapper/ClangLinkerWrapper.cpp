@@ -531,64 +531,6 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
-/// Parses the output table file from sycl-post-link tool.
-static Expected<std::vector<module_split::SplitModule>>
-parseSplitModulesFromFile(StringRef File) {
-  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
-
-  if (!EntriesMBOrErr)
-    return createFileError(File, EntriesMBOrErr.getError());
-
-  line_iterator LI(**EntriesMBOrErr);
-  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
-    return createStringError(inconvertibleErrorCode(),
-                             "invalid SYCL Table file.");
-
-  ++LI;
-  std::vector<module_split::SplitModule> Modules;
-  while (!LI.is_at_eof()) {
-    StringRef Line = *LI;
-    if (Line.empty())
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL table row.");
-
-    auto [IRFilePath, Rem] = Line.split("|");
-    if (Rem.empty())
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL Table row.");
-
-    auto [PropertyFilePath, SymbolsFilePath] = Rem.split("|");
-    llvm::util::PropertySetRegistry Properties;
-    std::string Symbols;
-    if (!PropertyFilePath.empty()) {
-      auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
-      if (!MBOrErr)
-        return createFileError(PropertyFilePath, MBOrErr.getError());
-
-      auto &MB = **MBOrErr;
-      auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
-      if (!PropSetOrErr)
-        return PropSetOrErr.takeError();
-
-      Properties = std::move(**PropSetOrErr);
-    }
-
-    if (!SymbolsFilePath.empty()) {
-      auto MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
-      if (!MBOrErr)
-        return createFileError(SymbolsFilePath, MBOrErr.getError());
-
-      auto &MB = *MBOrErr;
-      Symbols = std::string(MB->getBufferStart(), MB->getBufferEnd());
-    }
-
-    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
-    ++LI;
-  }
-
-  return Modules;
-}
-
 /// Add any sycl-post-link options that rely on a specific Triple in addition
 /// to user supplied options.
 /// NOTE: Any changes made here should be reflected in the similarly named
@@ -689,6 +631,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     return std::move(Err);
 
   if (DryRun) {
+    // In DryRun we need a dummy entry in order to continue the whole pipeline.
     auto ImageFileOrErr = createOutputFile(
         sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
     if (!ImageFileOrErr)
@@ -699,28 +642,17 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     return Modules;
   }
 
-  return parseSplitModulesFromFile(*TempFileOrErr);
+  return llvm::module_split::parseSplitModulesFromFile(*TempFileOrErr);
 }
 
-Error printSplitModules(const std::vector<module_split::SplitModule> &Modules) {
-  for (size_t I = 0, E = Modules.size(); I != E; ++I) {
-    SMDiagnostic Err;
-    LLVMContext C;
-    std::unique_ptr<Module> M = parseIRFile(Modules[I].ModuleFilePath, Err, C);
-    if (!M) {
-      std::string Msg;
-      raw_string_ostream S(Msg);
-      Err.print(ExecutableName.begin(), S);
-      return createStringError(inconvertibleErrorCode(), Msg);
-    }
-
-    errs() << formatv("Split Module. Index: {0}\n", I);
-    M->dump();
-  }
-
-  return Error::success();
-}
-
+/// Invokes SYCL Split library for SYCL offloading.
+///
+/// \param InputFiles the list of input LLVM IR files.
+/// \param Args Encompasses all arguments for linking and wrapping device code.
+///  It will be parsed to generate options required to be passed to SYCL split
+///  library.
+/// \param Mode The splitting mode.
+/// \returns The vector of split modules.
 static Expected<std::vector<module_split::SplitModule>>
 runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                     module_split::IRSplitMode Mode) {
@@ -739,13 +671,17 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return SplitModules;
   }
 
+  llvm::module_split::ModuleSplitterSettings Settings;
+  Settings.Mode = Mode;
+  Settings.OutputPrefix = "";
+
   for (StringRef InputFile : InputFiles) {
     SMDiagnostic Err;
     LLVMContext C;
     std::unique_ptr<Module> M = parseIRFile(InputFile, Err, C);
-    llvm::module_split::ModuleSplitterSettings Settings;
-    Settings.Mode = Mode;
-    Settings.OutputPrefix = "";
+    if (!M)
+      return createStringError(inconvertibleErrorCode(), Err.getMessage());
+
     auto SplitModulesOrErr =
         module_split::splitSYCLModule(std::move(M), Settings);
     if (!SplitModulesOrErr)
@@ -769,9 +705,6 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
                       InputFilesStr, SplitOutputFilesStr);
   }
-
-  if (Args.hasArg(OPT_print_split_modules))
-    cantFail(printSplitModules(SplitModules));
 
   return SplitModules;
 }

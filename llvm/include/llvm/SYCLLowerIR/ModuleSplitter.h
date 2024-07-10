@@ -307,6 +307,9 @@ struct ModuleSplitterSettings {
   StringRef OutputPrefix;
 };
 
+/// Parses the output table file from sycl-post-link tool.
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
+
 /// Splits the given module \p M according to the given \p Settings.
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
