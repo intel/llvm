@@ -19,8 +19,8 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
 
 #include <bitset>
@@ -61,7 +61,7 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   return nullptr;
 }
 
-namespace pi {
+namespace ur {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins);
 
@@ -203,7 +203,7 @@ template <backend BE> const PluginPtr &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  std::vector<PluginPtr> &Plugins = pi::initializeUr();
+  std::vector<PluginPtr> &Plugins = ur::initializeUr();
   for (auto &P : Plugins)
     if (P->hasBackend(BE)) {
       Plugin = &P;
@@ -356,7 +356,7 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 
-} // namespace pi
+} // namespace ur
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

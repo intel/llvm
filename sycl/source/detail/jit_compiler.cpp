@@ -32,14 +32,14 @@ jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     static const std::string JITLibraryName = "libsycl-fusion.so";
 
-    void *LibraryPtr = sycl::detail::pi::loadOsLibrary(JITLibraryName);
+    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -48,7 +48,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -57,7 +57,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");

@@ -14,16 +14,75 @@
 
 #pragma once
 
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/ur_device_binary.h>
 #include <ur_api.h>
 
+#include <memory>
 #include <type_traits>
 #include <vector>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Forward declarations
+namespace xpti {
+struct trace_event_data_t;
+}
+#endif
+
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 namespace detail {
+
+class plugin;
+using PluginPtr = std::shared_ptr<plugin>;
+
+template <sycl::backend BE>
+__SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
+
 namespace ur {
+
+// The SYCL_PI_TRACE sets what we will trace.
+// This is a bit-mask of various things we'd want to trace.
+enum TraceLevel {
+  PI_TRACE_BASIC = 0x1,
+  PI_TRACE_CALLS = 0x2,
+  PI_TRACE_ALL = -1
+};
+
+// Return true if we want to trace UR related activities.
+bool trace(TraceLevel level);
+
+__SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
+                                             ur_context_extended_deleter_t func,
+                                             void *user_data);
+
+// Function to load a shared library
+// Implementation is OS dependent
+void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
+
+// Function to get Address of a symbol defined in the shared
+// library, implementation is OS dependent.
+void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
+
+// Performs UR one-time initialization.
+std::vector<PluginPtr> &initializeUr();
+
+// Get the plugin serving given backend.
+template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+
+/// Tries to determine the device binary image foramat. Returns
+/// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.
+pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
+                                           size_t ImgSize);
+
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);
 

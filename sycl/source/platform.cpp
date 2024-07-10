@@ -23,7 +23,7 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
   Plugin->call(urPlatformCreateWithNativeHandle,
                detail::ur::cast<ur_native_handle_t>(PlatformId),

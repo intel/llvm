@@ -50,9 +50,9 @@ static int getDevicePreference(const device &Device) {
 static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
   bool shouldTrace = false;
   if (Chosen) {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::PI_TRACE_BASIC);
   } else {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::PI_TRACE_ALL);
   }
   if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
@@ -168,7 +168,7 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 
 static void traceDeviceSelector(const std::string &DeviceType) {
   bool ShouldTrace = false;
-  ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  ShouldTrace = detail::ur::trace(detail::ur::TraceLevel::PI_TRACE_BASIC);
   if (ShouldTrace) {
     std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
               << std::endl;

@@ -190,7 +190,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
-    Format = pi::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
@@ -228,7 +228,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
-  Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
+  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
     Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;

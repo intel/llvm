@@ -33,7 +33,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
-  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;

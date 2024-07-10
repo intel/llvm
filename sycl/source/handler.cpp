@@ -22,7 +22,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -484,7 +484,7 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CG::None:
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+    if (detail::ur::trace(detail::ur::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
 

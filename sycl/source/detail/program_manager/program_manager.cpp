@@ -198,7 +198,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   pi_device_binary_type Format = Img.getFormat();
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
-    Format = pi::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
+    Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
   // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
   // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
