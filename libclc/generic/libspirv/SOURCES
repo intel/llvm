@@ -143,7 +143,6 @@ math/log10.cl
 math/log1p.cl
 math/log2.cl
 math/logb.cl
-math/lround.cl
 math/mad.cl
 math/maxmag.cl
 math/minmag.cl
