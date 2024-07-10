@@ -1508,12 +1508,6 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::urEnqueueMemBufferMap;
     pDdiTable->pfnMemUnmap = ur_sanitizer_layer::urEnqueueMemUnmap;
     pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::urEnqueueKernelLaunch;
-    pDdiTable->pfnUSMAdvise = ur_sanitizer_layer::urEnqueueUSMAdvise;
-    pDdiTable->pfnUSMFill = ur_sanitizer_layer::urEnqueueUSMFill;
-    pDdiTable->pfnUSMFill2D = ur_sanitizer_layer::urEnqueueUSMFill2D;
-    pDdiTable->pfnUSMMemcpy = ur_sanitizer_layer::urEnqueueUSMMemcpy;
-    pDdiTable->pfnUSMMemcpy2D = ur_sanitizer_layer::urEnqueueUSMMemcpy2D;
-    pDdiTable->pfnUSMPrefetch = ur_sanitizer_layer::urEnqueueUSMPrefetch;
 
     return result;
 }
