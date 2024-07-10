@@ -114,7 +114,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
     const char *Options          ///< [in][optional] pointer to build options
                                  ///< null-terminated string.
 ) {
-  return urProgramBuildExp(Program, 1, Context->Devices.data(), Options);
+  return urProgramBuildExp(Program, Context->Devices.size(),
+                           Context->Devices.data(), Options);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
