@@ -668,7 +668,7 @@
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: append-footer, {0}, c++, (host-sycl)
@@ -702,7 +702,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 29: foreach, {25, 28}, cuda-fatbin, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 30: file-table-tform, {24, 29}, tempfiletable, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 31: clang-offload-wrapper, {30}, object, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 32: offload, "device-sycl (nvptx-nvidia-cuda:sm_75)" {31}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 32: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {31}, object
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 33: linker, {5}, ir, (device-sycl, gfx908)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 34: sycl-post-link, {33}, ir, (device-sycl, gfx908)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 35: file-table-tform, {34}, ir, (device-sycl, gfx908)
