@@ -188,10 +188,9 @@ public:
   sycl::detail::EmptyCommand *
   addEmptyCmd(sycl::detail::Command *Cmd,
               const std::vector<sycl::detail::Requirement *> &Reqs,
-              const sycl::detail::QueueImplPtr &Queue,
               sycl::detail::Command::BlockReason Reason,
               std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
+    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Reason, ToEnqueue);
   }
 
   sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
@@ -226,9 +225,9 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost,
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue,
               bool CallerNeedsEvent)
-      : sycl::handler(Queue, IsHost, CallerNeedsEvent) {}
+      : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -284,8 +283,8 @@ public:
   }
 
   std::unique_ptr<sycl::detail::CG> finalize() {
-    throw sycl::runtime_error("Unhandled type of command group",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Unhandled type of command group");
 
     return nullptr;
   }
@@ -294,8 +293,8 @@ public:
 class MockHandlerCustomFinalize : public MockHandler {
 public:
   MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost, bool CallerNeedsEvent)
-      : MockHandler(Queue, IsHost, CallerNeedsEvent) {}
+                            bool CallerNeedsEvent)
+      : MockHandler(Queue, CallerNeedsEvent) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
@@ -308,7 +307,8 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, MImpl->MKernelIsCooperative, getCodeLoc()));
+          getCGType(), {}, MImpl->MKernelIsCooperative,
+          MImpl->MKernelUsesClusterLaunch, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {
@@ -318,8 +318,8 @@ public:
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

@@ -195,9 +195,13 @@
 // PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
+// 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
+// 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 16.57 Added mappings to UR launch properties extension
+// (piextEnqueueKernelLaunchCustom)
 
-#define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 54
+#define _PI_H_VERSION_MAJOR 16
+#define _PI_H_VERSION_MINOR 57
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -512,6 +516,12 @@ typedef enum {
 
   // Virtual memory support
   PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x2011E,
+
+  // Native enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT = 0x2011F,
+
+  // Return whether cluster launch is supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
 } _pi_device_info;
 
 typedef enum {
@@ -1279,6 +1289,7 @@ using pi_image_mem_handle = void *;
 using pi_interop_mem_handle = pi_uint64;
 using pi_interop_semaphore_handle = pi_uint64;
 using pi_physical_mem = _pi_physical_mem *;
+using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -1312,8 +1323,28 @@ typedef enum {
           ///< P2P link, otherwise such operations are not supported.
 } _pi_peer_attr;
 
+typedef enum {
+  PI_LAUNCH_PROPERTY_IGNORE = 0x0,
+  PI_LAUNCH_PROPERTY_COOPERATIVE = 0x1,
+  PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION = 0x2,
+} _pi_launch_property_id;
+
+typedef union {
+  int cooperative;
+  int32_t cluster_dims[3];
+} _pi_launch_property_value;
+
 using pi_mem_info = _pi_mem_info;
 using pi_peer_attr = _pi_peer_attr;
+using pi_launch_property_id = _pi_launch_property_id;
+using pi_launch_property_value = _pi_launch_property_value;
+
+typedef struct {
+  pi_launch_property_id id;
+  pi_launch_property_value value;
+} _pi_launch_property;
+
+using pi_launch_property = _pi_launch_property;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1928,6 +1959,14 @@ __SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_size, const size_t *local_work_size,
+    pi_uint32 num_props_in_launch_prop_list,
+    const pi_launch_property *launch_prop_list,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
 __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
@@ -2170,22 +2209,22 @@ __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
 /// \param ptr is the memory to be freed
 __SYCL_EXPORT pi_result piextUSMFree(pi_context context, void *ptr);
 
-/// USM Memset API
+/// USM Fill API
 ///
 /// \param queue is the queue to submit to
-/// \param ptr is the ptr to memset
-/// \param value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// \param count is the size in bytes to memset
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                              pi_int32 value, size_t count,
-                                              pi_uint32 num_events_in_waitlist,
-                                              const pi_event *events_waitlist,
-                                              pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                            const void *pattern,
+                                            size_t patternSize, size_t count,
+                                            pi_uint32 num_events_in_waitlist,
+                                            const pi_event *events_waitlist,
+                                            pi_event *event);
 
 /// USM Memcpy API
 ///
@@ -3198,6 +3237,25 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
     bool has_signal_value, pi_uint64 signal_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API to enqueue work through a backend API such that the plugin can schedule
+/// the backend API calls within its own DAG.
+///
+/// \param command_queue is the queue instructed to signal
+/// \param fn is the user submitted native function enqueueing work to a
+///        backend API
+/// \param data is the data that will be used in fn
+/// \param num_mems is the number of mems in mem_list
+/// \param mem_list is the list of mems that are used in fn
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextEnqueueNativeCommand(
+    pi_queue command_queue, pi_enqueue_native_command_function fn, void *data,
+    pi_uint32 num_mems, const pi_mem *mem_list,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 

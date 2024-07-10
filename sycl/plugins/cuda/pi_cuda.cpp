@@ -564,6 +564,19 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  return pi2ur::piextEnqueueKernelLaunchCustom(
+      Queue, Kernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
+      EventsWaitList, OutEvent);
+}
+
 pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
@@ -930,12 +943,12 @@ pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
   return pi2ur::piextKernelSetArgPointer(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
-pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
-                                size_t Count, pi_uint32 NumEventsInWaitlist,
-                                const pi_event *EventsWaitlist,
-                                pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr, const void *Pattern,
+                              size_t PatternSize, size_t Count,
+                              pi_uint32 NumEventsInWaitlist,
+                              const pi_event *EventsWaitlist, pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
@@ -1359,6 +1372,16 @@ pi_result piextVirtualMemGetInfo(pi_context context, const void *ptr,
   return pi2ur::piextVirtualMemGetInfo(context, ptr, range_size, param_name,
                                        param_value_size, param_value,
                                        param_value_size_ret);
+}
+
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
 }
 
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;

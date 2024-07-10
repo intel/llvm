@@ -266,7 +266,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
     return;
   }
 
-  if (TargetContext->is_host()) {
+  if (!TargetContext) {
     MemObj->releaseHostMem(MemAllocation);
     return;
   }
@@ -299,7 +299,6 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
     return UserPtr;
 
   return MemObj->allocateHostMem();
-  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -398,7 +397,7 @@ void *MemoryManager::allocateMemBuffer(
     const ContextImplPtr &InteropContext, const sycl::property_list &PropsList,
     sycl::detail::pi::PiEvent &OutEventToWait) {
   void *MemPtr;
-  if (TargetContext->is_host())
+  if (!TargetContext)
     MemPtr =
         allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
   else if (UserPtr && InteropContext)
@@ -420,7 +419,7 @@ void *MemoryManager::allocateMemImage(
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
     const sycl::property_list &PropsList,
     sycl::detail::pi::PiEvent &OutEventToWait) {
-  if (TargetContext->is_host())
+  if (!TargetContext)
     return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
                               PropsList);
   if (UserPtr && InteropContext)
@@ -438,7 +437,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
-  if (TargetContext->is_host())
+  if (!TargetContext)
     return static_cast<void *>(static_cast<char *>(ParentMemObj) + Offset);
 
   size_t SizeInBytes = ElemSize;
@@ -453,10 +452,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
       pi::cast<sycl::detail::pi::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
-    throw invalid_object_error(
-        "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment",
-        PI_ERROR_INVALID_VALUE);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::invalid),
+                  "Specified offset of the sub-buffer being constructed is not "
+                  "a multiple of the memory base address alignment"),
+        Error);
 
   if (Error != PI_SUCCESS) {
     Plugin->reportPiError(Error, "allocateMemSubBuffer()");
@@ -507,6 +507,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              const detail::EventImplPtr &OutEventImpl) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  assert(TgtQueue && "Destination mem object queue must be not nullptr");
 
   const sycl::detail::pi::PiQueue Queue = TgtQueue->getHandleRef();
   const PluginPtr &Plugin = TgtQueue->getPlugin();
@@ -585,6 +586,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              const detail::EventImplPtr &OutEventImpl) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  assert(SrcQueue && "Source mem object queue is expected to be not nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();
@@ -666,6 +668,8 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::detail::pi::PiEvent &OutEvent,
              const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  assert(SrcQueue && "Source mem object and target mem object queues are "
+                     "expected to be not nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();
@@ -775,23 +779,23 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          sycl::detail::pi::PiEvent &OutEvent,
                          const detail::EventImplPtr &OutEventImpl) {
 
-  if (SrcQueue->is_host()) {
-    if (TgtQueue->is_host())
-      copyH2H(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
-              std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
+  if (!SrcQueue) {
+    if (!TgtQueue)
+      copyH2H(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
+              SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem, nullptr,
+              DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
+              std::move(DepEvents), OutEvent, OutEventImpl);
     else
-      copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
+      copyH2D(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<sycl::detail::pi::PiMem>(DstMem), std::move(TgtQueue),
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
               std::move(DepEvents), OutEvent, OutEventImpl);
   } else {
-    if (TgtQueue->is_host())
+    if (!TgtQueue)
       copyD2H(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
-              SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
+              SrcElemSize, (char *)DstMem, nullptr, DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
               OutEvent, OutEventImpl);
     else
@@ -804,7 +808,7 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
+                         size_t PatternSize, const unsigned char *Pattern,
                          unsigned int Dim, sycl::range<3> MemRange,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
@@ -812,6 +816,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          sycl::detail::pi::PiEvent &OutEvent,
                          const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+  assert(Queue && "Fill should be called only with a valid device queue");
 
   const PluginPtr &Plugin = Queue->getPlugin();
 
@@ -857,7 +862,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent) {
-  if (Queue->is_host()) {
+  if (!Queue) {
     throw runtime_error("Not supported configuration of map requested",
                         PI_ERROR_INVALID_OPERATION);
   }
@@ -902,7 +907,11 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent &OutEvent) {
 
-  // Host queue is not supported here.
+  // Execution on host is not supported here.
+  if (!Queue) {
+    throw runtime_error("Not supported configuration of unmap requested",
+                        PI_ERROR_INVALID_OPERATION);
+  }
   // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
 
@@ -917,9 +926,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
-  assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
-
+  assert(SrcQueue && "USM copy must be called with a valid device queue");
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
@@ -945,13 +952,11 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<unsigned char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
-
+  assert(Queue && "USM fill must be called with a valid device queue");
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
@@ -968,9 +973,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  Plugin->call<PiApiKind::piextUSMEnqueueFill>(
+      Queue->getHandleRef(), Mem, Pattern.data(), Pattern.size(), Length,
+      DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(
@@ -978,9 +983,7 @@ void MemoryManager::prefetch_usm(
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in prefetch_usm.");
-
+  assert(Queue && "USM prefetch must be called with a valid device queue");
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
@@ -994,9 +997,7 @@ void MemoryManager::advise_usm(
     std::vector<sycl::detail::pi::PiEvent> /*DepEvents*/,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in advise_usm.");
-
+  assert(Queue && "USM advise must be called with a valid device queue");
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
@@ -1010,9 +1011,7 @@ void MemoryManager::copy_2d_usm(
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in copy_2d_usm.");
-
+  assert(Queue && "USM copy 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1084,13 +1083,11 @@ void MemoryManager::copy_2d_usm(
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<char> &Pattern,
+    const std::vector<unsigned char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_2d_usm.");
-
+  assert(Queue && "USM fill 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1118,9 +1115,7 @@ void MemoryManager::memset_2d_usm(
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_2d_usm.");
-
+  assert(Queue && "USM memset 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1151,6 +1146,8 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
                         const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
                         sycl::detail::pi::PiEvent *OutEvent,
                         const detail::EventImplPtr &OutEventImpl) {
+  assert(Queue &&
+         "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
@@ -1252,6 +1249,9 @@ static void memcpyToDeviceGlobalDirect(
     size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
+  assert(
+      Queue &&
+      "Direct copy to device global must be called with a valid device queue");
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1266,6 +1266,8 @@ static void memcpyFromDeviceGlobalDirect(
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
+  assert(Queue && "Direct copy from device global must be called with a valid "
+                  "device queue");
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1569,7 +1571,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    size_t Len, const std::vector<unsigned char> &Pattern,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
 
   if (!DstMem)
@@ -1577,19 +1580,18 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  // Pattern is interpreted as an unsigned char so pattern size is always 1.
-  size_t PatternSize = 1;
+
   Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
-      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
       Deps.data(), OutSyncPoint);
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
-    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
-    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
-    unsigned int ElementSize,
+    void *Mem, size_t PatternSize, const unsigned char *Pattern,
+    unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
+    sycl::id<3> AccessOffset, unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
@@ -1626,8 +1628,6 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
     size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
-
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piextCommandBufferPrefetchUSM>(
       CommandBuffer, Mem, Length, _pi_usm_migration_flags(0), Deps.size(),
@@ -1640,8 +1640,6 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     size_t Length, pi_mem_advice Advice,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  assert(!Context->is_host() && "Host queue not supported in advise_usm.");
-
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piextCommandBufferAdviseUSM>(
       CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
@@ -1659,9 +1657,8 @@ void MemoryManager::copy_image_bindless(
     sycl::detail::pi::PiImageRegion CopyExtent,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in copy_image_bindless.");
+  assert(Queue &&
+         "Copy image bindless must be called with a valid device queue");
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)

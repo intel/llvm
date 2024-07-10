@@ -31,6 +31,8 @@ inline sycl::detail::pi::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
   case ext::oneapi::experimental::address_access_mode::none:
     return 0;
   }
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Invalid address_access_mode.");
 }
 
 class physical_mem_impl {

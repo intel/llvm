@@ -33,8 +33,9 @@ int main() {
       // Exit immediately, otherwise the buffer destructor may actually try to
       // enqueue the command once again, and throw another exception.
       exit(0);
-    } catch (sycl::compile_program_error &e) {
-      exit(0);
+    } catch (sycl::exception &e) {
+      if (e.code() == errc::build)
+        exit(0);
     }
     assert(0 && "Expected exception was *not* thrown");
   } else {

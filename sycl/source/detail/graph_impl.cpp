@@ -357,9 +357,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
-  // Add any deps from the vector of extra dependencies
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
@@ -492,19 +489,11 @@ graph_impl::add(node_type NodeType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
-  // Add any deps from the extra dependencies vector
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
-
-  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
-  if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
-    MExtraDependencies.push_back(NodeImpl);
-  }
 
   return NodeImpl;
 }
@@ -614,12 +603,17 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   removeRoot(Dest); // remove receiver from root node list
 }
 
-std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
+    std::weak_ptr<sycl::detail::queue_impl> RecordedQueue) {
   std::vector<sycl::detail::EventImplPtr> Events;
 
+  auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      Events.push_back(getEventForNode(Node));
+      auto EventForNode = getEventForNode(Node);
+      if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
+        Events.push_back(getEventForNode(Node));
+      }
     }
   }
 
@@ -979,7 +973,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
-              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative);
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative,
+              CG->MKernelUsesClusterLaunch);
           if (Res != pi_result::PI_SUCCESS) {
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::kernel),
@@ -1189,23 +1184,45 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Cannot update using a graph with a different "
                           "topology. Mismatch found in the number of nodes.");
-  } else {
-    for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
-      if (MNodeStorage[i]->MSuccessors.size() !=
-              GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
-          MNodeStorage[i]->MPredecessors.size() !=
-              GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with a different topology. Mismatch "
-            "found in the number of edges.");
-      }
+  }
 
-      if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with mismatched node types. Each pair "
-            "of nodes being updated must have the same type");
+  for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
+    if (MNodeStorage[i]->MSuccessors.size() !=
+            GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
+        MNodeStorage[i]->MPredecessors.size() !=
+            GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with a different topology. Mismatch "
+          "found in the number of edges.");
+    }
+    if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with mismatched node types. Each pair "
+          "of nodes being updated must have the same type");
+    }
+
+    if (MNodeStorage[i]->MCGType == sycl::detail::CG::Kernel) {
+      sycl::detail::CGExecKernel *TargetCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              MNodeStorage[i]->MCommandGroup.get());
+      const std::string &TargetKernelName = TargetCGExec->getKernelName();
+
+      sycl::detail::CGExecKernel *SourceCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              GraphImpl->MNodeStorage[i]->MCommandGroup.get());
+      const std::string &SourceKernelName = SourceCGExec->getKernelName();
+
+      if (TargetKernelName.compare(SourceKernelName) != 0) {
+        std::stringstream ErrorStream(
+            "Cannot update using a graph with mismatched kernel "
+            "types. Source node type ");
+        ErrorStream << SourceKernelName;
+        ErrorStream << ", target node type ";
+        ErrorStream << TargetKernelName;
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              ErrorStream.str());
       }
     }
   }
