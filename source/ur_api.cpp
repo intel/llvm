@@ -5023,7 +5023,6 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -6404,7 +6403,6 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
