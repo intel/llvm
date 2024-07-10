@@ -11,8 +11,13 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "asan_report.hpp"
+#include "asan_validator.hpp"
+#include "stacktrace.hpp"
 #include "ur_sanitizer_layer.hpp"
 #include "ur_sanitizer_utils.hpp"
+
+#include <memory>
 
 namespace ur_sanitizer_layer {
 
@@ -1267,6 +1272,39 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgPointer
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
+    const void *
+        pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+    ///< mapping operation. If null then argument value is considered null.
+) {
+    auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
+
+    if (nullptr == pfnSetArgPointer) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug(
+        "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
+        pArgValue);
+
+    {
+        auto KI = context.interceptor->getKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
+        KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
+    }
+
+    ur_result_t result =
+        pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
 ///
@@ -1362,6 +1400,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::urKernelSetArgValue;
     pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
     pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgPointer = ur_sanitizer_layer::urKernelSetArgPointer;
 
     return result;
 }
@@ -1469,6 +1508,12 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::urEnqueueMemBufferMap;
     pDdiTable->pfnMemUnmap = ur_sanitizer_layer::urEnqueueMemUnmap;
     pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::urEnqueueKernelLaunch;
+    pDdiTable->pfnUSMAdvise = ur_sanitizer_layer::urEnqueueUSMAdvise;
+    pDdiTable->pfnUSMFill = ur_sanitizer_layer::urEnqueueUSMFill;
+    pDdiTable->pfnUSMFill2D = ur_sanitizer_layer::urEnqueueUSMFill2D;
+    pDdiTable->pfnUSMMemcpy = ur_sanitizer_layer::urEnqueueUSMMemcpy;
+    pDdiTable->pfnUSMMemcpy2D = ur_sanitizer_layer::urEnqueueUSMMemcpy2D;
+    pDdiTable->pfnUSMPrefetch = ur_sanitizer_layer::urEnqueueUSMPrefetch;
 
     return result;
 }
