@@ -284,8 +284,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of program object created.
 ) {
-  return urProgramLinkExp(Context, Count, Context->Devices.data(), 1, Programs,
-                          Options, Program);
+  return urProgramLinkExp(Context, Context->Devices.size(),
+                          Context->Devices.data(), Count, Programs, Options,
+                          Program);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(

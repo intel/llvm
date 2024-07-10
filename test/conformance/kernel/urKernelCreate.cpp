@@ -55,7 +55,7 @@ TEST_P(urKernelCreateTest, InvalidKernelName) {
 
 using urMultiDeviceKernelCreateTest = uur::urMultiDeviceQueueTest;
 
-TEST_F(urMultiDeviceKernelCreateTest, Success) {
+TEST_F(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
     constexpr size_t global_size = 100;
@@ -81,6 +81,47 @@ TEST_F(urMultiDeviceKernelCreateTest, Success) {
         ASSERT_SUCCESS(urProgramBuild(context, program.get(), nullptr));
         ASSERT_SUCCESS(
             urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
+
+        ASSERT_SUCCESS(urEnqueueKernelLaunch(
+            queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+            &global_size, 0, nullptr, nullptr));
+
+        ASSERT_SUCCESS(urQueueFinish(queues[i]));
+    }
+}
+
+TEST_F(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
+    constexpr size_t global_offset = 0;
+    constexpr size_t n_dimensions = 1;
+    constexpr size_t global_size = 100;
+    constexpr size_t local_size = 100;
+
+    auto kernelName =
+        uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+
+    auto &devices = uur::KernelsEnvironment::instance->devices;
+    for (size_t i = 0; i < devices.size(); i++) {
+        uur::raii::Program program;
+        uur::raii::Kernel kernel;
+
+        const ur_program_properties_t properties = {
+            UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr, 0, nullptr};
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, devices[i], *il_binary, &properties,
+            program.ptr()));
+
+        ASSERT_SUCCESS(urProgramCompile(context, program.get(), nullptr));
+
+        uur::raii::Program linked_program;
+        ASSERT_EQ_RESULT(UR_RESULT_SUCCESS,
+                         urProgramLink(context, 1, program.ptr(), nullptr,
+                                       linked_program.ptr()));
+
+        ASSERT_SUCCESS(urKernelCreate(linked_program.get(), kernelName.data(),
+                                      kernel.ptr()));
 
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
             queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
