@@ -13,8 +13,9 @@
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
 
 // Currently the feature isn't supported on FPGA.
+// UNSUPPORTED: accelerator
 // FIXME: enable opaque pointers support on CPU.
-// UNSUPPORTED: accelerator, cpu
+// XFAIL: cpu
 #include "bfloat16_builtins.hpp"
 
 int main() {
