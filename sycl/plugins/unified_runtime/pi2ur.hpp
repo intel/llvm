@@ -4654,7 +4654,7 @@ inline pi_result piextCommandBufferNDRangeKernel(
       reinterpret_cast<ur_exp_command_buffer_command_handle_t *>(Command);
   HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
       UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint, nullptr,
       UrCommandHandle));
 
   return PI_SUCCESS;
@@ -4669,7 +4669,7 @@ inline pi_result piextCommandBufferMemcpyUSM(
 
   HANDLE_ERRORS(urCommandBufferAppendUSMMemcpyExp(
       UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint));
+      SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4687,7 +4687,7 @@ inline pi_result piextCommandBufferMemBufferCopy(
 
   HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4716,7 +4716,7 @@ inline pi_result piextCommandBufferMemBufferCopyRect(
   HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyRectExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
       SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4746,7 +4746,7 @@ inline pi_result piextCommandBufferMemBufferReadRect(
   HANDLE_ERRORS(urCommandBufferAppendMemBufferReadRectExp(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4763,7 +4763,7 @@ inline pi_result piextCommandBufferMemBufferRead(
 
   HANDLE_ERRORS(urCommandBufferAppendMemBufferReadExp(
       UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint));
+      SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4794,7 +4794,7 @@ inline pi_result piextCommandBufferMemBufferWriteRect(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
       const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
-      SyncPoint));
+      0, nullptr, SyncPoint, nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4812,7 +4812,8 @@ inline pi_result piextCommandBufferMemBufferWrite(
 
   HANDLE_ERRORS(urCommandBufferAppendMemBufferWriteExp(
       UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint,
+      nullptr, nullptr));
 
   return PI_SUCCESS;
 }
@@ -4830,7 +4831,8 @@ inline pi_result piextCommandBufferMemBufferFill(
 
   HANDLE_ERRORS(urCommandBufferAppendMemBufferFillExp(
       UrCommandBuffer, UrBuffer, Pattern, PatternSize, Offset, Size,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      NumSyncPointsInWaitList, SyncPointWaitList, 0, nullptr, SyncPoint,
+      nullptr, nullptr));
   return PI_SUCCESS;
 }
 
@@ -4844,7 +4846,7 @@ inline pi_result piextCommandBufferFillUSM(
 
   HANDLE_ERRORS(urCommandBufferAppendUSMFillExp(
       UrCommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint));
+      SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
   return PI_SUCCESS;
 }
 
@@ -4865,7 +4867,7 @@ inline pi_result piextCommandBufferPrefetchUSM(
   ur_usm_migration_flags_t UrFlags{};
   HANDLE_ERRORS(urCommandBufferAppendUSMPrefetchExp(
       UrCommandBuffer, Ptr, Size, UrFlags, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint));
+      SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
   return PI_SUCCESS;
 }
 
@@ -4908,7 +4910,7 @@ inline pi_result piextCommandBufferAdviseUSM(
 
   HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
       UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint));
+      SyncPointWaitList, 0, nullptr, SyncPoint, nullptr, nullptr));
   return PI_SUCCESS;
 }
 
