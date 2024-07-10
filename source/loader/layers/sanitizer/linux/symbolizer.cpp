@@ -32,7 +32,7 @@ llvm::symbolize::PrinterConfig GetPrinterConfig() {
 extern "C" {
 
 bool SymbolizeCode(const std::string ModuleName, uint64_t ModuleOffset,
-                    std::string &Result) {
+                   std::string &Result) {
     llvm::raw_string_ostream OS(Result);
     llvm::symbolize::Request Request{ModuleName, ModuleOffset};
     llvm::symbolize::PrinterConfig Config =
