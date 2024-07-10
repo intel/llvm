@@ -10769,6 +10769,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
   } else if (!IsUsingLTO || LTOMode != LTOK_Thin) {
+    // Only create a properties file if we are not
+    // only outputting IR.
     addArgs(PostLinkArgs, TCArgs, {"-properties"});
   }
   if (SpecConstsSupported)
