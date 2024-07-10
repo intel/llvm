@@ -199,9 +199,10 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
+// 16.58 Added context parameter to piextMemImageGetInfo
 
 #define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 57
+#define _PI_H_VERSION_MINOR 58
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3102,13 +3103,16 @@ __SYCL_EXPORT pi_result piextMemImageCopy(
 
 /// API to query an image memory handle for specific properties.
 ///
+/// \param context is the handle to the context
 /// \param mem_handle is the handle to the image memory
 /// \param param_name is the queried info name
 /// \param param_value is the returned query value
 /// \param param_value_size_ret is the returned query value size
-__SYCL_EXPORT pi_result piextMemImageGetInfo(
-    const pi_image_mem_handle mem_handle, pi_image_info param_name,
-    void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
+                                             pi_image_mem_handle mem_handle,
+                                             pi_image_info param_name,
+                                             void *param_value,
+                                             size_t *param_value_size_ret);
 
 /// [DEPRECATED] This function is deprecated in favor of
 /// `piextImportExternalMemory`

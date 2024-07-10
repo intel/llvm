@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
-  # Merge: 6b33a1bb 5dc794cb
+  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
+  # commit 9d3bce6ad92e6f0a4af0139f9744584b5a402827
+  # Merge: e0775441 1c9c2d0b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 15:05:31 2024 +0100
-  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
-  #     [L0] Use Intel Level Zero Driver String extension
-  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
+  # Date:   Tue Jul 9 15:57:44 2024 +0100
+  #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
+  #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
+  set(UNIFIED_RUNTIME_TAG 199287b79a6181b69c14736b5d44701e227c19f4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
