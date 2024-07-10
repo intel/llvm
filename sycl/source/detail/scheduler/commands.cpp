@@ -2582,7 +2582,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   return Res;
 }
 
-pi_int32 enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -2698,8 +2698,6 @@ pi_int32 enqueueImpKernel(
     detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
   }
-
-  return PI_SUCCESS;
 }
 
 pi_int32
@@ -3033,11 +3031,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
     }
 
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch);
+    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
+                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch);
+
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
