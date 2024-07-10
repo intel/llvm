@@ -200,8 +200,8 @@ public:
 
   /// Gets the specified property of this context.
   ///
-  /// Throws invalid_object_error if this context does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this context does not
+  /// have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
   template <typename propertyT> propertyT get_property() const;
@@ -214,13 +214,6 @@ public:
 #ifdef __SYCL_INTERNAL_API
   cl_context get() const;
 #endif
-
-  /// Checks if this context is a SYCL host context.
-  ///
-  /// \return true if this context is a SYCL host context.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Returns the backend associated with this context.
   ///

@@ -202,8 +202,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
                          PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible
@@ -233,6 +231,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH)
 
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC

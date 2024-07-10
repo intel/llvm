@@ -44,6 +44,7 @@ jobs:
             target_devices: ext_oneapi_level_zero:gpu
             reset_gpu: true
             tests_selector: e2e
+            extra_lit_opts: --param gpu-intel-gen12=True
 
           - name: Intel OCL GPU
             runner: '["Linux", "gen12"]'
@@ -52,6 +53,7 @@ jobs:
             target_devices: opencl:gpu
             reset_gpu: true
             tests_selector: e2e
+            extra_lit_opts: --param gpu-intel-gen12=True
 
           - name: OCL CPU (AMD)
             runner: '["Linux", "amdgpu"]'
@@ -88,6 +90,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_gpu: ${{ matrix.reset_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''
@@ -116,6 +119,7 @@ jobs:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      extra_lit_opts: --param gpu-intel-gen12=True
 
   nightly_build_upload:
     name: Nightly Build Upload
