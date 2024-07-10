@@ -28,6 +28,16 @@ struct DummyHandleT {
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
+
+  template <typename T> T getDataAs() {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data());
+  }
+
+  template <typename T> T setDataAs(T Val) {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data()) = Val;
+  }
 };
 
 using DummyHandlePtrT = DummyHandleT *;

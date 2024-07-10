@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
-  # Merge: 5be5aa49 649c5f04
+  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
+  # Merge: 2f548cae 25c75c06
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 9 11:20:06 2024 +0100
-  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
-  #     [L0] Fix Queue get info and fix Queue release decrement
-  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
+  # Date:   Wed Jul 10 12:36:28 2024 +0100
+  #     Merge pull request #1458 from RossBrunton/ross/linkerror
+  #     [UR] Improve handling of error cases in urProgramLink
+  set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
