@@ -17,6 +17,8 @@ set(SYCL_PI_UR_SOURCE_DIR
 
 # Override default to enable building tests from unified-runtime
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
+# Override default to enable symbolizer from unified-runtime
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UMF_ENABLE_POOL_TRACKING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -99,14 +101,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
-  # Merge: 01af5602 79be9c5f
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 13:52:48 2024 +0100
-  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
-  #     Refactor Level Zero Command-Buffer implementation
-  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG implement-symbolizer)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
