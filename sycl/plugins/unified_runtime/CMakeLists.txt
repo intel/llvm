@@ -99,11 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
-  # commit 25c75c06999dfae33415fbdb98f620e00bcf10f0
-  # Author: Ross Brunton <ross@codeplay.com>
-  # Date:   Mon Mar 18 18:02:35 2024 +0000
-  # [UR] Improve handling of error cases in urProgramLink
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
+  # Merge: 2f548cae 25c75c06
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jul 10 12:36:28 2024 +0100
+  #     Merge pull request #1458 from RossBrunton/ross/linkerror
+  #     [UR] Improve handling of error cases in urProgramLink
   set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
 
   fetch_adapter_source(level_zero
