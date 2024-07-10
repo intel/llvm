@@ -9578,7 +9578,6 @@ typedef void (*ur_exp_enqueue_native_command_function_t)(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNativeEnqueue`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -9598,7 +9597,7 @@ urEnqueueNativeCommandExp(
     const ur_event_handle_t *phEventWaitList,                      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                                    ///< events that must be complete before the kernel execution.
                                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
-    ur_event_handle_t *phEvent                                     ///< [in,out] return an event object that identifies the work that has
+    ur_event_handle_t *phEvent                                     ///< [out][optional] return an event object that identifies the work that has
                                                                    ///< been enqueued in nativeEnqueueFunc.
 );
 
