@@ -14,7 +14,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 

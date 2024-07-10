@@ -144,10 +144,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cg.hpp
-// CHECK-NEXT: detail/pi.hpp
-// CHECK-NEXT: detail/pi.h
 // CHECK-NEXT: detail/pi_error.def
-// CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
 // CHECK-NEXT: detail/ur.hpp

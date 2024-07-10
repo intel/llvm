@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/sampler.hpp>
 

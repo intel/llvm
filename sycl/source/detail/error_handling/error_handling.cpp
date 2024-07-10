@@ -14,7 +14,7 @@
 
 #include <detail/plugin.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 namespace sycl {
 inline namespace _V1 {

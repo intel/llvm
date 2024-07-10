@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_binary_image.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <algorithm>

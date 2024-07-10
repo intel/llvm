@@ -12,8 +12,8 @@
 #include <mutex>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <ur_api.h>
 

@@ -12,7 +12,7 @@
 #include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
 #include <sycl/detail/common.hpp>   // for code_location
 #include <sycl/detail/helpers.hpp>  // for context_impl
-#include <sycl/detail/pi.hpp>       // for PiImageOffset, PiImageRegion
+#include <sycl/detail/ur.hpp>       // for PiImageOffset, PiImageRegion
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
 #include <sycl/kernel.hpp>          // for kernel_impl

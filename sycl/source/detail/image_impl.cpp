@@ -10,7 +10,7 @@
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/xpti_registry.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <algorithm>
 #include <vector>

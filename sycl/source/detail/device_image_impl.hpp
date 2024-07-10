@@ -16,7 +16,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
