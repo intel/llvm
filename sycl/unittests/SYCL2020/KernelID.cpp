@@ -261,9 +261,7 @@ TEST(KernelID, GetKernelIDInvalidKernelName) {
     FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_TRUE(e.code() == sycl::errc::runtime);
-    EXPECT_EQ(std::string("No kernel found with the specified name -46 "
-                          "(PI_ERROR_INVALID_KERNEL_NAME)"),
-              e.what());
+    EXPECT_EQ(std::string("No kernel found with the specified name"), e.what());
   } catch (...) {
     FAIL() << "Expected sycl::exception";
   }
