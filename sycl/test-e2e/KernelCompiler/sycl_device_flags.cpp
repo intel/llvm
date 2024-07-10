@@ -12,17 +12,17 @@
 // RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out
 // RUN: grep -ze-exp-register-file-size=256 %t.dump/OCL_asmaf99e2d4667ef6d3_options.txt
 
+// clang-format off
 /*
     clang++ -fsycl -o sdf.bin sycl_device_flags.cpp
-    IGC_ShaderDumpEnable=1 IGC_DumpToCustomDir=./dump NEO_CACHE_PERSISTENT=0
-   ./sdf.bin grep -ze-exp-register-file-size=256
-   ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
+    IGC_ShaderDumpEnable=1 IGC_DumpToCustomDir=./dump NEO_CACHE_PERSISTENT=0 ./sdf.bin 
+    grep -ze-exp-register-file-size=256 ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
 
     Note: there are files named  xxx_options.txt and xxx_internal_options.txt in
-   the IGC dump directory. The file with "internal_options.txt"  is NOT the
-   correct file.
-
+    the IGC dump directory. The file with "internal_options.txt"  is NOT the
+    correct file.
 */
+// clang-format on
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
