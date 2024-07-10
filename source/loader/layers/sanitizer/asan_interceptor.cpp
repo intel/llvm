@@ -16,6 +16,7 @@
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
+#include "asan_validator.hpp"
 #include "stacktrace.hpp"
 #include "ur_sanitizer_utils.hpp"
 
@@ -577,6 +578,9 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
 
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
+    DI->IsSupportSharedSystemUSM = GetDeviceUSMCapability(
+        Device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
+
     // Query device type
     DI->Type = GetDeviceType(Device);
     if (DI->Type == DeviceType::UNKNOWN) {
@@ -587,6 +591,9 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
     UR_CALL(context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
+
+    context.logger.info("DeviceInfo {} (IsSupportSharedSystemUSM={})",
+                        (void *)Device, DI->IsSupportSharedSystemUSM);
 
     // Don't move DI, since it's a return value as well
     m_DeviceMap.emplace(Device, DI);
@@ -651,8 +658,20 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     auto Program = GetProgram(Kernel);
 
     do {
-        // Set membuffer arguments
         auto KernelInfo = getKernelInfo(Kernel);
+
+        // Validate pointer arguments
+        for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
+            auto Ptr = PtrPair.first;
+            if (auto ValidateResult = ValidateUSMPointer(
+                    Context, DeviceInfo->Handle, (uptr)Ptr)) {
+                ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
+                                            ValidateResult, PtrPair.second);
+                exit(1);
+            }
+        }
+
+        // Set membuffer arguments
         for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
             char *ArgPointer = nullptr;
             UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
