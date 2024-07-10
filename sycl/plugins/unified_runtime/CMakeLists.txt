@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
   # commit 1baed0ba696d494a82769366f137e9ddd8af3001
   # Merge: 00ca0daa e6dc6d9a
   # Author: Piotr Balcer <piotr.balcer@intel.com>
   # Date:   Wed Jul 3 13:48:27 2024 +0200
   #     Merge pull request #1771 from igchor/level_zero_v2_dispatcher
   #     [L0] Initial version of queue dispatcher
-  set(UNIFIED_RUNTIME_TAG 1baed0ba696d494a82769366f137e9ddd8af3001)
+  set(UNIFIED_RUNTIME_TAG review/yang/invalid_arguments)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
