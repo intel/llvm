@@ -20,7 +20,7 @@ int main() {
   RejectEverything Selector;
   try {
     sycl::device Device(Selector);
-  } catch (sycl::runtime_error &E) {
+  } catch (sycl::exception &) {
     return 0;
   }
   std::cerr << "Error. A device is found." << std::endl;

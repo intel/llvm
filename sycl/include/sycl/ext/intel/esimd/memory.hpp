@@ -5459,16 +5459,6 @@ scatter_rgba(T *p, Toffset offset,
   scatter_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
-template <typename T, int N, rgba_channel_mask RGBAMask>
-__SYCL_DEPRECATED("use scatter_rgba<rgba_channel_mask>()")
-__ESIMD_API std::
-    enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4> scatter_rgba(
-        T *p, simd<uint32_t, N> offsets,
-        simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
-        simd_mask<N> mask = 1) {
-  scatter_rgba<RGBAMask>(p, offsets, vals, mask);
-}
-
 /// Gather and transpose pixels from the given memory locations defined by the
 /// base specified by \c acc, the global offset \c global_offset and a vector of
 /// offsets \c offsets. Up to 4 32-bit data elements may be accessed at each
@@ -5616,7 +5606,6 @@ constexpr void check_atomic() {
 
   if constexpr (Op == __ESIMD_NS::atomic_op::xchg ||
                 Op == __ESIMD_NS::atomic_op::cmpxchg ||
-                Op == __ESIMD_NS::atomic_op::predec ||
                 Op == __ESIMD_NS::atomic_op::inc ||
                 Op == __ESIMD_NS::atomic_op::dec) {
 
@@ -12044,37 +12033,22 @@ enum fence_mask : uint8_t {
   global_coherent_fence = 0x1,
   /// Flush the instruction cache.
   l2_flush_instructions = 0x2,
-  l3_flush_instructions __SYCL_DEPRECATED(
-      "it means L2 here, use l2_flush_instructions") = l2_flush_instructions,
   /// Flush sampler (texture) cache.
   l2_flush_texture_data = 0x4,
-  l3_flush_texture_data __SYCL_DEPRECATED(
-      "it means L2 here, use l2_flush_texture_data") = l2_flush_texture_data,
   /// Flush constant cache.
   l2_flush_constant_data = 0x8,
-  l3_flush_constant_data __SYCL_DEPRECATED(
-      "it means L2 here, use l2_flush_constant_data") = l2_flush_constant_data,
   /// Flush constant cache.
   l2_flush_rw_data = 0x10,
-  l3_flush_rw_data __SYCL_DEPRECATED("it means L2 here, use l2_flush_rw_data") =
-      l2_flush_rw_data,
   /// Issue SLM memory barrier only. If not set, the memory barrier is global.
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
   l1_flush_ro_data = 0x40,
-  /// Creates a software (compiler) barrier, which does not generate
-  /// any instruction and only prevents instruction scheduler from
-  /// reordering instructions across this barrier at compile time.
-  sw_barrier __SYCL_DEPRECATED("reserved - this enum is ignored") = 0x80
 };
 
 /// esimd::fence sets the memory read/write order.
 /// @tparam cntl A bitmask composed from \c fence_mask bits.
 ///
 template <uint8_t cntl> __ESIMD_API void fence() { __esimd_fence(cntl); }
-
-__SYCL_DEPRECATED("use fence<fence_mask>()")
-__ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
 /// Memory fence.
 /// Supported platforms: DG2, PVC
