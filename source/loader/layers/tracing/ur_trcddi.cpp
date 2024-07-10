@@ -7874,8 +7874,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< events that must be complete before the kernel execution.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
-        phEvent ///< [in,out] return an event object that identifies the work that has
-                ///< been enqueued in nativeEnqueueFunc.
+        phEvent ///< [out][optional] return an event object that identifies the work that has
+    ///< been enqueued in nativeEnqueueFunc.
 ) {
     auto pfnNativeCommandExp =
         context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
