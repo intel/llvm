@@ -15,15 +15,15 @@
 
 #include <ur_api.h>
 
-#include <sycl/backend_types.hpp>  // for backend
-#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
-#include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
-#include <sycl/detail/ur.hpp>      // for pi binary stuff
-                                   //
-#include <memory>                  // for shared_ptr
-#include <stddef.h>                // for size_t
-#include <string>                  // for char_traits, string
-#include <vector>                  // for vector
+#include <sycl/backend_types.hpp>         // for backend
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/os_util.hpp>        // for __SYCL_RT_OS_LINUX
+#include <sycl/detail/ur_device_binary.h> // for pi binary stuff
+                                          //
+#include <memory>                         // for shared_ptr
+#include <stddef.h>                       // for size_t
+#include <string>                         // for char_traits, string
+#include <vector>                         // for vector
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
