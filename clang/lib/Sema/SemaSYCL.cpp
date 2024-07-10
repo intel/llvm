@@ -24,6 +24,8 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Attr.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -752,6 +754,30 @@ static bool isDeclaredInSYCLNamespace(const Decl *D) {
   return ND && ND->getName() == "sycl";
 }
 
+static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
+  return SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
+}
+
+static void addScopeAttrToLocalVars(FunctionDecl &F) {
+  for (Decl *D : F.decls()) {
+    VarDecl *VD = dyn_cast<VarDecl>(D);
+
+    if (!VD || isa<ParmVarDecl>(VD) ||
+        VD->getStorageDuration() != StorageDuration::SD_Automatic)
+      continue;
+    // Local variables of private_memory type in the WG scope still have WI
+    // scope, all the rest - WG scope. Simple logic
+    // "if no scope than it is WG scope" won't work, because compiler may add
+    // locals not declared in user code (lambda object parameter, byval
+    // arguments) which will result in alloca w/o any attribute, so need WI
+    // scope too.
+    SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
+                                 ? SYCLScopeAttr::Level::WorkItem
+                                 : SYCLScopeAttr::Level::WorkGroup;
+    VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
+  }
+}
+
 // This type does the heavy lifting for the management of device functions,
 // recursive function detection, and attribute collection for a single
 // kernel/external function. It walks the callgraph to find all functions that
@@ -801,12 +827,24 @@ class SingleDeviceFunctionTracker {
     // Note: Here, we assume that this is called from within a
     // parallel_for_work_group; it is undefined to call it otherwise.
     // We deliberately do not diagnose a violation.
+    // The following changes have also been added:
+    // 1. The function inside which the parallel_for_work_item exists is
+    //    marked with WorkGroup scope attribute, if not present already.
+    // 2. The local variables inside the function are marked with appropriate
+    //    scope.
     if (CurrentDecl->getIdentifier() &&
         CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
         isDeclaredInSYCLNamespace(CurrentDecl) &&
         !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
       CurrentDecl->addAttr(SYCLScopeAttr::CreateImplicit(
           Parent.SemaSYCLRef.getASTContext(), SYCLScopeAttr::Level::WorkItem));
+      FunctionDecl *Caller = CallStack.back();
+      if (!Caller->hasAttr<SYCLScopeAttr>()) {
+        Caller->addAttr(
+            SYCLScopeAttr::CreateImplicit(Parent.SemaSYCLRef.getASTContext(),
+                                          SYCLScopeAttr::Level::WorkGroup));
+        addScopeAttrToLocalVars(*Caller);
+      }
     }
 
     // We previously thought we could skip this function if we'd seen it before,
@@ -999,30 +1037,6 @@ private:
   ASTContext &Ctx;
 };
 
-static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
-  return SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
-}
-
-static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
-  for (Decl *D : F.decls()) {
-    VarDecl *VD = dyn_cast<VarDecl>(D);
-
-    if (!VD || isa<ParmVarDecl>(VD) ||
-        VD->getStorageDuration() != StorageDuration::SD_Automatic)
-      continue;
-    // Local variables of private_memory type in the WG scope still have WI
-    // scope, all the rest - WG scope. Simple logic
-    // "if no scope than it is WG scope" won't work, because compiler may add
-    // locals not declared in user code (lambda object parameter, byval
-    // arguments) which will result in alloca w/o any attribute, so need WI
-    // scope too.
-    SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
-                                 ? SYCLScopeAttr::Level::WorkItem
-                                 : SYCLScopeAttr::Level::WorkGroup;
-    VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
-  }
-}
-
 /// Return method by name
 static CXXMethodDecl *getMethodByName(const CXXRecordDecl *CRD,
                                       StringRef MethodName) {
@@ -1111,18 +1125,24 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
+  std::string NewName;
   std::string StableName;
 
-  MC.mangleName(FreeFunc, Out);
-  std::string MangledName(Out.str());
-  size_t StartNums = MangledName.find_first_of("0123456789");
-  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-  size_t NameLength =
-      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-  std::string NewName = MangledName.substr(0, StartNums) +
-                        std::to_string(NewNameLength) + "__sycl_kernel_" +
-                        MangledName.substr(EndNums);
+  // Handle extern "C"
+  if (FreeFunc->getLanguageLinkage() == CLanguageLinkage) {
+    const IdentifierInfo *II = FreeFunc->getIdentifier();
+    NewName = "__sycl_kernel_" + II->getName().str();
+  } else {
+    MC.mangleName(FreeFunc, Out);
+    std::string MangledName(Out.str());
+    size_t StartNums = MangledName.find_first_of("0123456789");
+    size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+    size_t NameLength =
+        std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+    size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+    NewName = MangledName.substr(0, StartNums) + std::to_string(NewNameLength) +
+              "__sycl_kernel_" + MangledName.substr(EndNums);
+  }
   StableName = NewName;
   return {NewName, StableName};
 }
@@ -6611,4 +6631,44 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
     TSI = getASTContext().getTrivialTypeSourceInfo(Ty, LParen);
 
   return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+}
+
+void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
+  // The 'sycl_kernel' attribute applies only to function templates.
+  const auto *FD = cast<FunctionDecl>(D);
+  const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
+  assert(FT && "Function template is expected");
+
+  // Function template must have at least two template parameters so it
+  // can be used in OpenCL kernel generation.
+  const TemplateParameterList *TL = FT->getTemplateParameters();
+  if (TL->size() < 2) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
+    return;
+  }
+
+  // The first two template parameters must be typenames.
+  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
+    const NamedDecl *TParam = TL->getParam(I);
+    if (isa<NonTypeTemplateParmDecl>(TParam)) {
+      Diag(FT->getLocation(),
+           diag::warn_sycl_kernel_invalid_template_param_type);
+      return;
+    }
+  }
+
+  // Function must have at least one parameter.
+  if (getFunctionOrMethodNumParams(D) < 1) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
+    return;
+  }
+
+  // Function must return void.
+  QualType RetTy = getFunctionOrMethodResultType(D);
+  if (!RetTy->isVoidType()) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
+    return;
+  }
+
+  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
 }

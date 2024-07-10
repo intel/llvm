@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O0 -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -split-esimd -lower-esimd -O0 -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 ; This test checks that unreferenced functions with sycl-module-id

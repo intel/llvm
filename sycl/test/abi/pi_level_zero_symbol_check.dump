@@ -113,6 +113,7 @@ piextDisablePeerAccess
 piextEnablePeerAccess
 piextEnqueueCommandBuffer
 piextEnqueueCooperativeKernelLaunch
+piextEnqueueNativeCommand
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
@@ -145,6 +146,9 @@ piextMemSampledImageHandleDestroy
 piextMemUnsampledImageCreate
 piextMemUnsampledImageHandleDestroy
 piextPeerAccessGetInfo
+piextPhysicalMemCreate
+piextPhysicalMemRelease
+piextPhysicalMemRetain
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData
@@ -156,11 +160,11 @@ piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
 piextSignalExternalSemaphore
 piextUSMDeviceAlloc
+piextUSMEnqueueFill
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemcpy2D
-piextUSMEnqueueMemset
 piextUSMEnqueueMemset2D
 piextUSMEnqueuePrefetch
 piextUSMFree
@@ -170,4 +174,12 @@ piextUSMImport
 piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
+piextVirtualMemFree
+piextVirtualMemGetInfo
+piextVirtualMemGranularityGetInfo
+piextVirtualMemMap
+piextVirtualMemReserve
+piextVirtualMemSetAccess
+piextVirtualMemUnmap
 piextWaitExternalSemaphore
+piextEnqueueKernelLaunchCustom

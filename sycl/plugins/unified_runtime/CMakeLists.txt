@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e9b1b493fe30e6236bf611ae6d82366c9376f6c
-  # Merge: a011f092 d8500a36
+  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
+  # Merge: 5be5aa49 649c5f04
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jun 21 10:22:52 2024 +0100
-  #     Merge pull request #805 from aarongreig/aaron/kernelSetArgIndirectionFix
-  #     Correct level of indirection used in KernelSetArgPointer calls.
-  set(UNIFIED_RUNTIME_TAG 1e9b1b493fe30e6236bf611ae6d82366c9376f6c)
+  # Date:   Tue Jul 9 11:20:06 2024 +0100
+  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
+  #     [L0] Fix Queue get info and fix Queue release decrement
+  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f040b1fea9313561c01ccdb81ea3ca52c1c62061
-    # Merge: 08acafb6 b3f36b96
-    # Author: Callum Fare <callum@codeplay.com>
-    # Date:   Tue Jun 25 11:19:54 2024 +0100
-    #     Merge pull request #1778 from nrspruit/fix_multi_driver_exp_handle
-    #     [L0] Fix Handle used in calls to L0 Driver zex apis given multi drivers
-    f040b1fea9313561c01ccdb81ea3ca52c1c62061
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -288,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

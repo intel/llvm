@@ -1,7 +1,7 @@
-; RUN: sycl-post-link --spec-const=native -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as structs
