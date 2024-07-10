@@ -1062,30 +1062,32 @@ void CXXNameMangler::mangleNameWithAbiTags(GlobalDecl GD,
   //         ::= <local-name>
   //
   const DeclContext *DC = Context.getEffectiveDeclContext(ND);
+  bool IsLambda = isLambda(ND);
 
   // If this is an extern variable declared locally, the relevant DeclContext
   // is that of the containing namespace, or the translation unit.
   // FIXME: This is a hack; extern variables declared locally should have
   // a proper semantic declaration context!
-  if (isLocalContainerContext(DC) && ND->hasLinkage() && !isLambda(ND))
+  if (isLocalContainerContext(DC) && ND->hasLinkage() && !IsLambda)
     while (!DC->isNamespace() && !DC->isTranslationUnit())
       DC = Context.getEffectiveParentContext(DC);
-  else if (GetLocalClassDecl(ND)) {
+  else if (GetLocalClassDecl(ND) &&
+           (!IsLambda || isCompatibleWith(LangOptions::ClangABI::Ver18))) {
     mangleLocalName(GD, AdditionalAbiTags);
     return;
   }
 
   assert(!isa<LinkageSpecDecl>(DC) && "context cannot be LinkageSpecDecl");
 
-  if (isLocalContainerContext(DC)) {
-    mangleLocalName(GD, AdditionalAbiTags);
-    return;
-  }
-
   // Closures can require a nested-name mangling even if they're semantically
   // in the global namespace.
   if (const NamedDecl *PrefixND = getClosurePrefix(ND)) {
     mangleNestedNameWithClosurePrefix(GD, PrefixND, AdditionalAbiTags);
+    return;
+  }
+
+  if (isLocalContainerContext(DC)) {
+    mangleLocalName(GD, AdditionalAbiTags);
     return;
   }
 
@@ -2200,8 +2202,6 @@ void CXXNameMangler::manglePrefix(const DeclContext *DC, bool NoFunction) {
 
   if (NoFunction && isLocalContainerContext(DC))
     return;
-
-  assert(!isLocalContainerContext(DC));
 
   const NamedDecl *ND = cast<NamedDecl>(DC);
   if (mangleSubstitution(ND))
@@ -3431,6 +3431,12 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     Out << 'u' << type_name.size() << type_name;                               \
     break;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
+#define AMDGPU_TYPE(Name, Id, SingletonId)                                     \
+  case BuiltinType::Id:                                                        \
+    type_name = Name;                                                          \
+    Out << 'u' << type_name.size() << type_name;                               \
+    break;
+#include "clang/Basic/AMDGPUTypes.def"
   }
 }
 
@@ -4723,7 +4729,7 @@ recurse:
   case Expr::MSPropertySubscriptExprClass:
   case Expr::TypoExprClass: // This should no longer exist in the AST by now.
   case Expr::RecoveryExprClass:
-  case Expr::OMPArraySectionExprClass:
+  case Expr::ArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
   case Expr::OMPIteratorExprClass:
   case Expr::CXXInheritedCtorInitExprClass:
@@ -4768,6 +4774,7 @@ recurse:
   case Expr::PseudoObjectExprClass:
   case Expr::AtomicExprClass:
   case Expr::SourceLocExprClass:
+  case Expr::EmbedExprClass:
   case Expr::BuiltinBitCastExprClass:
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinFieldTypeExprClass:

@@ -40,25 +40,24 @@ namespace detail {
 using image_allocator = aligned_allocator<byte>;
 
 // utility function: Returns the Number of Channels for a given Order.
-__SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);
+uint8_t getImageNumberChannels(image_channel_order Order);
 
 // utility function: Returns the number of bytes per image element
-__SYCL_EXPORT uint8_t getImageElementSize(uint8_t NumChannels,
-                                          image_channel_type Type);
+uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
 
-__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelOrder
+sycl::detail::pi::PiMemImageChannelOrder
 convertChannelOrder(image_channel_order Order);
 
-__SYCL_EXPORT image_channel_order
+image_channel_order
 convertChannelOrder(sycl::detail::pi::PiMemImageChannelOrder Order);
 
-__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelType
+sycl::detail::pi::PiMemImageChannelType
 convertChannelType(image_channel_type Type);
 
-__SYCL_EXPORT image_channel_type
+image_channel_type
 convertChannelType(sycl::detail::pi::PiMemImageChannelType Type);
 
-class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
+class image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 

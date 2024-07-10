@@ -11,9 +11,9 @@
 
 #include <cmath>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
-#include <sycl/sycl.hpp>
 #include <vector>
 
 constexpr auto sycl_write = sycl::access::mode::write;

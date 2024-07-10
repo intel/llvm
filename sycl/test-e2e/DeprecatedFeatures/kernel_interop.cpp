@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 
@@ -50,8 +50,9 @@ int main() {
   context OtherContext{Context.get_devices()[0]};
   try {
     kernel Kernel(ClKernel, OtherContext);
-  } catch (sycl::invalid_parameter_error e) {
-    Pass = true;
+  } catch (const sycl::exception & e) {
+    if (e.code() == errc::invalid)
+      Pass = true;
   }
   assert(Pass);
 

@@ -659,7 +659,7 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_lgamma_r, half,
 #include <clc/math/gentype.inc>
 #undef __CLC_ADDRSPACE
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 #define __CLC_ADDRSPACE generic
 #define __CLC_BODY <lgamma_r.inc>
 #include <clc/math/gentype.inc>

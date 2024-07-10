@@ -52,8 +52,9 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piFormat = {};
   piFormat.image_channel_data_type =
       sycl::detail::convertChannelType(desc.channel_type);
-  piFormat.image_channel_order =
-      sycl::detail::convertChannelOrder(desc.channel_order);
+  piFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::ext::oneapi::experimental::detail::get_image_default_channel_order(
+          desc.num_channels));
 }
 
 detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,
@@ -89,13 +90,15 @@ __SYCL_EXPORT sycl::image_channel_type image_mem::get_channel_type() const {
   return impl->get_descriptor().channel_type;
 }
 
-__SYCL_EXPORT sycl::image_channel_order image_mem::get_channel_order() const {
-  return impl->get_descriptor().channel_order;
+__SYCL_EXPORT_DEPRECATED("get_channel_order() is deprecated. "
+                         "Instead use get_channel_num().")
+sycl::image_channel_order image_mem::get_channel_order() const {
+  return sycl::ext::oneapi::experimental::detail::
+      get_image_default_channel_order(impl->get_descriptor().num_channels);
 }
 
 __SYCL_EXPORT unsigned int image_mem::get_num_channels() const {
-  return sycl::detail::getImageNumberChannels(
-      impl->get_descriptor().channel_order);
+  return impl->get_descriptor().num_channels;
 }
 
 __SYCL_EXPORT image_type image_mem::get_type() const {
@@ -361,11 +364,9 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
 
   // Call impl.
   pi_image_handle piImageHandle;
-  pi_mem piImage;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemUnsampledImageCreate>(
-      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImage,
-      &piImageHandle);
+      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImageHandle);
 
   return unsampled_image_handle{piImageHandle};
 }
@@ -449,12 +450,10 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_pi_structs(desc, piDesc, piFormat, pitch);
 
   // Call impl.
-  pi_mem piImage;
   pi_image_handle piImageHandle;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImage,
-      &piImageHandle);
+      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImageHandle);
 
   return sampled_image_handle{piImageHandle};
 }
@@ -479,10 +478,19 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   pi_interop_mem_handle piInteropMem;
+  pi_external_mem_descriptor piExternalMemDescriptor;
+
+  piExternalMemDescriptor.memorySizeBytes = externalMem.size_in_bytes;
+  piExternalMemDescriptor.handle.file_descriptor =
+      externalMem.external_resource.file_descriptor;
+  // For `resource_fd` external memory type, the handle type is always
+  // `opaque_fd`. No need for a switch statement like we have for win32
+  // resources.
+  piExternalMemDescriptor.handleType = pi_external_mem_handle_type::opaque_fd;
+
   Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextMemImportOpaqueFD>(
-      C, Device, externalMem.size_in_bytes,
-      externalMem.external_resource.file_descriptor, &piInteropMem);
+               sycl::detail::PiApiKind::piextImportExternalMemory>(
+      C, Device, &piExternalMemDescriptor, &piInteropMem);
 
   return interop_mem_handle{piInteropMem};
 }
@@ -493,6 +501,47 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
     const sycl::queue &syclQueue) {
   return import_external_memory<resource_fd>(
       externalMem, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
+    external_mem_descriptor<resource_win32_handle> externalMem,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  pi_context C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  pi_device Device = DevImpl->getHandleRef();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+
+  pi_interop_mem_handle piInteropMem;
+  pi_external_mem_descriptor piExternalMemDescriptor;
+
+  piExternalMemDescriptor.memorySizeBytes = externalMem.size_in_bytes;
+  piExternalMemDescriptor.handle.win32_handle =
+      externalMem.external_resource.handle;
+
+  // Select appropriate memory handle type.
+  switch (externalMem.handle_type) {
+  case external_mem_handle_type::win32_nt_handle:
+    piExternalMemDescriptor.handleType =
+        pi_external_mem_handle_type::win32_nt_handle;
+    break;
+  case external_mem_handle_type::win32_nt_dx12_resource:
+    piExternalMemDescriptor.handleType =
+        pi_external_mem_handle_type::win32_nt_dx12_resource;
+    break;
+  default:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid memory handle type");
+  }
+
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextImportExternalMemory>(
+      C, Device, &piExternalMemDescriptor, &piInteropMem);
+
+  return interop_mem_handle{piInteropMem};
 }
 
 template <>
@@ -518,6 +567,14 @@ interop_mem_handle import_external_memory<external_mem_fd>(
     external_mem_descriptor<external_mem_fd> externalMem,
     const sycl::queue &syclQueue) {
   return import_external_memory<external_mem_fd>(
+      externalMem, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
+    external_mem_descriptor<resource_win32_handle> externalMem,
+    const sycl::queue &syclQueue) {
+  return import_external_memory<resource_win32_handle>(
       externalMem, syclQueue.get_device(), syclQueue.get_context());
 }
 
@@ -611,18 +668,74 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
   pi_device Device = DevImpl->getHandleRef();
 
   pi_interop_semaphore_handle piInteropSemaphore;
+  pi_external_semaphore_descriptor piInteropSemDesc;
+
+  // For this specialization of `import_external_semaphore` the handleType is
+  // always `opaque_fd`.
+  piInteropSemDesc.handleType = pi_external_semaphore_handle_type::opaque_fd;
+  piInteropSemDesc.handle.file_descriptor =
+      externalSemaphoreDesc.external_resource.file_descriptor;
 
   Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextImportExternalSemaphoreOpaqueFD>(
-      C, Device, externalSemaphoreDesc.external_resource.file_descriptor,
-      &piInteropSemaphore);
+               sycl::detail::PiApiKind::piextImportExternalSemaphore>(
+      C, Device, &piInteropSemDesc, &piInteropSemaphore);
 
-  return interop_semaphore_handle{piInteropSemaphore};
+  return interop_semaphore_handle{piInteropSemaphore,
+                                  external_semaphore_handle_type::opaque_fd};
 }
 
 template <>
 __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_semaphore(
+      externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  pi_context C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  pi_device Device = DevImpl->getHandleRef();
+
+  pi_interop_semaphore_handle piInteropSemaphore;
+  pi_external_semaphore_descriptor piInteropSemDesc;
+
+  // Select appropriate semaphore handle type.
+  switch (externalSemaphoreDesc.handle_type) {
+  case external_semaphore_handle_type::win32_nt_handle:
+    piInteropSemDesc.handleType =
+        pi_external_semaphore_handle_type::win32_nt_handle;
+    break;
+  case external_semaphore_handle_type::win32_nt_dx12_fence:
+    piInteropSemDesc.handleType =
+        pi_external_semaphore_handle_type::win32_nt_dx12_fence;
+    break;
+  default:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid semaphore handle type");
+  }
+
+  piInteropSemDesc.handle.win32_handle =
+      externalSemaphoreDesc.external_resource.handle;
+
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextImportExternalSemaphore>(
+      C, Device, &piInteropSemDesc, &piInteropSemaphore);
+
+  return interop_semaphore_handle{piInteropSemaphore,
+                                  externalSemaphoreDesc.handle_type};
+}
+
+template <>
+__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
     const sycl::queue &syclQueue) {
   return import_external_semaphore(
       externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
@@ -635,7 +748,6 @@ __SYCL_EXPORT_DEPRECATED("import_external_semaphore templated by "
 interop_semaphore_handle import_external_semaphore(
     external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
-
   external_semaphore_descriptor<resource_fd> extSem;
   extSem.external_resource.file_descriptor =
       externalSemaphoreDesc.external_resource.file_descriptor;
@@ -750,10 +862,6 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  if (CtxImpl->is_host()) {
-    throw sycl::exception(sycl::make_error_code(sycl::errc::memory_allocation),
-                          "Cannot allocate pitched memory on host!");
-  }
 
   pi_context PiContext = CtxImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
@@ -789,10 +897,8 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
                                          const image_descriptor &desc,
                                          const sycl::device &syclDevice,
                                          const sycl::context &syclContext) {
-  uint8_t numChannels =
-      sycl::detail::getImageNumberChannels(desc.channel_order);
   unsigned int elementSizeBytes =
-      sycl::detail::getImageElementSize(numChannels, desc.channel_type);
+      sycl::detail::getImageElementSize(desc.num_channels, desc.channel_type);
 
   size_t widthInBytes = desc.width * elementSizeBytes;
   size_t height = desc.height;

@@ -46,7 +46,7 @@ __spirv_ocl_fract(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
 
 FRACT_DEF(local);
 FRACT_DEF(global);
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 FRACT_DEF(generic);
 #endif
 

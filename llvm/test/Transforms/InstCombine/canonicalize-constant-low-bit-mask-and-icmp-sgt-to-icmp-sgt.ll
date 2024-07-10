@@ -75,7 +75,7 @@ define <2 x i1> @p2_vec_nonsplat_edgecase() {
 define <3 x i1> @p3_vec_splat_poison() {
 ; CHECK-LABEL: @p3_vec_splat_poison(
 ; CHECK-NEXT:    [[X:%.*]] = call <3 x i8> @gen3x8()
-; CHECK-NEXT:    [[RET:%.*]] = icmp sgt <3 x i8> [[X]], <i8 3, i8 3, i8 3>
+; CHECK-NEXT:    [[RET:%.*]] = icmp sgt <3 x i8> [[X]], <i8 3, i8 poison, i8 3>
 ; CHECK-NEXT:    ret <3 x i1> [[RET]]
 ;
   %x = call <3 x i8> @gen3x8()
@@ -87,7 +87,7 @@ define <3 x i1> @p3_vec_splat_poison() {
 define <3 x i1> @p3_vec_nonsplat_poison() {
 ; CHECK-LABEL: @p3_vec_nonsplat_poison(
 ; CHECK-NEXT:    [[X:%.*]] = call <3 x i8> @gen3x8()
-; CHECK-NEXT:    [[RET:%.*]] = icmp sgt <3 x i8> [[X]], <i8 15, i8 3, i8 15>
+; CHECK-NEXT:    [[RET:%.*]] = icmp sgt <3 x i8> [[X]], <i8 15, i8 3, i8 poison>
 ; CHECK-NEXT:    ret <3 x i1> [[RET]]
 ;
   %x = call <3 x i8> @gen3x8()
@@ -125,8 +125,7 @@ define i1 @oneuse0() {
 
 define i1 @c0(i8 %x) {
 ; CHECK-LABEL: @c0(
-; CHECK-NEXT:    [[TMP0:%.*]] = and i8 [[X:%.*]], 3
-; CHECK-NEXT:    [[RET:%.*]] = icmp sgt i8 [[TMP0]], [[X]]
+; CHECK-NEXT:    [[RET:%.*]] = icmp slt i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[RET]]
 ;
   %tmp0 = and i8 %x, 3

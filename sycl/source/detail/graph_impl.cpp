@@ -261,6 +261,7 @@ void exec_graph_impl::makePartitions() {
     }
     if (Partition->MRoots.size() > 0) {
       Partition->schedule();
+      Partition->MIsInOrderGraph = Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       PartitionFinalNum++;
     }
@@ -296,9 +297,13 @@ void exec_graph_impl::makePartitions() {
 }
 
 graph_impl::~graph_impl() {
-  clearQueues();
-  for (auto &MemObj : MMemObjs) {
-    MemObj->markNoLongerBeingUsedInGraph();
+  try {
+    clearQueues();
+    for (auto &MemObj : MMemObjs) {
+      MemObj->markNoLongerBeingUsedInGraph();
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
 }
 
@@ -352,9 +357,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
-  // Add any deps from the vector of extra dependencies
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
@@ -371,7 +373,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   (void)Args;
   sycl::handler Handler{Impl};
   CGF(Handler);
-  Handler.finalize();
 
   if (Handler.MCGType == sycl::detail::CG::Barrier) {
     throw sycl::exception(
@@ -379,6 +380,8 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
         "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
         "SYCL Graph Explicit API. Please use empty nodes instead.");
   }
+
+  Handler.finalize();
 
   node_type NodeType =
       Handler.MImpl->MUserFacingNodeType !=
@@ -486,19 +489,11 @@ graph_impl::add(node_type NodeType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
-  // Add any deps from the extra dependencies vector
-  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
-
-  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
-  if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
-    MExtraDependencies.push_back(NodeImpl);
-  }
 
   return NodeImpl;
 }
@@ -608,12 +603,17 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   removeRoot(Dest); // remove receiver from root node list
 }
 
-std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
+    std::weak_ptr<sycl::detail::queue_impl> RecordedQueue) {
   std::vector<sycl::detail::EventImplPtr> Events;
 
+  auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      Events.push_back(getEventForNode(Node));
+      auto EventForNode = getEventForNode(Node);
+      if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
+        Events.push_back(getEventForNode(Node));
+      }
     }
   }
 
@@ -688,7 +688,8 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), AllocaQueue, CommandBuffer, Deps);
+          Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
+          Deps);
 
   MCommandMap[Node] = Event->getCommandBufferCommand();
   return Event->getSyncPoint();
@@ -698,7 +699,9 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      MIsUpdatable};
+      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
+      pi_bool(MEnableProfiling), pi_bool(MIsUpdatable)};
+
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
@@ -760,7 +763,9 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
-      MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
+      MIsUpdatable(PropList.has_property<property::graph::updatable>()),
+      MEnableProfiling(
+          PropList.has_property<property::graph::enable_profiling>()) {
 
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -777,34 +782,38 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  const sycl::detail::PluginPtr &Plugin =
-      sycl::detail::getSyclObjImpl(MContext)->getPlugin();
-  MSchedule.clear();
-  // We need to wait on all command buffer executions before we can release
-  // them.
-  for (auto &Event : MExecutionEvents) {
-    Event->wait(Event);
-  }
+  try {
+    const sycl::detail::PluginPtr &Plugin =
+        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
+    MSchedule.clear();
+    // We need to wait on all command buffer executions before we can release
+    // them.
+    for (auto &Event : MExecutionEvents) {
+      Event->wait(Event);
+    }
 
-  for (const auto &Partition : MPartitions) {
-    Partition->MSchedule.clear();
-    for (const auto &Iter : Partition->MPiCommandBuffers) {
-      if (auto CmdBuf = Iter.second; CmdBuf) {
+    for (const auto &Partition : MPartitions) {
+      Partition->MSchedule.clear();
+      for (const auto &Iter : Partition->MPiCommandBuffers) {
+        if (auto CmdBuf = Iter.second; CmdBuf) {
+          pi_result Res = Plugin->call_nocheck<
+              sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+          (void)Res;
+          assert(Res == pi_result::PI_SUCCESS);
+        }
+      }
+    }
+
+    for (auto &Iter : MCommandMap) {
+      if (auto Command = Iter.second; Command) {
         pi_result Res = Plugin->call_nocheck<
-            sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+            sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
         (void)Res;
         assert(Res == pi_result::PI_SUCCESS);
       }
     }
-  }
-
-  for (auto &Iter : MCommandMap) {
-    if (auto Command = Iter.second; Command) {
-      pi_result Res = Plugin->call_nocheck<
-          sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
-      (void)Res;
-      assert(Res == pi_result::PI_SUCCESS);
-    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~exec_graph_impl", e);
   }
 }
 
@@ -922,7 +931,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                 CommandBuffer, nullptr, std::move(CGData));
 
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-            std::move(CommandGroup), Queue);
+            std::move(CommandGroup), Queue, /*EventNeeded=*/true);
       }
       NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
@@ -940,7 +949,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           .MQueue = Queue;
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          NodeImpl->getCGCopy(), Queue);
+          NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
     } else {
       std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
       for (auto &NodeImpl : CurrentPartition->MSchedule) {
@@ -964,7 +973,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
-              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative);
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative,
+              CG->MKernelUsesClusterLaunch);
           if (Res != pi_result::PI_SUCCESS) {
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::kernel),
@@ -976,7 +986,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           // dependencies are propagated in findRealDeps
           sycl::detail::EventImplPtr EventImpl =
               sycl::detail::Scheduler::getInstance().addCG(
-                  NodeImpl->getCGCopy(), Queue);
+                  NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
 
           ScheduledEvents.push_back(EventImpl);
         }
@@ -999,6 +1009,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->attachEventToComplete(Elem.second);
     }
   }
+  NewEvent->setProfilingEnabled(MEnableProfiling);
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
@@ -1173,23 +1184,45 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Cannot update using a graph with a different "
                           "topology. Mismatch found in the number of nodes.");
-  } else {
-    for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
-      if (MNodeStorage[i]->MSuccessors.size() !=
-              GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
-          MNodeStorage[i]->MPredecessors.size() !=
-              GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with a different topology. Mismatch "
-            "found in the number of edges.");
-      }
+  }
 
-      if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with mismatched node types. Each pair "
-            "of nodes being updated must have the same type");
+  for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
+    if (MNodeStorage[i]->MSuccessors.size() !=
+            GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
+        MNodeStorage[i]->MPredecessors.size() !=
+            GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with a different topology. Mismatch "
+          "found in the number of edges.");
+    }
+    if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with mismatched node types. Each pair "
+          "of nodes being updated must have the same type");
+    }
+
+    if (MNodeStorage[i]->MCGType == sycl::detail::CG::Kernel) {
+      sycl::detail::CGExecKernel *TargetCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              MNodeStorage[i]->MCommandGroup.get());
+      const std::string &TargetKernelName = TargetCGExec->getKernelName();
+
+      sycl::detail::CGExecKernel *SourceCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              GraphImpl->MNodeStorage[i]->MCommandGroup.get());
+      const std::string &SourceKernelName = SourceCGExec->getKernelName();
+
+      if (TargetKernelName.compare(SourceKernelName) != 0) {
+        std::stringstream ErrorStream(
+            "Cannot update using a graph with mismatched kernel "
+            "types. Source node type ");
+        ErrorStream << SourceKernelName;
+        ErrorStream << ", target node type ";
+        ErrorStream << TargetKernelName;
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              ErrorStream.str());
       }
     }
   }
@@ -1230,18 +1263,22 @@ void exec_graph_impl::update(
           sycl::make_error_code(errc::invalid),
           "Node passed to update() is not part of the graph.");
     }
-    if (Node->MCGType != sycl::detail::CG::Kernel) {
-      throw sycl::exception(errc::invalid, "Cannot update non-kernel nodes");
+
+    if (!(Node->isEmpty() || Node->MCGType == sycl::detail::CG::Kernel ||
+          Node->MCGType == sycl::detail::CG::Barrier)) {
+      throw sycl::exception(errc::invalid,
+                            "Unsupported node type for update. Only kernel, "
+                            "barrier and empty nodes are supported.");
     }
 
-    if (Node->MCommandGroup->getRequirements().size() == 0) {
-      continue;
-    }
-    NeedScheduledUpdate = true;
+    if (const auto &CG = Node->MCommandGroup;
+        CG && CG->getRequirements().size() != 0) {
+      NeedScheduledUpdate = true;
 
-    UpdateRequirements.insert(UpdateRequirements.end(),
-                              Node->MCommandGroup->getRequirements().begin(),
-                              Node->MCommandGroup->getRequirements().end());
+      UpdateRequirements.insert(UpdateRequirements.end(),
+                                Node->MCommandGroup->getRequirements().begin(),
+                                Node->MCommandGroup->getRequirements().end());
+    }
   }
 
   // Clean up any execution events which have finished so we don't pass them to
@@ -1275,6 +1312,8 @@ void exec_graph_impl::update(
   // Rebuild cached requirements for this graph with updated nodes
   MRequirements.clear();
   for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
@@ -1282,6 +1321,11 @@ void exec_graph_impl::update(
 }
 
 void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
+  // Kernel node update is the only command type supported in UR for update.
+  // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
+  if (Node->MCGType != sycl::detail::CG::Kernel) {
+    return;
+  }
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
@@ -1295,6 +1339,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto NDRDesc = ExecCG.MNDRDesc;
 
   pi_kernel PiKernel = nullptr;
+  pi_program PiProgram = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
   std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
@@ -1318,7 +1363,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     PiKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, std::ignore) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
   }
@@ -1442,6 +1487,12 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
       sycl::detail::PiApiKind::piextCommandBufferUpdateKernelLaunch>(
       Command, &UpdateDesc);
 
+  if (PiProgram) {
+    // We retained these objects by calling getOrCreateKernel()
+    Plugin->call<sycl::detail::PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<sycl::detail::PiApiKind::piProgramRelease>(PiProgram);
+  }
+
   if (Res != PI_SUCCESS) {
     throw sycl::exception(errc::invalid, "Error updating command_graph");
   }
@@ -1516,7 +1567,10 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
       this->impl, this->impl->getContext(), PropList};
 }
 
-bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
+void modifiable_command_graph::begin_recording(
+    queue &RecordingQueue, const sycl::property_list &PropList) {
+  std::ignore = PropList;
+
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
   if (QueueImpl->get_context() != impl->getContext()) {
@@ -1551,56 +1605,46 @@ bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
     QueueImpl->setCommandGraph(impl);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->addQueue(QueueImpl);
-    return true;
   }
   if (QueueImpl->getCommandGraph() != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
   }
-  // Queue was already recording to this graph.
-  return false;
 }
 
-bool modifiable_command_graph::begin_recording(
-    const std::vector<queue> &RecordingQueues) {
-  bool QueueStateChanged = false;
+void modifiable_command_graph::begin_recording(
+    const std::vector<queue> &RecordingQueues,
+    const sycl::property_list &PropList) {
   for (queue Queue : RecordingQueues) {
-    QueueStateChanged |= this->begin_recording(Queue);
+    this->begin_recording(Queue, PropList);
   }
-  return QueueStateChanged;
 }
 
-bool modifiable_command_graph::end_recording() {
+void modifiable_command_graph::end_recording() {
   graph_impl::WriteLock Lock(impl->MMutex);
-  return impl->clearQueues();
+  impl->clearQueues();
 }
 
-bool modifiable_command_graph::end_recording(queue &RecordingQueue) {
+void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl && QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
-    return true;
   }
   if (QueueImpl->getCommandGraph() != nullptr) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
   }
-
-  // Queue was not recording to a graph.
-  return false;
 }
 
-bool modifiable_command_graph::end_recording(
+void modifiable_command_graph::end_recording(
     const std::vector<queue> &RecordingQueues) {
-  bool QueueStateChanged = false;
   for (queue Queue : RecordingQueues) {
-    QueueStateChanged |= this->end_recording(Queue);
+    this->end_recording(Queue);
   }
-  return QueueStateChanged;
 }
 
 void modifiable_command_graph::print_graph(std::string path,
@@ -1698,22 +1742,22 @@ node node::get_node_from_event(event nodeEvent) {
       GraphImpl->getNodeForEvent(EventImpl));
 }
 
-template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<2>(nd_range<2> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<2>(nd_range<2> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<3>(nd_range<3> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<3>(nd_range<3> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_range<1>(range<1> Range) {
+template <> __SYCL_EXPORT void node::update_range<1>(range<1> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<2>(range<2> Range) {
+template <> __SYCL_EXPORT void node::update_range<2>(range<2> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<3>(range<3> Range) {
+template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
   impl->updateRange(Range);
 }
 } // namespace experimental

@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
-  # Merge: c7fade0d f61e81e9
+  # commit 9d3bce6ad92e6f0a4af0139f9744584b5a402827
+  # Merge: e0775441 1c9c2d0b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 23 16:17:41 2024 +0100
-  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
-  #    [L0] Add missing <iomanip> include
-  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
+  # Date:   Tue Jul 9 15:57:44 2024 +0100
+  #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
+  #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
+  set(UNIFIED_RUNTIME_TAG 9d3bce6ad92e6f0a4af0139f9744584b5a402827)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -114,15 +119,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
-    # Merge: b37fa2c4 f9fb1167
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 24 10:38:00 2024 +0100
-    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
-    #
-    #     [Bindless][Exp] Add support for device to device copies between CuArrays
-    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
@@ -284,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

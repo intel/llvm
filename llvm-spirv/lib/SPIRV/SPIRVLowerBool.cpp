@@ -72,7 +72,7 @@ void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
         I.getIterator());
     And->setDebugLoc(I.getDebugLoc());
     auto *Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
-    auto *Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
+    auto *Cmp = new ICmpInst(I.getIterator(), CmpInst::ICMP_NE, And, Zero);
     replace(&I, Cmp);
   }
 }

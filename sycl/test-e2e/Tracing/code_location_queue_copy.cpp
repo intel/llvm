@@ -6,7 +6,8 @@
 // Test tracing of the code location data for queue.copy in case of failure
 // (exception generation)
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue Q;

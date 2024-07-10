@@ -8,7 +8,7 @@
 // XFAIL: *
 
 #include <stdio.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 long long int app_var_3 = 7450649278945924256LL;
 long long int app_var_4 = -7822479480217888654LL;

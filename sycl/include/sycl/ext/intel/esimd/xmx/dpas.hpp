@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Explicit SIMD API for DPAS Intel Xe Matrix eXtension.
+// Explicit SIMD API for DPAS Intel(R) Xe Matrix eXtensions (Intel(R) XMX).
 //===----------------------------------------------------------------------===//
 
 #pragma once

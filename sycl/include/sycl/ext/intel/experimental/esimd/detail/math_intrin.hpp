@@ -24,48 +24,6 @@
   sycl::ext::intel::esimd::detail::vector_type_t<                              \
       sycl::ext::intel::esimd::detail::__cpp_t<T>, SZ>
 
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_ssshl(__ESIMD_raw_vec_t(T1, SZ) src0,
-                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_sushl(__ESIMD_raw_vec_t(T1, SZ) src0,
-                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_usshl(__ESIMD_raw_vec_t(T1, SZ) src0,
-                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_uushl(__ESIMD_raw_vec_t(T1, SZ) src0,
-                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_ssshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
-                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_sushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
-                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_usshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
-                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_uushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
-                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_rol(__ESIMD_raw_vec_t(T1, SZ) src0,
-                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-template <typename T0, typename T1, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
-    __esimd_ror(__ESIMD_raw_vec_t(T1, SZ) src0,
-                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
-
 template <typename T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     __esimd_umulh(__ESIMD_raw_vec_t(T, SZ) src0,
@@ -154,8 +112,19 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
 
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __esimd_fmadd(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
-                  __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
+    __spirv_ocl_fma(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
+                    __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_popcount(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_ctz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_clz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t

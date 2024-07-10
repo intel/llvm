@@ -1,8 +1,14 @@
-; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0,CHECK
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1,CHECK
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
+
+; RUN: sycl-module-split -split=source -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-TU0,CHECK
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-TU1,CHECK
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-TU0-TXT
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-TU1-TXT
 ; ModuleID = 'basic-module-split.ll'
 source_filename = "basic-module-split.ll"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

@@ -14,7 +14,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -623,8 +622,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
     return BuildF();
 
-  auto BuildResult =
-      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -714,8 +712,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return make_tuple(Kernel, nullptr, ArgMask, Program);
   }
 
-  auto BuildResult =
-      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
@@ -843,8 +840,8 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
   if (LibPair != DeviceLibNames.end())
     Lib = Native ? LibPair->second.first : LibPair->second.second;
   if (Lib == nullptr)
-    throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::build),
+                    "Unhandled (new?) device library extension");
   return Lib;
 }
 
@@ -869,8 +866,8 @@ static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   auto Ext = DeviceLibExtensionStrs.find(Extension);
   if (Ext == DeviceLibExtensionStrs.end())
-    throw compile_program_error("Unhandled (new?) device library extension",
-                                PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::build),
+                    "Unhandled (new?) device library extension");
   return Ext->second;
 }
 
@@ -894,8 +891,8 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(std::string("Failed to load ") + LibFileName,
-                                PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::build),
+                    std::string("Failed to load ") + LibFileName);
   }
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -911,8 +908,10 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
           "", 0, nullptr, nullptr, nullptr, nullptr);
   if (Error != PI_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
-    throw compile_program_error(
-        ProgramManager::getProgramBuildLog(LibProg, Context), Error);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::build),
+                  ProgramManager::getProgramBuildLog(LibProg, Context)),
+        Error);
   }
 
   return LibProg;
@@ -1204,8 +1203,10 @@ ProgramManager::ProgramPtr ProgramManager::build(
             Program.get(), /*num devices =*/1, &Device, Options.c_str(),
             nullptr, nullptr);
     if (Error != PI_SUCCESS)
-      throw compile_program_error(getProgramBuildLog(Program.get(), Context),
-                                  Error);
+      throw detail::set_pi_error(
+          exception(make_error_code(errc::build),
+                    getProgramBuildLog(Program.get(), Context)),
+          Error);
     return Program;
   }
 
@@ -1223,7 +1224,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
         nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -1235,8 +1237,10 @@ ProgramManager::ProgramPtr ProgramManager::build(
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
       // an incomplete (but valid) LinkedProg, and throw.
-      throw compile_program_error(getProgramBuildLog(LinkedProg, Context),
-                                  Error);
+      throw detail::set_pi_error(
+          exception(make_error_code(errc::build),
+                    getProgramBuildLog(LinkedProg, Context)),
+          Error);
     }
     Plugin->checkPiResult(Error);
   }
@@ -1449,45 +1453,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
-}
-
-void ProgramManager::flushSpecConstants(const program_impl &Prg,
-                                        sycl::detail::pi::PiProgram NativePrg,
-                                        const RTDeviceBinaryImage *Img) {
-  if (DbgProgMgr > 2) {
-    std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
-              << ",...)\n";
-  }
-  if (!Prg.hasSetSpecConstants())
-    return; // nothing to do
-  pi::PiProgram PrgHandle = Prg.getHandleRef();
-  // program_impl can't correspond to two different native programs
-  assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
-  NativePrg = NativePrg ? NativePrg : PrgHandle;
-
-  if (!Img) {
-    // caller hasn't provided the image object - find it
-    { // make sure NativePrograms map access is synchronized
-      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      auto It = NativePrograms.find(NativePrg);
-      if (It == NativePrograms.end())
-        throw sycl::exception(
-            sycl::errc::invalid,
-            "spec constant is set in a program w/o a binary image");
-      Img = It->second;
-    }
-    if (!Img->supportsSpecConstants()) {
-      if (DbgProgMgr > 0)
-        std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
-                  << &Img->getRawData() << " doesn't support spec constants\n";
-      // This device binary image does not support runtime setting of
-      // specialization constants; compiler must have generated default values.
-      // NOTE: Can't throw here, as it would always take place with AOT
-      //-compiled code. New Khronos 2020 spec should fix this inconsistency.
-      return;
-    }
-  }
-  Prg.flush_spec_constants(*Img, NativePrg);
 }
 
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
@@ -2118,7 +2083,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
         /*user_data=*/nullptr, &LinkedProg);
   };
   sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
+      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2298,9 +2264,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  // TODO: Throw SYCL2020 style exception
-  auto BuildResult =
-      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2323,7 +2287,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = PiDeviceAdd;
-    Cache.getOrBuild<compile_program_error>(GetCachedBuildF, CacheOtherDevices);
+    Cache.getOrBuild<errc::build>(GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2388,8 +2352,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return make_tuple(Kernel, nullptr, ArgMask);
   }
 
-  auto BuildResult =
-      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   // If caching is enabled, one copy of the kernel handle will be
@@ -2681,8 +2644,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &Img,
                                   const NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
-    const RTDeviceBinaryImage::PropertyRange &PropRange =
-        Img.getDeviceRequirements();
+    auto &PropRange = Img.getDeviceRequirements();
     RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
         PropRange.begin(), PropRange.end(),
         [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
@@ -2700,6 +2662,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
   auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
+  auto WorkGroupNumDim = getPropIt("work_group_num_dim");
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
@@ -2796,7 +2759,23 @@ checkDevSupportDeviceRequirements(const device &Dev,
       Dims++;
     }
 
-    if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
+    size_t UserProvidedNumDims = 0;
+    if (WorkGroupNumDim) {
+      // We know the dimensions have been padded to 3, make sure that the pad
+      // value is always set to 1 and record the number of dimensions specified
+      // by the user.
+      UserProvidedNumDims =
+          DeviceBinaryProperty(*(WorkGroupNumDim.value())).asUint32();
+#ifndef NDEBUG
+      for (unsigned i = UserProvidedNumDims; i < 3; ++i)
+        assert(ReqdWGSizeVec[i] == 1 &&
+               "Incorrect padding in required work-group size metadata.");
+#endif // NDEBUG
+    } else {
+      UserProvidedNumDims = Dims;
+    }
+
+    if (NDRDesc.Dims != 0 && NDRDesc.Dims != UserProvidedNumDims)
       return sycl::exception(
           sycl::errc::nd_range,
           "The local size dimension of submitted nd_range doesn't match the "

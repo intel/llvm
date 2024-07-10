@@ -29,18 +29,21 @@
 #include "llvm/CodeGen/DwarfEHPrepare.h"
 #include "llvm/CodeGen/ExpandMemCmp.h"
 #include "llvm/CodeGen/ExpandReductions.h"
-#include "llvm/CodeGen/FPBuiltinFnSelection.h"
-#include "llvm/CodeGen/FreeMachineFunction.h"
+#include "llvm/CodeGen/FinalizeISel.h"
 #include "llvm/CodeGen/GCMetadata.h"
 #include "llvm/CodeGen/GlobalMerge.h"
 #include "llvm/CodeGen/IndirectBrExpand.h"
 #include "llvm/CodeGen/InterleavedAccess.h"
 #include "llvm/CodeGen/InterleavedLoadCombine.h"
 #include "llvm/CodeGen/JMCInstrumenter.h"
+#include "llvm/CodeGen/LocalStackSlotAllocation.h"
 #include "llvm/CodeGen/LowerEmuTLS.h"
 #include "llvm/CodeGen/MIRPrinter.h"
+#include "llvm/CodeGen/MachineFunctionAnalysis.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachinePassManager.h"
 #include "llvm/CodeGen/PreISelIntrinsicLowering.h"
+#include "llvm/CodeGen/RegAllocFast.h"
 #include "llvm/CodeGen/ReplaceWithVeclib.h"
 #include "llvm/CodeGen/SafeStack.h"
 #include "llvm/CodeGen/SelectOptimize.h"
@@ -64,6 +67,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/CFGuard.h"
 #include "llvm/Transforms/Scalar/ConstantHoisting.h"
+#include "llvm/Transforms/Scalar/FPBuiltinFnSelection.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Scalar/LoopStrengthReduce.h"
 #include "llvm/Transforms/Scalar/LowerConstantIntrinsics.h"
@@ -141,6 +145,9 @@ public:
 
 protected:
   template <typename PassT>
+  using has_required_t = decltype(std::declval<PassT &>().isRequired());
+
+  template <typename PassT>
   using is_module_pass_t = decltype(std::declval<PassT &>().run(
       std::declval<Module &>(), std::declval<ModuleAnalysisManager &>()));
 
@@ -170,8 +177,10 @@ protected:
       static_assert((is_detected<is_function_pass_t, PassT>::value ||
                      is_detected<is_module_pass_t, PassT>::value) &&
                     "Only module pass and function pass are supported.");
-
-      if (!PB.runBeforeAdding(Name))
+      bool Required = false;
+      if constexpr (is_detected<has_required_t, PassT>::value)
+        Required = PassT::isRequired();
+      if (!PB.runBeforeAdding(Name) && !Required)
         return;
 
       // Add Function Pass
@@ -200,8 +209,13 @@ protected:
     AddMachinePass(ModulePassManager &MPM, const DerivedT &PB)
         : MPM(MPM), PB(PB) {}
     ~AddMachinePass() {
-      if (!MFPM.isEmpty())
-        MPM.addPass(createModuleToMachineFunctionPassAdaptor(std::move(MFPM)));
+      if (!MFPM.isEmpty()) {
+        FunctionPassManager FPM;
+        FPM.addPass(
+            createFunctionToMachineFunctionPassAdaptor(std::move(MFPM)));
+        FPM.addPass(InvalidateAnalysisPass<MachineFunctionAnalysis>());
+        MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+      }
     }
 
     template <typename PassT>
@@ -220,8 +234,8 @@ protected:
       } else {
         // Add Module Pass
         if (!MFPM.isEmpty()) {
-          MPM.addPass(
-              createModuleToMachineFunctionPassAdaptor(std::move(MFPM)));
+          MPM.addPass(createModuleToFunctionPassAdaptor(
+              createFunctionToMachineFunctionPassAdaptor(std::move(MFPM))));
           MFPM = MachineFunctionPassManager();
         }
 
@@ -513,6 +527,7 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::buildPipeline(
 
   {
     AddIRPass addIRPass(MPM, derived());
+    addIRPass(RequireAnalysisPass<MachineModuleAnalysis, Module>());
     addIRPass(RequireAnalysisPass<ProfileSummaryAnalysis, Module>());
     addIRPass(RequireAnalysisPass<CollectorMetadataAnalysis, Module>());
     addISelPasses(addIRPass);
@@ -539,7 +554,6 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::buildPipeline(
   if (PrintMIR)
     addPass(PrintMIRPass(Out), /*Force=*/true);
 
-  addPass(FreeMachineFunctionPass());
   return verifyStartStop(*StartStopInfo);
 }
 
@@ -871,7 +885,7 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::addMachinePasses(
   } else {
     // If the target requests it, assign local variables to stack slots relative
     // to one another and simplify frame index references where possible.
-    addPass(LocalStackSlotPass());
+    addPass(LocalStackSlotAllocationPass());
   }
 
   if (TM.Options.EnableIPRA)
@@ -985,7 +999,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addMachineSSAOptimization(
 
   // If the target requests it, assign local variables to stack slots relative
   // to one another and simplify frame index references where possible.
-  addPass(LocalStackSlotPass());
+  addPass(LocalStackSlotAllocationPass());
 
   // With optimization, dead code should already be eliminated. However
   // there is one known exception: lowered code for arguments that are only
@@ -1027,7 +1041,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addTargetRegisterAllocator(
   if (Optimized)
     addPass(RAGreedyPass());
   else
-    addPass(RAFastPass());
+    addPass(RegAllocFastPass());
 }
 
 /// Find and instantiate the register allocation pass requested by this target

@@ -178,3 +178,25 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
+/// Check selective passing of -support-dynamic-linking to sycl-post-link tool
+// TODO: Enable when SYCL RT supports dynamic linking
+// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
+// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
+// CHECK_SYCL_POST_LINK_SHARED_PASS: sycl-post-link{{.*}}support-dynamic-linking
+// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_NO_PASS %s
+// CHECK_SYCL_POST_LINK_SHARED_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
+
+/// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s
+// CHECK_WARNING: warning: '-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets [-Wunused-command-line-argument]
+// RUN: %clang -### -Wno-unused-command-line-argument -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_NO_WARNING %s
+// CHECK_NO_WARNING-NOT: warning: '-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets [-Wunused-command-line-argument]
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_FSYCL_FP64_CONV_EMU %s
+// CHECK_FSYCL_FP64_CONV_EMU-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
+// CHECK_FSYCL_FP64_CONV_EMU-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
+// CHECK_FSYCL_FP64_CONV_EMU-DAG: ocloc{{.*}} "-options" "-ze-fp64-gen-conv-emu"
+// RUN: %clang_cl -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -fsycl-fp64-conv-emu -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK_FSYCL_FP64_CONV_EMU_WIN
+// CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
+// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
+// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: ocloc{{.*}} "-options" "-ze-fp64-gen-conv-emu"

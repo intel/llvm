@@ -199,8 +199,21 @@ enum PropKind : uint32_t {
   DataPlacement = 58,
   ContiguousMemory = 59,
   FullGroup = 60,
+  Naive = 61,
+  WorkGroupProgress = 62,
+  SubGroupProgress = 63,
+  WorkItemProgress = 64,
+  NDRangeKernel = 65,
+  SingleTaskKernel = 66,
+  IndirectlyCallable = 67,
+  CallsIndirectly = 68,
+  InputDataPlacement = 69,
+  OutputDataPlacement = 70,
+  IncludeFiles = 71,
+  RegisteredKernelNames = 72,
+  ClusterLaunch = 73,
   // PropKindSize must always be the last value.
-  PropKindSize = 61,
+  PropKindSize = 74,
 };
 
 struct property_key_base_tag {};

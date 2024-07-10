@@ -161,7 +161,8 @@ namespace llvm {
 
     /// equals - Check for string equality, this is more efficient than
     /// compare() when the relative ordering of inequal strings isn't needed.
-    [[nodiscard]] bool equals(StringRef RHS) const {
+    [[nodiscard]] LLVM_DEPRECATED("Use == instead",
+                                  "==") bool equals(StringRef RHS) const {
       return (Length == RHS.Length &&
               compareMemory(Data, RHS.Data, RHS.Length) == 0);
     }
@@ -263,6 +264,9 @@ namespace llvm {
         "starts_with") bool startswith(StringRef Prefix) const {
       return starts_with(Prefix);
     }
+    [[nodiscard]] bool starts_with(char Prefix) const {
+      return !empty() && front() == Prefix;
+    }
 
     /// Check if this string starts with the given \p Prefix, ignoring case.
     [[nodiscard]] bool starts_with_insensitive(StringRef Prefix) const;
@@ -277,6 +281,9 @@ namespace llvm {
         "Use ends_with instead",
         "ends_with") bool endswith(StringRef Suffix) const {
       return ends_with(Suffix);
+    }
+    [[nodiscard]] bool ends_with(char Suffix) const {
+      return !empty() && back() == Suffix;
     }
 
     /// Check if this string ends with the given \p Suffix, ignoring case.
@@ -875,7 +882,11 @@ namespace llvm {
   /// @{
 
   inline bool operator==(StringRef LHS, StringRef RHS) {
-    return LHS.equals(RHS);
+    if (LHS.size() != RHS.size())
+      return false;
+    if (LHS.empty())
+      return true;
+    return ::memcmp(LHS.data(), RHS.data(), LHS.size()) == 0;
   }
 
   inline bool operator!=(StringRef LHS, StringRef RHS) { return !(LHS == RHS); }

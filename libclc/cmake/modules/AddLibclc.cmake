@@ -45,6 +45,10 @@ function(compile_to_bc)
     set( TARGET_ARG "-target" ${ARG_TRIPLE} )
   endif()
 
+  # Ensure the directory we are told to output to exists
+  get_filename_component( ARG_OUTPUT_DIR ${ARG_OUTPUT} DIRECTORY )
+  file( MAKE_DIRECTORY ${ARG_OUTPUT_DIR} )
+
   add_custom_command(
     OUTPUT ${ARG_OUTPUT}${TMP_SUFFIX}
     COMMAND libclc::clang
@@ -82,18 +86,35 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     ""
     "TARGET"
-    "INPUTS"
+    "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
 
+  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( WIN32 OR CYGWIN )
+    # Create a response file in case the number of inputs exceeds command-line
+    # character limits on certain platforms.
+    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    # Turn it into a space-separate list of input files
+    list( JOIN ARG_INPUTS " " RSP_INPUT )
+    file( WRITE ${RSP_FILE} ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
+    set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  endif()
+
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
-    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${ARG_INPUTS}
-    DEPENDS libclc::llvm-link ${ARG_INPUTS}
+    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS libclc::llvm-link ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
@@ -256,15 +277,21 @@ macro(add_libclc_builtin_set arch_suffix)
       OUTPUT ${output_file}
       EXTRA_OPTS -fno-builtin -nostdlib
           "${ARG_COMPILE_OPT}" -I${PROJECT_SOURCE_DIR}/${file_dir}
+      DEPENDENCIES generate_convert.cl clspv-generate_convert.cl
     )
     list(APPEND bytecode_files ${output_file})
   endforeach()
 
-  set( builtins_link_lib_tgt builtins.link.${arch_suffix} )
+  set( builtins_comp_lib_tgt builtins.comp.${arch_suffix} )
+  add_custom_target( ${builtins_comp_lib_tgt}
+    DEPENDS ${bytecode_files}
+  )
 
+  set( builtins_link_lib_tgt builtins.link.${arch_suffix} )
   link_bc(
     TARGET ${builtins_link_lib_tgt}
     INPUTS ${bytecode_files}
+    DEPENDENCIES ${builtins_comp_lib_tgt}
   )
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
@@ -275,7 +302,7 @@ macro(add_libclc_builtin_set arch_suffix)
   add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
     COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
       ${builtins_link_lib}
-    DEPENDS libclc::opt ${builtins_link_lib}
+    DEPENDS libclc::opt ${builtins_link_lib} ${builtins_link_lib_tgt}
   )
   add_custom_target( ${builtins_opt_lib_tgt}
     ALL DEPENDS ${builtins_opt_lib_tgt}.bc
@@ -292,7 +319,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
     COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
       ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} prepare_builtins )
+    DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} prepare_builtins )
   add_custom_target( prepare-${obj_suffix} ALL
     DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
   )

@@ -3,9 +3,11 @@
 
 // UNSUPPORTED: cuda || hip
 
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+
 #include <cstdlib>
 #include <iostream>
-#include <sycl.hpp>
 #include <vector>
 
 static uint64_t RandNext[64];
