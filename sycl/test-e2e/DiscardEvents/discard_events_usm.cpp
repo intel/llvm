@@ -24,8 +24,7 @@
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
 // CHECK-L0: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK-OTHER ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK-SAME: .phEvent = nullptr
+// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
 // CHECK: ---> urEnqueueUSMMemcpy(
@@ -61,8 +60,7 @@
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
 // CHECK-L0: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK-OTHER ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK-SAME: .phEvent = nullptr
+// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
 // CHECK: ---> urEnqueueUSMMemcpy(
