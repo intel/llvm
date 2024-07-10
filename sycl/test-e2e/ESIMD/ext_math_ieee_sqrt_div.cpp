@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-gen9 || gpu-intel-pvc
+// REQUIRES: gpu-intel-gen9 || arch-intel_gpu_pvc
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out

@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 731376d9dfbc9099a279019ec05c64f0f8c6a7ef
-  # Merge: 40300808 665d4a68
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Jul 5 09:44:30 2024 +0100
-  #     Merge pull request #1802 from nrspruit/fix_immediate_cmdlist_reuse
-  #     [L0] Fix immediate command list use in Command Queues
-  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
+  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
+  # Merge: 5be5aa49 649c5f04
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jul 9 11:20:06 2024 +0100
+  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
+  #     [L0] Fix Queue get info and fix Queue release decrement
+  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

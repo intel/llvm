@@ -473,7 +473,7 @@ public:
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
+  /// property, an SYCL exception with errc::invalid error code.
   template <typename PropertyT> PropertyT get_property() const;
 
   /// Fills the specified memory with the specified pattern.

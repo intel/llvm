@@ -28,7 +28,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
-#include <sycl/properties/context_properties.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
@@ -153,16 +153,16 @@ public:
     }
     if (!Context->isDeviceValid(Device)) {
       if (Context->getBackend() == backend::opencl)
-        throw sycl::invalid_object_error(
+        throw sycl::exception(
+            make_error_code(errc::invalid),
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
-            "devices from the context are not supported on OpenCL yet).",
-            PI_ERROR_INVALID_DEVICE);
-      throw sycl::invalid_object_error(
+            "devices from the context are not supported on OpenCL yet).");
+      throw sycl::exception(
+          make_error_code(errc::invalid),
           "Queue cannot be constructed with the given context and device "
           "since the device is neither a member of the context nor a "
-          "descendant of its member.",
-          PI_ERROR_INVALID_DEVICE);
+          "descendant of its member.");
     }
 
     const QueueOrder QOrder =
@@ -630,7 +630,7 @@ public:
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
+  /// property, a SYCL exception with errc::invalid error code will be thrown.
   template <typename propertyT> propertyT get_property() const {
     return MPropList.get_property<propertyT>();
   }
