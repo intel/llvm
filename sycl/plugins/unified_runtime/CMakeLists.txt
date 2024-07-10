@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1baed0ba696d494a82769366f137e9ddd8af3001
-  # Merge: 00ca0daa e6dc6d9a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Wed Jul 3 13:48:27 2024 +0200
-  #     Merge pull request #1771 from igchor/level_zero_v2_dispatcher
-  #     [L0] Initial version of queue dispatcher
-  set(UNIFIED_RUNTIME_TAG 1baed0ba696d494a82769366f137e9ddd8af3001)
+  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
+  # Merge: 2f548cae 25c75c06
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jul 10 12:36:28 2024 +0100
+  #     Merge pull request #1458 from RossBrunton/ross/linkerror
+  #     [UR] Improve handling of error cases in urProgramLink
+  set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

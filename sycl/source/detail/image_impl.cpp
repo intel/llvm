@@ -330,7 +330,7 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                               void *HostPtr,
                               sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
 
   sycl::detail::pi::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&
@@ -352,76 +352,67 @@ bool image_impl::checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
                PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
           getDevices(Context), Desc.image_width))
-    throw invalid_parameter_error(
-        "For a 1D/2D image/image array, the width must be a Value >= 1 and "
-        "<= info::device::image2d_max_width",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 1D/2D image/image array, the width must be a Value "
+                    ">= 1 and <= info::device::image2d_max_width");
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_width>(
           getDevices(Context), Desc.image_width))
-    throw invalid_parameter_error(
-        "For a 3D image, the width must be a Value >= 1 and <= "
-        "info::device::image3d_max_width",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the width must be a Value >= 1 and <= "
+                    "info::device::image3d_max_width");
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image2d_max_height>(
           getDevices(Context), Desc.image_height))
-    throw invalid_parameter_error("For a 2D image or image array, the height "
-                                  "must be a Value >= 1 and <= "
-                                  "info::device::image2d_max_height",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 2D image or image array, the height must be a Value "
+                    ">= 1 and <= info::device::image2d_max_height");
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
           getDevices(Context), Desc.image_height))
-    throw invalid_parameter_error(
-        "For a 3D image, the heightmust be a Value >= 1 and <= "
-        "info::device::image3d_max_height",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the heightmust be a Value >= 1 and <= "
+                    "info::device::image3d_max_height");
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_depth>(
           getDevices(Context), Desc.image_depth))
-    throw invalid_parameter_error(
-        "For a 3D image, the depth must be a Value >= 1 and <= "
-        "info::device::image2d_max_depth",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the depth must be a Value >= 1 and <= "
+                    "info::device::image2d_max_depth");
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
           getDevices(Context), Desc.image_array_size))
-    throw invalid_parameter_error(
-        "For a 1D and 2D image array, the array_size must be a "
-        "Value >= 1 and <= info::device::image_max_array_size.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 1D and 2D image array, the array_size must be a "
+                    "Value >= 1 and <= info::device::image_max_array_size.");
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
-    throw invalid_parameter_error(
-        "The row_pitch must be 0 if host_ptr is nullptr.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The row_pitch must be 0 if host_ptr is nullptr.");
 
   if ((nullptr == UserPtr) && (0 != Desc.image_slice_pitch))
-    throw invalid_parameter_error(
-        "The slice_pitch must be 0 if host_ptr is nullptr.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The slice_pitch must be 0 if host_ptr is nullptr.");
 
   if (0 != Desc.num_mip_levels)
-    throw invalid_parameter_error("The mip_levels must be 0.",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The mip_levels must be 0.");
 
   if (0 != Desc.num_samples)
-    throw invalid_parameter_error("The num_samples must be 0.",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The num_samples must be 0.");
 
   if (nullptr != Desc.buffer)
-    throw invalid_parameter_error(
-        "The buffer must be nullptr, because SYCL does not support "
-        "image creation from memory objects.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The buffer must be nullptr, because SYCL does not support "
+                    "image creation from memory objects.");
 
   return true;
 }
@@ -436,11 +427,11 @@ bool image_impl::checkImageFormat(
           PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8,
           PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT,
           PI_IMAGE_CHANNEL_TYPE_FLOAT))
-    throw invalid_parameter_error(
-        "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
-        "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
-        "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(
+        make_error_code(errc::invalid),
+        "CL_INTENSITY or CL_LUMINANCE format can only be used if channel data "
+        "type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, CL_SNORM_INT16, "
+        "CL_HALF_FLOAT, or CL_FLOAT.");
 
   if (checkAny(Format.image_channel_data_type,
                PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
@@ -448,12 +439,10 @@ bool image_impl::checkImageFormat(
                PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010) &&
       !checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
                 PI_IMAGE_CHANNEL_ORDER_RGBx))
-    throw invalid_parameter_error(
-        "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
-        "CL_UNORM_INT_101010."
-        "These channel types can only be used with CL_RGB or CL_RGBx channel "
-        "order.",
-        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
+                    "CL_UNORM_INT_101010. These channel types can only be used "
+                    "with CL_RGB or CL_RGBx channel order.");
 
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
                PI_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_ABGR) &&
@@ -461,11 +450,11 @@ bool image_impl::checkImageFormat(
           Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
           PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
           PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
-    throw invalid_parameter_error(
+    throw exception(
+        make_error_code(errc::invalid),
         "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
         "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "
-        "or CL_UNSIGNED_INT8.",
-        PI_ERROR_INVALID_VALUE);
+        "or CL_UNSIGNED_INT8.");
 
   return true;
 }

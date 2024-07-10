@@ -318,11 +318,6 @@ public:
       ext::oneapi::experimental::graph_state::modifiable>
   ext_oneapi_get_graph() const;
 
-  /// \return true if this queue is a SYCL host queue.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -478,7 +473,7 @@ public:
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
+  /// property, an SYCL exception with errc::invalid error code.
   template <typename PropertyT> PropertyT get_property() const;
 
   /// Fills the specified memory with the specified pattern.
