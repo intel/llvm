@@ -667,9 +667,9 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
 
   std::string TargetCPU =
-      detail::SYCLConfig<detail::SYCL_JIT_TARGET_CPU>::get();
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get();
   std::string TargetFeatures =
-      detail::SYCLConfig<detail::SYCL_JIT_TARGET_FEATURES>::get();
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get();
 
   auto MaterializerResult =
       MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob,

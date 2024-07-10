@@ -20,29 +20,15 @@ cl::opt<size_t> UseTestConstValues(
     "sycl-materializer-debug-value-size",
     cl::desc("Size of the spec const blob, debug use only."));
 
-const bool SYCLSpecConstMaterializer::IsDebug =
-    getenv("SYCL_MATERIALIZER_DEBUG");
-
-// When run through the JIT pipeline we have no way of using this pass' debug
-// type, hence the introduction of the environment variable above and the macro
-// below.
-#define MATERIALIZER_DEBUG(X)                                                  \
-  do {                                                                         \
-    if (IsDebug)                                                               \
-      X;                                                                       \
-    else                                                                       \
-      LLVM_DEBUG(X);                                                           \
-  } while (false)
-
-constexpr llvm::StringLiteral SPEC_CONST_DATA_NODE_NAME{"SYCL_SpecConst_data"};
+constexpr llvm::StringLiteral SpecConstDataNodeName{"SYCL_SpecConst_data"};
 
 PreservedAnalyses SYCLSpecConstDataInserter::run(Module &M,
                                                  ModuleAnalysisManager &) {
-  if (M.getNamedMetadata(SPEC_CONST_DATA_NODE_NAME))
+  if (M.getNamedMetadata(SpecConstDataNodeName))
     llvm_unreachable("Did not expect the node to be present.");
 
   auto &Context = M.getContext();
-  auto *SpecConstMD = M.getOrInsertNamedMetadata(SPEC_CONST_DATA_NODE_NAME);
+  auto *SpecConstMD = M.getOrInsertNamedMetadata(SpecConstDataNodeName);
   auto *StringMD = MDString::get(
       Context, StringRef{(const char *)SpecConstData, SpecConstDataSize});
   auto *TupleMD = MDTuple::get(Context, {StringMD});
@@ -190,12 +176,12 @@ void SYCLSpecConstMaterializer::populateUses(Argument *A) {
       auto *I = cast<Instruction>(&*U);
       switch (I->getOpcode()) {
       default: {
-        MATERIALIZER_DEBUG(
+        LLVM_DEBUG(
             dbgs()
             << "Optimization opportunity missed, unhandled instruction: \n");
-        MATERIALIZER_DEBUG(I->dump());
-        MATERIALIZER_DEBUG(dbgs() << "Function:\n");
-        MATERIALIZER_DEBUG(I->getParent()->getParent()->dump());
+        LLVM_DEBUG(I->dump());
+        LLVM_DEBUG(dbgs() << "Function:\n");
+        LLVM_DEBUG(I->getParent()->getParent()->dump());
         break;
       }
       case Instruction::Load: {
@@ -229,21 +215,20 @@ void SYCLSpecConstMaterializer::populateUses(Argument *A) {
 
 void SYCLSpecConstMaterializer::reportAndReset() {
   if (LoadsToTypes.empty()) {
-    MATERIALIZER_DEBUG(dbgs()
-                       << "Did not find any loads from spec const buffer.\n");
+    LLVM_DEBUG(dbgs() << "Did not find any loads from spec const buffer.\n");
   } else {
-    MATERIALIZER_DEBUG(dbgs() << "Replaced: " << LoadsToTypes.size()
-                              << " loads from spec const buffer.\n");
-    MATERIALIZER_DEBUG(dbgs() << "Load to global variable mappings:\n");
+    LLVM_DEBUG(dbgs() << "Replaced: " << LoadsToTypes.size()
+                      << " loads from spec const buffer.\n");
+    LLVM_DEBUG(dbgs() << "Load to global variable mappings:\n");
     for (auto &LTT : LoadsToTypes) {
-      MATERIALIZER_DEBUG(dbgs() << "\tLoad:\n");
-      MATERIALIZER_DEBUG(LTT.first->dump());
-      MATERIALIZER_DEBUG(dbgs() << "\tGlobal Variable:\n");
-      MATERIALIZER_DEBUG(TypesAndOffsetsToBlob[LTT.second]->dump());
-      MATERIALIZER_DEBUG(dbgs() << "\n");
+      LLVM_DEBUG(dbgs() << "\tLoad:\n");
+      LLVM_DEBUG(LTT.first->dump());
+      LLVM_DEBUG(dbgs() << "\tGlobal Variable:\n");
+      LLVM_DEBUG(TypesAndOffsetsToBlob[LTT.second]->dump());
+      LLVM_DEBUG(dbgs() << "\n");
     }
   }
-  MATERIALIZER_DEBUG(dbgs() << "\n\n");
+  LLVM_DEBUG(dbgs() << "\n\n");
 
   // Reset the state.
   TypesAndOffsets.clear();
@@ -278,12 +263,12 @@ SYCLSpecConstMaterializer::handleKernel(llvm::Function &Kernel) {
 }
 
 bool SYCLSpecConstMaterializer::readMetadata() {
-  auto *NamedMD = Mod->getNamedMetadata(SPEC_CONST_DATA_NODE_NAME);
+  auto *NamedMD = Mod->getNamedMetadata(SpecConstDataNodeName);
   if (!NamedMD || NamedMD->getNumOperands() != 1)
     return false;
 
   auto *MDN = cast<MDTuple>(NamedMD->getOperand(0));
-  assert(MDN->getNumOperands() != 1 && "Malformed data node.");
+  assert(MDN->getNumOperands() == 1 && "Malformed data node.");
   auto *MDS = cast<MDString>(MDN->getOperand(0));
 
   SpecConstData = MDS->getString().bytes_begin();
@@ -294,10 +279,14 @@ bool SYCLSpecConstMaterializer::readMetadata() {
 
 PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
                                                  FunctionAnalysisManager &) {
+  if (const char *DebugEnv = std::getenv("SYCL_MATERIALIZER_DEBUG"))
+    if (0 == strcmp(DebugEnv, DEBUG_TYPE))
+      llvm::setCurrentDebugType(DEBUG_TYPE);
+
   Mod = F.getParent();
-  MATERIALIZER_DEBUG(dbgs() << "Working on function:\n==================\n"
-                            << (F.hasName() ? F.getName() : "unnamed kernel")
-                            << "\n\n");
+  LLVM_DEBUG(dbgs() << "Working on function:\n==================\n"
+                    << (F.hasName() ? F.getName() : "unnamed kernel")
+                    << "\n\n");
 
   // Invariant: This pass is only intended to operate on SYCL kernels being
   // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
@@ -305,7 +294,7 @@ PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
   auto AT = TargetHelpers::getArchType(*Mod);
   if (TargetHelpers::ArchType::Cuda != AT &&
       TargetHelpers::ArchType::AMDHSA != AT) {
-    MATERIALIZER_DEBUG(dbgs() << "Unsupported architecture\n");
+    LLVM_DEBUG(dbgs() << "Unsupported architecture\n");
     return PreservedAnalyses::all();
   }
 

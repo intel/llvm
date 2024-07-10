@@ -2393,7 +2393,7 @@ static pi_result SetKernelParamsAndLaunch(
     const std::string &KernelName) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
-  if (SYCLConfig<SYCL_JIT_KERNELS>::get()) {
+  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
     Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
         Queue, BinImage, KernelName,
@@ -3050,7 +3050,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     const RTDeviceBinaryImage *BinImage = nullptr;
-    if (detail::SYCLConfig<detail::SYCL_JIT_KERNELS>::get()) {
+    if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
           retrieveKernelBinary(MQueue, KernelName.c_str());
       assert(BinImage && "Failed to obtain a binary image.");

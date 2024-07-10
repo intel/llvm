@@ -259,7 +259,7 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
   }
 
   // Give priority to user specified values (through environment variables:
-  // SYCL_JIT_TARGET_CPU and SYCL_JIT_TARGET_FEATURES).
+  // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
   llvm::StringRef CPU{TargetCPU};
   llvm::StringRef Features{TargetFeatures};
 

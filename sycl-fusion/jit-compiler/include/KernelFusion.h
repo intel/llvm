@@ -64,7 +64,7 @@ JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
 
 JITResult materializeSpecConstants(const char *KernelName,
                                    jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-                                   const View<unsigned char> &SpecConstBlob,
+                                   View<unsigned char> SpecConstBlob,
                                    const char *TargetCPU,
                                    const char *TargetFeatures);
 

@@ -616,8 +616,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_JIT_KERNELS> {
-  using BaseT = SYCLConfigBase<SYCL_JIT_KERNELS>;
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
 
 public:
   static bool get() {
@@ -640,8 +640,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_JIT_TARGET_CPU> {
-  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_CPU>;
 
 public:
   static std::string get() {
@@ -668,8 +668,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_JIT_TARGET_FEATURES> {
-  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>;
 
 public:
   static std::string get() {

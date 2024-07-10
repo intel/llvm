@@ -1,11 +1,11 @@
-; RUN: %if hip_amd %{ env SYCL_MATERIALIZER_DEBUG=1 opt\
+; RUN: %if hip_amd %{ env SYCL_MATERIALIZER_DEBUG="sycl-spec-const-materializer" opt\
 ; RUN: -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: --mtriple amdgcn-amd-amdhsa -sycl-materializer-debug-value-size=256\
 ; RUN: -passes=sycl-spec-const-materializer,sccp -S %s 2> %t.stderr\
 ; RUN: | FileCheck %s %}
 ; RUN: %if hip_amd %{ FileCheck --input-file=%t.stderr --check-prefix=CHECK-DEBUG %s %}
 
-; RUN: %if cuda %{ env SYCL_MATERIALIZER_DEBUG=1 opt\
+; RUN: %if cuda %{ env SYCL_MATERIALIZER_DEBUG="sycl-spec-const-materializer" opt\
 ; RUN: -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: --mtriple nvptx64-nvidia-cuda -sycl-materializer-debug-value-size=256\
 ; RUN: -passes=sycl-spec-const-materializer,sccp -S %s 2> %t.stderr\
