@@ -145,6 +145,7 @@ DefineGOp1(All, __mux_sub_group_all_i1)
 
 #define DefineFPGOps(Name, MuxName)                                            \
   DefineGOp(float, float, Name, MuxName##32)                                   \
+  DefineGOp(_Float16 , _Float16 , Name, MuxName##16)                           \
   DefineGOp(double, double, Name, MuxName##64)
 
 DefineIntGOps(IAdd,    add_i)
@@ -169,6 +170,13 @@ DefineBitwiseGroupOp(int32_t, int32_t, i32)
 DefineBitwiseGroupOp(uint32_t, int32_t, i32)
 DefineBitwiseGroupOp(int64_t, int64_t, i64)
 DefineBitwiseGroupOp(uint64_t, int64_t, i64)
+
+#define DefineLogicalGroupOp(Type, MuxType, mux_sfx)                          \
+  DefineGOp(Type, MuxType, LogicalOrKHR, logical_or_##mux_sfx)                        \
+  DefineGOp(Type, MuxType, LogicalXorKHR, logical_xor_##mux_sfx)                      \
+  DefineGOp(Type, MuxType, LogicalAndKHR, logical_and_##mux_sfx)
+
+DefineLogicalGroupOp(bool, bool, i1)
 
 #define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                        \
   DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                    \
