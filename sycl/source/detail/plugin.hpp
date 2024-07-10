@@ -189,16 +189,6 @@ public:
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
-  void reportPiError(sycl::detail::pi::PiResult pi_result,
-                     const char *context) const {
-    if (pi_result != PI_SUCCESS) {
-      throw sycl::runtime_error(std::string(context) +
-                                    " API failed with error: " +
-                                    sycl::detail::codeToString(pi_result),
-                                pi_result);
-    }
-  }
-
   /// Calls the PiApi, traces the call, and returns the result.
   ///
   /// Usage:
