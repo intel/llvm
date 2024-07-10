@@ -360,6 +360,33 @@ public:
     Language = Lang;
   }
 
+  std::string trimXsFlags(std::string &str) {
+    auto start = std::find_if(str.begin(), str.end(), [](char c) {
+      return !std::isspace(c) && c != '\'' && c != '"';
+    });
+    auto end = std::find_if(str.rbegin(), str.rend(), [](char c) {
+                 return !std::isspace(c) && c != '\'' && c != '"';
+               }).base();
+    if (start != std::end(str) && end != std::begin(str) && start < end) {
+      return std::string(start, end);
+    }
+    // else
+    return "";
+  }
+
+  std::string extractXsFlags(const std::vector<std::string> &BuildOptions) {
+    std::stringstream SS;
+    for (std::string Option : BuildOptions) {
+      auto Where = Option.find("-Xs ");
+      if (Where != std::string::npos) {
+        Where += 4;
+        std::string flags = Option.substr(Where);
+        SS << trimXsFlags(flags) << " ";
+      }
+    }
+    return SS.str();
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -420,8 +447,9 @@ public:
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
     // program created by piProgramCreate is implicitly retained.
 
+    std::string XsFlags = extractXsFlags(BuildOptions);
     Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        PiProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str(), nullptr,
         nullptr);
 
     // Get the number of kernels in the program.
