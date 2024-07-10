@@ -2904,6 +2904,9 @@ public:
     SS.Adopt(QualifierLoc);
 
     Base = BaseResult.get();
+    if (Base->containsErrors())
+      return ExprError();
+
     QualType BaseType = Base->getType();
 
     if (isArrow && !BaseType->isPointerType())
@@ -7422,7 +7425,8 @@ QualType TreeTransform<Derived>::TransformCountAttributedType(
   if (getDerived().AlwaysRebuild() || InnerTy != OldTy->desugar() ||
       OldCount != NewCount) {
     // Currently, CountAttributedType can only wrap incomplete array types.
-    Result = SemaRef.BuildCountAttributedArrayOrPointerType(InnerTy, NewCount);
+    Result = SemaRef.BuildCountAttributedArrayOrPointerType(
+        InnerTy, NewCount, OldTy->isCountInBytes(), OldTy->isOrNull());
   }
 
   TLB.push<CountAttributedTypeLoc>(Result);

@@ -6509,7 +6509,7 @@ public:
     enum ExpressionKind {
       EK_Decltype,
       EK_TemplateArgument,
-      EK_BoundsAttrArgument,
+      EK_AttrArgument,
       EK_Other
     } ExprContext;
 
@@ -6622,10 +6622,9 @@ public:
     return const_cast<Sema *>(this)->parentEvaluationContext();
   };
 
-  bool isBoundsAttrContext() const {
+  bool isAttrContext() const {
     return ExprEvalContexts.back().ExprContext ==
-           ExpressionEvaluationContextRecord::ExpressionKind::
-               EK_BoundsAttrArgument;
+           ExpressionEvaluationContextRecord::ExpressionKind::EK_AttrArgument;
   }
 
   /// Increment when we find a reference; decrement when we find an ignored
@@ -14796,7 +14795,9 @@ public:
                            SourceLocation AttrLoc);
 
   QualType BuildCountAttributedArrayOrPointerType(QualType WrappedTy,
-                                                  Expr *CountExpr);
+                                                  Expr *CountExpr,
+                                                  bool CountInBytes,
+                                                  bool OrNull);
 
   /// BuildAddressSpaceAttr - Builds a DependentAddressSpaceType if an
   /// expression is uninstantiated. If instantiated it will apply the
