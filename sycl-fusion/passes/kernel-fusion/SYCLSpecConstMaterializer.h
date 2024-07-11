@@ -25,7 +25,7 @@ class SYCLSpecConstDataInserter
 public:
   SYCLSpecConstDataInserter(const unsigned char *SpecConstData,
                             size_t SpecConstDataSize)
-      : SpecConstData(SpecConstData), SpecConstDataSize(SpecConstDataSize){};
+      : SpecConstData(SpecConstData), SpecConstDataSize(SpecConstDataSize) {};
 
   SYCLSpecConstDataInserter() {
     SpecConstDataSize = 255;

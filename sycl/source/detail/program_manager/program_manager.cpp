@@ -2567,10 +2567,13 @@ sycl::detail::pi::PiKernel ProgramManager::getOrCreateMaterializedKernel(
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  // No linking of extra programs reqruired.
+  std::vector<sycl::detail::pi::PiProgram> ExtraProgramsToLink;
   auto BuildProgram =
       build(std::move(ProgramManaged), detail::getSyclObjImpl(Context),
             CompileOpts, LinkOpts, DeviceImpl->getHandleRef(),
-            /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0);
+            /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
+            ExtraProgramsToLink);
   sycl::detail::pi::PiKernel PiKernel{nullptr};
   Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
       BuildProgram.get(), KernelName.c_str(), &PiKernel);

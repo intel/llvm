@@ -590,11 +590,14 @@ template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
 
 public:
-  static bool get() {
-    constexpr bool DefaultValue = true;
+  static constexpr bool Default = true; // default is true
+  static bool get() { return getCachedValue(); }
+  static const char *getName() { return BaseT::MConfigName; }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
-    const char *ValStr = getCachedValue();
-
+private:
+  static bool parseValue() {
+    const char *ValStr = BaseT::getRawValue();
     if (!ValStr)
       return Default;
     if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
@@ -606,16 +609,12 @@ public:
     return ValStr[0] == '1';
   }
 
-  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
+  static bool getCachedValue(bool ResetCache = false) {
+    static bool Val = parseValue();
+    if (ResetCache) {
+      Val = BaseT::getRawValue();
+    }
+    return Val;
   }
 };
 
