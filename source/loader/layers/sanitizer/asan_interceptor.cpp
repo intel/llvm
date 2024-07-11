@@ -358,15 +358,17 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
             if (!AH.Flag) {
                 continue;
             }
-            if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
+            switch (AH.ErrorType) {
+            case DeviceSanitizerErrorType::USE_AFTER_FREE:
                 ReportUseAfterFree(AH, Kernel, GetContext(Queue));
-            } else if (AH.ErrorType ==
-                           DeviceSanitizerErrorType::OUT_OF_BOUNDS ||
-                       AH.ErrorType == DeviceSanitizerErrorType::MISALIGNED ||
-                       AH.ErrorType == DeviceSanitizerErrorType::NULL_POINTER) {
-                ReportOutOfBoundsError(AH, Kernel);
-            } else {
-                ReportGenericError(AH);
+                break;
+            case DeviceSanitizerErrorType::OUT_OF_BOUNDS:
+            case DeviceSanitizerErrorType::MISALIGNED:
+            case DeviceSanitizerErrorType::NULL_POINTER:
+                ReportGenericError(AH, Kernel);
+                break;
+            default:
+                ReportFatalError(AH);
             }
             if (!AH.IsRecover) {
                 exit(1);

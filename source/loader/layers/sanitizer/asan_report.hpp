@@ -31,10 +31,11 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       const std::shared_ptr<AllocInfo> &AllocInfo);
 
-void ReportGenericError(const DeviceSanitizerReport &Report);
+// This type of error is usually unexpected mistake and doesn't have enough debug information
+void ReportFatalError(const DeviceSanitizerReport &Report);
 
-void ReportOutOfBoundsError(const DeviceSanitizerReport &Report,
-                            ur_kernel_handle_t Kernel);
+void ReportGenericError(const DeviceSanitizerReport &Report,
+                        ur_kernel_handle_t Kernel);
 
 void ReportUseAfterFree(const DeviceSanitizerReport &Report,
                         ur_kernel_handle_t Kernel, ur_context_handle_t Context);
