@@ -683,11 +683,11 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("reqd_work_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
     Fn->setMetadata("work_group_num_dim",
                     llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
                                                    Builder.getInt32(3))));
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const SYCLReqdWorkGroupSizeAttr *A =
@@ -711,11 +711,11 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     for (unsigned i = NumDims; i < 3; i++)
       AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(Builder.getInt32(1)));
 
-    Fn->setMetadata("reqd_work_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
     Fn->setMetadata("work_group_num_dim",
                     llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
                                                    Builder.getInt32(NumDims))));
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   bool IsKernelOrDevice =
