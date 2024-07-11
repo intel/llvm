@@ -12,8 +12,13 @@
 #include "logger/ur_logger.hpp"
 
 #include "../common.hpp"
-#include "../context.hpp"
 #include "../device.hpp"
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "../context.hpp"
+#else
+#include "../v2/context.hpp"
+#endif
 
 ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
                                       ze_kernel_handle_t hZeKernel,

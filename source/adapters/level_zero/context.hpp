@@ -193,6 +193,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Return the Platform, which is the same for all devices in the context
   ur_platform_handle_t getPlatform() const;
 
+  // Get vector of devices from this context
+  const std::vector<ur_device_handle_t> &getDevices() const;
+
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
@@ -302,6 +305,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
+
+  // Get handle to the L0 context
+  ze_context_handle_t getZeHandle() const;
 
 private:
   // Get the cache of events for a provided scope and profiling mode.
