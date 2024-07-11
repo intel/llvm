@@ -239,7 +239,6 @@ public:
   bool has_extension(const std::string &extension_name) const {
     return has_extension(detail::string_view{extension_name});
   }
-  bool has_extension(detail::string_view extension_name) const;
 
   /// Query available SYCL devices
   ///
@@ -375,6 +374,8 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_device_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view extension_name) const;
 };
 
 } // namespace _V1

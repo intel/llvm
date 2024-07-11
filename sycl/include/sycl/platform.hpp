@@ -160,7 +160,6 @@ public:
   bool has_extension(const std::string &ExtensionName) const {
     return has_extension(detail::string_view{ExtensionName});
   }
-  bool has_extension(detail::string_view ExtensionName) const;
 
   /// Checks if this SYCL platform is a host platform.
   ///
@@ -259,6 +258,8 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view ExtensionName) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl
