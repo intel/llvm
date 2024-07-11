@@ -28,6 +28,16 @@ struct DummyHandleT {
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
+
+  template <typename T> T getDataAs() {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data());
+  }
+
+  template <typename T> T setDataAs(T Val) {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data()) = Val;
+  }
 };
 
 using DummyHandlePtrT = DummyHandleT *;
@@ -502,6 +512,8 @@ inline pi_result mock_piextMemUnsampledImageCreate(
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalMemory`")]]
 inline pi_result
 mock_piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
                             int file_descriptor,
@@ -524,9 +536,25 @@ inline pi_result mock_piextMemReleaseInterop(pi_context context,
   return PI_SUCCESS;
 }
 
+[[deprecated("This function has been deprecated in favor of "
+             "`piextImportExternalSemaphore`")]]
 inline pi_result mock_piextImportExternalSemaphoreOpaqueFD(
     pi_context context, pi_device device, int file_descriptor,
     pi_interop_semaphore_handle *ret_handle) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextImportExternalSemaphore(
+    pi_context context, pi_device device,
+    pi_external_semaphore_descriptor *sem_descriptor,
+    pi_interop_semaphore_handle *ret_handle) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextImportExternalMemory(pi_context context, pi_device device,
+                               pi_external_mem_descriptor *mem_descriptor,
+                               pi_interop_mem_handle *ret_handle) {
   return PI_SUCCESS;
 }
 
@@ -538,13 +566,14 @@ mock_piextDestroyExternalSemaphore(pi_context context, pi_device device,
 
 inline pi_result mock_piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    bool has_wait_value, uint64_t wait_value, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    bool has_signal_value, uint64_t signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
   return PI_SUCCESS;
@@ -1004,7 +1033,8 @@ inline pi_result mock_piEnqueueKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1013,7 +1043,8 @@ inline pi_result mock_piextEnqueueCooperativeKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1021,14 +1052,16 @@ inline pi_result mock_piEnqueueEventsWait(pi_queue command_queue,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
                                           pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piEnqueueEventsWaitWithBarrier(
     pi_queue command_queue, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1037,7 +1070,8 @@ mock_piEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
                             pi_bool blocking_read, size_t offset, size_t size,
                             void *ptr, pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1048,7 +1082,8 @@ inline pi_result mock_piEnqueueMemBufferReadRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1057,7 +1092,8 @@ mock_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                              pi_bool blocking_write, size_t offset, size_t size,
                              const void *ptr, pi_uint32 num_events_in_wait_list,
                              const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1068,7 +1104,8 @@ inline pi_result mock_piEnqueueMemBufferWriteRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     const void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1078,7 +1115,8 @@ mock_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
                             size_t dst_offset, size_t size,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1089,7 +1127,8 @@ inline pi_result mock_piEnqueueMemBufferCopyRect(
     size_t dst_row_pitch, size_t dst_slice_pitch,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1100,7 +1139,8 @@ inline pi_result mock_piEnqueueMemBufferFill(pi_queue command_queue,
                                              pi_uint32 num_events_in_wait_list,
                                              const pi_event *event_wait_list,
                                              pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1109,7 +1149,8 @@ inline pi_result mock_piEnqueueMemImageRead(
     pi_image_offset origin, pi_image_region region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1120,7 +1161,8 @@ mock_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1130,7 +1172,8 @@ mock_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                            pi_image_offset dst_origin, pi_image_region region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1140,7 +1183,8 @@ mock_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
                            const size_t *region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1151,7 +1195,8 @@ inline pi_result mock_piEnqueueMemBufferMap(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
                                             pi_event *event, void **ret_map) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
 
   auto parentDummyHandle = reinterpret_cast<DummyHandlePtrT>(buffer);
   *ret_map = (void *)(parentDummyHandle->MData);
@@ -1163,7 +1208,8 @@ inline pi_result mock_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                         pi_uint32 num_events_in_wait_list,
                                         const pi_event *event_wait_list,
                                         pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1223,12 +1269,15 @@ inline pi_result mock_piextUSMFree(pi_context context, void *ptr) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                            pi_int32 value, size_t count,
-                                            pi_uint32 num_events_in_waitlist,
-                                            const pi_event *events_waitlist,
-                                            pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+inline pi_result mock_piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                          const void *pattern,
+                                          size_t patternSize, size_t count,
+                                          pi_uint32 num_events_in_waitlist,
+                                          const pi_event *events_waitlist,
+                                          pi_event *event) {
+  if (event)
+    *event = createDummyHandle<pi_event>();
+
   return PI_SUCCESS;
 }
 
@@ -1238,7 +1287,8 @@ inline pi_result mock_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                             pi_uint32 num_events_in_waitlist,
                                             const pi_event *events_waitlist,
                                             pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1248,7 +1298,8 @@ inline pi_result mock_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                               pi_uint32 num_events_in_waitlist,
                                               const pi_event *events_waitlist,
                                               pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1256,7 +1307,8 @@ inline pi_result mock_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                                size_t length,
                                                pi_mem_advice advice,
                                                pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1299,7 +1351,8 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableWrite(
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1307,7 +1360,63 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device,
+                                       pi_virtual_mem_granularity_info, size_t,
+                                       void *, size_t *) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPhysicalMemCreate(pi_context, pi_device, size_t,
+                            pi_physical_mem *ret_physical_mem) {
+  *ret_physical_mem = createDummyHandle<pi_physical_mem>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRetain(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRelease(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemReserve(pi_context, const void *start,
+                                             size_t range_size,
+                                             void **ret_ptr) {
+  *ret_ptr =
+      start ? const_cast<void *>(start) : createDummyHandle<void *>(range_size);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemFree(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemMap(pi_context, const void *, size_t,
+                                         pi_physical_mem, size_t,
+                                         pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemUnmap(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemSetAccess(pi_context, const void *, size_t,
+                                               pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemGetInfo(pi_context, const void *, size_t,
+                                             pi_virtual_mem_info, size_t,
+                                             void *, size_t *) {
   return PI_SUCCESS;
 }
 
@@ -1472,6 +1581,14 @@ inline pi_result mock_piextCommandBufferAdviseUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextEnqueueNativeCommand(pi_queue,
+                                                void (*)(pi_queue, void *),
+                                                void *, uint32_t,
+                                                const pi_mem *, pi_uint32,
+                                                const pi_event *, pi_event *) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
@@ -1507,7 +1624,8 @@ inline pi_result mock_piextEnqueueReadHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1515,7 +1633,8 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
     pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
     const pi_event *events_waitlist, pi_event *event) {
-  *event = createDummyHandle<pi_event>();
+  if (event)
+    *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -1547,5 +1666,15 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 }
 
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
   return PI_SUCCESS;
 }

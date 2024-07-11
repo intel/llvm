@@ -290,6 +290,15 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+
+  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
+      {"libsycl-nativecpu_utils", "internal"}};
+
+  const bool isNativeCPU =
+      (driver::isSYCLNativeCPU(Args) &&
+       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                               TargetTriple));
+
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
@@ -368,6 +377,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
+
+  if (isNativeCPU)
+    addLibraries(SYCLNativeCpuDeviceLibs);
+
   return LibraryList;
 }
 
@@ -1223,7 +1236,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 // Unsupported options for device compilation
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
-//  -fcs-profile-generate -forder-file-instrumentation
+//  -fcs-profile-generate -forder-file-instrumentation, --coverage
 static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   std::vector<OptSpecifier> UnsupportedOpts = {
       options::OPT_fsanitize_EQ,
@@ -1235,6 +1248,7 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
       options::OPT_fno_test_coverage,
       options::OPT_fcoverage_mapping,
       options::OPT_fno_coverage_mapping,
+      options::OPT_coverage,
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,

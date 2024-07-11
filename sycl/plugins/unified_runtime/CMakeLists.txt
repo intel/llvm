@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b13c5e1f85e01fef7de7568835092f8592ded6e4
-  # Merge: 8788bd13 61b42a3e
+  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
+  # Merge: 6b33a1bb 5dc794cb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 12 13:21:32 2024 +0100
-  #     Merge pull request #1711 from hdelan/minimize-vector-allocations
-  #     [HIP][CUDA] Several changes to kernel launch
-  set(UNIFIED_RUNTIME_TAG b13c5e1f85e01fef7de7568835092f8592ded6e4)
+  # Date:   Wed Jul 10 15:05:31 2024 +0100
+  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
+  #     [L0] Use Intel Level Zero Driver String extension
+  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
-    # Merge: 78d02039 3f502d8f
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Jun 12 13:13:52 2024 +0100
-    #     Merge pull request #1697 from againull/review/againull/l0_loader
-    #     [L0] Add flexibility to change level zero repo
-    8788bd13cceb3f8e6338538b624652e6249a4543
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -131,13 +125,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 2c4303c25b026f7edb215accdccb1bc5ae2e237b
-    # Merge: abe85cc9 3e011c70
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Jun 13 10:22:34 2024 +0100
-    #     Merge pull request #1414 from GeorgeWeb/georgi/hip-fences
-    #     [HIP] Enable more ordering and scope capabilities for atomic fences
-    2c4303c25b026f7edb215accdccb1bc5ae2e237b
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
@@ -294,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

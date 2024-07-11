@@ -60,8 +60,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
           Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
-      std::ignore = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, MS.getDefaultHostQueue(), ToEnqueue);
+      std::ignore =
+          MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
       DepCmd =
           std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
     }

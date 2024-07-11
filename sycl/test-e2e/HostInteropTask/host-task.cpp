@@ -98,16 +98,16 @@ void test3(queue &Q) {
 
       std::cout << "Submit: " << Idx << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc6 = B6.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc7 = B7.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc8 = B8.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc9 = B9.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc0 = B0.get_host_access();
+      auto Acc1 = B1.get_host_access();
+      auto Acc2 = B2.get_host_access();
+      auto Acc3 = B3.get_host_access();
+      auto Acc4 = B4.get_host_access();
+      auto Acc5 = B5.get_host_access();
+      auto Acc6 = B6.get_host_access();
+      auto Acc7 = B7.get_host_access();
+      auto Acc8 = B8.get_host_access();
+      auto Acc9 = B9.get_host_access();
 
       auto Func = [=] {
         uint64_t X = 0;

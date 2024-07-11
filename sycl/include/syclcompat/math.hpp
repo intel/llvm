@@ -1032,8 +1032,26 @@ inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp2a_lo expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp2a_lo(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.lo.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp2a.lo.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.lo.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp2a.lo.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
@@ -1061,8 +1079,26 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp2a_hi expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp2a_hi(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.hi.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp2a.hi.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.hi.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp2a.hi.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
@@ -1088,8 +1124,26 @@ inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b, dot_product_acc_t<T1, T2> c) {
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp4a expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp4a(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp4a.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp4a.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp4a.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp4a.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend4(a);
@@ -1856,6 +1910,39 @@ inline constexpr RetT extend_vavrg2_sat(AT a, BT b, RetT c) {
   return detail::extend_vbinary2<RetT, true, false>(a, b, c, detail::average());
 }
 
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2(AT a, BT b, BinaryOperation cmp) {
+  return detail::extend_vbinary2<unsigned, false, false>(a, b, 0, cmp);
+}
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp) {
+  return detail::extend_vbinary2<unsigned, false, true>(a, b, c, cmp);
+}
+
 /// Compute vectorized addition of \p a and \p b, with each value treated as a
 /// 4 elements vector type and extend each element to 9 bit.
 /// \tparam [in] RetT The type of the return value, can only be 32 bit integer
@@ -2119,6 +2206,39 @@ inline constexpr RetT extend_vavrg4_add(AT a, BT b, RetT c) {
 template <typename RetT, typename AT, typename BT>
 inline constexpr RetT extend_vavrg4_sat(AT a, BT b, RetT c) {
   return detail::extend_vbinary4<RetT, true, false>(a, b, c, detail::average());
+}
+
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4(AT a, BT b, BinaryOperation cmp) {
+  return detail::extend_vbinary4<unsigned, false, false>(a, b, 0, cmp);
+}
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp) {
+  return detail::extend_vbinary4<unsigned, false, true>(a, b, c, cmp);
 }
 
 } // namespace syclcompat

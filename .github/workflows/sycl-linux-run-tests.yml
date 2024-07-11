@@ -318,6 +318,7 @@ jobs:
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
         -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+        -DCMAKE_CXX_FLAGS="-Wno-missing-template-arg-list-after-template-kw" \
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a
         # chance to finish and be executed at the run stage. Note that

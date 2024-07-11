@@ -57,7 +57,7 @@ namespace detail {
 ///
 /// @returns \c false if the value of \c Value equals to "false", \c true
 /// otherwise.
-inline bool toBool(StringRef Value) { return !Value.equals("false"); }
+inline bool toBool(StringRef Value) { return Value != "false"; }
 
 } // namespace detail
 

@@ -12,3 +12,13 @@
 
 #define __CLC_BODY <fdim.inc>
 #include <clc/math/gentype.inc>
+
+#include <clcmacro.h>
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_fdim, __builtin_fdim, half, half)
+
+#endif

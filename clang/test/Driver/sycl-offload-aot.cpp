@@ -13,7 +13,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
-// CHK-SYCL-FPGA-CONFLICT: error: The option -fsycl-targets= conflicts with -fintelfpga
+// CHK-SYCL-FPGA-CONFLICT: error: the option -fsycl-targets= conflicts with -fintelfpga
 
 /// Check that -aux-triple is passed with -fintelfpga
 // RUN:    %clang -### -fintelfpga %s 2>&1 \
@@ -298,3 +298,12 @@
 // RUN: %clang -fsycl -### -fsycl-targets=spir64_fpga -Xshardware -Xsycl-target-backend "-DBLAH" %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=DUP-OPT %s
 // DUP-OPT-NOT: aoc{{.*}} "-DBLAH" {{.*}} "-DBLAH"
+
+/// Output files from ocloc should have an extension.
+// RUN:  %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:           -fsycl-targets=intel_gpu_skl %s -### 2>&1 \
+// RUN:    | FileCheck -check-prefix=OCLOC_OUTPUT %s
+// RUN:  %clangxx --target=x86_64-unknown-linux-gnu -fsycl -save-temps \
+// RUN:           -fsycl-targets=intel_gpu_skl %s -### 2>&1 \
+// RUN:    | FileCheck -check-prefix=OCLOC_OUTPUT %s
+// OCLOC_OUTPUT: ocloc{{.*}} "-output" "{{.*}}.out"

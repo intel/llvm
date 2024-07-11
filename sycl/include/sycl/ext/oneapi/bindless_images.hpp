@@ -181,7 +181,7 @@ void free_mipmap_mem(image_mem_handle handle, const sycl::queue &syclQueue);
  *  @return  Memory handle to the individual mipmap image
  */
 __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
-    const image_mem_handle mipMem, const unsigned int level,
+    const image_mem_handle mipMem, unsigned int level,
     const sycl::device &syclDevice, const sycl::context &syclContext);
 
 /**
@@ -192,9 +192,9 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
  *  @param   syclQueue The queue in which we created our memory handle
  *  @return  Memory handle to the individual mipmap image
  */
-__SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
-    const image_mem_handle mipMem, const unsigned int level,
-    const sycl::queue &syclQueue);
+__SYCL_EXPORT image_mem_handle
+get_mip_level_mem_handle(const image_mem_handle mipMem, unsigned int level,
+                         const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external memory taking an external memory handle (the type
@@ -812,6 +812,11 @@ template <int NDims>
 using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
     NDims, sycl::access::mode::write, sycl::access::target::image_array>::type;
 
+template <int NDims>
+using OCLSampledImageArrayTyRead =
+    typename sycl::detail::sampled_opencl_image_type<
+        detail::OCLImageArrayTyRead<NDims>>::type;
+
 // Macros are required because it is not legal for a function to return
 // a variable of type 'opencl_image_type'.
 #if defined(__SPIR__)
@@ -823,11 +828,19 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
       typename sycl::detail::sampled_opencl_image_type<                        \
           detail::OCLImageTyRead<NDims>>::type>(raw_handle)
 
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(raw_handle, NDims)               \
+  __spirv_ConvertHandleToSampledImageINTEL<                                    \
+      typename sycl::detail::sampled_opencl_image_type<                        \
+          detail::OCLImageArrayTyRead<NDims>>::type>(raw_handle)
+
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageRead<DataT>(raw_handle, coords)
 
 #define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
-  __invoke__ImageRead<DataT>(raw_handle, coords)
+  __invoke__ImageReadLod<DataT>(raw_handle, coords, 0.f)
+
+#define SAMPLE_IMAGE_READ(DataT, raw_handle, coords)                           \
+  __invoke__ImageReadLod<DataT>(raw_handle, coords, 0.f)
 
 #define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
   __invoke__ImageRead<DataT>(raw_handle, coordsLayer)
@@ -835,10 +848,20 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
 #define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
   __invoke__ImageWrite(raw_handle, coordsLayer, color)
 
+#define FETCH_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,       \
+                                  coordsLayer)                                 \
+  __invoke__ImageReadLod<DataT>(raw_handle, coordsLayer, 0.f)
+
+#define READ_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,        \
+                                 coordsLayer)                                  \
+  __invoke__ImageReadLod<DataT>(raw_handle, coordsLayer, 0.f)
+
 #else
 #define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
 
 #define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
+
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(raw_handle, NDims) raw_handle
 
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageFetch<DataT>(raw_handle, coords)
@@ -846,11 +869,23 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
 #define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
   __invoke__SampledImageFetch<DataT>(raw_handle, coords)
 
+#define SAMPLE_IMAGE_READ(DataT, raw_handle, coords)                           \
+  __invoke__ImageRead<DataT>(raw_handle, coords)
+
 #define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
   __invoke__ImageArrayFetch<DataT>(raw_handle, coords, arrayLayer)
 
 #define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
   __invoke__ImageArrayWrite(raw_handle, coords, arrayLayer, color)
+
+#define FETCH_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,       \
+                                  coordsLayer)                                 \
+  __invoke__SampledImageArrayFetch<DataT>(raw_handle, coords, arrayLayer)
+
+#define READ_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,        \
+                                 coordsLayer)                                  \
+  __invoke__ImageArrayRead<DataT>(raw_handle, coords, arrayLayer)
+
 #endif
 
 #endif // __SYCL_DEVICE_ONLY__
@@ -1030,11 +1065,13 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(
+    return SAMPLE_IMAGE_READ(
+        DataT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(__invoke__ImageRead<HintT>(
+    return sycl::bit_cast<DataT>(SAMPLE_IMAGE_READ(
+        HintT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords));
   }
@@ -1288,18 +1325,12 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   coords The coordinates at which to fetch image data
  *  @param   arrayLayer The image array layer at which to fetch
  *  @return  Image data
- *
- *  __NVPTX__: Name mangling info
- *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
- *             The name mangling should therefore not interfere with one
- *             another
  */
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image_array(const unsampled_image_handle &imageHandle
                         [[maybe_unused]],
                         const CoordT &coords [[maybe_unused]],
-                        const int arrayLayer [[maybe_unused]]) {
+                        unsigned int arrayLayer [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2,
@@ -1347,7 +1378,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  */
 template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
-                    const int2 &coords, const unsigned int face) {
+                    const int2 &coords, unsigned int face) {
   return fetch_image_array<DataT, HintT>(imageHandle, coords, face);
 }
 
@@ -1386,6 +1417,106 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
   }
 #else
   assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   Fetch data from a sampled image array using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
+ *           respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to fetch image data.
+ *  @param   arrayLayer The image array layer at which to fetch.
+ *  @return  Image data.
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image_array(const sampled_image_handle &imageHandle
+                        [[maybe_unused]],
+                        const CoordT &coords [[maybe_unused]],
+                        unsigned int arrayLayer [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2,
+                "Expected input coordinate to be have 1 or 2 components for 1D "
+                "and 2D images respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return FETCH_SAMPLED_IMAGE_ARRAY(DataT,
+                                     CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                         imageHandle.raw_handle, coordSize),
+                                     coords, arrayLayer, coordsLayer);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to fetch a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        FETCH_SAMPLED_IMAGE_ARRAY(HintT,
+                                  CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                      imageHandle.raw_handle, coordSize),
+                                  coords, arrayLayer, coordsLayer));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host.
+#endif
+}
+
+/**
+ *  @brief   Sample data from a sampled image array using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
+ *           respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to fetch image data.
+ *  @param   arrayLayer The image array layer at which to fetch.
+ *  @return  Image data.
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT sample_image_array(const sampled_image_handle &imageHandle
+                         [[maybe_unused]],
+                         const CoordT &coords [[maybe_unused]],
+                         unsigned int arrayLayer [[maybe_unused]]) {
+  detail::assert_sample_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2,
+                "Expected input coordinate to be have 1 or 2 components for 1D "
+                "and 2D images respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<float, coordSize + 1> coordsLayer{coords, arrayLayer};
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return READ_SAMPLED_IMAGE_ARRAY(DataT,
+                                    CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                        imageHandle.raw_handle, coordSize),
+                                    coords, arrayLayer, coordsLayer);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to fetch a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        READ_SAMPLED_IMAGE_ARRAY(HintT,
+                                 CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                     imageHandle.raw_handle, coordSize),
+                                 coords, arrayLayer, coordsLayer));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host.
 #endif
 }
 
@@ -1442,7 +1573,7 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
 template <typename DataT, typename CoordT>
 void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
-                       const int arrayLayer [[maybe_unused]],
+                       unsigned int arrayLayer [[maybe_unused]],
                        const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
@@ -1482,7 +1613,7 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
  */
 template <typename DataT>
 void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
-                   const int face, const DataT &color) {
+                   int face, const DataT &color) {
   return write_image_array(imageHandle, coords, face, color);
 }
 
@@ -1774,5 +1905,138 @@ inline event queue::ext_oneapi_copy(
       },
       CodeLoc);
 }
+
+inline event queue::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t WaitValue, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t WaitValue, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t WaitValue, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t SignalValue, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t SignalValue, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
+      },
+      CodeLoc);
+}
+
+inline event queue::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    uint64_t SignalValue, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
+      },
+      CodeLoc);
+}
+
 } // namespace _V1
 } // namespace sycl

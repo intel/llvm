@@ -78,18 +78,24 @@ those to learn to use the library.
 
 SYCLcompat provides a `dim3` class akin to that of CUDA or HIP programming
 models. `dim3` encapsulates other languages iteration spaces that are
-represented with coordinate letters (x, y, z).
+represented with coordinate letters (x, y, z). In SYCL, the fastest-moving
+dimension is the one with the highest index, e.g. in a SYCL 2D range iteration
+space, there are two dimensions, 0 and 1, and 1 will be the one that "moves
+faster". For CUDA/HIP, the convention is reversed: `x` is the dimension which
+moves fastest. `syclcompat::dim3` follows this convention, so that
+`syclcompat::dim3(32, 4)` is equivalent to `sycl::range<2>(4, 32)`, and
+`syclcompat::dim3(32, 4, 2)` is equivalent to `sycl::range<3>(2, 4, 32)`.
 
 ```cpp
 namespace syclcompat {
 
 class dim3 {
 public:
-  const size_t x, y, z;
+  unsigned int x, y, z;
   dim3(const sycl::range<3> &r);
   dim3(const sycl::range<2> &r);
   dim3(const sycl::range<1> &r);
-  constexpr dim3(size_t x, size_t y = 1, size_t z = 1);
+  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1);
 
   constexpr size_t size();
 
@@ -106,12 +112,10 @@ inline dim3 operator-(const dim3 &a, const dim3 &b);
 } // syclcompat
 ```
 
-In SYCL, the fastest-moving dimension is the one with the highest index, e.g. in
-a SYCL 2D range iteration space, there are two dimensions, 0 and 1, and 1 will
-be the one that "moves faster". The compatibility headers for SYCL offer a
-number of convenience functions that help the mapping between xyz-based
-coordinates to SYCL iteration spaces in the different scopes available. In
-addition to the global range, the following helper functions are also provided:
+The compatibility headers for SYCL offer a number of convenience functions that
+help the mapping between xyz-based coordinates to SYCL iteration spaces in the
+different scopes available. In addition to the global range, the following
+helper functions are also provided:
 
 ``` c++
 namespace syclcompat {
@@ -917,6 +921,12 @@ static inline void list_devices();
 
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
+
+// Util function to get the device id from a device
+static inline unsigned int get_device_id(const sycl::device &dev);
+
+// Util function to get the number of available devices
+static inline unsigned int device_count();
 
 } // syclcompat
 ```
@@ -2414,6 +2424,73 @@ inline constexpr RetT extend_vavrg4_add(AT a, BT b, RetT c);
 /// \returns The extend vectorized average of the two values with saturation
 template <typename RetT, typename AT, typename BT>
 inline constexpr RetT extend_vavrg4_sat(AT a, BT b, RetT c);
+```
+
+Vectorized comparison APIs also provided in the math header behave similarly 
+and support a `std` comparison operator parameter which can be `greater`, 
+`less`, `greater_equal`, `less_equal`, `equal_to` or `not_equal_to`. These APIs 
+cover both the 2-elements *(16-bits each)* and 4-elements *(8-bits each)* 
+variants, as well as an additional `_add` variant that computes the sum of the 
+2/4 output elements.
+
+```cpp
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2(AT a, BT b, BinaryOperation cmp);
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare2_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp);
+
+/// Extend \p a and \p b to 33 bit and vectorized compare input values using
+/// specified comparison \p cmp .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values.
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4(AT a, BT b, BinaryOperation cmp);
+
+/// Extend Inputs to 33 bit, and vectorized compare input values using specified
+/// comparison \p cmp , then add the result with \p c .
+///
+/// \tparam [in] AT The type of the first value, can only be 32 bit integer
+/// \tparam [in] BT The type of the second value, can only be 32 bit integer
+/// \tparam [in] BinaryOperation The type of the compare operation
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] cmp The comparsion operator
+/// \returns The comparison result of the two extended values, and add the
+/// result with \p c .
+template <typename AT, typename BT, typename BinaryOperation>
+inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
+                                               BinaryOperation cmp);
 ```
 
 The math header file provides APIs for bit-field insertion (`bfi_safe`) and

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2 && level_zero
+// UNSUPPORTED: windows
 
 // RUN: mkdir -p %t.dir && %{build} -o %t.dir/exec.out
 // RUN: env IGC_DumpToCustomDir=%t.dir IGC_ShaderDumpEnable=1 %{run} %t.dir/exec.out
