@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
-  # Merge: 0f118d75 92fce2ee
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
+  # Merge: 76c6bf9a 0cd10f63
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 10 13:23:16 2024 +0100
-  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
-  #     [CTS] Add CTS tests for urMemImageCreate entry-point
-  set(UNIFIED_RUNTIME_TAG review/yang/misalign_access)
+  # Date:   Thu Jul 11 15:12:38 2024 +0100
+  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
+  #     [DeviceSanitizer] Support detecting misaligned access error
+  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
