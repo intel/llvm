@@ -10,7 +10,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
-#include <sycl/detail/ur_device_binary.h>
 #include <ur_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>

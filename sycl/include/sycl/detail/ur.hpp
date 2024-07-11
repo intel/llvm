@@ -16,7 +16,6 @@
 
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/ur_device_binary.h>
 #include <ur_api.h>
 
 #include <memory>
