@@ -18,8 +18,8 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
                            addressing_mode addressingMode,
                            filtering_mode filteringMode,
                            const property_list &propList)
-    : MPropList(propList), MCoordNormMode(normalizationMode), MAddrMode(addressingMode),
-      MFiltMode(filteringMode) {}
+    : MCoordNormMode(normalizationMode), MAddrMode(addressingMode),
+      MFiltMode(filteringMode), MPropList(propList) {}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 

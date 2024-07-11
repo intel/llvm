@@ -367,7 +367,7 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 }
 
 const property_list &queue::getPropList() const {
-  return impl->MPropList;
+  return impl->getPropList();
 }
 
 } // namespace _V1

@@ -242,7 +242,8 @@ public:
   bool isOwnedByRuntime() { return MOwnedByRuntime; };
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
-  property_list MPropList;
+  
+  const property_list &getPropList() const { return MPropList; }
 
 private:
   bool MOwnedByRuntime;
@@ -250,6 +251,7 @@ private:
   std::vector<device> MDevices;
   sycl::detail::pi::PiContext MContext;
   PlatformImplPtr MPlatform;
+  property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;

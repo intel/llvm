@@ -43,9 +43,7 @@ public:
 
   void generateFlushCommand(handler &cgh);
 
-  // Property list
-  property_list PropList_;
-
+  const property_list &getPropList() const { return PropList_; }
 private:
   // Size of the stream buffer
   size_t BufferSize_;
@@ -53,6 +51,9 @@ private:
   // Maximum number of symbols which could be streamed from the beginning of a
   // statement till the semicolon
   unsigned MaxStatementSize_;
+
+  // Property list
+  property_list PropList_;
 
   // It's fine to store the buffers in the stream_impl itself since the
   // underlying buffer_impls are relased in a deferred manner by scheduler.

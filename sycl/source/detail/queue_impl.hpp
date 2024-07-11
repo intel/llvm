@@ -763,7 +763,8 @@ public:
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
           &Graph);
 
-  const property_list MPropList;
+  const property_list &getPropList() const { return MPropList; }
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -939,6 +940,7 @@ protected:
   std::vector<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
+  const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
   std::vector<sycl::detail::pi::PiQueue> MQueues;

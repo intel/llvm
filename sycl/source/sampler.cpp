@@ -45,7 +45,7 @@ bool sampler::operator!=(const sampler &rhs) const {
 }
 
 const property_list &sampler::getPropList() const {
-  return impl->MPropList;
+  return impl->getPropList();
 }
 
 #undef __SYCL_PARAM_TRAITS_SPEC

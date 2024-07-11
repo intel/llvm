@@ -42,7 +42,8 @@ public:
   sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
 
   ~sampler_impl();
-  property_list MPropList;
+
+  const property_list &getPropList() const { return MPropList; }
 private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
@@ -52,6 +53,7 @@ private:
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
+  property_list MPropList;
 };
 
 } // namespace detail

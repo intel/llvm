@@ -73,7 +73,7 @@ bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
 const property_list &stream::getPropList() const {
-  return impl->PropList_;
+  return impl->getPropList();
 }
 
 } // namespace _V1
