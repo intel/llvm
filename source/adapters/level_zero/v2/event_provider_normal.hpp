@@ -34,16 +34,13 @@ class provider_pool {
 public:
   provider_pool(ur_context_handle_t, ur_device_handle_t, event_type,
                 queue_type);
-  ~provider_pool();
 
   event_borrowed allocate();
   size_t nfree() const;
 
 private:
-  // TODO: use a RAII wrapper for the pool handle
-  ze_event_pool_handle_t pool;
-
-  std::vector<ze_event_handle_t> freelist;
+  raii::ze_event_pool_handle_t pool;
+  std::vector<raii::ze_event_handle_t> freelist;
 };
 
 class provider_normal : public event_provider {
