@@ -76,7 +76,8 @@ TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerDevices) {
     ur_native_handle_t native_context = 0;
-    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urContextGetNativeHandle(context, &native_context));
 
     ur_context_handle_t ctx = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
@@ -86,7 +87,8 @@ TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerDevices) {
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerContext) {
     ur_native_handle_t native_context = 0;
-    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urContextGetNativeHandle(context, &native_context));
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urContextCreateWithNativeHandle(native_context, 1, &device,
