@@ -58,7 +58,7 @@ Jessica Davies, Intel +
 Joe Garvey, Intel +
 Greg Lueck, Intel +
 John Pennycook, Intel +
-Roland Schulz, Intel
+Roland Schulz, Intel +
 Fraser Cormack, Codeplay
 
 == Overview
