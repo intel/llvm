@@ -199,9 +199,9 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
-// 16.58 Added context parameter to piextMemImageGetInfo
+// 17.58 Added context parameter to piextMemImageGetInfo
 
-#define _PI_H_VERSION_MAJOR 16
+#define _PI_H_VERSION_MAJOR 17
 #define _PI_H_VERSION_MINOR 58
 
 #define _PI_STRING_HELPER(a) #a
