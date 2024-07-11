@@ -12,12 +12,13 @@
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 #include <sycl/exception.hpp>
 
-#include <algorithm>   // for iter_swap
-#include <bitset>      // for bitset
-#include <memory>      // for shared_ptr, __shared_ptr_...
-#include <type_traits> // for enable_if_t
-#include <utility>     // for move
-#include <vector>      // for vector
+#include <algorithm>      // for iter_swap
+#include <bitset>         // for bitset
+#include <memory>         // for shared_ptr, __shared_ptr_...
+#include <type_traits>    // for enable_if_t
+#include <utility>        // for move
+#include <vector>         // for vector
+#include <unordered_set>  // for unordered_set
 
 namespace sycl {
 inline namespace _V1 {
@@ -131,6 +132,22 @@ protected:
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
+  
+  template <typename ... Ts>
+  void buildAllowList(std::unordered_set<int>& AllowListWithData, std::unordered_set<int>& AllowListNoData) const
+  {
+    ((std::is_base_of_v<PropertyWithDataBase, Ts> ? AllowListWithData : AllowListNoData).insert(Ts::getKind()), ...);
+  }
+
+  bool checkAllowList(const std::unordered_set<int>& AllowListWithData, const std::unordered_set<int>& AllowListNoData) const
+  {
+    for (size_t it = 0; it < MDataLessProps.size(); it++)
+    {
+      if (MDataLessProps[it] && (AllowListNoData.find(it) == AllowListNoData.end()))
+        return false;
+    }
+    return std::all_of(MPropsWithData.cbegin(), MPropsWithData.cend(), [&AllowListWithData](const std::shared_ptr<PropertyWithDataBase>& Item){ return AllowListWithData.find(Item->getKind()) != AllowListWithData.end(); });
+  }
 };
 } // namespace detail
 } // namespace _V1

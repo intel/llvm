@@ -65,6 +65,14 @@ public:
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
+  template <typename... Props>
+  bool checkAllowList() const {
+      // Separated sets is needed since properties with data and properties without data have overlapping IDs.
+      std::unordered_set<int> AllowedPropsWithData, AllowedPropsNoData;
+      buildAllowList<Props...>(AllowedPropsWithData, AllowedPropsNoData);
+      return detail::PropertyListBase::checkAllowList(AllowedPropsWithData, AllowedPropsNoData);
+    }
+
 private:
   property_list(
       std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
