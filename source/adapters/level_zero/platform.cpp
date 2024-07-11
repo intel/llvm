@@ -503,6 +503,8 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   return UR_RESULT_SUCCESS;
 }
 
+size_t ur_platform_handle_t_::getNumDevices() { return URDevicesCache.size(); }
+
 ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
   for (auto &dev : URDevicesCache) {
     if (dev->Id == id) {

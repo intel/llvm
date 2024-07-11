@@ -56,6 +56,8 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Check the device cache and load it if necessary.
   ur_result_t populateDeviceCacheIfNeeded();
 
+  size_t getNumDevices();
+
   ur_device_handle_t getDeviceById(DeviceId);
 
   // Return the PI device from cache that represents given native device.
