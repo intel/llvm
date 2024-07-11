@@ -199,7 +199,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,
                          UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
 // To be dropped (no alternatives)
-__SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string, 0)
+__SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string, SYCL_TRAIT_HANDLED_IN_RT)
 // Extensions
 __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                          UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
@@ -229,11 +229,11 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, uint64_t,
                          UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH)
 
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>, 0)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>, 0)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>, SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>, SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t, 0)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t, SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool,
                          UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
 
