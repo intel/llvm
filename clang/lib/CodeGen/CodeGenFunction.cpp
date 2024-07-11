@@ -685,39 +685,37 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
+    Fn->setMetadata("work_group_num_dim",
+                    llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
+                                                   Builder.getInt32(3))));
   }
 
   if (const SYCLReqdWorkGroupSizeAttr *A =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
-    std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
-    std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
-    llvm::APInt NumDims(32, 1); // X
-    // On SYCL target the dimensions are reversed if present.
-    if (ZDimVal) {
+    // On SYCL targets the dimensions are reversed if present.
+    if (std::optional<llvm::APSInt> ZDimVal = A->getZDimVal())
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
-      ++NumDims;
-    }
-    if (YDimVal) {
+    if (std::optional<llvm::APSInt> YDimVal = A->getYDimVal())
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
-      ++NumDims;
-    }
-    AttrMDArgs.push_back(
-        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
-
-    for (auto i = NumDims.getZExtValue(); i < 3; ++i)
+    if (std::optional<llvm::APSInt> XDimVal = A->getXDimVal())
       AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(llvm::APInt(32, 1))));
+          llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
 
-    Fn->setMetadata("work_group_num_dim",
-                    llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
-                                                   Builder.getInt(NumDims))));
+    unsigned NumDims = AttrMDArgs.size();
+    assert(NumDims >= 1 && "At least one dimension must be present");
+
+    for (unsigned i = NumDims; i < 3; i++)
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(Builder.getInt32(1)));
+
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
+    Fn->setMetadata("work_group_num_dim",
+                    llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
+                                                   Builder.getInt32(NumDims))));
   }
 
   bool IsKernelOrDevice =
