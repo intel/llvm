@@ -108,22 +108,14 @@ urContextRetain(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
+// urContextGetNativeHandle should not be implemented in the HIP backend.
+// hipCtx_t is not natively supported by amd devices, and more importantly does
+// not map to ur_context_handle_t in any way.
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  // FIXME: this entry point has been deprecated in the SYCL RT and should be
-  // changed to unsupported once the deprecation period has elapsed
-  // The below is extremely dodgy but is the equivalent for what went before
-  // for continuity: apparently some users may be somehow using this API
-  // currently, despite it not being well defined. This API should not have been
-  // implemented in the HIP backend.  hipCtx_t is not natively supported by amd
-  // devices and is meaningless for our purposes; all hipCtx_t APIs were added
-  // for cuda compatibility only and are deprecated by HIP.
-
-  hipCtx_t *Ctx = nullptr;
-  UR_CHECK_ERROR(
-      hipDevicePrimaryCtxRetain(Ctx, hContext->getDevices()[0]->get()));
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(Ctx);
-  return UR_RESULT_SUCCESS;
+  std::ignore = hContext;
+  std::ignore = phNativeContext;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
