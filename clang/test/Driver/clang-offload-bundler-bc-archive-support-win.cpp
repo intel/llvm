@@ -1,4 +1,5 @@
 // Target "host-x86_64-pc-windows-msvc" only works on Windows
+// Old offloading model only
 // REQUIRES: system-windows
 
 // Ensure that bundled BC files in archives can work with:
@@ -14,13 +15,13 @@
 // Make bundled object with targets:
 // sycl-spir64-unknown-unknown
 // host-x86_64-pc-windows-msvc
-// RUN: %clangxx -fsycl -c %s -o %t_bundled.o
+// RUN: %clangxx -fsycl --no-offload-new-driver -c %s -o %t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make three distinct BC files
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE1 %s -o %t1.bc
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE2 %s -o %t2.bc
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE3 %s -o %t3.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE1 %s -o %t1.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE2 %s -o %t2.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE3 %s -o %t3.bc
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Bundle BC files to different targets:

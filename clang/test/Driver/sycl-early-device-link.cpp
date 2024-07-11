@@ -1,9 +1,10 @@
 // Testing for early AOT device linking.  These tests use -fno-sycl-rdc
 // -c to create final device binaries during the link step when using -fsycl.
 // Behavior is restricted to spir64_gen targets for now.
+// Old offloading model only
 
 // Create object that contains final device image
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64_gen \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE
@@ -21,7 +22,7 @@
 // CREATE_IMAGE: clang{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OBJECT:.+\.o]]"{{.*}} "[[APPEND_SOURCE]]"
 // CREATE_IMAGE: clang-offload-bundler{{.*}} "-targets=sycl-spir64_gen_image-unknown-unknown,host-x86_64-unknown-linux-gnu" "-output={{.*}}" "-input=[[DEVICE_OBJECT]]" "-input=[[HOST_OBJECT]]"
  
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64_gen \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -ccc-print-phases %s \
 // RUN:          -fno-sycl-device-lib=all 2>&1 \
@@ -51,7 +52,7 @@
 // CREATE_IMAGE_PHASES: 22: clang-offload-bundler, {14, 21}, object, (host-sycl)
 
 // Use of -fno-sycl-rdc -c with non-AOT should not perform the device link.
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64 \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64 \
 // RUN:          --target=x86_64-unknown-linux-gnu -ccc-print-phases %s \
 // RUN:          -fno-sycl-device-lib=all 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=JIT_ONLY_PHASES
@@ -70,7 +71,7 @@
 
 // Mix and match JIT and AOT phases check.  Expectation is for AOT to perform
 // early device link, and JIT to just produce the LLVM-IR.
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64,spir64_gen \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:          -ccc-print-phases %s -fno-sycl-device-lib=all 2>&1 \
@@ -104,14 +105,14 @@
 // JIT_AOT_PHASES: 26: clang-offload-bundler, {3, 18, 25}, object, (host-sycl)
 
 // Consume object and library that contain final device images.
-// RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \
+// RUN: %clangxx -fsycl --no-offload-new-driver --target=x86_64-unknown-linux-gnu -### \
 // RUN:          %S/Inputs/SYCL/objgenimage.o %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CONSUME_OBJ
 // CONSUME_OBJ-NOT: linked binaries do not contain expected
 // CONSUME_OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen_image-unknown-unknown" "-input={{.*}}objgenimage.o" "-output=[[DEVICE_IMAGE_OBJ:.+\.o]]
 // CONSUME_OBJ: ld{{.*}} "[[DEVICE_IMAGE_OBJ]]"
 
-// RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \
+// RUN: %clangxx -fsycl --no-offload-new-driver --target=x86_64-unknown-linux-gnu -### \
 // RUN:          %S/Inputs/SYCL/libgenimage.a  %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CONSUME_LIB
 // CONSUME_LIB-NOT: linked binaries do not contain expected

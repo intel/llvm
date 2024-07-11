@@ -1,4 +1,5 @@
 // Target "host-x86_64-unknown-linux-gnu" only works on Linux
+// Old offloading model only
 // REQUIRES: system-linux
 
 // Ensure that bundled BC files in archives can work with:
@@ -14,7 +15,7 @@
 // Make bundled object with targets:
 // sycl-spir64-unknown-unknown
 // host-x86_64-unknown-linux-gnu
-// RUN: %clangxx -fsycl -c %s -o %t_bundled.o
+// RUN: %clangxx -fsycl --no-offload-new-driver -c %s -o %t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make three distinct BC files

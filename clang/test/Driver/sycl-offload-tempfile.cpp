@@ -1,10 +1,10 @@
 // UNSUPPORTED: system-windows
-// Test temp file cleanup
+// Test temp file cleanup, old offloading model only
 
 // RUN: mkdir -p %t_dir
 // RUN: env TMPDIR=%t_dir TEMP=%t_dir TMP=%t_dir                           \
 // RUN: %clang -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a \
-// RUN:       -fsycl -fsycl-device-code-split %s 2>&1 | \
+// RUN:       -fsycl --no-offload-new-driver -fsycl-device-code-split %s 2>&1 | \
 // RUN:       FileCheck -DDIRNAME=%t_dir --check-prefix=CHECK-TEMPFILE-SPLIT %s
 // RUN: not ls %t_dir/*
 // CHECK-TEMPFILE-SPLIT: sycl-post-link{{.*}} "-o" "[[DIRNAME]]{{\/|\\}}[[TABLE:.+\.table]]"
