@@ -269,16 +269,14 @@ event handler::finalize() {
 #else
       auto EnqueueKernel = [&]() {
 #endif
-        // 'Result' for single point of return
-        pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                  MKernel, MKernelName.c_str(), RawEvents,
-                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
-                                  MImpl->MKernelIsCooperative);
+        enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                         MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+                         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+                         MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -289,7 +287,6 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
-        return Result;
       };
 
       bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
@@ -304,9 +301,7 @@ event handler::finalize() {
       }
 
       if (DiscardEvent) {
-        if (PI_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
+        EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
         MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
@@ -317,10 +312,8 @@ event handler::finalize() {
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
 
-        if (PI_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
-        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
+        EnqueueKernel();
+        if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -341,7 +334,8 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName.c_str(), std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+        MImpl->MKernelUsesClusterLaunch, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -502,9 +496,8 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Internal Error. Command group cannot be constructed.");
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -775,8 +768,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::host_image:
     case access::target::host_task:
     case access::target::host_buffer: {
-      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
-                                          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Unsupported accessor target case.");
       break;
     }
     }
@@ -794,7 +787,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "Invalid kernel param kind");
     break;
   }
 }
@@ -956,6 +950,15 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setType(detail::CG::FillUSM);
+}
+
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
                                        const void *Src, size_t SrcPitch,
                                        size_t Width, size_t Height) {
@@ -986,7 +989,7 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                        size_t Width, size_t Height) {
   // Checks done in callers.
   MDstPtr = Dest;
-  MPattern.push_back(static_cast<char>(Value));
+  MPattern.push_back(static_cast<unsigned char>(Value));
   MImpl->MDstPitch = DestPitch;
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;
@@ -1614,6 +1617,13 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+backend handler::getDeviceBackend() const {
+  if (MGraph)
+    return MGraph->getDevice().get_backend();
+  else
+    return MQueue->getDeviceImplPtr()->getBackend();
+}
+
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
@@ -1710,6 +1720,13 @@ void handler::setKernelCacheConfig(
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
+}
+
+void handler::setKernelUsesClusterLaunch() {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  MImpl->MKernelUsesClusterLaunch = true;
 }
 
 void handler::ext_oneapi_graph(

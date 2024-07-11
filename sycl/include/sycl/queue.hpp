@@ -475,7 +475,7 @@ public:
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception is thrown.
+  /// property, an SYCL exception with errc::invalid error code is thrown.
   template <typename PropertyT> PropertyT get_property() const {
     return getPropList().template get_property<PropertyT>();
   }

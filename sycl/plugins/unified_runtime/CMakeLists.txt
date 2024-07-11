@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e
-  # Merge: 022df8ac 2f121cd8
+  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
+  # Merge: 6b33a1bb 5dc794cb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 4 10:37:58 2024 +0100
-  #     Merge pull request #1212 from aarongreig/aaron/specMotivatedRefactors
-  #     Batch adapter changes: spec motivated refactors
-  set(UNIFIED_RUNTIME_TAG 0cbacd8a0844acb64091ecbb0c7d6a7df1b6160e)
+  # Date:   Wed Jul 10 15:05:31 2024 +0100
+  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
+  #     [L0] Use Intel Level Zero Driver String extension
+  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

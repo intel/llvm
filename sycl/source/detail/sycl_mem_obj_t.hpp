@@ -249,10 +249,9 @@ public:
     MHostPtrReadOnly = IsConstPtr;
     setAlign(RequiredAlign);
     if (useHostPtr())
-      throw runtime_error(
-          "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.",
-          PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::invalid),
+                      "Buffer constructor from a pair of iterator values does "
+                      "not support use_host_ptr property.");
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();
@@ -277,7 +276,7 @@ public:
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime), "Not implemented");
   }
 
   MemObjType getType() const override { return MemObjType::Undefined; }

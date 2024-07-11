@@ -36,12 +36,13 @@ public:
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
-          MImpl->MKernelIsCooperative, getCodeLoc()));
+          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          getCodeLoc()));
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

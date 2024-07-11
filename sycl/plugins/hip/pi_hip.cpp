@@ -577,6 +577,26 @@ pi_result piextEnqueueCooperativeKernelLaunch(
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+  (void)Queue;
+  (void)Kernel;
+  (void)WorkDim;
+  (void)GlobalWorkSize;
+  (void)LocalWorkSize;
+  (void)NumPropsInLaunchPropList;
+  (void)LaunchPropList;
+  (void)NumEventsInWaitList;
+  (void)EventsWaitList;
+  (void)OutEvent;
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  return PI_ERROR_UNSUPPORTED_FEATURE;
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,
@@ -933,12 +953,12 @@ pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
   return pi2ur::piextKernelSetArgPointer(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
-pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
-                                size_t Count, pi_uint32 NumEventsInWaitlist,
-                                const pi_event *EventsWaitlist,
-                                pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr, const void *Pattern,
+                              size_t PatternSize, size_t Count,
+                              pi_uint32 NumEventsInWaitlist,
+                              const pi_event *EventsWaitlist, pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,

@@ -84,6 +84,9 @@ int main() {
     if (plt.has(aspect::usm_system_allocations)) {
       std::cout << "  USM system allocations" << std::endl;
     }
+    if (plt.has(aspect::ext_oneapi_cuda_cluster_group)) {
+      std::cout << " ext_oneapi_cuda_cluster_group" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;

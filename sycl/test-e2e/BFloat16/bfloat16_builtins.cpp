@@ -14,6 +14,8 @@
 
 // Currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
+// FIXME: enable opaque pointers support on CPU.
+// XFAIL: cpu
 #include "bfloat16_builtins.hpp"
 
 int main() {

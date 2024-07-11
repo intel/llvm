@@ -283,8 +283,8 @@ public:
   }
 
   std::unique_ptr<sycl::detail::CG> finalize() {
-    throw sycl::runtime_error("Unhandled type of command group",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Unhandled type of command group");
 
     return nullptr;
   }
@@ -307,7 +307,8 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, MImpl->MKernelIsCooperative, getCodeLoc()));
+          getCGType(), {}, MImpl->MKernelIsCooperative,
+          MImpl->MKernelUsesClusterLaunch, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {
@@ -317,8 +318,8 @@ public:
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;
