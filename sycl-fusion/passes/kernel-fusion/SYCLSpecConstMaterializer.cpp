@@ -283,8 +283,10 @@ bool SYCLSpecConstMaterializer::readMetadata() {
 PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
                                                  FunctionAnalysisManager &) {
   if (const char *DebugEnv = std::getenv("SYCL_MATERIALIZER_DEBUG"))
-    if (0 == strcmp(DebugEnv, DEBUG_TYPE))
+    if (0 == strcmp(DebugEnv, DEBUG_TYPE)) {
+      DebugFlag = true;
       llvm::setCurrentDebugType(DEBUG_TYPE);
+    }
 
   Mod = F.getParent();
   LLVM_DEBUG(dbgs() << "Working on function:\n==================\n"
