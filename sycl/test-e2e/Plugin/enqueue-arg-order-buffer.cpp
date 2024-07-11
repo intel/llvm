@@ -408,52 +408,23 @@ int main() {
 // ----------- BUFFERS
 
 // CHECK-LABEL: start copyD2H-buffer
-// CHECK: ---> urEnqueueMemBufferRead(
-// CHECK-SAME: .size = 64
-// CHECK: ---> urEnqueueMemBufferReadRect(
-// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
-// CHECK-SAME: .bufferRowPitch = 64
-// CHECK: ---> urEnqueueMemBufferReadRect(
-// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
-// CHECK-SAME: .bufferRowPitch = 64
-// CHECK-SAME: .bufferSlicePitch = 320
+// CHECK: ---> urEnqueueMemBufferRead({{.*}} .size = 64,
+// CHECK: ---> urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64,
+// CHECK: ---> urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320,
 // CHECK: end copyD2H-buffer
 
 // CHECK-LABEL: start copyH2D-buffer
-// CHECK: ---> urEnqueueMemBufferWrite(
-// CHECK-SAME: .size = 64
-// CHECK: ---> urEnqueueMemBufferWriteRect(
-// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
-// CHECK-SAME: .bufferRowPitch = 64
-// CHECK-SAME: .bufferSlicePitch = 0
-// CHECK-SAME: .hostRowPitch = 64
-// CHECK: ---> urEnqueueMemBufferWriteRect(
-// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
-// CHECK-SAME: .bufferRowPitch = 64
-// CHECK-SAME: .bufferSlicePitch = 320
-// CHECK-SAME: .hostRowPitch = 64
-// CHECK-SAME: .hostSlicePitch = 320
+// CHECK: ---> urEnqueueMemBufferWrite({{.*}} .size = 64,
+// CHECK: ---> urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64, 
+// CHECK: ---> urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320, .hostRowPitch = 64, .hostSlicePitch = 320,
 // CHECK: end copyH2D-buffer
 
 // CHECK-LABEL: start copyD2D-buffer
-// CHECK: ---> urEnqueueMemBufferCopy(
-// CHECK-SAME: .size = 64
-// CHECK: ---> urEnqueueMemBufferCopyRect(
-// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
-// CHECK-SAME: .srcRowPitch = 64
-// CHECK-SAME: .srcSlicePitch = 320
-// CHECK-SAME: .dstRowPitch = 64
-// CHECK-SAME: .dstSlicePitch = 320
-// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
-// CHECK-SAME: .bufferRowPitch = 64
-// CHECK-SAME: .bufferSlicePitch = 320
-// CHECK-SAME: .hostRowPitch = 64
-// CHECK-SAME: .hostSlicePitch = 320
+// CHECK: ---> urEnqueueMemBufferCopy({{.*}} .size = 64
+// CHECK: ---> urEnqueueMemBufferCopyRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
+// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
 // CHECK: end copyD2D-buffer
 
 // CHECK-LABEL: start testFill Buffer
-// CHECK: ---> urEnqueueMemBufferFill(
-// CHECK-SAME: .patternSize =  4
-// CHECK-SAME: .offset = 0
-// CHECK-SAME: .size = 64
+// CHECK :---> urEnqueueMemBufferFill({{.*}} .patternSize = 4, .offset = 0, .size = 64,
 // CHECK: end testFill Buffer
