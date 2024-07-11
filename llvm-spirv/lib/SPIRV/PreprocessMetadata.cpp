@@ -295,12 +295,16 @@ void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
   // !{x} = !{i32 3, i32 102000}
   B->addNamedMD(kSPIRVMD::Source)
       .addOp()
-      .add(CLVer == kOCLVer::CL21 ? spv::SourceLanguageOpenCL_CPP
-                                  : spv::SourceLanguageOpenCL_C)
+      .add(M->getNamedMetadata(kSPIR2MD::OCLCXXVer) &&
+                   (CLVer == kOCLVer::CLCXX10 || CLVer == kOCLVer::CLCXX2021)
+               ? spv::SourceLanguageCPP_for_OpenCL
+               : spv::SourceLanguageOpenCL_C)
       .add(CLVer)
       .done();
   if (EraseOCLMD)
-    B->eraseNamedMD(kSPIR2MD::OCLVer).eraseNamedMD(kSPIR2MD::SPIRVer);
+    B->eraseNamedMD(kSPIR2MD::OCLVer)
+        .eraseNamedMD(kSPIR2MD::SPIRVer)
+        .eraseNamedMD(kSPIR2MD::OCLCXXVer);
 
   // !spirv.MemoryModel = !{!x}
   // !{x} = !{i32 1, i32 2}

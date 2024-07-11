@@ -402,6 +402,7 @@ namespace kSPIR2MD {
 const static char Extensions[] = "opencl.used.extensions";
 const static char FPContract[] = "opencl.enable.FP_CONTRACT";
 const static char OCLVer[] = "opencl.ocl.version";
+const static char OCLCXXVer[] = "opencl.cxx.version";
 const static char OptFeatures[] = "opencl.used.optional.core.features";
 const static char SPIRVer[] = "opencl.spir.version";
 const static char VecTyHint[] = "vec_type_hint";
