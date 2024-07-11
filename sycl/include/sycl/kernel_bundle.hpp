@@ -904,7 +904,8 @@ __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     sycl::detail::string_view Source,
-    std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>> IncludePairsVec);
+    std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+        IncludePairsVec);
 
 __SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
@@ -912,13 +913,15 @@ make_kernel_bundle_from_source(
     const std::string &Source,
     std::vector<std::pair<std::string, std::string>> IncludePairsVec) {
   size_t n = IncludePairsVec.size();
-  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>> PairVec;
+  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+      PairVec;
   PairVec.reserve(n);
   for (auto &Pair : IncludePairsVec)
-    PairVec.push_back({sycl::detail::string_view{Pair.first}, sycl::detail::string_view{Pair.second}});
+    PairVec.push_back({sycl::detail::string_view{Pair.first},
+                       sycl::detail::string_view{Pair.second}});
 
-  return make_kernel_bundle_from_source(SyclContext, Language, sycl::detail::string_view{Source},
-    PairVec);
+  return make_kernel_bundle_from_source(
+      SyclContext, Language, sycl::detail::string_view{Source}, PairVec);
 }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -926,7 +929,8 @@ __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes,
-    std::vector<std::pair<sycl::detail::string, sycl::detail::string>> IncludePairsVec);
+    std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+        IncludePairsVec);
 
 __SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
@@ -934,21 +938,23 @@ make_kernel_bundle_from_source(
     const std::vector<std::byte> &Bytes,
     std::vector<std::pair<std::string, std::string>> IncludePairsVec) {
   size_t n = IncludePairsVec.size();
-  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>> PairVec;
+  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+      PairVec;
   PairVec.reserve(n);
   for (auto &Pair : IncludePairsVec)
-    PairVec.push_back({sycl::detail::string_view{Pair.first}, sycl::detail::string_view{Pair.second}});
+    PairVec.push_back({sycl::detail::string_view{Pair.first},
+                       sycl::detail::string_view{Pair.second}});
 
   return make_kernel_bundle_from_source(SyclContext, Language, Bytes, PairVec);
 }
 #endif
 
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
-build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-                  const std::vector<device> &Devices,
-                  const std::vector<sycl::detail::string_view> &BuildOptions,
-                  sycl::detail::string *LogPtr,
-                  const std::vector<sycl::detail::string_view> &RegisteredKernelNames);
+__SYCL_EXPORT kernel_bundle<bundle_state::executable> build_from_source(
+    kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+    const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &BuildOptions,
+    sycl::detail::string *LogPtr,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames);
 
 __SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
@@ -962,11 +968,12 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 
   std::vector<sycl::detail::string_view> KernelNames;
   for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});  
+    KernelNames.push_back(sycl::detail::string_view{name});
 
   if (LogPtr) {
     sycl::detail::string Log;
-    auto result = build_from_source(SourceKB, Devices, Options, &Log, KernelNames);
+    auto result =
+        build_from_source(SourceKB, Devices, Options, &Log, KernelNames);
     *LogPtr = Log.c_str();
     return result;
   }

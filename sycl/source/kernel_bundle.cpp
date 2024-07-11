@@ -391,12 +391,14 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 /////////////////////////
 
 using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
-using include_pairs_view_t = std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>;
+using include_pairs_view_t = std::vector<
+    std::pair<sycl::detail::string_view, sycl::detail::string_view>>;
 
-source_kb make_kernel_bundle_from_source(const context &SyclContext,
-                                         source_language Language,
-                                         sycl::detail::string_view SourceView,
-                                         include_pairs_view_t IncludePairViews) {
+source_kb
+make_kernel_bundle_from_source(const context &SyclContext,
+                               source_language Language,
+                               sycl::detail::string_view SourceView,
+                               include_pairs_view_t IncludePairViews) {
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
@@ -441,11 +443,11 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
 // syclex::detail::build_from_source(source_kb) => exe_kb
 /////////////////////////
 
-exe_kb
-build_from_source(source_kb &SourceKB, const std::vector<device> &Devices,
-                  const std::vector<sycl::detail::string_view> &BuildOptions,
-                  sycl::detail::string *LogView,
-                  const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
+exe_kb build_from_source(
+    source_kb &SourceKB, const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &BuildOptions,
+    sycl::detail::string *LogView,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
   std::vector<std::string> Options;
   for (const sycl::detail::string_view option : BuildOptions)
     Options.push_back(option.data());
@@ -453,7 +455,7 @@ build_from_source(source_kb &SourceKB, const std::vector<device> &Devices,
   std::vector<std::string> KernelNames;
   for (const sycl::detail::string_view name : RegisteredKernelNames)
     KernelNames.push_back(name.data());
-  
+
   std::string Log;
   std::string *LogPtr = nullptr;
   if (LogView)
@@ -461,8 +463,8 @@ build_from_source(source_kb &SourceKB, const std::vector<device> &Devices,
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl =
-      sourceImpl->build_from_source(UniqueDevices, Options, LogPtr, KernelNames);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+      UniqueDevices, Options, LogPtr, KernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
   if (LogView)
     *LogView = Log;
