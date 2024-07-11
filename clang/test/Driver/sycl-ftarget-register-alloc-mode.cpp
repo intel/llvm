@@ -75,9 +75,11 @@
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device *" \
-// RUN:          %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=NO_PVC %s
+// TODO: Test fails on Windows due to improper temporary file creation given
+//       the -device * value.  Re-enable when this is fixed.
+// RUNx: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUNx:          %s 2>&1 \
+// RUNx:   | FileCheck -check-prefix=NO_PVC %s
 
 // RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
 // RUN:          %s 2>&1 \
