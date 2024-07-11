@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
-  # Merge: 6b33a1bb 5dc794cb
+  # commit 642e3437b8a0a3e702ac3d68513d7076e7618c94
+  # Merge: 342bdfff 199287b7
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 15:05:31 2024 +0100
-  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
-  #     [L0] Use Intel Level Zero Driver String extension
-  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
+  # Date:   Thu Jul 11 10:37:50 2024 +0100
+  #     Merge pull request #1829 from callumfare/callum/bindless_workaround
+  #     Treat bindless images handle types as native handles
+  set(UNIFIED_RUNTIME_TAG 642e3437b8a0a3e702ac3d68513d7076e7618c94)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
