@@ -19,9 +19,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make three distinct BC files
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE1 %s -o %t1.bc
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE2 %s -o %t2.bc
-// RUN: %clangxx -fsycl -fsycl-device-only -DTYPE3 %s -o %t3.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE1 %s -o %t1.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE2 %s -o %t2.bc
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE3 %s -o %t3.bc
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Bundle BC files to different targets:
