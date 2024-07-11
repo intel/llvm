@@ -662,7 +662,7 @@ private:
         detail::getSyclObjImpl(LocalAccBase);
     detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
     MLocalAccStorage.push_back(std::move(LocalAccImpl));
-    AddArg(detail::kernel_param_kind_t::kind_accessor, Req,
+    addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(access::target::local), ArgIndex);
   }
 
@@ -699,9 +699,9 @@ private:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
-    AddAccessorReq(std::move(AccImpl));
+    addAccessorReq(std::move(AccImpl));
     // Add accessor to the list of arguments.
-    AddArg(detail::kernel_param_kind_t::kind_accessor, Req,
+    addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
   }
 
@@ -709,17 +709,17 @@ private:
     void *StoredArg = storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
-      AddArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
+      addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
     } else {
-      AddArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
+      addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
              ArgIndex);
     }
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
     void *StoredArg = storePlainArg(Arg);
-    AddArg(detail::kernel_param_kind_t::kind_sampler, StoredArg,
+    addArg(detail::kernel_param_kind_t::kind_sampler, StoredArg,
            sizeof(sampler), ArgIndex);
   }
 
@@ -742,7 +742,7 @@ private:
   void setArgHelper(int ArgIndex,
                     sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
     auto StoredArg = storeRawArg(Arg);
-    AddArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
+    addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
            Arg.MArgSize, ArgIndex);
   }
 
@@ -931,7 +931,7 @@ private:
     // header, so don't perform things that require it.
     if (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
-      ClearArgs();
+      clearArgs();
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
@@ -941,7 +941,7 @@ private:
       // accessors from the list(which are associated with this handler) as
       // arguments. We must copy the associated accessors as they are checked
       // later during finalize.
-      SetArgsToAssociatedAccessors();
+      setArgsToAssociatedAccessors();
     }
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
@@ -966,7 +966,7 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(PadRange(ClusterSize), ClusterDim);
+      setKernelClusterLaunch(padRange(ClusterSize), ClusterDim);
     }
   }
 
@@ -1354,7 +1354,7 @@ private:
       // __SYCL_ASSUME_INT can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
-      SetNDRangeDescriptor(RoundedRange);
+      setNDRangeDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CGType::Kernel);
@@ -1375,7 +1375,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
       processProperties<NameT, PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
-      SetNDRangeDescriptor(std::move(UserRange));
+      setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CGType::Kernel);
@@ -1424,7 +1424,7 @@ private:
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
-    SetNDRangeDescriptor(std::move(ExecutionRange));
+    setNDRangeDescriptor(std::move(ExecutionRange));
     processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
@@ -1445,7 +1445,7 @@ private:
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
-    SetNDRangeDescriptor(std::move(NumWorkItems));
+    setNDRangeDescriptor(std::move(NumWorkItems));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
     extractArgsAndReqs();
@@ -1483,7 +1483,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(NumWorkGroups);
-    SetNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
+    setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
@@ -1527,7 +1527,7 @@ private:
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
-    SetNDRangeDescriptor(std::move(ExecRange));
+    setNDRangeDescriptor(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
 #endif // __SYCL_DEVICE_ONLY__
@@ -1793,7 +1793,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
-    SetNDRangeDescriptor(range<1>{1});
+    setNDRangeDescriptor(range<1>{1});
     processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CGType::Kernel);
@@ -1825,7 +1825,7 @@ private:
 
     // Need to copy these rather than move so that we can check associated
     // accessors during finalize
-    SetArgsToAssociatedAccessors();
+    setArgsToAssociatedAccessors();
 
     SetHostTask(std::move(Func));
   }
@@ -2069,7 +2069,7 @@ public:
     kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
-    SetNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
+    setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
@@ -2130,7 +2130,7 @@ public:
     setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
-    SetNDRangeDescriptor(range<1>{1});
+    setNDRangeDescriptor(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
@@ -2164,7 +2164,7 @@ public:
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
-    SetNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
+    setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
     extractArgsAndReqs();
@@ -2183,7 +2183,7 @@ public:
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
-    SetNDRangeDescriptor(std::move(NDRange));
+    setNDRangeDescriptor(std::move(NDRange));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(true);
     extractArgsAndReqs();
@@ -2209,7 +2209,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
-    SetNDRangeDescriptor(range<1>{1});
+    setNDRangeDescriptor(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
@@ -2245,7 +2245,7 @@ public:
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems);
-    SetNDRangeDescriptor(std::move(NumWorkItems));
+    setNDRangeDescriptor(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
@@ -2285,7 +2285,7 @@ public:
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
-    SetNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
+    setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
@@ -2324,7 +2324,7 @@ public:
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NDRange);
-    SetNDRangeDescriptor(std::move(NDRange));
+    setNDRangeDescriptor(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     setNDRangeUsed(true);
@@ -2367,7 +2367,7 @@ public:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkGroups);
-    SetNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
+    setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
@@ -2410,7 +2410,7 @@ public:
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
-    SetNDRangeDescriptor(std::move(ExecRange));
+    setNDRangeDescriptor(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
@@ -2600,7 +2600,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    AddLifetimeSharedPtrStorage(Dst);
+    addLifetimeSharedPtrStorage(Dst);
     typename std::shared_ptr<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
@@ -2630,7 +2630,7 @@ public:
     // device-copyable.
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    AddLifetimeSharedPtrStorage(Src);
+    addLifetimeSharedPtrStorage(Src);
     typename std::shared_ptr<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
@@ -2664,7 +2664,7 @@ public:
     MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    AddAccessorReq(std::move(AccImpl));
+    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2700,7 +2700,7 @@ public:
     MDstPtr = static_cast<void *>(AccImpl.get());
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    AddAccessorReq(std::move(AccImpl));
+    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2755,8 +2755,8 @@ public:
     MDstPtr = AccImplDst.get();
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    AddAccessorReq(std::move(AccImplSrc));
-    AddAccessorReq(std::move(AccImplDst));
+    addAccessorReq(std::move(AccImplSrc));
+    addAccessorReq(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2780,7 +2780,7 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    AddAccessorReq(std::move(AccImpl));
+    addAccessorReq(std::move(AccImpl));
   }
 
 public:
@@ -3501,7 +3501,7 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    AddAccessorReq(std::move(AccImpl));
+    addAccessorReq(std::move(AccImpl));
 
     MPattern.resize(sizeof(T));
     auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -3633,19 +3633,19 @@ private:
     setType(detail::CGType::ProfilingTag);
   }
 
-  void AddAccessorReq(detail::AccessorImplPtr Accessor);
+  void addAccessorReq(detail::AccessorImplPtr Accessor);
 
-  void AddLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr);
+  void addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr);
 
-  void AddArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
+  void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
-  void ClearArgs();
-  void SetArgsToAssociatedAccessors();
+  void clearArgs();
+  void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> PadRange(sycl::range<Dims> Range) {
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
@@ -3656,7 +3656,7 @@ private:
     }
   }
 
-  template <int Dims> static sycl::id<3> PadId(sycl::id<Dims> Id) {
+  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
     if constexpr (Dims == 3) {
       return Id;
     } else {
@@ -3668,29 +3668,29 @@ private:
   }
 
   template <int Dims>
-  void SetNDRangeDescriptor(sycl::range<Dims> N,
+  void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return SetNDRangeDescriptorPadded(PadRange(N), SetNumWorkGroups, Dims);
+    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
   }
   template <int Dims>
-  void SetNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
+  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
                             sycl::id<Dims> Offset) {
-    return SetNDRangeDescriptorPadded(PadRange(NumWorkItems), PadId(Offset),
+    return setNDRangeDescriptorPadded(padRange(NumWorkItems), padId(Offset),
                                       Dims);
   }
   template <int Dims>
-  void SetNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    return SetNDRangeDescriptorPadded(
-        PadRange(ExecutionRange.get_global_range()),
-        PadRange(ExecutionRange.get_local_range()),
-        PadId(ExecutionRange.get_offset()), Dims);
+  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
+    return setNDRangeDescriptorPadded(
+        padRange(ExecutionRange.get_global_range()),
+        padRange(ExecutionRange.get_local_range()),
+        padId(ExecutionRange.get_offset()), Dims);
   }
 
-  void SetNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
+  void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
                                   int Dims);
-  void SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::id<3> Offset, int Dims);
-  void SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
 

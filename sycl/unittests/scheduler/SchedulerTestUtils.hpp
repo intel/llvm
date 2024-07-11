@@ -232,7 +232,7 @@ public:
   using sycl::handler::addReduction;
   using sycl::handler::impl;
   using sycl::handler::getType;
-  using sycl::handler::SetNDRangeDescriptor;
+  using sycl::handler::setNDRangeDescriptor;
 
   sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
@@ -277,7 +277,7 @@ public:
   }
 
   template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
-    SetNDRangeDescriptor(std::move(Range));
+    setNDRangeDescriptor(std::move(Range));
   }
 
   void addStream(const sycl::detail::StreamImplPtr &Stream) {

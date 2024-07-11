@@ -664,7 +664,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   switch (Kind) {
   case kernel_param_kind_t::kind_std_layout:
   case kernel_param_kind_t::kind_pointer: {
-    AddArg(Kind, Ptr, Size, Index + IndexShift);
+    addArg(Kind, Ptr, Size, Index + IndexShift);
     break;
   }
   case kernel_param_kind_t::kind_stream: {
@@ -706,7 +706,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
-    AddArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
+    addArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
            sizeof(S->FlushBufferSize), Index + IndexShift);
 
     break;
@@ -745,13 +745,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
-        AddArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
+        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
                Index + IndexShift);
         ++IndexShift;
-        AddArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
+        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
                Index + IndexShift);
         ++IndexShift;
-        AddArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
+        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
                Index + IndexShift);
       }
       break;
@@ -759,7 +759,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::image:
     case access::target::image_array: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      AddArg(Kind, AccImpl, Size, Index + IndexShift);
+      addArg(Kind, AccImpl, Size, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
         // TODO Handle additional kernel arguments for image class
         // if the compiler front-end adds them.
@@ -777,12 +777,12 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_sampler: {
-    AddArg(kernel_param_kind_t::kind_sampler, Ptr, sizeof(sampler),
+    addArg(kernel_param_kind_t::kind_sampler, Ptr, sizeof(sampler),
            Index + IndexShift);
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
-    AddArg(kernel_param_kind_t::kind_specialization_constants_buffer, Ptr, Size,
+    addArg(kernel_param_kind_t::kind_specialization_constants_buffer, Ptr, Size,
            Index + IndexShift);
     break;
   }
@@ -806,7 +806,7 @@ inline constexpr size_t MaxNumAdditionalArgs = 13;
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
-  ClearArgs();
+  clearArgs();
 
   std::sort(
       UnPreparedArgs.begin(), UnPreparedArgs.end(),
@@ -1807,38 +1807,38 @@ void *handler::storeRawArg(const void *Ptr, size_t Size) {
 }
 
 void handler::SetHostTask(std::function<void()> &&Func) {
-  SetNDRangeDescriptor(range<1>(1));
+  setNDRangeDescriptor(range<1>(1));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
 void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
-  SetNDRangeDescriptor(range<1>(1));
+  setNDRangeDescriptor(range<1>(1));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
   setType(detail::CGType::CodeplayHostTask);
 }
 
-void handler::AddAccessorReq(detail::AccessorImplPtr Accessor) {
+void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
 
-void handler::AddLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
+void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
 }
 
-void handler::AddArg(detail::kernel_param_kind_t ArgKind, void *Req,
+void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
   impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex);
 }
 
-void handler::ClearArgs() {
+void handler::clearArgs() {
   impl->MArgs.clear();
 }
 
-void handler::SetArgsToAssociatedAccessors() {
+void handler::setArgsToAssociatedAccessors() {
   impl->MArgs = impl->MAssociatedAccesors;
 }
 
@@ -1856,15 +1856,15 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
-void handler::SetNDRangeDescriptorPadded(sycl::range<3> N,
+void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
   impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
 }
-void handler::SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
 }
-void handler::SetNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                 sycl::range<3> LocalSize, sycl::id<3> Offset,
                                 int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};

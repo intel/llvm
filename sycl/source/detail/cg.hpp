@@ -74,7 +74,7 @@ class NDRDescT {
   }
 
   template <int Dims>
-  static sycl::range<3> PadRange(sycl::range<Dims> Range) {
+  static sycl::range<3> padRange(sycl::range<Dims> Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
@@ -85,7 +85,7 @@ class NDRDescT {
     }
   }
 
-  template <int Dims> static sycl::id<3> PadId(sycl::id<Dims> Id) {
+  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
     if constexpr (Dims == 3) {
       return Id;
     } else {
@@ -119,9 +119,9 @@ public:
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
-      : NDRDescT(PadRange(ExecutionRange.get_global_range()),
-                 PadRange(ExecutionRange.get_local_range()),
-                 PadId(ExecutionRange.get_offset()), size_t(DimsArg)) {
+      : NDRDescT(padRange(ExecutionRange.get_global_range()),
+                 padRange(ExecutionRange.get_local_range()),
+                 padId(ExecutionRange.get_offset()), size_t(DimsArg)) {
     setNDRangeLeftover();}
 
   template <int Dims_>
@@ -130,7 +130,7 @@ public:
 
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(PadRange(Range), /*SetNumWorkGroups=*/false, Dims_) {}
+      : NDRDescT(padRange(Range), /*SetNumWorkGroups=*/false, Dims_) {}
 
   void setClusterDimensions(sycl::range<3> N, int Dims) {
     if (this->Dims != size_t(Dims)) {
