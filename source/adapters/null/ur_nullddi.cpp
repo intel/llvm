@@ -4232,7 +4232,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4258,7 +4258,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4285,7 +4285,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] pointer to handle of image memory allocated
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4299,7 +4299,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     } else {
         // generic implementation
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            reinterpret_cast<ur_exp_image_mem_native_handle_t>(d_context.get());
     }
 
     return result;
@@ -4312,7 +4312,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem ///< [in][release] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4336,12 +4336,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4354,7 +4354,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
                                             pImageFormat, pImageDesc, phImage);
     } else {
         // generic implementation
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+        *phImage =
+            reinterpret_cast<ur_exp_image_native_handle_t>(d_context.get());
     }
 
     return result;
@@ -4367,13 +4368,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4387,7 +4388,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
                                      pImageDesc, hSampler, phImage);
     } else {
         // generic implementation
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+        *phImage =
+            reinterpret_cast<ur_exp_image_native_handle_t>(d_context.get());
     }
 
     return result;
@@ -4454,10 +4456,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageGetInfoExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
-    ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,    ///< [out][optional] returned query value
-    size_t *pPropSizeRet ///< [out][optional] returned query value size
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_native_handle_t
+        hImageMem,            ///< [in] handle to the image memory
+    ur_image_info_t propName, ///< [in] queried info name
+    void *pPropValue,         ///< [out][optional] returned query value
+    size_t *pPropSizeRet      ///< [out][optional] returned query value size
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4465,8 +4469,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     auto pfnImageGetInfoExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
     if (nullptr != pfnImageGetInfoExp) {
-        result =
-            pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+        result = pfnImageGetInfoExp(hContext, hImageMem, propName, pPropValue,
+                                    pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -4481,10 +4485,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] returning memory handle to the individual image
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4498,7 +4502,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     } else {
         // generic implementation
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            reinterpret_cast<ur_exp_image_mem_native_handle_t>(d_context.get());
     }
 
     return result;
@@ -4511,7 +4515,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hMem ///< [in][release] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4573,7 +4577,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_mem_handle_t *
+    ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4587,7 +4591,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     } else {
         // generic implementation
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            reinterpret_cast<ur_exp_image_mem_native_handle_t>(d_context.get());
     }
 
     return result;

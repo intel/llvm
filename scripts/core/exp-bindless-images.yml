@@ -15,12 +15,12 @@ ordinal: "99"
 type: handle
 desc: "Handle of bindless image"
 class: $xBindlessImages
-name: "$x_exp_image_handle_t"
+name: "$x_exp_image_native_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of bindless image memory"
 class: $xBindlessImages
-name: "$x_exp_image_mem_handle_t"
+name: "$x_exp_image_mem_native_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of interop memory"
@@ -355,7 +355,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_handle_t
+    - type: $x_exp_image_native_handle_t
       name: hImage
       desc: "[in][release] pointer to handle of image object to destroy"
 returns:
@@ -376,7 +376,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_handle_t
+    - type: $x_exp_image_native_handle_t
       name: hImage
       desc: "[in][release] pointer to handle of image object to destroy"
 returns:
@@ -404,14 +404,14 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_exp_image_mem_handle_t*
+    - type: $x_exp_image_mem_native_handle_t*
       name: phImageMem
       desc: "[out] pointer to handle of image memory allocated"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -429,7 +429,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_exp_image_mem_native_handle_t
       name: hImageMem
       desc: "[in][release] handle of image memory to be freed"
 returns:
@@ -450,7 +450,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_exp_image_mem_native_handle_t
       name: hImageMem
       desc: "[in] handle to memory from which to create the image"
     - type: "const $x_image_format_t*"
@@ -459,14 +459,14 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_exp_image_handle_t*
+    - type: $x_exp_image_native_handle_t*
       name: phImage
       desc: "[out] pointer to handle of image object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC
@@ -485,7 +485,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_exp_image_mem_native_handle_t
       name: hImageMem
       desc: "[in] handle to memory from which to create the image"
     - type: "const $x_image_format_t*"
@@ -497,14 +497,14 @@ params:
     - type: $x_sampler_handle_t
       name: hSampler
       desc: "[in] sampler to be used"
-    - type: $x_exp_image_handle_t*
+    - type: $x_exp_image_native_handle_t*
       name: phImage
       desc: "[out] pointer to handle of image object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_INVALID_OPERATION
@@ -568,7 +568,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -578,7 +578,10 @@ class: $xBindlessImages
 name: ImageGetInfoExp
 ordinal: "0"
 params:
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_exp_image_mem_native_handle_t
       name: hImageMem
       desc: "[in] handle to the image memory"
     - type: $x_image_info_t
@@ -615,13 +618,13 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_exp_image_mem_native_handle_t
       name: hImageMem
       desc: "[in] memory handle to the mipmap image"
     - type: uint32_t
       name: mipmapLevel
       desc: "[in] requested level of the mipmap"
-    - type: "$x_exp_image_mem_handle_t*"
+    - type: "$x_exp_image_mem_native_handle_t*"
       name: phImageMem
       desc: "[out] returning memory handle to the individual image"
 returns:
@@ -642,7 +645,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_image_mem_handle_t
+    - type: $x_exp_image_mem_native_handle_t
       name: hMem
       desc: "[in][release] handle of image memory to be freed"
 returns:
@@ -701,14 +704,14 @@ params:
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
       desc: "[in] interop memory handle to the external memory"
-    - type: $x_exp_image_mem_handle_t*
+    - type: $x_exp_image_mem_native_handle_t*
       name: phImageMem
       desc: "[out] image memory handle to the externally allocated memory"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
