@@ -93,7 +93,10 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
       Metadata.size(), Metadata.data(), &BinaryStatus, &Program);
 
   if (BinaryStatus != CL_SUCCESS) {
-    throw runtime_error("Creating program with binary failed.", BinaryStatus);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::runtime),
+                  "Creating program with binary failed."),
+        BinaryStatus);
   }
 
   return Program;
@@ -180,12 +183,12 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   // perform minimal sanity checks on the device image and the descriptor
   if (RawImg.BinaryEnd < RawImg.BinaryStart) {
-    throw runtime_error("Malformed device program image descriptor",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::runtime),
+                    "Malformed device program image descriptor");
   }
   if (RawImg.BinaryEnd == RawImg.BinaryStart) {
-    throw runtime_error("Invalid device program image: size is zero",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::runtime),
+                    "Invalid device program image: size is zero");
   }
   size_t ImgSize = Img.getSize();
 
@@ -1074,9 +1077,9 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     std::ifstream File(SpvFile, std::ios::binary);
 
     if (!File.is_open())
-      throw runtime_error(std::string("Can't open file specified via ") +
-                              UseSpvEnv + ": " + SpvFile,
-                          PI_ERROR_INVALID_VALUE);
+      throw exception(make_error_code(errc::runtime),
+                      std::string("Can't open file specified via ") +
+                          UseSpvEnv + ": " + SpvFile);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
     std::unique_ptr<char[]> Data(new char[Size]);
@@ -1084,9 +1087,9 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     File.read(Data.get(), Size);
     File.close();
     if (!File.good())
-      throw runtime_error(std::string("read from ") + SpvFile +
-                              std::string(" failed"),
-                          PI_ERROR_INVALID_VALUE);
+      throw exception(make_error_code(errc::runtime),
+                      std::string("read from ") + SpvFile +
+                          std::string(" failed"));
     // No need for a mutex here since all access to these private fields is
     // blocked until the construction of the ProgramManager singleton is
     // finished.
@@ -1187,8 +1190,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     return *Img;
   }
 
-  throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_ERROR_INVALID_KERNEL_NAME);
+  throw exception(make_error_code(errc::runtime),
+                  "No kernel named " + KernelName + " was found");
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -1610,7 +1613,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   std::ofstream F(Fname, std::ios::binary);
 
   if (!F.is_open()) {
-    throw runtime_error("Can not write " + Fname, PI_ERROR_UNKNOWN);
+    throw exception(make_error_code(errc::runtime), "Can not write " + Fname);
   }
   Img.dump(F);
   F.close();
@@ -1693,8 +1696,9 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
           PIDeviceHandle, &DevBin,
           /*num bin images = */ (pi_uint32)1, &SuitableImageID);
   if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
-    throw runtime_error("Invalid binary image or device",
-                        PI_ERROR_INVALID_VALUE);
+    throw detail::set_pi_error(exception(make_error_code(errc::runtime),
+                                         "Invalid binary image or device"),
+                               Error);
 
   return (0 == SuitableImageID);
 }
@@ -1704,8 +1708,8 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
 
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
   if (KernelID == m_KernelName2KernelIDs.end())
-    throw runtime_error("No kernel found with the specified name",
-                        PI_ERROR_INVALID_KERNEL_NAME);
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel found with the specified name");
 
   return KernelID->second;
 }
@@ -2134,10 +2138,12 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   if (InputImpl->get_bin_image_ref()->getFormat() !=
           PI_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
-    sycl::runtime_error(
-        "Creating a program from AOT binary for multiple device is not "
-        "supported",
-        PI_ERROR_INVALID_OPERATION);
+    // FIXME: It was probably intended to be thrown, but a unittest starts
+    // failing if we do so, investigate independently of switching to SYCL 2020
+    // `exception`.
+    exception(make_error_code(errc::feature_not_supported),
+              "Creating a program from AOT binary for multiple device is "
+              "not supported");
 
   // Device is not used when creating program from SPIRV, so passing only one
   // device is OK.
@@ -2230,7 +2236,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
       const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
-    Plugin->reportPiError(Error, "link()");
+    throw set_pi_error(exception(make_error_code(errc::build), "link() failed"),
+                       Error);
   }
 
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
@@ -2329,10 +2336,12 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
-      sycl::runtime_error(
-          "Creating a program from AOT binary for multiple device is not "
-          "supported",
-          PI_ERROR_INVALID_OPERATION);
+      // FIXME: It was probably intended to be thrown, but a unittest starts
+      // failing if we do so, investigate independently of switching to SYCL
+      // 2020 `exception`.
+      exception(make_error_code(errc::feature_not_supported),
+                "Creating a program from AOT binary for multiple device "
+                "is not supported");
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
