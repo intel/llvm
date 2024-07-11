@@ -41,12 +41,11 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name0>(
-          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
-            group<1> g = it.get_group();
-            int lid = it.get_local_id(0);
-            out[lid] = exclusive_scan_over_group(g, in[lid], binary_op);
-          });
+      cgh.parallel_for<kernel_name0>(nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
+        group<1> g = it.get_group();
+        int lid = it.get_local_id(0);
+        out[lid] = exclusive_scan_over_group(g, in[lid], binary_op);
+      });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + confirmRange,
@@ -67,12 +66,11 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name1>(
-          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
-            group<1> g = it.get_group();
-            int lid = it.get_local_id(0);
-            out[lid] = exclusive_scan_over_group(g, in[lid], init, binary_op);
-          });
+      cgh.parallel_for<kernel_name1>(nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
+        group<1> g = it.get_group();
+        int lid = it.get_local_id(0);
+        out[lid] = exclusive_scan_over_group(g, in[lid], init, binary_op);
+      });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + confirmRange,
@@ -94,14 +92,13 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name2>(
-          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
-            group<1> g = it.get_group();
-            joint_exclusive_scan(
-                g, in.template get_multi_ptr<access::decorated::no>(),
-                in.template get_multi_ptr<access::decorated::no>() + N,
-                out.template get_multi_ptr<access::decorated::no>(), binary_op);
-          });
+      cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
+        group<1> g = it.get_group();
+        joint_exclusive_scan(
+            g, in.template get_multi_ptr<access::decorated::no>(),
+            in.template get_multi_ptr<access::decorated::no>() + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op);
+      });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + N, expected.begin(),
@@ -122,15 +119,14 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name3>(
-          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
-            group<1> g = it.get_group();
-            joint_exclusive_scan(
-                g, in.template get_multi_ptr<access::decorated::no>(),
-                in.template get_multi_ptr<access::decorated::no>() + N,
-                out.template get_multi_ptr<access::decorated::no>(), init,
-                binary_op);
-          });
+      cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
+        group<1> g = it.get_group();
+        joint_exclusive_scan(
+            g, in.template get_multi_ptr<access::decorated::no>(),
+            in.template get_multi_ptr<access::decorated::no>() + N,
+            out.template get_multi_ptr<access::decorated::no>(), init,
+            binary_op);
+      });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + N, expected.begin(), init,
