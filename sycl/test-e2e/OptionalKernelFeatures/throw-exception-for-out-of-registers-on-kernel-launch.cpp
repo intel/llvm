@@ -7,7 +7,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // The test aims to use more than 64 registers meaning that with the maximum
 // workgroup size (assumed 1024 on most CUDA SMs), will produce a launch
@@ -26,7 +26,7 @@
 class kernel_vadd_and_sum;
 
 int main() {
-  sycl::queue q;
+  sycl::queue q{};
   sycl::device dev = q.get_device();
   size_t local_size = dev.get_info<sycl::info::device::max_work_group_size>();
   if (local_size < 1024u) {
@@ -80,6 +80,8 @@ int main() {
              // compute vector add
              const auto vadd = values1 + values2 + values3 + values4;
 
+             // NB: 64 registers used to do the vector addition.
+
              // compute total vector elements sum
              auto sum = elem_t(0);
              for (int j = 0; j < VEC_DIM; j++) {
@@ -92,11 +94,13 @@ int main() {
              output[i] = vadd;
              output[i] += sum;
            });
-     }).wait();
-  } catch (sycl::exception &e) {
+     }).wait_and_throw();
+  } catch (const sycl::exception &e) {
     using std::string_view_literals::operator""sv;
     auto Msg = "Exceeded the number of registers available on the hardware."sv;
-    if (std::string(e.what()).find(Msg) != std::string::npos) {
+    auto Errc = sycl::make_error_code(sycl::errc::nd_range);
+    if (e.code() == Errc &&
+        std::string_view{e.what()}.find(Msg) != std::string_view::npos) {
       return 0;
     }
   }

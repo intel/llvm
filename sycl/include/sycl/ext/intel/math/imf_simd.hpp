@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 extern "C" {
 unsigned int __imf_vabs2(unsigned int);
 unsigned int __imf_vabs4(unsigned int);

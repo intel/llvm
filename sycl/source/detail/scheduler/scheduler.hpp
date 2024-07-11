@@ -204,7 +204,6 @@ struct MemObjRecord {
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
         MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
-
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -217,8 +216,8 @@ struct MemObjRecord {
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
-  // The mode this object can be accessed with from the host context.
-  // Valid only if the current context is host.
+  // The mode this object can be accessed from the host (host_accessor).
+  // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
 
   // The flag indicates that the content of the memory object was/will be
@@ -372,6 +371,7 @@ public:
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \param Queue Queue that is registering the command-group.
+  /// \param EventNeeded Specifies whether an event is explicitly required.
   /// \param CommandBuffer Optional command buffer to enqueue to instead of
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency
@@ -379,6 +379,7 @@ public:
   /// \return an event object to wait on for command group completion.
   EventImplPtr
   addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        bool EventNeeded,
         sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
         const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
@@ -450,10 +451,6 @@ public:
   /// \return true if an instance of the scheduler object exists.
   static bool isInstanceAlive();
 
-  QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
-
-  const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
-
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
@@ -468,8 +465,6 @@ public:
 
   bool isInFusionMode(QueueIdT Queue);
 
-  Scheduler();
-  ~Scheduler();
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
@@ -490,6 +485,13 @@ public:
           Nodes,
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
+
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                  ContextImplPtr Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
+                                  ContextImplPtr Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -595,7 +597,7 @@ protected:
     /// processor right away or not.
     GraphBuildResult addCG(
         std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        std::vector<Command *> &ToEnqueue,
+        std::vector<Command *> &ToEnqueue, bool EventNeeded,
         sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
         const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
@@ -604,7 +606,6 @@ protected:
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             const QueueImplPtr &HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
@@ -642,8 +643,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          const Requirement *Req,
-                                          std::vector<Command *> &ToEnqueue);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -742,10 +742,8 @@ protected:
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
-                              const QueueImplPtr &Queue,
                               Command::BlockReason Reason,
-                              std::vector<Command *> &ToEnqueue,
-                              const bool AddDepsToLeaves = true);
+                              std::vector<Command *> &ToEnqueue);
 
     void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
                                std::vector<Requirement *> &Reqs,
@@ -958,8 +956,6 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
-
-  QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;

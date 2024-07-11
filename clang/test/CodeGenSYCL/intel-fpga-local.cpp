@@ -29,12 +29,12 @@
 // CHECK-DEVICE:  [[ANN_max_replicates_4:@.str.[0-9]*]] = {{.*}}{max_replicates:4}
 
 // CHECK-BOTH: @llvm.global.annotations
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_numbanks to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_numbanks
 // CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}} i32 43
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_annotate to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_annotate
 // CHECK-HOST-SAME: { ptr @_ZZ15attrs_on_staticvE15static_annotate
 // CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}} i32 44
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE16static_force_p2d to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE16static_force_p2d
 // CHECK-DEVICE-SAME: [[ANN_force_pow2_depth_0]]{{.*}} i32 45
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
@@ -46,57 +46,57 @@ void attrs_on_static() {
 }
 
 void attrs_on_var() {
-  // CHECK-DEVICE: %[[VAR_NUMBANKS:numbanks.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %numbanks.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
+  // CHECK-DEVICE: %[[VAR_NUMBANKS:numbanks.ascast]] = addrspacecast ptr %numbanks to ptr addrspace(4)
   int numbanks [[intel::numbanks(4)]];
-  // CHECK-DEVICE: %[[VAR_REGISTER:reg.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %reg.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_REGISTER]],{{.*}}[[ANN_register]]
+  // CHECK-DEVICE: %[[VAR_REGISTER:reg.ascast]] = addrspacecast ptr %reg to ptr addrspace(4) 
   int reg [[intel::fpga_register]];
-  // CHECK-DEVICE: %[[VAR_MEMORY:memory.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %memory.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_MEMORY]],{{.*}}[[ANN_memory_default]]
+  // CHECK-DEVICE: %[[VAR_MEMORY:memory.ascast]] = addrspacecast ptr %memory to ptr addrspace(4)
   int memory [[intel::fpga_memory]];
-  // CHECK-DEVICE: %[[VAR_SIZE_MLAB:size_mlab.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %size_mlab.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SIZE_MLAB]],{{.*}}[[ANN_mlab_sizeinfo_500]]
+  // CHECK-DEVICE: %[[VAR_SIZE_MLAB:size_mlab.ascast]] = addrspacecast ptr %size_mlab to ptr addrspace(4)
   [[intel::fpga_memory("MLAB")]] int size_mlab[500];
-  // CHECK-DEVICE: %[[VAR_SIZE_BLOCKRAM:size_blockram.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %size_blockram.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SIZE_BLOCKRAM]],{{.*}}[[ANN_blockram_sizeinfo_10_2]]
+  // CHECK-DEVICE: %[[VAR_SIZE_BLOCKRAM:size_blockram.ascast]] = addrspacecast ptr %size_blockram to ptr addrspace(4)
   [[intel::fpga_memory("BLOCK_RAM")]] int size_blockram[10][2];
-  // CHECK-DEVICE: %[[VAR_BANKWIDTH:bankwidth.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bankwidth.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
+  // CHECK-DEVICE: %[[VAR_BANKWIDTH:bankwidth.ascast]] = addrspacecast ptr %bankwidth to ptr addrspace(4)
   int bankwidth [[intel::bankwidth(4)]];
-  // CHECK-DEVICE: %[[VAR_PRIV_COPIES:priv_copies.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %priv_copies.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_PRIV_COPIES]],{{.*}}[[ANN_private_copies_8]]
+  // CHECK-DEVICE: %[[VAR_PRIV_COPIES:priv_copies.ascast]] = addrspacecast ptr %priv_copies to ptr addrspace(4)
   int priv_copies [[intel::private_copies(8)]];
-  // CHECK-DEVICE: %[[VAR_SINGLEPUMP:singlepump.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %singlepump.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SINGLEPUMP]],{{.*}}[[ANN_singlepump]]
+  // CHECK-DEVICE: %[[VAR_SINGLEPUMP:singlepump.ascast]] = addrspacecast ptr %singlepump to ptr addrspace(4)
   int singlepump [[intel::singlepump]];
-  // CHECK-DEVICE: %[[VAR_DOUBLEPUMP:doublepump.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %doublepump.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DOUBLEPUMP]],{{.*}}[[ANN_doublepump]]
+  // CHECK-DEVICE: %[[VAR_DOUBLEPUMP:doublepump.ascast]] = addrspacecast ptr %doublepump to ptr addrspace(4)
   int doublepump [[intel::doublepump]];
-  // CHECK-DEVICE: %[[VAR_MERGE_DEPTH:merge_depth.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %merge_depth.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_DEPTH]],{{.*}}[[ANN_merge_depth]]
+  // CHECK-DEVICE: %[[VAR_MERGE_DEPTH:merge_depth.ascast]] = addrspacecast ptr %merge_depth to ptr addrspace(4)
   int merge_depth [[intel::merge("foo", "depth")]];
-  // CHECK-DEVICE: %[[VAR_MERGE_WIDTH:merge_width.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %merge_width.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_WIDTH]],{{.*}}[[ANN_merge_width]]
+  // CHECK-DEVICE: %[[VAR_MERGE_WIDTH:merge_width.ascast]] = addrspacecast ptr %merge_width to ptr addrspace(4)
   int merge_width [[intel::merge("bar", "width")]];
-  // CHECK-DEVICE: %[[VAR_MAXREPL:max_repl.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %max_repl.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MAXREPL]],{{.*}}[[ANN_max_replicates_2]]
+  // CHECK-DEVICE: %[[VAR_MAXREPL:max_repl.ascast]] = addrspacecast ptr %max_repl to ptr addrspace(4)
   int max_repl [[intel::max_replicates(2)]];
-  // CHECK-DEVICE: %[[VAR_DUALPORT:dualport.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %dualport.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DUALPORT]],{{.*}}[[ANN_simple_dual_port]]
+  // CHECK-DEVICE: %[[VAR_DUALPORT:dualport.ascast]] = addrspacecast ptr %dualport to ptr addrspace(4)
   int dualport [[intel::simple_dual_port]];
-  // CHECK-DEVICE: %[[VAR_BANKBITS:bankbits.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bankbits.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
+  // CHECK-DEVICE: %[[VAR_BANKBITS:bankbits.ascast]] = addrspacecast ptr %bankbits to ptr addrspace(4)
   int bankbits [[intel::bank_bits(4, 5)]];
-  // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS:bankbits_numbanks_mlab.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bankbits_numbanks_mlab.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS_NUMBANKS]],{{.*}}[[ANN_bankbits_numbanks_mlab]]
+  // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS:bankbits_numbanks_mlab.ascast]] = addrspacecast ptr %bankbits_numbanks_mlab to ptr addrspace(4)
   [[intel::bank_bits(5, 4, 3), intel::numbanks(8), intel::fpga_memory("MLAB")]] int bankbits_numbanks_mlab;
-  // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH:bank_bits_width.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bank_bits_width.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANK_BITS_WIDTH]],{{.*}}[[ANN_bankbits_bankwidth]]
+  // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH:bank_bits_width.ascast]] = addrspacecast ptr %bank_bits_width to ptr addrspace(4)
   [[intel::bank_bits(0), intel::bankwidth(16)]] int bank_bits_width[10][2];
-  // CHECK-DEVICE: %[[VAR_FP2D:force_p2d.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %force_p2d.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_FP2D]],{{.*}}[[ANN_force_pow2_depth_0]]
+  // CHECK-DEVICE: %[[VAR_FP2D:force_p2d.ascast]] = addrspacecast ptr %force_p2d to ptr addrspace(4)
   int force_p2d [[intel::force_pow2_depth(0)]];
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_REGISTER]],{{.*}}[[ANN_register]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_MEMORY]],{{.*}}[[ANN_memory_default]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SIZE_MLAB]],{{.*}}[[ANN_mlab_sizeinfo_500]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SIZE_BLOCKRAM]],{{.*}}[[ANN_blockram_sizeinfo_10_2]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_PRIV_COPIES]],{{.*}}[[ANN_private_copies_8]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SINGLEPUMP]],{{.*}}[[ANN_singlepump]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DOUBLEPUMP]],{{.*}}[[ANN_doublepump]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_DEPTH]],{{.*}}[[ANN_merge_depth]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_WIDTH]],{{.*}}[[ANN_merge_width]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MAXREPL]],{{.*}}[[ANN_max_replicates_2]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DUALPORT]],{{.*}}[[ANN_simple_dual_port]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS_NUMBANKS]],{{.*}}[[ANN_bankbits_numbanks_mlab]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANK_BITS_WIDTH]],{{.*}}[[ANN_bankbits_bankwidth]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_FP2D]],{{.*}}[[ANN_force_pow2_depth_0]]
 }
 
 void attrs_on_struct() {
@@ -170,22 +170,22 @@ void attrs_on_struct() {
 
 template <int A, int B, int C>
 void attrs_with_template_param() {
-  // CHECK-DEVICE: %[[TEMPL_NUMBANKS:numbanks.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %numbanks.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
+  // CHECK-DEVICE: %[[TEMPL_NUMBANKS:numbanks.ascast]] = addrspacecast ptr %numbanks to ptr addrspace(4)
   int numbanks [[intel::numbanks(A)]];
-  // CHECK-DEVICE: %[[TEMPL_BANKWIDTH:bankwidth.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bankwidth.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
+  // CHECK-DEVICE: %[[TEMPL_BANKWIDTH:bankwidth.ascast]] = addrspacecast ptr %bankwidth to ptr addrspace(4)
   int bankwidth [[intel::bankwidth(A)]];
-  // CHECK-DEVICE: %[[TEMPL_PRIV_COPIES:priv_copies.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %priv_copies.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_PRIV_COPIES]],{{.*}}[[ANN_private_copies_4]]
+  // CHECK-DEVICE: %[[TEMPL_PRIV_COPIES:priv_copies.ascast]] = addrspacecast ptr %priv_copies to ptr addrspace(4)
   int priv_copies [[intel::private_copies(A)]];
-  // CHECK-DEVICE: %[[TEMPL_MAXREPL:max_repl.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %max_repl.ascast to ptr
-  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_MAXREPL]],{{.*}}[[ANN_max_replicates_4]]
+  // CHECK-DEVICE: %[[TEMPL_MAXREPL:max_repl.ascast]] = addrspacecast ptr %max_repl to ptr addrspace(4)
   int max_repl [[intel::max_replicates(A)]];
-  // CHECK-DEVICE: %[[TEMPL_BANKBITS:bankbits.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %bankbits.ascast to ptr
-  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
+  // CHECK-DEVICE: %[[TEMPL_BANKBITS:bankbits.ascast]] = addrspacecast ptr %bankbits to ptr addrspace(4)
   int bankbits [[intel::bank_bits(A, B)]];
-  // CHECK-DEVICE: %[[TEMPL_FP2D:force_p2d.ascast[0-9]+]] = addrspacecast ptr addrspace(4) %force_p2d.ascast to ptr
+  // CHECK-DEVICE: %[[TEMPL_FP2D:force_p2d.ascast]] = addrspacecast ptr %force_p2d to ptr addrspace(4)
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_PRIV_COPIES]],{{.*}}[[ANN_private_copies_4]]
+  // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_MAXREPL]],{{.*}}[[ANN_max_replicates_4]]
+  // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_FP2D]],{{.*}}[[ANN_force_pow2_depth_1]]
   int force_p2d [[intel::force_pow2_depth(C)]];
 

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s -DLINUX_ASM
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s -DLINUX_ASM -DSPIR_CHECK -triple spir64-unknown-unknown
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -triple x86_64-windows -fasm-blocks %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM -DSPIR_CHECK -triple spir64-unknown-unknown
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -triple x86_64-windows -fasm-blocks %s
 
 #ifndef SPIR_CHECK
 //expected-no-diagnostics

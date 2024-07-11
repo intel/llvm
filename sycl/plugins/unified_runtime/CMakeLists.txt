@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
-  # Merge: 0eab26c7 0497923a
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 12 10:22:00 2024 +0100
-  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
-  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
-  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
+  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
+  # Merge: 2f548cae 25c75c06
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jul 10 12:36:28 2024 +0100
+  #     Merge pull request #1458 from RossBrunton/ross/linkerror
+  #     [UR] Improve handling of error cases in urProgramLink
+  set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +115,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
-    # Merge: 1473ed8a 1d159312
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 14:29:50 2024 +0100
-    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
-    #     [CUDA] Return caught UR error directly.
-    68e525a448a5f8fe52bda48d6b9709230f53f029
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
-    # Merge: 6ccaf387 f2774226
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 10:43:00 2024 +0100
-    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
-    #     [HIP] Implement workaround for hipMemset2D
-    1473ed8a81ca86e67321dfc90c79e951ead212ac
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
-    # Merge: 68e525a4 a04b062e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 15:46:49 2024 +0100
-    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
-    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
@@ -301,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

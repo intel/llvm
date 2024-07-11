@@ -132,7 +132,7 @@ _CLC_OVERLOAD _CLC_DEF double cosh(double x) {
     // z = cosh(y) = cosh(y0)cosh(dy) + sinh(y0)sinh(dy)
     // where sinh(y0) and cosh(y0) are tabulated above.
 
-    int ind = min((int)y, 36);
+    int ind = min((int)(long)y, 36);
     double dy = y - ind;
     double dy2 = dy * dy;
 

@@ -22,6 +22,53 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+static inline void printPerformanceWarning(const std::string &Message) {
+  if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
+    std::cerr << "WARNING: " << Message << "\n";
+  }
+}
+
+jit_compiler::jit_compiler() {
+  auto checkJITLibrary = [this]() -> bool {
+    static const std::string JITLibraryName = "libsycl-fusion.so";
+
+    void *LibraryPtr = sycl::detail::pi::loadOsLibrary(JITLibraryName);
+    if (LibraryPtr == nullptr) {
+      printPerformanceWarning("Could not find JIT library " + JITLibraryName);
+      return false;
+    }
+
+    this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "addToJITConfiguration"));
+    if (!this->AddToConfigHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "resetJITConfiguration"));
+    if (!this->ResetConfigHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+    if (!this->FuseKernelsHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    return true;
+  };
+  Available = checkJITLibrary();
+}
+
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   switch (Type) {
@@ -159,12 +206,6 @@ struct PromotionInformation {
 };
 
 using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
-
-static inline void printPerformanceWarning(const std::string &Message) {
-  if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
-    std::cerr << "WARNING: " << Message << "\n";
-  }
-}
 
 template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
   auto Result = Promotion::None;
@@ -427,21 +468,17 @@ detectIdenticalParameter(std::vector<Param> &Params, ArgDesc Arg) {
   return Params.end();
 }
 
-template <typename T, typename F = typename std::remove_const_t<
-                          typename std::remove_reference_t<T>>>
-F *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
-  ArgStorage.emplace_back(sizeof(T));
-  auto Storage = reinterpret_cast<F *>(ArgStorage.back().data());
-  *Storage = Arg;
-  return Storage;
-}
-
 void *storePlainArgRaw(std::vector<std::vector<char>> &ArgStorage, void *ArgPtr,
                        size_t ArgSize) {
   ArgStorage.emplace_back(ArgSize);
   void *Storage = ArgStorage.back().data();
   std::memcpy(Storage, ArgPtr, ArgSize);
   return Storage;
+}
+
+template <typename T>
+void *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
+  return storePlainArgRaw(ArgStorage, &Arg, sizeof(T));
 }
 
 static ParamIterator preProcessArguments(
@@ -607,10 +644,10 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                                                          Req, Promotion::Local)
                                          : 0;
       range<3> AccessRange{1, 1, LocalSize};
-      auto *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
+      void *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
       // Use all-zero as the offset
       id<3> AcessOffset{0, 0, 0};
-      auto *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
+      void *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
 
       // Override the arguments.
       // 1. Override the pointer with a std-layout argument with 'nullptr' as
@@ -645,6 +682,10 @@ std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
                           const property_list &PropList) {
+  if (!isAvailable()) {
+    printPerformanceWarning("JIT library not available");
+    return nullptr;
+  }
   if (InputKernels.empty()) {
     printPerformanceWarning("Fusion list is empty");
     return nullptr;
@@ -853,23 +894,22 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
-  ::jit_compiler::KernelFusion::resetConfiguration();
+  ResetConfigHandle();
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableVerbose>(
-      DebugEnabled);
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableCaching>(
-      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
+      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITTargetInfo>(
-      std::move(TargetInfo));
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
-  using ::jit_compiler::View;
-  auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      View{InputKernelInfo}, FusedKernelName.c_str(), View(ParamIdentities),
-      BarrierFlags, View(InternalizeParams), View(JITConstants));
+  auto FusionResult = FuseKernelsHandle(
+      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
@@ -930,7 +970,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig, false /* KernelIsCooperative */));
+      CG::CGTYPE::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
+      false /* KernelUsesClusterLaunch*/));
   return FusedCG;
 }
 

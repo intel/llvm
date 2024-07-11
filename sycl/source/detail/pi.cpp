@@ -68,9 +68,6 @@ template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
   return ReturnOpaqueData;
 }
 
-template __SYCL_EXPORT void *
-getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
-
 namespace pi {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins);
@@ -370,12 +367,16 @@ bool trace(TraceLevel Level) {
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initialize() {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = []() {
     initializePlugins(GlobalHandler::instance().getPlugins());
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 
@@ -503,15 +504,13 @@ template <backend BE> const PluginPtr &getPlugin() {
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "pi::getPlugin couldn't find plugin");
 }
 
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
 template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_intel_esimd_emulator>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 

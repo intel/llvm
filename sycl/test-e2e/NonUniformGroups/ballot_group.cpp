@@ -4,7 +4,8 @@
 // REQUIRES: gpu
 // UNSUPPORTED: hip
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

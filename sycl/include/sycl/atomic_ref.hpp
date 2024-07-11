@@ -568,9 +568,14 @@ public:
 // Partial specialization for pointer types
 // Arithmetic is emulated because target's representation of T* is unknown
 // TODO: Find a way to use intptr_t or uintptr_t atomics instead
-template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder, memory_scope DefaultScope,
-          access::address_space AddressSpace>
-class atomic_ref_impl<T *, IsAspectAtomic64AttrUsed, DefaultOrder, DefaultScope, AddressSpace>
+template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder,
+          memory_scope DefaultScope, access::address_space AddressSpace>
+#ifndef __SYCL_DEVICE_ONLY__
+class atomic_ref_impl<
+#else
+class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
+#endif
+    T *, IsAspectAtomic64AttrUsed, DefaultOrder, DefaultScope, AddressSpace>
     : public atomic_ref_base<uintptr_t, DefaultOrder, DefaultScope,
                              AddressSpace> {
 

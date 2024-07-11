@@ -6,8 +6,10 @@
 #include <cstdint>
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

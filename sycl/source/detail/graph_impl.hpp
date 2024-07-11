@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -22,6 +24,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <list>
 #include <set>
 #include <shared_mutex>
@@ -181,6 +184,9 @@ public:
   /// @param IncomingReq Incoming requirement.
   /// @return True if a dependency is needed, false if not.
   bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    if (!MCommandGroup)
+      return false;
+
     access_mode InMode = IncomingReq->MAccessMode;
     switch (InMode) {
     case access_mode::read:
@@ -298,6 +304,8 @@ public:
       return createCGCopy<sycl::detail::CGSemaphoreSignal>();
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
+    case sycl::detail::CG::ProfilingTag:
+      return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CG::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
@@ -381,6 +389,21 @@ public:
       if (MPartitionNum == Succ.lock()->MPartitionNum)
         Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
     }
+  }
+
+  /// Test if the node contains a N-D copy
+  /// @return true if the op is a N-D copy
+  bool isNDCopyNode() const {
+    if ((MCGType != sycl::detail::CG::CGTYPE::CopyAccToAcc) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyAccToPtr) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+      return false;
+    }
+
+    auto Copy = static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+    auto ReqSrc = static_cast<sycl::detail::Requirement *>(Copy->getSrc());
+    auto ReqDst = static_cast<sycl::detail::Requirement *>(Copy->getDst());
+    return (ReqSrc->MDims > 1) || (ReqDst->MDims > 1);
   }
 
   /// Update the value of an accessor inside this node. Accessors must be
@@ -596,6 +619,17 @@ private:
           } else if (Arg.MType ==
                      sycl::detail::kernel_param_kind_t::kind_pointer) {
             Type = "Pointer";
+            auto Fill = Stream.fill();
+            Stream << i << ") Type: " << Type << " Ptr: " << Arg.MPtr << "(0x"
+                   << std::hex << std::setfill('0');
+            for (int i = Arg.MSize - 1; i >= 0; --i) {
+              Stream << std::setw(2)
+                     << static_cast<int16_t>(
+                            (static_cast<unsigned char *>(Arg.MPtr))[i]);
+            }
+            Stream.fill(Fill);
+            Stream << std::dec << ")\\n";
+            continue;
           } else if (Arg.MType == sycl::detail::kernel_param_kind_t::
                                       kind_specialization_constants_buffer) {
             Type = "Specialization Constants Buffer";
@@ -669,8 +703,10 @@ private:
         sycl::detail::CGFillUSM *FillUSM =
             static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
         Stream << "Dst: " << FillUSM->getDst()
-               << " Length: " << FillUSM->getLength()
-               << " Pattern: " << FillUSM->getFill() << "\\n";
+               << " Length: " << FillUSM->getLength() << " Pattern: ";
+        for (auto byte : FillUSM->getPattern())
+          Stream << byte;
+        Stream << "\\n";
       }
       break;
     case sycl::detail::CG::CGTYPE::PrefetchUSM:
@@ -779,11 +815,32 @@ public:
       MPiCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
+  /// True if the graph of this partition is a single path graph
+  /// and in-order optmization can be applied on it.
+  bool MIsInOrderGraph = false;
 
   /// @return True if the partition contains a host task
   bool isHostTask() const {
     return (MRoots.size() && ((*MRoots.begin()).lock()->MCGType ==
                               sycl::detail::CG::CGTYPE::CodeplayHostTask));
+  }
+
+  /// Checks if the graph is single path, i.e. each node has a single successor.
+  /// @return True if the graph is a single path
+  bool checkIfGraphIsSinglePath() {
+    if (MRoots.size() > 1) {
+      return false;
+    }
+    for (const auto &Node : MSchedule) {
+      // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
+      // be enqueued in an in-order cmd-list (causing execution to stall).
+      // The 2D Copy test should be removed from here when the bug is fixed.
+      if ((Node->MSuccessors.size() > 1) || (Node->isNDCopyNode())) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /// Add nodes to MSchedule.
@@ -1129,26 +1186,26 @@ public:
   size_t getNumberOfNodes() const { return MNodeStorage.size(); }
 
   /// Traverse the graph recursively to get the events associated with the
-  /// output nodes of this graph.
+  /// output nodes of this graph associated with a specific queue.
+  /// @param[in] Queue The queue exit nodes must have been recorded from.
   /// @return vector of events associated to exit nodes.
-  std::vector<sycl::detail::EventImplPtr> getExitNodesEvents();
-
-  /// Removes all Barrier nodes from the list of extra dependencies
-  /// MExtraDependencies.
-  /// @return vector of events associated to previous barrier nodes.
   std::vector<sycl::detail::EventImplPtr>
-  removeBarriersFromExtraDependencies() {
-    std::vector<sycl::detail::EventImplPtr> Events;
-    for (auto It = MExtraDependencies.begin();
-         It != MExtraDependencies.end();) {
-      if ((*It)->MCGType == sycl::detail::CG::Barrier) {
-        Events.push_back(getEventForNode(*It));
-        It = MExtraDependencies.erase(It);
-      } else {
-        ++It;
-      }
-    }
-    return Events;
+  getExitNodesEvents(std::weak_ptr<sycl::detail::queue_impl> Queue);
+
+  /// Store the last barrier node that was submitted to the queue.
+  /// @param[in] Queue The queue the barrier was recorded from.
+  /// @param[in] BarrierNodeImpl The created barrier node.
+  void setBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue,
+                     std::shared_ptr<node_impl> BarrierNodeImpl) {
+    MBarrierDependencyMap[Queue] = BarrierNodeImpl;
+  }
+
+  /// Get the last barrier node that was submitted to the queue.
+  /// @param[in] Queue The queue to find the last barrier node of. An empty
+  /// shared_ptr is returned if no barrier node has been recorded to the queue.
+  std::shared_ptr<node_impl>
+  getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
+    return MBarrierDependencyMap[Queue];
   }
 
 private:
@@ -1226,11 +1283,11 @@ private:
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
 
-  /// List of nodes that must be added as extra dependencies to new nodes when
-  /// added to this graph.
-  /// This list is mainly used by barrier nodes which must be considered
-  /// as predecessors for all nodes subsequently added to the graph.
-  std::list<std::shared_ptr<node_impl>> MExtraDependencies;
+  /// Mapping from queues to barrier nodes. For each queue the last barrier
+  /// node recorded to the graph from the queue is stored.
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+      MBarrierDependencyMap;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -1435,6 +1492,8 @@ private:
       MCommandMap;
   /// True if this graph can be updated (set with property::updatable)
   bool MIsUpdatable;
+  /// If true, the graph profiling is enabled.
+  bool MEnableProfiling;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.

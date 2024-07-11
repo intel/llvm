@@ -1,6 +1,10 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -O2 -g -o %t.out
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O0 -g -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O1 -g -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O2 -g -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 

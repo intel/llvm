@@ -13,7 +13,9 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -30,7 +32,10 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -47,7 +52,9 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -59,9 +66,8 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 
-// CHECK:     Code caching: device binary has been cached: [[BIN_FILE:.*]]
-// CHECK-WIN: Code caching: using cached device binary: [[BIN_FILE]]
-// CHECK-WIN: Code caching: using cached device binary: [[BIN_FILE]]
+// CHECK-CACHE-WRITE: Code caching: device binary has been cached
+// CHECK-CACHE-READ: Code caching: using cached device binary
 
 // RESULT1: Result (0): 1
 // RESULT1: Result (1): 1

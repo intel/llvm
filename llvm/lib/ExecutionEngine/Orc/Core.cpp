@@ -187,8 +187,8 @@ AsynchronousSymbolQuery::AsynchronousSymbolQuery(
 
   OutstandingSymbolsCount = Symbols.size();
 
-  for (auto &KV : Symbols)
-    ResolvedSymbols[KV.first] = ExecutorSymbolDef();
+  for (auto &[Name, Flags] : Symbols)
+    ResolvedSymbols[Name] = ExecutorSymbolDef();
 }
 
 void AsynchronousSymbolQuery::notifySymbolMetRequiredState(
@@ -271,8 +271,8 @@ void AsynchronousSymbolQuery::dropSymbol(const SymbolStringPtr &Name) {
 void AsynchronousSymbolQuery::detach() {
   ResolvedSymbols.clear();
   OutstandingSymbolsCount = 0;
-  for (auto &KV : QueryRegistrations)
-    KV.first->detachQueryHelper(*this, KV.second);
+  for (auto &[JD, Syms] : QueryRegistrations)
+    JD->detachQueryHelper(*this, Syms);
   QueryRegistrations.clear();
 }
 
@@ -312,8 +312,8 @@ void AbsoluteSymbolsMaterializationUnit::discard(const JITDylib &JD,
 MaterializationUnit::Interface
 AbsoluteSymbolsMaterializationUnit::extractFlags(const SymbolMap &Symbols) {
   SymbolFlagsMap Flags;
-  for (const auto &KV : Symbols)
-    Flags[KV.first] = KV.second.getFlags();
+  for (const auto &[Name, Def] : Symbols)
+    Flags[Name] = Def.getFlags();
   return MaterializationUnit::Interface(std::move(Flags), nullptr);
 }
 
@@ -1266,7 +1266,7 @@ JITDylib::JITDylib(ExecutionSession &ES, std::string Name)
 
 std::pair<JITDylib::AsynchronousSymbolQuerySet,
           std::shared_ptr<SymbolDependenceMap>>
-JITDylib::removeTracker(ResourceTracker &RT) {
+JITDylib::IL_removeTracker(ResourceTracker &RT) {
   // Note: Should be called under the session lock.
   assert(State != Closed && "JD is defunct");
 
@@ -1305,9 +1305,7 @@ JITDylib::removeTracker(ResourceTracker &RT) {
       SymbolsToFail.push_back(Sym);
   }
 
-  AsynchronousSymbolQuerySet QueriesToFail;
-  auto Result = ES.runSessionLocked(
-      [&]() { return ES.IL_failSymbols(*this, std::move(SymbolsToFail)); });
+  auto Result = ES.IL_failSymbols(*this, std::move(SymbolsToFail));
 
   // Removed symbols should be taken out of the table altogether.
   for (auto &Sym : SymbolsToRemove) {
@@ -2198,7 +2196,8 @@ Error ExecutionSession::removeResourceTracker(ResourceTracker &RT) {
   runSessionLocked([&] {
     CurrentResourceManagers = ResourceManagers;
     RT.makeDefunct();
-    std::tie(QueriesToFail, FailedSymbols) = RT.getJITDylib().removeTracker(RT);
+    std::tie(QueriesToFail, FailedSymbols) =
+        RT.getJITDylib().IL_removeTracker(RT);
   });
 
   Error Err = Error::success();

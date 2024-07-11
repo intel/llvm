@@ -21,6 +21,7 @@
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -174,7 +175,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
     Consumer->HandleTopLevelDecl(DeclGroupRef(D));
 
   if (S.getLangOpts().SYCLIsDevice) {
-    for (Decl *D : S.syclDeviceDecls()) {
+    for (Decl *D : S.SYCL().syclDeviceDecls()) {
       Consumer->HandleTopLevelDecl(DeclGroupRef(D));
     }
   }

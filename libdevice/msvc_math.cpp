@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if defined(__SPIR__) || defined(__SPIRV__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 #include "device.h"
 #include <math.h>
@@ -281,4 +281,4 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
     return neg ? -x : x;
   }
 }
-#endif
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

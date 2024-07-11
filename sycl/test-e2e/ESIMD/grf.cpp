@@ -13,7 +13,7 @@
 // - ESIMD device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //             invokes 'piProgramBuild'/'piKernelCreate'
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
@@ -26,9 +26,6 @@
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 #if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #else

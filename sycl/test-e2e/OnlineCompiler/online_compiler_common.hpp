@@ -1,5 +1,5 @@
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
-#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>

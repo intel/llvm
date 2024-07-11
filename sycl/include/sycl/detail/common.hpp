@@ -148,13 +148,6 @@ private:
   bool MLocalScope = true;
 };
 
-__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
-
-inline std::string codeToString(pi_int32 code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -172,75 +165,7 @@ inline std::string codeToString(pi_int32 code) {
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
-#ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <sycl/detail/iostream_proxy.hpp>
-// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
-#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
-                << std::endl;                                                  \
-    }                                                                          \
-  }
-#endif
-
-#ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <sycl/exception.hpp>
-// SYCL 1.2.1 exceptions
-#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::string err_str =                                                    \
-          str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
-                    err_str,                                                   \
-                code);                                                         \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
-#else
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_STREAM(code)
-#endif
-// SYCL 2020 exceptions
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
-
-#ifdef __SYCL_SUPPRESS_PI_ERROR_REPORT
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  {                                                                            \
-    (void)(X);                                                                 \
-    (void)(STR);                                                               \
-  }
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
-#else
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_PI_ERR_TO_EXC_BASE(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_PI_ERR_TO_EXC_THROW(X, EXC, STR)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
-#endif
 
 // Helper for enabling empty-base optimizations on MSVC.
 // TODO: Remove this when MSVC has this optimization enabled by default.
@@ -442,6 +367,17 @@ template <size_t N, typename T>
 static constexpr std::array<T, N> RepeatValue(const T &Arg) {
   return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
+
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#endif
 
 } // namespace detail
 } // namespace _V1

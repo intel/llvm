@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
@@ -47,8 +46,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::r,
-        sycl::image_channel_type::fp32);
+        {width, height, depth}, 1, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, q);
@@ -126,13 +124,32 @@ int main() {
 
     q.wait_and_throw();
 
-    // Extension: copy data from device to host (two sub-regions)
-    sycl::range copyExtent3 = {width, height, depth / 2};
-    sycl::range destExtent = {width, height, depth};
+    // Extension: copy data from device to host (8 sub-regions)
+
+    sycl::range<3> destExtent2 = srcExtent1;
+
     q.ext_oneapi_copy(imgMem2.get_handle(), {0, 0, 0}, desc, out.data(),
-                      {0, 0, 0}, destExtent, copyExtent3);
+                      {0, 0, 0}, destExtent2, copyExtent1);
+
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, 0, 0}, desc, out.data(),
+                      {width / 2, 0, 0}, destExtent2, copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {0, height / 2, 0}, desc,
+                      out.data(), {0, height / 2, 0}, destExtent2, copyExtent1);
     q.ext_oneapi_copy(imgMem2.get_handle(), {0, 0, depth / 2}, desc, out.data(),
-                      {0, 0, depth / 2}, destExtent, copyExtent3);
+                      {0, 0, depth / 2}, destExtent2, copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, height / 2, 0}, desc,
+                      out.data(), {width / 2, height / 2, 0}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {0, height / 2, depth / 2}, desc,
+                      out.data(), {0, height / 2, depth / 2}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, 0, depth / 2}, desc,
+                      out.data(), {width / 2, 0, depth / 2}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, height / 2, depth / 2},
+                      desc, out.data(), {width / 2, height / 2, depth / 2},
+                      destExtent2, copyExtent1);
+
     q.wait_and_throw();
 
     // Extension: cleanup
@@ -165,6 +182,7 @@ int main() {
 #endif
     }
   }
+
   if (validated) {
     std::cout << "Test passed!" << std::endl;
     return 0;
