@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
-  # Merge: 2f548cae 25c75c06
+  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
+  # Merge: 6b33a1bb 5dc794cb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 12:36:28 2024 +0100
-  #     Merge pull request #1458 from RossBrunton/ross/linkerror
-  #     [UR] Improve handling of error cases in urProgramLink
-  set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
+  # Date:   Wed Jul 10 15:05:31 2024 +0100
+  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
+  #     [L0] Use Intel Level Zero Driver String extension
+  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
