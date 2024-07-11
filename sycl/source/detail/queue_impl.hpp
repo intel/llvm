@@ -106,7 +106,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
-      : MPropList(PropList), MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
+      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(MPropList.has_property<property::queue::in_order>()),
         MDiscardEvents(
             MPropList.has_property<ext::oneapi::property::queue::discard_events>()),
@@ -296,7 +296,7 @@ public:
   /// \param PropList is the queue properties.
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
-      : MPropList(PropList), MContext(Context), MAsyncHandler(AsyncHandler),
+      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(MPropList.has_property<property::queue::in_order>()),
         MDiscardEvents(
             MPropList.has_property<ext::oneapi::property::queue::discard_events>()),
