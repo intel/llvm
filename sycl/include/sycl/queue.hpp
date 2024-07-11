@@ -2724,11 +2724,6 @@ private:
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
-  /// Checks if the event needs to be discarded and if so, discards it and
-  /// returns a discarded event. Otherwise, it returns input event.
-  /// TODO: move to impl class in the next ABI Breaking window
-  event discard_or_return(const event &Event);
-
   // Function to postprocess submitted command
   // Arguments:
   // bool IsKernel - true if the submitted command was kernel, false otherwise
