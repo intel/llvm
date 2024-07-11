@@ -66,7 +66,6 @@ enum class backend_errc : unsigned int {};
 
 // Convert from UR backend to SYCL backend enum
 backend convertUrBackend(ur_platform_backend_t UrBackend);
-backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
 
 template <backend Backend> class backend_traits {

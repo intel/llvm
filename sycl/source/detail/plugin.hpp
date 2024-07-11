@@ -8,7 +8,6 @@
 
 #pragma once
 #include <detail/config.hpp>
-#include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
 #include <sycl/backend_types.hpp>

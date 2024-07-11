@@ -835,7 +835,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
       // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
       // be calling it after ERROR_INVALID_OPERATION: there is no
       // adapter-specific error.
-      throw detail::set_pi_error(
+      throw detail::set_ur_error(
           sycl::exception(
               make_error_code(errc::feature_not_supported),
               "Device and/or backend does not support querying timestamp."),
