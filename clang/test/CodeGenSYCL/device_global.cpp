@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -fgpu-rdc -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-RDC
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -fno-gpu-rdc -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-NORDC
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-NOINTELFPGA
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -fintelfpga -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-INTELFPGA
+
 #include "sycl.hpp"
 
 // Test cases below show that 'sycl-unique-id' LLVM IR attribute is attached to the
@@ -171,9 +174,9 @@ device_global<int> same_name;
 // CHECK: [[ANN_doublepump2:@.str[.0-9]*]] = {{.*}}"{memory:DEFAULT}{sizeinfo:4}{pump:2}{{.*}}
 // CHECK: [[ANN_bank_bits2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
 // CHECK: @counter15 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.18" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS15:[0-9]+]]
-// CHECK: [[ANN_private_copies_imple_dual_port2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}{memory:DEFAULT}{sizeinfo:4}{private_copies:16}{{.*}}
-// CHECK: [[ANN_numbanks3_merge3:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{memory:DEFAULT}{sizeinfo:4,155}{merge:foo:depth}{{.*}}
-// CHECK: [[ANN_force_pow2_depth3_doublepump3_numbanks3:@.str[.0-9]*]]  = {{.*}}{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}{memory:DEFAULT}{sizeinfo:4}{pump:2}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
+// CHECK-INTELFPGA: [[ANN_private_copies_imple_dual_port2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}{memory:DEFAULT}{sizeinfo:4}{private_copies:16}{{.*}}
+// CHECK-INTELFPGA: [[ANN_numbanks3_merge3:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{memory:DEFAULT}{sizeinfo:4,155}{merge:foo:depth}{{.*}}
+// CHECK-INTELFPGA: [[ANN_force_pow2_depth3_doublepump3_numbanks3:@.str[.0-9]*]]  = {{.*}}{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}{memory:DEFAULT}{sizeinfo:4}{pump:2}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
 // CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
 
 struct bar {
@@ -379,34 +382,34 @@ void bar() {
 // CHECK: @llvm.global_ctors = appending global [2 x { i32, ptr, ptr addrspace(4) }] [{ i32, ptr, ptr addrspace(4) } { i32 65535, ptr @__cxx_global_var_init{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4)) }, { i32, ptr, ptr addrspace(4) } { i32 65535, ptr @_GLOBAL__sub_I_device_global.cpp, ptr addrspace(4) null }]
 
 // CHECK: @llvm.global.annotations
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob,  ptr addrspace(1) [[ANN_numbanks]]{{.*}} i32 15, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob1, ptr addrspace(1) [[ANN_max_replicates]]{{.*}} i32 16, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob2, ptr addrspace(1) [[ANN_force_pow2_depth]]{{.*}} i32 17, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob3, ptr addrspace(1) [[ANN_bankwidth]]{{.*}} i32 18, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob4, ptr addrspace(1) [[ANN_simple_dual_port]]{{.*}} i32 19, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob5, ptr addrspace(1) [[ANN_memory_default]]{{.*}} i32 20, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob6, ptr addrspace(1) [[ANN_bank_bits]]{{.*}} i32 21, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob7, ptr addrspace(1) [[ANN_register]]{{.*}} i32 22, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob8, ptr addrspace(1) [[ANN_doublepump]]{{.*}} i32 23, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob9, ptr addrspace(1) [[ANN_singlepump]]{{.*}} i32 24, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob10, ptr addrspace(1) [[ANN_merge]]{{.*}} i32 25, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @Nonconst_glob11, ptr addrspace(1) [[ANN_private_copies]]{{.*}} i32 26, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 185, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter1, ptr addrspace(1) [[ANN_max_replicates1]]{{.*}}, i32 193, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter2, ptr addrspace(1) [[ANN_bankwidth1]]{{.*}}, i32 201, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter3, ptr addrspace(1) [[ANN_memory_default1]]{{.*}}, i32 209, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter4, ptr addrspace(1) [[ANN_numbanks1]]{{.*}}, i32 217, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter5, ptr addrspace(1) [[ANN_force_pow2_depth1]]{{.*}}, i32 225, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter6, ptr addrspace(1) [[ANN_bank_bits1]]{{.*}}, i32 233, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter7, ptr addrspace(1) [[ANN_doublepump1]]{{.*}}, i32 241, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter8, ptr addrspace(1) [[ANN_singlepump1]]{{.*}}, i32 249, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter9, ptr addrspace(1) [[ANN_merge1]]{{.*}}, i32 257, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter10, ptr addrspace(1) [[ANN_private_copies1]]{{.*}}, i32 265, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter11, ptr addrspace(1) [[ANN_simple_dual_port1]]{{.*}}, i32 273, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter12, ptr addrspace(1) [[ANN_private_copies_imple_dual_port2]]{{.*}}, i32 280, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter13, ptr addrspace(1) [[ANN_numbanks3_merge3]]{{.*}}, i32 287, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter14, ptr addrspace(1) [[ANN_force_pow2_depth3_doublepump3_numbanks3]]{{.*}}, i32 295, ptr addrspace(1) null
-// CHECK-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 303, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob,  ptr addrspace(1) [[ANN_numbanks]]{{.*}} i32 18, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob1, ptr addrspace(1) [[ANN_max_replicates]]{{.*}} i32 19, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob2, ptr addrspace(1) [[ANN_force_pow2_depth]]{{.*}} i32 20, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob3, ptr addrspace(1) [[ANN_bankwidth]]{{.*}} i32 21, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob4, ptr addrspace(1) [[ANN_simple_dual_port]]{{.*}} i32 22, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob5, ptr addrspace(1) [[ANN_memory_default]]{{.*}} i32 23, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob6, ptr addrspace(1) [[ANN_bank_bits]]{{.*}} i32 24, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob7, ptr addrspace(1) [[ANN_register]]{{.*}} i32 25, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob8, ptr addrspace(1) [[ANN_doublepump]]{{.*}} i32 26, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob9, ptr addrspace(1) [[ANN_singlepump]]{{.*}} i32 27, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob10, ptr addrspace(1) [[ANN_merge]]{{.*}} i32 28, ptr addrspace(1) null
+// CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob11, ptr addrspace(1) [[ANN_private_copies]]{{.*}} i32 29, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 188, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter1, ptr addrspace(1) [[ANN_max_replicates1]]{{.*}}, i32 196, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter2, ptr addrspace(1) [[ANN_bankwidth1]]{{.*}}, i32 204, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter3, ptr addrspace(1) [[ANN_memory_default1]]{{.*}}, i32 212, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter4, ptr addrspace(1) [[ANN_numbanks1]]{{.*}}, i32 220, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter5, ptr addrspace(1) [[ANN_force_pow2_depth1]]{{.*}}, i32 228, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter6, ptr addrspace(1) [[ANN_bank_bits1]]{{.*}}, i32 236, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter7, ptr addrspace(1) [[ANN_doublepump1]]{{.*}}, i32 244, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter8, ptr addrspace(1) [[ANN_singlepump1]]{{.*}}, i32 252, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter9, ptr addrspace(1) [[ANN_merge1]]{{.*}}, i32 260, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter10, ptr addrspace(1) [[ANN_private_copies1]]{{.*}}, i32 268, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter11, ptr addrspace(1) [[ANN_simple_dual_port1]]{{.*}}, i32 276, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter12, ptr addrspace(1) [[ANN_private_copies_imple_dual_port2]]{{.*}}, i32 283, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter13, ptr addrspace(1) [[ANN_numbanks3_merge3]]{{.*}}, i32 290, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter14, ptr addrspace(1) [[ANN_force_pow2_depth3_doublepump3_numbanks3]]{{.*}}, i32 298, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 306, ptr addrspace(1) null
 // CHECK: @llvm.used = appending addrspace(1) global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
 // CHECK: @llvm.compiler.used = appending addrspace(1) global [2 x ptr addrspace(4)]
 // CHECK-SAME: @_ZL1B

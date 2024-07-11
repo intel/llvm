@@ -5897,27 +5897,19 @@ void CodeGenModule::generateIntelFPGAAnnotation(
  */
 void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
                                                  llvm::GlobalValue *GV) {
-  // A buffer to accumulate annotation strings.
   SmallString<256> AnnotStr;
 
   // Handle annotations for fields within a device_global struct.
-  // Check if the variable's type is a struct (record type).
-  if (VD->getType()->isRecordType()) {
-    // Retrieve the RecordType from the variable's type.
+  if (getLangOpts().IntelFPGA && VD->getType()->isRecordType()) {
     auto RT = VD->getType()->getAs<RecordType>();
 
-    // Define a lambda function for recursive annotation generation.
-    // This lambda will be called for each field and base class in the struct.
     auto Gen = [&AnnotStr, this](const RecordType *Ty, auto &&Gen) -> void {
-      // Cast the RecordType to a CXXRecordDecl to access fields and bases.
       const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getDecl());
 
       // Iterate over the fields of the struct.
       for (const auto *Field : RD->fields()) {
-	// Generate and append FPGA annotations for the field.
         generateIntelFPGAAnnotation(Field, AnnotStr);
 
-	// If the field's type is also a struct, recursively call Gen.
         if (const auto *FT =
                 Field->getType()
                     ->getPointeeOrArrayElementType() // Strip pointers/arrays
@@ -5927,30 +5919,23 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
 
       // Iterate over the base classes of the struct.
       for (const auto Base : RD->bases()) {
-	// Retrieve the type of the base class.
         QualType BaseTy = Base.getType();
 
-	// If the base class type is also a struct, recursively call Gen.
         if (const auto *BRT = BaseTy->getAs<RecordType>())
           Gen(BRT, Gen);
       }
     };
-    // Start the recursive annotation generation process for the struct.
     Gen(RT, Gen);
   }
 
-  // Generate and append FPGA annotations for the global variable itself.
   generateIntelFPGAAnnotation(VD, AnnotStr);
 
-  // If any annotations were generated, proceed to attach them to the global
-  // variable.
   if (!AnnotStr.empty()) {
     // Get the globals for file name, annotation, and the line number.
     llvm::Constant *AnnoGV = EmitAnnotationString(AnnotStr),
                    *UnitGV = EmitAnnotationUnit(VD->getLocation()),
                    *LineNoCst = EmitAnnotationLineNo(VD->getLocation());
 
-    // Cast the global variable to the default address space if necessary.
     llvm::Constant *ASZeroGV = GV;
     if (GV->getAddressSpace() !=
         getDataLayout().getDefaultGlobalsAddressSpace())
@@ -5964,8 +5949,6 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
         ASZeroGV, llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
         llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy), LineNoCst,
         llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)};
-
-    // Add the annotation to a list of annotations to be processed later.
     Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
   }
 }
