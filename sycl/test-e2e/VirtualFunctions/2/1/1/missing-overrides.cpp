@@ -1,12 +1,12 @@
 // UNSUPPORTED: cuda, hip, acc
 // FIXME: replace unsupported with an aspect check once we have it
 //
-// RUN: %{build} -o %t.out -Xclang -fsycl-allow-virtual-functions
+// RUN: %{build} -o %t.out -Xclang -fsycl-allow-virtual-functions %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 
-#include <algorithm>
+#include "helpers.hpp"
 
 namespace oneapi = sycl::ext::oneapi::experimental;
 
@@ -58,44 +58,6 @@ public:
   void multiply(int *Data) override { *Data *= 4; }
 };
 
-Base *constructAnObject(char *Storage, int Index) {
-  switch (Index) {
-  case 0: {
-    auto *Ret = reinterpret_cast<IncrementBy1 *>(Storage);
-    new (Storage) IncrementBy1;
-    return Ret;
-  }
-  case 1: {
-    auto *Ret = reinterpret_cast<IncrementBy1AndSubstractBy2 *>(Storage);
-    new (Storage) IncrementBy1AndSubstractBy2;
-    return Ret;
-  }
-  case 2: {
-    auto *Ret = reinterpret_cast<MultiplyBy2 *>(Storage);
-    new (Storage) MultiplyBy2;
-    return Ret;
-  }
-  case 3: {
-    auto *Ret = reinterpret_cast<MultiplyBy2AndIncrementBy8 *>(Storage);
-    new (Storage) MultiplyBy2AndIncrementBy8;
-    return Ret;
-  }
-  case 4: {
-    auto *Ret = reinterpret_cast<SubstractBy4 *>(Storage);
-    new (Storage) SubstractBy4;
-    return Ret;
-  }
-  case 5: {
-    auto *Ret = reinterpret_cast<SubstractBy4AndMultiplyBy4 *>(Storage);
-    new (Storage) SubstractBy4AndMultiplyBy4;
-    return Ret;
-  }
-
-  default:
-    return nullptr;
-  }
-}
-
 void applyOp(int *DataPtr, Base *ObjPtr) {
   ObjPtr->increment(DataPtr);
   ObjPtr->substract(DataPtr);
@@ -103,34 +65,31 @@ void applyOp(int *DataPtr, Base *ObjPtr) {
 }
 
 int main() {
-  constexpr size_t Size =
-      std::max({sizeof(IncrementBy1), sizeof(IncrementBy1AndSubstractBy2),
-                sizeof(MultiplyBy2), sizeof(MultiplyBy2AndIncrementBy8),
-                sizeof(SubstractBy4), sizeof(SubstractBy4AndMultiplyBy4)});
+  using storage_t = obj_storage_t<IncrementBy1, IncrementBy1AndSubstractBy2,
+                                  MultiplyBy2, MultiplyBy2AndIncrementBy8,
+                                  SubstractBy4, SubstractBy4AndMultiplyBy4>;
+  storage_t HostStorage;
+  sycl::buffer<storage_t> DeviceStorage(sycl::range{1});
 
-  sycl::buffer<char> ObjStorage(sycl::range{Size});
-  char HostStorage[Size];
   sycl::queue q;
 
   constexpr oneapi::properties props{oneapi::calls_indirectly<>};
-  for (int TestCase = 0; TestCase < 6; ++TestCase) {
+  for (unsigned TestCase = 0; TestCase < 6; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
     sycl::buffer<int> DataStorage(&Data, sycl::range{1});
 
     q.submit([&](sycl::handler &CGH) {
-      sycl::accessor StorageAcc(ObjStorage, CGH, sycl::write_only);
+      sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::write_only);
       sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
       CGH.single_task(props, [=]() {
-        Base *Ptr = constructAnObject(
-            StorageAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
-            TestCase);
+        auto *Ptr = StorageAcc[0].construct</* ret type = */ Base>(TestCase);
         applyOp(DataAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
                 Ptr);
       });
     });
 
-    Base *Ptr = constructAnObject(HostStorage, TestCase);
+    Base *Ptr = HostStorage.construct</* ret type = */ Base>(TestCase);
     applyOp(&HostData, Ptr);
 
     sycl::host_accessor HostAcc(DataStorage);
