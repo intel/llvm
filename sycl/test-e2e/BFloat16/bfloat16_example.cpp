@@ -13,7 +13,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen12" %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen12lp" %s -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device *" %s -o %t.out
