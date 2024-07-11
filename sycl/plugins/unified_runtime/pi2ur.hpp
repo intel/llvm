@@ -5418,7 +5418,8 @@ inline pi_result piextMemImageGetInfo(pi_context Context,
                                       pi_image_mem_handle MemHandle,
                                       pi_image_info ParamName, void *ParamValue,
                                       size_t *ParamValueSizeRet) {
-  auto UrMemHandle = reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemHandle);
+  auto UrMemHandle =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemHandle);
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
 
   ur_image_info_t UrParamName{};
