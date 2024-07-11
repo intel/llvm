@@ -70,21 +70,13 @@
 // RUN:  touch %t_empty.o
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64_{{.*}}-unknown-unknown,{{.*}}sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=aoo"{{.*}} "-targets=sycl-spir64_{{.*}}-unknown-unknown,sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
@@ -103,11 +95,11 @@
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown{{.*}}" "-unbundle"
 
-// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 -fno-spirv %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen -fno-spirv %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s

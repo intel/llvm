@@ -35,7 +35,6 @@
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 // DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
 
-
 /// test for invalid nvidia arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT

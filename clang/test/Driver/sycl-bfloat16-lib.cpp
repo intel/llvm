@@ -16,30 +16,35 @@
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
 // Test that a PVC AOT compilation uses the native library.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
-// RUN:   "-device pvc" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fno-spirv \
+// RUN:   -Xsycl-target-backend "-device pvc" %s --sysroot=%S/Inputs/SYCL \
+// RUN:   -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
 // Test that unless all targets support bfloat16, AOT compilation uses the
 // fallback library.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
-// RUN:   "-device pvc,gen9" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fno-spirv \
+// RUN:   -Xsycl-target-backend "-device pvc,gen9" %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // Test that when all targets support bfloat16, AOT compilation uses the
 // native library.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
-// RUN:   "-device pvc-sdv,ats-m75" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fno-spirv \
+// RUN:   -Xsycl-target-backend "-device pvc-sdv,ats-m75" %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
 // Test that a gen9 AOT compilation uses the fallback library.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
-// RUN:   "-device gen9" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fno-spirv \
+// RUN:   -Xsycl-target-backend "-device gen9" %s --sysroot=%S/Inputs/SYCL \
+// RUN:   -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // Test that a generic AOT compilation uses the fallback library.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
-// RUN:   "-device *" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fno-spirv \
+// RUN:   -Xsycl-target-backend "-device *" %s --sysroot=%S/Inputs/SYCL \
+// RUN:   -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // Test that a mixed JIT + AOT-PVC compilation uses no libs + fallback libs.
@@ -55,13 +60,13 @@
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NONE-FALLBACK
 
 // Test that an AOT-CPU + AOT-PVC compilation fallback + fallback libs.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -fno-spirv \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc" %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NATIVE
 
 // Test that an AOT-CPU + AOT-Gen9 compilation uses fallback + native libs.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -fno-spirv \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device gen9" %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK

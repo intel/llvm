@@ -129,7 +129,7 @@
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 
 /// Check phases with multiple intel_gpu settings
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fno-spirv -fsycl \
 // RUN:          -fsycl-targets=intel_gpu_dg1,intel_gpu_pvc \
 // RUN:          --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=MULT_TARG_PHASES %s
