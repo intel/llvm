@@ -407,7 +407,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 6: compiler, {5}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 7: backend, {6}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, ir
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: input, "/localdisk2/mtoguchi/github/llvm_2/clang/test/Driver/sycl-offload.c", c++, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: input, "[[INPUT]]", c++, (device-sycl, gfx908)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, gfx908)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 11: compiler, {10}, ir, (device-sycl, gfx908)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 12: backend, {11}, ir, (device-sycl, gfx908)

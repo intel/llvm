@@ -45,6 +45,7 @@
 // CHECK_S_LLVM: clang-offload-packager{{.*}}
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-host"{{.*}} "-emit-llvm"
 
+// RUN:  touch %t_empty.o
 // RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
 // RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
