@@ -285,8 +285,8 @@ public:
   }
 
   std::unique_ptr<sycl::detail::CG> finalize() {
-    throw sycl::runtime_error("Unhandled type of command group",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Unhandled type of command group");
 
     return nullptr;
   }
@@ -320,8 +320,8 @@ public:
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

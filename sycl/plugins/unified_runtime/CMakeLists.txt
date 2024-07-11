@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
-  # Merge: 01af5602 79be9c5f
+  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
+  # Merge: 6b33a1bb 5dc794cb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 13:52:48 2024 +0100
-  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
-  #     Refactor Level Zero Command-Buffer implementation
-  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
+  # Date:   Wed Jul 10 15:05:31 2024 +0100
+  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
+  #     [L0] Use Intel Level Zero Driver String extension
+  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit f404f4deab8182aafa03caf27438ea7b62d1a24a (HEAD, origin/main, origin/HEAD)
-    # Merge: 4a60029d 686cf44d
-    # Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    # Date:   Mon Jul 8 13:33:20 2024 -0700
-    #     Merge pull request #1806 from againull/review/againull/fix_overflow
-    #     [UR][L0] Fix undefined behavior caused by shifting more than bits count
-    f404f4deab8182aafa03caf27438ea7b62d1a24a
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl

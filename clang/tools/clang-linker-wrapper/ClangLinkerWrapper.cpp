@@ -545,6 +545,9 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   else
     PostLinkArgs.push_back("-spec-const=emulation");
 
+  if (Triple.isSPIROrSPIRV() || SYCLNativeCPU)
+    PostLinkArgs.push_back("-properties");
+
   // See if device code splitting is already requested. If not requested, then
   // set -split=auto for non-FPGA targets.
   bool NoSplit = true;

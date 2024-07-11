@@ -146,8 +146,7 @@ void test_build_and_run() {
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
-      syclex::properties{// syclex::build_options{flags},
-                         syclex::save_log{&log},
+      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
