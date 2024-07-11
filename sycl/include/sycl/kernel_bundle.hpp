@@ -926,7 +926,21 @@ __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes,
-    std::vector<std::pair<std::string, std::string>> IncludePairsVec);
+    std::vector<std::pair<sycl::detail::string, sycl::detail::string>> IncludePairsVec);
+
+__SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
+make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::vector<std::byte> &Bytes,
+    std::vector<std::pair<std::string, std::string>> IncludePairsVec) {
+  size_t n = IncludePairsVec.size();
+  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>> PairVec;
+  PairVec.reserve(n);
+  for (auto &Pair : IncludePairsVec)
+    PairVec.push_back({sycl::detail::string_view{Pair.first}, sycl::detail::string_view{Pair.second}});
+
+  return make_kernel_bundle_from_source(SyclContext, Language, Bytes, PairVec);
+}
 #endif
 
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>

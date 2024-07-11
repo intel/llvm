@@ -425,7 +425,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
 source_kb make_kernel_bundle_from_source(const context &SyclContext,
                                          source_language Language,
                                          const std::vector<std::byte> &Bytes,
-                                         include_pairs_t IncludePairs) {
+                                         include_pairs_view_t IncludePairs) {
   (void)IncludePairs;
   backend BE = SyclContext.get_backend();
   if (!is_source_kernel_bundle_supported(BE, Language))
