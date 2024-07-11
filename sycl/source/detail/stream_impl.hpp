@@ -44,6 +44,7 @@ public:
   void generateFlushCommand(handler &cgh);
 
   const property_list &getPropList() const { return PropList_; }
+
 private:
   // Size of the stream buffer
   size_t BufferSize_;

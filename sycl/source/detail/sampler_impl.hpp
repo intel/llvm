@@ -44,6 +44,7 @@ public:
   ~sampler_impl();
 
   const property_list &getPropList() const { return MPropList; }
+
 private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;

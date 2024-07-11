@@ -242,7 +242,7 @@ public:
   bool isOwnedByRuntime() { return MOwnedByRuntime; };
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
-  
+
   const property_list &getPropList() const { return MPropList; }
 
 private:

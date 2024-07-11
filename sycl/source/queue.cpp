@@ -366,9 +366,7 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
   return impl->setExternalEvent(external_event);
 }
 
-const property_list &queue::getPropList() const {
-  return impl->getPropList();
-}
+const property_list &queue::getPropList() const { return impl->getPropList(); }
 
 } // namespace _V1
 } // namespace sycl
