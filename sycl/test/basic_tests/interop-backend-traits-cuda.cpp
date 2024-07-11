@@ -1,4 +1,4 @@
-// REQUIRES: cuda_be
+// REQUIRES: cuda
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %clangxx -fsycl -fsyntax-only -DUSE_CUDA_EXPERIMENTAL %s
 

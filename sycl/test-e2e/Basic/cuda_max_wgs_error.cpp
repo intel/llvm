@@ -4,7 +4,7 @@
 // REQUIRES: cuda
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -19,8 +19,9 @@ void check(range<N> global, range<N> local, bool expect_fail = false) {
     q.submit([&](handler &cgh) {
       cgh.parallel_for(nd_range<N>(global, local), [=](nd_item<N> item) {});
     });
-  } catch (nd_range_error e) {
+  } catch (const exception &e) {
     if (expect_fail) {
+      assert(e.code() == errc::nd_range);
       std::string msg = e.what();
       assert(msg.rfind(expected_msg, 0) == 0);
     } else {

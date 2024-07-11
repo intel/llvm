@@ -10,7 +10,7 @@
 #include "sort_helper.hpp"
 #include <cstdint>
 #include <functional>
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 //============ default work grop joint sort for signed integer ===============
 DEVICE_EXTERN_C_INLINE
@@ -1134,4 +1134,4 @@ __devicelib_default_sub_group_private_sort_descending_f16(_Float16 value,
                               [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
-#endif
+#endif // __SPIR__ || __SPIRV__

@@ -11,7 +11,6 @@
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/builtins.hpp>                   // for to_vec2
 #include <sycl/builtins_utils_vec.hpp>         // for to_vec, to_marray...
-#include <sycl/detail/builtins.hpp>            // for __invoke_exp2, __invo...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
 #include <sycl/detail/memcpy.hpp>              // detail::memcpy
@@ -72,17 +71,22 @@ namespace ext::oneapi::experimental {
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
-// not available on host device and therefore their usage should be either
-// guarded using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor
-// of more portable solutions if needed
+// not available on host and therefore their usage should be either guarded
+// using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor of more
+// portable solutions if needed
 //
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
 #else
+  return __builtin_printf(__format, args...);
+#endif
+#else
   return ::printf(__format, args...);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#endif // defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) ||
+       // defined(__SPIRV__))
 }
 
 namespace native {

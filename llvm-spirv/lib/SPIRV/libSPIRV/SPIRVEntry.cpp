@@ -45,6 +45,7 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVMemAliasingINTEL.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 
@@ -299,13 +300,18 @@ void SPIRVEntry::addDecorate(SPIRVDecorate *Dec) {
     auto *LinkageAttr = static_cast<const SPIRVDecorateLinkageAttr *>(Dec);
     setName(LinkageAttr->getLinkageName());
   }
-  SPIRVDBG(spvdbgs() << "[addDecorate] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorate] Add "
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(SPIRVDecorateId *Dec) {
-  DecorateIds.insert(std::make_pair(Dec->getDecorateKind(), Dec));
+  auto Kind = Dec->getDecorateKind();
+  DecorateIds.insert(std::make_pair(Kind, Dec));
   Module->addDecorate(Dec);
-  SPIRVDBG(spvdbgs() << "[addDecorateId] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorateId] Add"
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(Decoration Kind) {
@@ -378,6 +384,16 @@ void SPIRVEntry::takeAnnotations(SPIRVForward *E) {
   takeMemberDecorates(E);
   if (OpCode == OpFunction)
     static_cast<SPIRVFunction *>(this)->takeExecutionModes(E);
+}
+
+void SPIRVEntry::replaceTargetIdInDecorates(SPIRVId Id) {
+  for (auto It = Decorates.begin(), E = Decorates.end(); It != E; ++It)
+    const_cast<SPIRVDecorate *>(It->second)->setTargetId(Id);
+  for (auto It = DecorateIds.begin(), E = DecorateIds.end(); It != E; ++It)
+    const_cast<SPIRVDecorateId *>(It->second)->setTargetId(Id);
+  for (auto It = MemberDecorates.begin(), E = MemberDecorates.end(); It != E;
+       ++It)
+    const_cast<SPIRVMemberDecorate *>(It->second)->setTargetId(Id);
 }
 
 // Check if an entry has Kind of decoration and get the literal of the
@@ -592,8 +608,7 @@ void SPIRVEntry::updateModuleVersion() const {
   if (!Module)
     return;
 
-  Module->setMinSPIRVVersion(
-      static_cast<VersionNumber>(getRequiredSPIRVVersion()));
+  Module->setMinSPIRVVersion(getRequiredSPIRVVersion());
 }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E) {

@@ -15,9 +15,9 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -108,14 +108,22 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_pointer() + offset);
-            float vb = sg.load(PB.get_pointer() + offset);
-            float vp = sg.load(PP.get_pointer() + offset);
-            float vq = sg.load(PQ.get_pointer() + offset);
-            float vr = sg.load(PR.get_pointer() + offset);
-            float vx = sg.load(PX.get_pointer() + offset);
-            float vy = sg.load(PY.get_pointer() + offset);
-            float vz = sg.load(PZ.get_pointer() + offset);
+            float va = sg.load(
+                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vb = sg.load(
+                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vp = sg.load(
+                PP.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vq = sg.load(
+                PQ.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vr = sg.load(
+                PR.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vx = sg.load(
+                PX.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vy = sg.load(
+                PY.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vz = sg.load(
+                PZ.get_multi_ptr<access::decorated::yes>().get() + offset);
 
             float vc;
 
@@ -126,7 +134,8 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
               vc = SPMD_CALLEE_doVadd(va, vb, vx, vy, vx, vy, vx, vy, vx, vy,
                                       vp, vq, vr, vz);
             }
-            sg.store(PC.get_pointer() + offset, vc);
+            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
+                     vc);
           });
     });
     e.wait();

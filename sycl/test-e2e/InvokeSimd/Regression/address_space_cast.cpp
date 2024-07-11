@@ -4,10 +4,10 @@
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -28,7 +28,7 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
   global_ptr<float, access::decorated::yes> ptr =
       sycl::address_space_cast<access::address_space::global_space,
                                access::decorated::yes, float>(A);
-  a.copy_from(ptr + i);
+  a.copy_from(ptr.get() + i);
   return a + b;
 }
 
@@ -68,8 +68,8 @@ bool test() {
           Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             group<1> g = ndi.get_group();
-            uint32_t i =
-                sg.get_group_linear_id() * VL + g.get_linear_id() * GroupSize;
+            uint32_t i = sg.get_group_linear_id() * VL +
+                         g.get_group_linear_id() * GroupSize;
             uint32_t wi_id = i + sg.get_local_id();
             float res = 0;
 

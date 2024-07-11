@@ -1,4 +1,4 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
 // This test is needed since we need to make sure that there no

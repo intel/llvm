@@ -17,7 +17,8 @@ __SYCL_PARAM_TRAITS_DEPRECATED(printf_buffer_size,"deprecated in SYCL 2020")
 __SYCL_PARAM_TRAITS_DEPRECATED(preferred_interop_user_sync,"deprecated in SYCL 2020")
 
 // Deprecated and not part of SYCL 2020 spec
-__SYCL_PARAM_TRAITS_DEPRECATED(usm_system_allocator,"use info::device::usm_system_allocations instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(image_max_array_size,"support for image arrays has been removed in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(opencl_c_version,"use device::get_backend_info instead")
 
 //TODO:Remove when possible
 __SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_pci_address,"use ext::intel::info::device::pci_address instead")

@@ -41,6 +41,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_icllp -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_icl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
+// RUN:             -DMAC_STR=ICLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_0_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
@@ -48,7 +51,12 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_jsl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_2_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
+// RUN:             -DMAC_STR=TGLLP
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
 // RUN:             -DMAC_STR=TGLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_0_0 -### %s 2>&1 | \
@@ -56,16 +64,27 @@
 // RUN:             -DMAC_STR=TGLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_rkl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=rkl -DMAC_STR=RKL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_1_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=rkl -DMAC_STR=RKL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_s -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
 // RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_rpl_s -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
 // RUN:             -DMAC_STR=ADL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_2_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
+// RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_p -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_p \
 // RUN:             -DMAC_STR=ADL_P
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_3_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_p \
+// RUN:             -DMAC_STR=ADL_P
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_n -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_n \
+// RUN:             -DMAC_STR=ADL_N
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_4_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_n \
 // RUN:             -DMAC_STR=ADL_N
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1 -### %s 2>&1 | \
@@ -78,10 +97,16 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
 // RUN:             -DMAC_STR=ACM_G10
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_55_8 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
+// RUN:             -DMAC_STR=ACM_G10
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g11 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
 // RUN:             -DMAC_STR=ACM_G11
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g11 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
+// RUN:             -DMAC_STR=ACM_G11
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_56_5 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
 // RUN:             -DMAC_STR=ACM_G11
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g12 -### %s 2>&1 | \
@@ -90,8 +115,43 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g12 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
 // RUN:             -DMAC_STR=ACM_G12
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_57_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
+// RUN:             -DMAC_STR=ACM_G12
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc -DMAC_STR=PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc -DMAC_STR=PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc_vg -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_vg -DMAC_STR=PVC_VG
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_61_7 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_vg -DMAC_STR=PVC_VG
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_u -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_s -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_u -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_u -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_s -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_u -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_70_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_u -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_h -DMAC_STR=MTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_71_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_h -DMAC_STR=MTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=arl_h -DMAC_STR=ARL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_74_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=arl_h -DMAC_STR=ARL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_1_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_4_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // MACRO: clang{{.*}} "-fsycl-is-host"
@@ -101,7 +161,7 @@
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
-// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
+// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
 // MACRO_X86_64: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
@@ -111,7 +171,7 @@
 /// test for invalid intel arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
-// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
 
@@ -233,3 +293,9 @@
 // CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
 // CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
+
+/// Check that target is passed to sycl-post-link for filtering
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
+// RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"

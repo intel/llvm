@@ -1,5 +1,5 @@
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -11,10 +11,10 @@
  * Test checks basic support for named barriers in invoke_simd context.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>

@@ -12,9 +12,11 @@
 
 #include <sycl/sycl.hpp>
 
-int main() {
-  sycl::half x;
-  sycl::modf(sycl::half{1.0}, &x);
-  sycl::sincos(sycl::half{1.0}, &x);
+SYCL_EXTERNAL auto
+foo(sycl::multi_ptr<sycl::half, sycl::access::address_space::global_space,
+                    sycl::access::decorated::yes>
+        ptr) {
+  sycl::modf(sycl::half{1.0}, ptr);
+  sycl::sincos(sycl::half{1.0}, ptr);
   return 0;
 }

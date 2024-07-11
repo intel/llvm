@@ -57,6 +57,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -441,7 +442,7 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
 // if true is returned
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   if (Name == "printf") {
-    DemangledName = Name;
+    DemangledName = "__spirv_ocl_printf";
     return true;
   }
   if (isNonMangledOCLBuiltin(Name)) {
@@ -805,8 +806,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       HasSret = true;
       unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
-        ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), AS));
+        if (STy->hasName())
+          ArgTys.push_back(
+              TypedPointerType::get(GetStructType(STy->getName()), AS));
+        else
+          ArgTys.push_back(TypedPointerType::get(STy, AS));
       else
         ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
@@ -911,8 +915,7 @@ bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
       StringRef Arg(stringify(Name));
       if (Arg.starts_with("unsigned"))
         return ParamSignedness::Unsigned;
-      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
-          Arg.equals("long"))
+      if (Arg == "char" || Arg == "short" || Arg == "int" || Arg == "long")
         return ParamSignedness::Signed;
     }
     return ParamSignedness::Unknown;
@@ -1563,6 +1566,9 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
   if (Postfix == kSPIRVImageSampledTypeName::Int ||
       Postfix == kSPIRVImageSampledTypeName::UInt)
     return Type::getInt32Ty(Ctx);
+  if (Postfix == kSPIRVImageSampledTypeName::Long ||
+      Postfix == kSPIRVImageSampledTypeName::ULong)
+    return Type::getInt64Ty(Ctx);
   llvm_unreachable("Invalid sampled type postfix");
   return nullptr;
 }
@@ -1980,13 +1986,14 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     if (auto *Cast = dyn_cast<CastInst>(U)) {
       replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(Cast);
-    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+    } else if (auto *GEP = dyn_cast<GEPOperator>(U)) {
       APInt NewOffset = AccumulatedOffset.sextOrTrunc(
           DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
       if (!GEP->accumulateConstantOffset(DL, NewOffset))
         llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
       replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc, GV);
-      InstsToRemove.push_back(GEP);
+      if (auto *AsInst = dyn_cast<Instruction>(U))
+        InstsToRemove.push_back(AsInst);
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.
@@ -2142,20 +2149,37 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     bool IsVec = F.getFunctionType()->getNumParams() > 0;
     Type *GVType =
         IsVec ? FixedVectorType::get(F.getReturnType(), 3) : F.getReturnType();
-    auto *BV = new GlobalVariable(
-        *M, GVType, /*isConstant=*/true, GlobalValue::ExternalLinkage, nullptr,
-        BuiltinVarName, 0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    GlobalVariable *BV = nullptr;
+    // Consider the following LLVM IR:
+    // @__spirv_BuiltInLocalInvocationId = <Global constant>
+    // .....
+    // define spir_kernel void @kernel1(....) {
+    //   %3 = tail call i64 @_Z12get_local_idj(i32 0)
+    //   .....
+    //   return void
+    // }
+    // During the OCLToSPIRV pass, the opencl call will get lowered to
+    // yet another global variable with the name
+    // '@__spirv_BuiltInLocalInvocationId'. In such a case, we would want to
+    // create only a single global variable with this name.
+    if (GlobalVariable *GV = M->getGlobalVariable(BuiltinVarName))
+      BV = GV;
+    else
+      BV = new GlobalVariable(*M, GVType, /*isConstant=*/true,
+                              GlobalValue::ExternalLinkage, nullptr,
+                              BuiltinVarName, 0, GlobalVariable::NotThreadLocal,
+                              SPIRAS_Input);
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
       const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
       if (DLoc)
         NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
+                                              "", CI->getIterator());
         if (DLoc)
           NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
@@ -2252,12 +2276,13 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
-          new StoreInst(I, Alloca, false, CI);
+          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
+          new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "",
+                                                CI->getIterator());
         }
         return Name.str();
       },
@@ -2308,7 +2333,7 @@ public:
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
-    switch (OC) {
+    switch (static_cast<unsigned>(OC)) {
     case OpConvertUToF:
     case OpUConvert:
     case OpSatConvertUToS:
@@ -2473,6 +2498,11 @@ public:
       }
       break;
     }
+    case internal::OpConvertHandleToImageINTEL:
+    case internal::OpConvertHandleToSamplerINTEL:
+    case internal::OpConvertHandleToSampledImageINTEL:
+      addUnsignedArg(0);
+      break;
     default:;
       // No special handling is needed
     }

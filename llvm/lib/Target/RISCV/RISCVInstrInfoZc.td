@@ -71,10 +71,11 @@ def rlist : Operand<OtherVT> {
   }];
 }
 
-def stackadj : Operand<OtherVT> {
+def stackadj : RISCVOp<OtherVT> {
   let ParserMatchClass = StackAdjAsmOperand;
   let PrintMethod = "printStackAdj";
   let DecoderMethod = "decodeZcmpSpimm";
+  let OperandType = "OPERAND_SPIMM";
   let MCOperandPredicate = [{
     int64_t Imm;
     if (!MCOp.evaluateAsConstantImm(Imm))
@@ -83,10 +84,11 @@ def stackadj : Operand<OtherVT> {
   }];
 }
 
-def negstackadj : Operand<OtherVT> {
+def negstackadj : RISCVOp<OtherVT> {
   let ParserMatchClass = NegStackAdjAsmOperand;
   let PrintMethod = "printNegStackAdj";
   let DecoderMethod = "decodeZcmpSpimm";
+  let OperandType = "OPERAND_SPIMM";
   let MCOperandPredicate = [{
     int64_t Imm;
     if (!MCOp.evaluateAsConstantImm(Imm))
@@ -181,7 +183,7 @@ let Predicates = [HasStdExtZcb] in
 def C_ZEXT_B  : RVZcArith_r<0b11000 , "c.zext.b">,
                 Sched<[WriteIALU, ReadIALU]>;
 
-let Predicates = [HasStdExtZcb, HasStdExtMOrZmmul] in
+let Predicates = [HasStdExtZcb, HasStdExtZmmul] in
 def C_MUL     : CA_ALU<0b100111, 0b10, "c.mul", GPRC>,
                 Sched<[WriteIMul, ReadIMul, ReadIMul]>;
 
@@ -268,13 +270,13 @@ def CM_JALT : RVInst16CJ<0b101, 0b10, (outs), (ins uimm8ge32:$index),
 } // DecoderNamespace = "RVZcmt", Predicates = [HasStdExtZcmt]...
 
 
-let Predicates = [HasStdExtZcb, HasStdExtMOrZmmul] in{
+let Predicates = [HasStdExtZcb, HasStdExtZmmul] in{
 def : CompressPat<(MUL GPRC:$rs1, GPRC:$rs1, GPRC:$rs2),
                   (C_MUL GPRC:$rs1, GPRC:$rs2)>;
 let isCompressOnly = true in
 def : CompressPat<(MUL GPRC:$rs1, GPRC:$rs2, GPRC:$rs1),
                   (C_MUL GPRC:$rs1, GPRC:$rs2)>;
-} // Predicates = [HasStdExtZcb, HasStdExtMOrZmmul]
+} // Predicates = [HasStdExtZcb, HasStdExtZmmul]
 
 let Predicates = [HasStdExtZcb, HasStdExtZbb] in{
 def : CompressPat<(SEXT_B GPRC:$rs1, GPRC:$rs1),

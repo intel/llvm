@@ -5,7 +5,7 @@
 
 # RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_cuda.so
 # REQUIRES: linux
-# REQUIRES: cuda_be
+# REQUIRES: cuda
 # UNSUPPORTED: libcxx
 
 piContextCreate
@@ -33,6 +33,7 @@ piEnqueueMemImageFill
 piEnqueueMemImageRead
 piEnqueueMemImageWrite
 piEnqueueMemUnmap
+piEnqueueTimestampRecordingExp
 piEventCreate
 piEventGetInfo
 piEventGetProfilingInfo
@@ -113,12 +114,15 @@ piextDisablePeerAccess
 piextEnablePeerAccess
 piextEnqueueCommandBuffer
 piextEnqueueCooperativeKernelLaunch
+piextEnqueueNativeCommand
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
 piextGetGlobalVariablePointer
+piextImportExternalMemory
+piextImportExternalSemaphore
 piextImportExternalSemaphoreOpaqueFD
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
@@ -143,6 +147,9 @@ piextMemSampledImageHandleDestroy
 piextMemUnsampledImageCreate
 piextMemUnsampledImageHandleDestroy
 piextPeerAccessGetInfo
+piextPhysicalMemCreate
+piextPhysicalMemRelease
+piextPhysicalMemRetain
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData
@@ -154,11 +161,11 @@ piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
 piextSignalExternalSemaphore
 piextUSMDeviceAlloc
+piextUSMEnqueueFill
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemcpy2D
-piextUSMEnqueueMemset
 piextUSMEnqueueMemset2D
 piextUSMEnqueuePrefetch
 piextUSMFree
@@ -168,4 +175,12 @@ piextUSMImport
 piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
+piextVirtualMemFree
+piextVirtualMemGetInfo
+piextVirtualMemGranularityGetInfo
+piextVirtualMemMap
+piextVirtualMemReserve
+piextVirtualMemSetAccess
+piextVirtualMemUnmap
 piextWaitExternalSemaphore
+piextEnqueueKernelLaunchCustom

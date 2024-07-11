@@ -10,7 +10,6 @@
 #ifndef _LIBCPP___MEMORY_SHARED_PTR_H
 #define _LIBCPP___MEMORY_SHARED_PTR_H
 
-#include <__availability>
 #include <__compare/compare_three_way.h>
 #include <__compare/ordering.h>
 #include <__config>
@@ -260,7 +259,7 @@ struct __shared_ptr_emplace : __shared_weak_count {
             class _Allocator                                                                          = _Alloc,
             __enable_if_t<!is_same<typename _Allocator::value_type, __for_overwrite_tag>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI explicit __shared_ptr_emplace(_Alloc __a, _Args&&... __args) : __storage_(std::move(__a)) {
-    using _TpAlloc = typename __allocator_traits_rebind<_Alloc, _Tp>::type;
+    using _TpAlloc = typename __allocator_traits_rebind<_Alloc, __remove_cv_t<_Tp> >::type;
     _TpAlloc __tmp(*__get_alloc());
     allocator_traits<_TpAlloc>::construct(__tmp, __get_elem(), std::forward<_Args>(__args)...);
   }
@@ -279,7 +278,7 @@ private:
   template <class _Allocator                                                                          = _Alloc,
             __enable_if_t<!is_same<typename _Allocator::value_type, __for_overwrite_tag>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI void __on_zero_shared_impl() _NOEXCEPT {
-    using _TpAlloc = typename __allocator_traits_rebind<_Allocator, _Tp>::type;
+    using _TpAlloc = typename __allocator_traits_rebind<_Allocator, __remove_cv_t<_Tp> >::type;
     _TpAlloc __tmp(*__get_alloc());
     allocator_traits<_TpAlloc>::destroy(__tmp, __get_elem());
   }
@@ -419,6 +418,10 @@ public:
 #else
   typedef _Tp element_type;
 #endif
+
+  // A shared_ptr contains only two raw pointers which point to the heap and move constructing already doesn't require
+  // any bookkeeping, so it's always trivially relocatable.
+  using __trivially_relocatable = shared_ptr;
 
 private:
   element_type* __ptr_;
@@ -595,8 +598,8 @@ public:
 #if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR)
   template <class _Yp, __enable_if_t<is_convertible<_Yp*, element_type*>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI shared_ptr(auto_ptr<_Yp>&& __r) : __ptr_(__r.get()) {
-    typedef __shared_ptr_pointer<_Yp*, default_delete<_Yp>, allocator<_Yp> > _CntrlBlk;
-    __cntrl_ = new _CntrlBlk(__r.get(), default_delete<_Yp>(), allocator<_Yp>());
+    typedef __shared_ptr_pointer<_Yp*, default_delete<_Yp>, allocator<__remove_cv_t<_Yp> > > _CntrlBlk;
+    __cntrl_ = new _CntrlBlk(__r.get(), default_delete<_Yp>(), allocator<__remove_cv_t<_Yp> >());
     __enable_weak_this(__r.get(), __r.get());
     __r.release();
   }
@@ -773,7 +776,7 @@ public:
 private:
   template <class _Yp, bool = is_function<_Yp>::value>
   struct __shared_ptr_default_allocator {
-    typedef allocator<_Yp> type;
+    typedef allocator<__remove_cv_t<_Yp> > type;
   };
 
   template <class _Yp>
@@ -831,7 +834,7 @@ _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp> allocate_shared(const _Alloc& __a, _Args&&
 
 template <class _Tp, class... _Args, __enable_if_t<!is_array<_Tp>::value, int> = 0>
 _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp> make_shared(_Args&&... __args) {
-  return std::allocate_shared<_Tp>(allocator<_Tp>(), std::forward<_Args>(__args)...);
+  return std::allocate_shared<_Tp>(allocator<__remove_cv_t<_Tp> >(), std::forward<_Args>(__args)...);
 }
 
 #if _LIBCPP_STD_VER >= 20
@@ -845,7 +848,7 @@ _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp> allocate_shared_for_overwrite(const _Alloc
 
 template <class _Tp, __enable_if_t<!is_array<_Tp>::value, int> = 0>
 _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp> make_shared_for_overwrite() {
-  return std::allocate_shared_for_overwrite<_Tp>(allocator<_Tp>());
+  return std::allocate_shared_for_overwrite<_Tp>(allocator<__remove_cv_t<_Tp>>());
 }
 
 #endif // _LIBCPP_STD_VER >= 20
@@ -1301,6 +1304,10 @@ public:
 #else
   typedef _Tp element_type;
 #endif
+
+  // A weak_ptr contains only two raw pointers which point to the heap and move constructing already doesn't require
+  // any bookkeeping, so it's always trivially relocatable.
+  using __trivially_relocatable = weak_ptr;
 
 private:
   element_type* __ptr_;

@@ -15,8 +15,7 @@
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/builtins.hpp>                  // for fabs
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
-#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp> // for annotated_ptr
 #include <sycl/group.hpp>     // for group
@@ -122,8 +121,8 @@ public:
     const size_t col = coord[1];
     return std::make_tuple(row, col);
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -137,8 +136,8 @@ public:
                                                                      idx);
     return elem;
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -151,8 +150,8 @@ public:
                                         spv_scope_traits<Group>::value>(
                M.spvm, idx) != static_cast<storage_element_type>(0);
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -163,8 +162,8 @@ public:
     return *this;
 #else
     (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -182,8 +181,8 @@ public:
     return *this;
 #else
     (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -206,8 +205,8 @@ public:
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     (void)rhs;                                                                 \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_ERROR_INVALID_DEVICE);                              \
+    throw exception(make_error_code(errc::runtime),                            \
+                    "joint matrix is not supported on host.");                 \
   }
 #endif // __SYCL_DEVICE_ONLY__
   OP(+)
@@ -242,8 +241,8 @@ public:
     const uint32_t col = coord[1];
     return std::make_tuple(row, col);
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -255,8 +254,8 @@ public:
         spv_matrix_layout_traits<Layout>::value,
         spv_scope_traits<Group>::value>(M.spvm, idx);
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -270,8 +269,8 @@ public:
                    spv_scope_traits<Group>::value>(M.spvm, idx))) >=
            std::numeric_limits<float>::epsilon();
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -281,8 +280,8 @@ public:
     return *this;
 #else
     (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -301,8 +300,8 @@ public:
     return *this;
 #else
     (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -323,8 +322,8 @@ public:
 #define OP(opassign, op)                                                       \
   wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     (void)rhs;                                                                 \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_ERROR_INVALID_DEVICE);                              \
+    throw exception(make_error_code(errc::runtime),                            \
+                    "joint matrix is not supported on host.");                 \
   }
 #endif // __SYCL_DEVICE_ONLY__
   OP(+=, +)
@@ -398,15 +397,15 @@ public:
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &,                                       \
       const sycl::ext::oneapi::bfloat16 &) {                                   \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_ERROR_INVALID_DEVICE);                              \
+    throw exception(make_error_code(errc::runtime),                            \
+                    "joint matrix is not supported on host.");                 \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &,                                     \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &) {                                     \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_ERROR_INVALID_DEVICE);                              \
+    throw exception(make_error_code(errc::runtime),                            \
+                    "joint matrix is not supported on host.");                 \
   }
   OP(sycl::ext::oneapi::bfloat16, +)
   OP(sycl::ext::oneapi::bfloat16, -)
@@ -451,8 +450,8 @@ public:
 #if __SYCL_DEVICE_ONLY__
     return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
 #else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
 #endif
   };
 
@@ -496,10 +495,10 @@ joint_matrix_store(Group,
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
-  throw runtime_error(
+  throw exception(
+      make_error_code(errc::runtime),
       "This version of the matrix extension is only currently supported on "
-      "intel devices",
-      PI_ERROR_INVALID_DEVICE);
+      "intel devices");
 #else
   // intel's impl
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
@@ -518,8 +517,8 @@ joint_matrix_store(Group,
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -542,10 +541,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
-  throw runtime_error(
+  throw exception(
+      make_error_code(errc::runtime),
       "This version of the matrix extension is only currently supported on "
-      "intel devices",
-      PI_ERROR_INVALID_DEVICE);
+      "intel devices");
 #else
   // intel's impl
   T *Ptr = dst.get();
@@ -563,8 +562,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -599,8 +598,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
   std::ignore = sg;
   std::ignore = jm;
   std::ignore = lambda;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif
 }
 
@@ -612,7 +611,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
     Group, joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Res,
-    const T2 &Value, size_t Stride, size_t Height, size_t Width, size_t CoordX,
+    const T2 &Value, size_t Height, size_t Width, size_t CoordX,
     size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
   using storage_element_type =
@@ -622,18 +621,16 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
       storage_element_type, T, NumRows, NumCols,
       spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      static_cast<storage_element_type>(Value), Stride, Height, Width, CoordX,
-      CoordY);
+      CoordX, CoordY, Height, Width, static_cast<storage_element_type>(Value));
 #else
   std::ignore = Res;
   std::ignore = Value;
-  std::ignore = Stride;
   std::ignore = Height;
   std::ignore = Width;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -654,13 +651,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       DecorT, S, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -671,8 +667,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = Layout;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -694,11 +690,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       DecorT, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
+      Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -708,8 +704,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = Width;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -727,13 +723,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
-  __spirv_JointMatrixStoreCheckedINTEL<
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
       DecorT, T, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, Src.spvm,
+      sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -744,8 +739,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = Layout;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -763,11 +758,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
-  __spirv_JointMatrixStoreCheckedINTEL<DecorT, Tp, NumRows, NumCols,
-                                       spv_matrix_use_traits<Use>::value,
-                                       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
+      DecorT, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
+      spv_matrix_layout_traits<Layout>::value>(
+      Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -777,8 +772,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = Width;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -797,12 +792,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Src.get();
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -813,8 +807,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = Layout;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -832,11 +826,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Src.get();
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
+      Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -846,8 +840,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = Width;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -863,12 +857,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Dst.get();
-  __spirv_JointMatrixStoreCheckedINTEL<
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
       T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, Src.spvm,
+      sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -879,8 +872,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = Layout;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -894,11 +887,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Dst.get();
-  __spirv_JointMatrixStoreCheckedINTEL<T, Tp, NumRows, NumCols,
-                                       spv_matrix_use_traits<Use>::value,
-                                       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
+      T, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
+      spv_matrix_layout_traits<Layout>::value>(
+      Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -908,8 +901,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = Width;
   std::ignore = CoordX;
   std::ignore = CoordY;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 // End out-of-bounds API

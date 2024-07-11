@@ -179,7 +179,7 @@ public:
     return CatchTypeInfo{getAddrOfRTTIDescriptor(Ty), 0};
   }
 
-  bool shouldTypeidBeNullChecked(bool IsDeref, QualType SrcRecordTy) override;
+  bool shouldTypeidBeNullChecked(QualType SrcRecordTy) override;
   void EmitBadTypeidCall(CodeGenFunction &CGF) override;
   llvm::Value *EmitTypeid(CodeGenFunction &CGF, QualType SrcRecordTy,
                           Address ThisPtr,
@@ -307,10 +307,6 @@ public:
   llvm::Value *getVTableAddressPointInStructorWithVTT(
       CodeGenFunction &CGF, const CXXRecordDecl *VTableClass,
       BaseSubobject Base, const CXXRecordDecl *NearestVBase);
-
-  llvm::Constant *
-  getVTableAddressPointForConstExpr(BaseSubobject Base,
-                                    const CXXRecordDecl *VTableClass) override;
 
   llvm::GlobalVariable *getAddrOfVTable(const CXXRecordDecl *RD,
                                         CharUnits VPtrOffset) override;
@@ -647,7 +643,7 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
 
   // Apply the adjustment and cast back to the original struct type
   // for consistency.
-  llvm::Value *This = ThisAddr.getPointer();
+  llvm::Value *This = ThisAddr.emitRawPointer(CGF);
   This = Builder.CreateInBoundsGEP(Builder.getInt8Ty(), This, Adj);
   ThisPtrForCall = This;
 
@@ -853,7 +849,7 @@ llvm::Value *ItaniumCXXABI::EmitMemberDataPointerAddress(
   CGBuilderTy &Builder = CGF.Builder;
 
   // Apply the offset, which we assume is non-null.
-  return Builder.CreateInBoundsGEP(CGF.Int8Ty, Base.getPointer(), MemPtr,
+  return Builder.CreateInBoundsGEP(CGF.Int8Ty, Base.emitRawPointer(CGF), MemPtr,
                                    "memptr.offset");
 }
 
@@ -1249,7 +1245,7 @@ void ItaniumCXXABI::emitVirtualObjectDelete(CodeGenFunction &CGF,
                                                         CGF.getPointerAlign());
 
     // Apply the offset.
-    llvm::Value *CompletePtr = Ptr.getPointer();
+    llvm::Value *CompletePtr = Ptr.emitRawPointer(CGF);
     CompletePtr =
         CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, CompletePtr, Offset);
 
@@ -1427,9 +1423,8 @@ static llvm::FunctionCallee getBadTypeidFn(CodeGenFunction &CGF) {
   return CGF.CGM.CreateRuntimeFunction(FTy, "__cxa_bad_typeid");
 }
 
-bool ItaniumCXXABI::shouldTypeidBeNullChecked(bool IsDeref,
-                                              QualType SrcRecordTy) {
-  return IsDeref;
+bool ItaniumCXXABI::shouldTypeidBeNullChecked(QualType SrcRecordTy) {
+  return true;
 }
 
 void ItaniumCXXABI::EmitBadTypeidCall(CodeGenFunction &CGF) {
@@ -1486,7 +1481,8 @@ llvm::Value *ItaniumCXXABI::emitDynamicCastCall(
       computeOffsetHint(CGF.getContext(), SrcDecl, DestDecl).getQuantity());
 
   // Emit the call to __dynamic_cast.
-  llvm::Value *Args[] = {ThisAddr.getPointer(), SrcRTTI, DestRTTI, OffsetHint};
+  llvm::Value *Args[] = {ThisAddr.emitRawPointer(CGF), SrcRTTI, DestRTTI,
+                         OffsetHint};
   llvm::Value *Value =
       CGF.EmitNounwindRuntimeCall(getItaniumDynamicCastFn(CGF), Args);
 
@@ -1575,7 +1571,7 @@ llvm::Value *ItaniumCXXABI::emitExactDynamicCast(
       VPtr, CGM.getTBAAVTablePtrAccessInfo(CGF.VoidPtrPtrTy));
   llvm::Value *Success = CGF.Builder.CreateICmpEQ(
       VPtr, getVTableAddressPoint(BaseSubobject(SrcDecl, *Offset), DestDecl));
-  llvm::Value *Result = ThisAddr.getPointer();
+  llvm::Value *Result = ThisAddr.emitRawPointer(CGF);
   if (!Offset->isZero())
     Result = CGF.Builder.CreateInBoundsGEP(
         CGF.CharTy, Result,
@@ -1617,7 +1613,7 @@ llvm::Value *ItaniumCXXABI::emitDynamicCastToVoid(CodeGenFunction &CGF,
         PtrDiffLTy, OffsetToTop, CGF.getPointerAlign(), "offset.to.top");
   }
   // Finally, add the offset to the pointer.
-  return CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, ThisAddr.getPointer(),
+  return CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, ThisAddr.emitRawPointer(CGF),
                                        OffsetToTop);
 }
 
@@ -1798,8 +1794,39 @@ void ItaniumCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
   else
     Callee = CGCallee::forDirect(CGM.getAddrOfCXXStructor(GD), GD);
 
-  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy, VTT, VTTTy,
-                            nullptr);
+  CGF.EmitCXXDestructorCall(GD, Callee, CGF.getAsNaturalPointerTo(This, ThisTy),
+                            ThisTy, VTT, VTTTy, nullptr);
+}
+
+// Check if any non-inline method has the specified attribute.
+template <typename T>
+static bool CXXRecordNonInlineHasAttr(const CXXRecordDecl *RD) {
+  for (const auto *D : RD->noload_decls()) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->isInlined() || FD->doesThisDeclarationHaveABody() ||
+          FD->isPureVirtual())
+        continue;
+      if (D->hasAttr<T>())
+        return true;
+    }
+  }
+
+  return false;
+}
+
+static void setVTableSelectiveDLLImportExport(CodeGenModule &CGM,
+                                              llvm::GlobalVariable *VTable,
+                                              const CXXRecordDecl *RD) {
+  if (VTable->getDLLStorageClass() !=
+          llvm::GlobalVariable::DefaultStorageClass ||
+      RD->hasAttr<DLLImportAttr>() || RD->hasAttr<DLLExportAttr>())
+    return;
+
+  if (CGM.getVTables().isVTableExternal(RD)) {
+    if (CXXRecordNonInlineHasAttr<DLLImportAttr>(RD))
+      VTable->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+  } else if (CXXRecordNonInlineHasAttr<DLLExportAttr>(RD))
+    VTable->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
 }
 
 void ItaniumCXXABI::emitVTableDefinitions(CodeGenVTables &CGVT,
@@ -1826,6 +1853,9 @@ void ItaniumCXXABI::emitVTableDefinitions(CodeGenVTables &CGVT,
 
   if (CGM.supportsCOMDAT() && VTable->isWeakForLinker())
     VTable->setComdat(CGM.getModule().getOrInsertComdat(VTable->getName()));
+
+  if (CGM.getTarget().hasPS4DLLImportExport())
+    setVTableSelectiveDLLImportExport(CGM, VTable, RD);
 
   // Set the right visibility.
   CGM.setGVProperties(VTable, RD);
@@ -1914,29 +1944,6 @@ ItaniumCXXABI::getVTableAddressPoint(BaseSubobject Base,
       VTable->getValueType(), VTable, Indices, /*InBounds=*/true, InRange);
 }
 
-// Check whether all the non-inline virtual methods for the class have the
-// specified attribute.
-template <typename T>
-static bool CXXRecordAllNonInlineVirtualsHaveAttr(const CXXRecordDecl *RD) {
-  bool FoundNonInlineVirtualMethodWithAttr = false;
-  for (const auto *D : RD->noload_decls()) {
-    if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
-      if (!FD->isVirtualAsWritten() || FD->isInlineSpecified() ||
-          FD->doesThisDeclarationHaveABody())
-        continue;
-      if (!D->hasAttr<T>())
-        return false;
-      FoundNonInlineVirtualMethodWithAttr = true;
-    }
-  }
-
-  // We didn't find any non-inline virtual methods missing the attribute.  We
-  // will return true when we found at least one non-inline virtual with the
-  // attribute.  (This lets our caller know that the attribute needs to be
-  // propagated up to the vtable.)
-  return FoundNonInlineVirtualMethodWithAttr;
-}
-
 llvm::Value *ItaniumCXXABI::getVTableAddressPointInStructorWithVTT(
     CodeGenFunction &CGF, const CXXRecordDecl *VTableClass, BaseSubobject Base,
     const CXXRecordDecl *NearestVBase) {
@@ -1956,11 +1963,6 @@ llvm::Value *ItaniumCXXABI::getVTableAddressPointInStructorWithVTT(
   // And load the address point from the VTT.
   return CGF.Builder.CreateAlignedLoad(CGF.GlobalsVoidPtrTy, VTT,
                                        CGF.getPointerAlign());
-}
-
-llvm::Constant *ItaniumCXXABI::getVTableAddressPointForConstExpr(
-    BaseSubobject Base, const CXXRecordDecl *VTableClass) {
-  return getVTableAddressPoint(Base, VTableClass);
 }
 
 llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
@@ -1995,26 +1997,10 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
       getContext().toCharUnitsFromBits(PAlign).getAsAlign());
   VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
-  // In MS C++ if you have a class with virtual functions in which you are using
-  // selective member import/export, then all virtual functions must be exported
-  // unless they are inline, otherwise a link error will result. To match this
-  // behavior, for such classes, we dllimport the vtable if it is defined
-  // externally and all the non-inline virtual methods are marked dllimport, and
-  // we dllexport the vtable if it is defined in this TU and all the non-inline
-  // virtual methods are marked dllexport.
-  if (CGM.getTarget().hasPS4DLLImportExport()) {
-    if ((!RD->hasAttr<DLLImportAttr>()) && (!RD->hasAttr<DLLExportAttr>())) {
-      if (CGM.getVTables().isVTableExternal(RD)) {
-        if (CXXRecordAllNonInlineVirtualsHaveAttr<DLLImportAttr>(RD))
-          VTable->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
-      } else {
-        if (CXXRecordAllNonInlineVirtualsHaveAttr<DLLExportAttr>(RD))
-          VTable->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
-      }
-    }
-  }
-  CGM.setGVProperties(VTable, RD);
+  if (CGM.getTarget().hasPS4DLLImportExport())
+    setVTableSelectiveDLLImportExport(CGM, VTable, RD);
 
+  CGM.setGVProperties(VTable, RD);
   return VTable;
 }
 
@@ -2093,8 +2079,8 @@ llvm::Value *ItaniumCXXABI::EmitVirtualDestructorCall(
     ThisTy = D->getDestroyedType();
   }
 
-  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy, nullptr,
-                            QualType(), nullptr);
+  CGF.EmitCXXDestructorCall(GD, Callee, This.emitRawPointer(CGF), ThisTy,
+                            nullptr, QualType(), nullptr);
   return nullptr;
 }
 
@@ -2148,6 +2134,9 @@ bool ItaniumCXXABI::canSpeculativelyEmitVTable(const CXXRecordDecl *RD) const {
   if (!canSpeculativelyEmitVTableAsBaseClass(RD))
     return false;
 
+  if (RD->shouldEmitInExternalSource())
+    return false;
+
   // For a complete-object vtable (or more specifically, for the VTT), we need
   // to be able to speculatively emit the vtables of all dynamic virtual bases.
   for (const auto &B : RD->vbases()) {
@@ -2167,7 +2156,7 @@ static llvm::Value *performTypeAdjustment(CodeGenFunction &CGF,
                                           int64_t VirtualAdjustment,
                                           bool IsReturnAdjustment) {
   if (!NonVirtualAdjustment && !VirtualAdjustment)
-    return InitialPtr.getPointer();
+    return InitialPtr.emitRawPointer(CGF);
 
   Address V = InitialPtr.withElementType(CGF.Int8Ty);
 
@@ -2200,10 +2189,10 @@ static llvm::Value *performTypeAdjustment(CodeGenFunction &CGF,
                                              CGF.getPointerAlign());
     }
     // Adjust our pointer.
-    ResultPtr = CGF.Builder.CreateInBoundsGEP(
-        V.getElementType(), V.getPointer(), Offset);
+    ResultPtr = CGF.Builder.CreateInBoundsGEP(V.getElementType(),
+                                              V.emitRawPointer(CGF), Offset);
   } else {
-    ResultPtr = V.getPointer();
+    ResultPtr = V.emitRawPointer(CGF);
   }
 
   // In a derived-to-base conversion, the non-virtual adjustment is
@@ -2289,7 +2278,7 @@ Address ItaniumCXXABI::InitializeArrayCookie(CodeGenFunction &CGF,
         llvm::FunctionType::get(CGM.VoidTy, NumElementsPtr.getType(), false);
     llvm::FunctionCallee F =
         CGM.CreateRuntimeFunction(FTy, "__asan_poison_cxx_array_cookie");
-    CGF.Builder.CreateCall(F, NumElementsPtr.getPointer());
+    CGF.Builder.CreateCall(F, NumElementsPtr.emitRawPointer(CGF));
   }
 
   // Finally, compute a pointer to the actual data buffer by skipping
@@ -2320,7 +2309,7 @@ llvm::Value *ItaniumCXXABI::readArrayCookieImpl(CodeGenFunction &CGF,
       CGF.SizeTy, llvm::PointerType::getUnqual(CGF.getLLVMContext()), false);
   llvm::FunctionCallee F =
       CGM.CreateRuntimeFunction(FTy, "__asan_load_cxx_array_cookie");
-  return CGF.Builder.CreateCall(F, numElementsPtr.getPointer());
+  return CGF.Builder.CreateCall(F, numElementsPtr.emitRawPointer(CGF));
 }
 
 CharUnits ARMCXXABI::getArrayCookieSizeImpl(QualType elementType) {
@@ -2632,7 +2621,7 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
 
     // Call __cxa_guard_release.  This cannot throw.
     CGF.EmitNounwindRuntimeCall(getGuardReleaseFn(CGM, guardPtrTy),
-                                guardAddr.getPointer());
+                                guardAddr.emitRawPointer(CGF));
   } else if (D.isLocalVarDecl()) {
     // For local variables, store 1 into the first byte of the guard variable
     // after the object initialization completes so that initialization is
@@ -3125,10 +3114,10 @@ LValue ItaniumCXXABI::EmitThreadLocalVarDeclLValue(CodeGenFunction &CGF,
 
   LValue LV;
   if (VD->getType()->isReferenceType())
-    LV = CGF.MakeNaturalAlignAddrLValue(CallVal, LValType);
+    LV = CGF.MakeNaturalAlignRawAddrLValue(CallVal, LValType);
   else
-    LV = CGF.MakeAddrLValue(CallVal, LValType,
-                            CGF.getContext().getDeclAlign(VD));
+    LV = CGF.MakeRawAddrLValue(CallVal, LValType,
+                               CGF.getContext().getDeclAlign(VD));
   // FIXME: need setObjCGCLValueClass?
   return LV;
 }
@@ -3298,7 +3287,7 @@ ItaniumRTTIBuilder::GetAddrOfExternalRTTIDescriptor(QualType Ty) {
     // Import the typeinfo symbol when all non-inline virtual methods are
     // imported.
     if (CGM.getTarget().hasPS4DLLImportExport()) {
-      if (RD && CXXRecordAllNonInlineVirtualsHaveAttr<DLLImportAttr>(RD)) {
+      if (RD && CXXRecordNonInlineHasAttr<DLLImportAttr>(RD)) {
         GV->setDLLStorageClass(llvm::GlobalVariable::DLLImportStorageClass);
         CGM.setDSOLocal(GV);
       }
@@ -3383,6 +3372,8 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
 #include "clang/Basic/RISCVVTypes.def"
 #define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
+#define AMDGPU_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/AMDGPUTypes.def"
     case BuiltinType::ShortAccum:
     case BuiltinType::Accum:
     case BuiltinType::LongAccum:
@@ -3601,6 +3592,9 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
 
   case Type::Pipe:
     llvm_unreachable("Pipe types shouldn't get here");
+
+  case Type::ArrayParameter:
+    llvm_unreachable("Array Parameter types should not get here.");
 
   case Type::Builtin:
   case Type::BitInt:
@@ -3886,6 +3880,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   case Type::ConstantArray:
   case Type::IncompleteArray:
   case Type::VariableArray:
+  case Type::ArrayParameter:
     // Itanium C++ ABI 2.9.5p5:
     // abi::__array_type_info adds no data members to std::type_info.
     break;
@@ -3952,13 +3947,13 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
 
   // Export the typeinfo in the same circumstances as the vtable is exported.
   auto GVDLLStorageClass = DLLStorageClass;
-  if (CGM.getTarget().hasPS4DLLImportExport()) {
+  if (CGM.getTarget().hasPS4DLLImportExport() &&
+      GVDLLStorageClass != llvm::GlobalVariable::DLLExportStorageClass) {
     if (const RecordType *RecordTy = dyn_cast<RecordType>(Ty)) {
       const CXXRecordDecl *RD = cast<CXXRecordDecl>(RecordTy->getDecl());
       if (RD->hasAttr<DLLExportAttr>() ||
-          CXXRecordAllNonInlineVirtualsHaveAttr<DLLExportAttr>(RD)) {
+          CXXRecordNonInlineHasAttr<DLLExportAttr>(RD))
         GVDLLStorageClass = llvm::GlobalVariable::DLLExportStorageClass;
-      }
     }
   }
 
@@ -3998,9 +3993,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   CGM.setDSOLocal(GV);
 
   TypeName->setDLLStorageClass(DLLStorageClass);
-  GV->setDLLStorageClass(CGM.getTarget().hasPS4DLLImportExport()
-                             ? GVDLLStorageClass
-                             : DLLStorageClass);
+  GV->setDLLStorageClass(GVDLLStorageClass);
 
   TypeName->setPartition(CGM.getCodeGenOpts().SymbolPartition);
   GV->setPartition(CGM.getCodeGenOpts().SymbolPartition);
@@ -4614,7 +4607,7 @@ static void InitCatchParam(CodeGenFunction &CGF,
         CGF.Builder.CreateStore(Casted, ExnPtrTmp);
 
         // Bind the reference to the temporary.
-        AdjustedExn = ExnPtrTmp.getPointer();
+        AdjustedExn = ExnPtrTmp.emitRawPointer(CGF);
       }
     }
 

@@ -524,9 +524,16 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
     SetHints(LoopHintAttr::Unroll, LoopHintAttr::Disable);
   } else if (PragmaName == "unroll") {
     // #pragma unroll N
-    if (ValueExpr)
-      SetHints(LoopHintAttr::UnrollCount, LoopHintAttr::Numeric);
-    else
+    if (ValueExpr) {
+      if (!ValueExpr->isValueDependent()) {
+        auto Value = ValueExpr->EvaluateKnownConstInt(S.getASTContext());
+        if (Value.isZero() || Value.isOne())
+          SetHints(LoopHintAttr::Unroll, LoopHintAttr::Disable);
+        else
+          SetHints(LoopHintAttr::UnrollCount, LoopHintAttr::Numeric);
+      } else
+        SetHints(LoopHintAttr::UnrollCount, LoopHintAttr::Numeric);
+    } else
       SetHints(LoopHintAttr::Unroll, LoopHintAttr::Enable);
   } else if (PragmaName == "nounroll_and_jam") {
     SetHints(LoopHintAttr::UnrollAndJam, LoopHintAttr::Disable);
@@ -557,7 +564,8 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
     if (Option == LoopHintAttr::VectorizeWidth) {
       assert((ValueExpr || (StateLoc && StateLoc->Ident)) &&
              "Attribute must have a valid value expression or argument.");
-      if (ValueExpr && S.CheckLoopHintExpr(ValueExpr, St->getBeginLoc()))
+      if (ValueExpr && S.CheckLoopHintExpr(ValueExpr, St->getBeginLoc(),
+                                           /*AllowZero=*/false))
         return nullptr;
       if (StateLoc && StateLoc->Ident && StateLoc->Ident->isStr("scalable"))
         State = LoopHintAttr::ScalableWidth;
@@ -567,7 +575,8 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                Option == LoopHintAttr::UnrollCount ||
                Option == LoopHintAttr::PipelineInitiationInterval) {
       assert(ValueExpr && "Attribute must have a valid value expression.");
-      if (S.CheckLoopHintExpr(ValueExpr, St->getBeginLoc()))
+      if (S.CheckLoopHintExpr(ValueExpr, St->getBeginLoc(),
+                              /*AllowZero=*/false))
         return nullptr;
       State = LoopHintAttr::Numeric;
     } else if (Option == LoopHintAttr::Vectorize ||
@@ -691,7 +700,7 @@ bool Sema::CheckAlwaysInlineAttr(const Stmt *OrigSt, const Stmt *CurSt,
 static Attr *handleNoInlineAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange Range) {
   NoInlineAttr NIA(S.Context, A);
-  if (!NIA.isClangNoInline()) {
+  if (!NIA.isStmtNoInline()) {
     S.Diag(St->getBeginLoc(), diag::warn_function_attribute_ignored_in_stmt)
         << "[[clang::noinline]]";
     return nullptr;
@@ -821,8 +830,8 @@ static void CheckForDuplicateLoopAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
           << *FirstItr;
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
     }
-    return;
   }
+  return;
 }
 
 static Attr *handleMSConstexprAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -1016,7 +1025,6 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
       S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
           << *FirstItr;
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
-      return;
     }
   }
 }
@@ -1235,11 +1243,17 @@ bool Sema::CheckRebuiltStmtAttributes(ArrayRef<const Attr *> Attrs) {
 ExprResult Sema::ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
                                     SourceRange Range) {
   if (A.getNumArgs() != 1 || !A.getArgAsExpr(0)) {
-    Diag(A.getLoc(), diag::err_assume_attr_args) << A.getAttrName() << Range;
+    Diag(A.getLoc(), diag::err_attribute_wrong_number_arguments)
+        << A.getAttrName() << 1 << Range;
     return ExprError();
   }
 
   auto *Assumption = A.getArgAsExpr(0);
+
+  if (DiagnoseUnexpandedParameterPack(Assumption)) {
+    return ExprError();
+  }
+
   if (Assumption->getDependence() == ExprDependence::None) {
     ExprResult Res = BuildCXXAssumeExpr(Assumption, A.getAttrName(), Range);
     if (Res.isInvalid())
@@ -1247,7 +1261,8 @@ ExprResult Sema::ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
     Assumption = Res.get();
   }
 
-  if (!getLangOpts().CPlusPlus23)
+  if (!getLangOpts().CPlusPlus23 &&
+      A.getSyntax() == AttributeCommonInfo::AS_CXX11)
     Diag(A.getLoc(), diag::ext_cxx23_attr) << A << Range;
 
   return Assumption;

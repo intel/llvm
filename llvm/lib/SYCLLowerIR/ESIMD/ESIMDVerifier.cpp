@@ -153,7 +153,9 @@ public:
           if (!Name.starts_with("sycl::_V1::") ||
               Name.starts_with("sycl::_V1::detail::") ||
               Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
-              Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::"))
+              Name.starts_with(
+                  "sycl::_V1::ext::intel::experimental::esimd::") ||
+              Name.starts_with("sycl::_V1::ext::oneapi::this_work_item::"))
             continue;
 
           // Check if function name matches any allowed SYCL function name.

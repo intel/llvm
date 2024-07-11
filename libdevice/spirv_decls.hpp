@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #define SPIR_GLOBAL __attribute__((opencl_global))
 
@@ -83,4 +83,4 @@ extern DEVICE_EXTERNAL void
 __spirv_AtomicStore(int *, __spv::Scope::Flag, __spv::MemorySemanticsMask::Flag,
                     int);
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

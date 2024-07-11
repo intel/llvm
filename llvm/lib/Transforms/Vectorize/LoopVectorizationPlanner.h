@@ -68,9 +68,7 @@ class VPBuilder {
 public:
   VPBuilder() = default;
   VPBuilder(VPBasicBlock *InsertBB) { setInsertPoint(InsertBB); }
-  VPBuilder(VPRecipeBase *InsertPt) {
-    setInsertPoint(InsertPt->getParent(), InsertPt->getIterator());
-  }
+  VPBuilder(VPRecipeBase *InsertPt) { setInsertPoint(InsertPt); }
 
   /// Clear the insertion point: created instructions will not be inserted into
   /// a block.
@@ -175,7 +173,16 @@ public:
 
   VPValue *createOr(VPValue *LHS, VPValue *RHS, DebugLoc DL = {},
                     const Twine &Name = "") {
-    return createInstruction(Instruction::BinaryOps::Or, {LHS, RHS}, DL, Name);
+
+    return tryInsertInstruction(new VPInstruction(
+        Instruction::BinaryOps::Or, {LHS, RHS},
+        VPRecipeWithIRFlags::DisjointFlagsTy(false), DL, Name));
+  }
+
+  VPValue *createLogicalAnd(VPValue *LHS, VPValue *RHS, DebugLoc DL = {},
+                            const Twine &Name = "") {
+    return tryInsertInstruction(
+        new VPInstruction(VPInstruction::LogicalAnd, {LHS, RHS}, DL, Name));
   }
 
   VPValue *createSelect(VPValue *Cond, VPValue *TrueVal, VPValue *FalseVal,
@@ -254,16 +261,6 @@ struct VectorizationFactor {
     return !(*this == rhs);
   }
 };
-
-/// ElementCountComparator creates a total ordering for ElementCount
-/// for the purposes of using it in a set structure.
-struct ElementCountComparator {
-  bool operator()(const ElementCount &LHS, const ElementCount &RHS) const {
-    return std::make_tuple(LHS.isScalable(), LHS.getKnownMinValue()) <
-           std::make_tuple(RHS.isScalable(), RHS.getKnownMinValue());
-  }
-};
-using ElementCountSet = SmallSet<ElementCount, 16, ElementCountComparator>;
 
 /// A class that represents two vectorization factors (initialized with 0 by
 /// default). One for fixed-width vectorization and one for scalable
@@ -435,10 +432,9 @@ private:
                                   VPRecipeBuilder &RecipeBuilder,
                                   ElementCount MinVF);
 
-  /// \return The most profitable vectorization factor and the cost of that VF.
-  /// This method checks every VF in \p CandidateVFs.
-  VectorizationFactor
-  selectVectorizationFactor(const ElementCountSet &CandidateVFs);
+  /// \return The most profitable vectorization factor for the available VPlans
+  /// and the cost of that VF.
+  VectorizationFactor selectVectorizationFactor();
 
   /// Returns true if the per-lane cost of VectorizationFactor A is lower than
   /// that of B.

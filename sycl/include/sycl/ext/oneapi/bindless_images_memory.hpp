@@ -8,16 +8,17 @@
 
 #pragma once
 
-#include <sycl/context.hpp>                               // for context
-#include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/device.hpp>                                // for device
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
-#include <sycl/image.hpp>                                 // for image_chan...
-#include <sycl/range.hpp>                                 // for range
+#include <sycl/context.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
+#include <sycl/image.hpp>
+#include <sycl/range.hpp>
 
-#include <cstddef> // for size_t
-#include <memory>  // for shared_ptr
-#include <variant> // for hash
+#include <cstddef>
+#include <memory>
+#include <variant>
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,12 +27,6 @@ inline namespace _V1 {
 class queue;
 
 namespace ext::oneapi::experimental {
-
-/// Opaque image memory handle type
-struct image_mem_handle {
-  using handle_type = void *;
-  handle_type raw_handle;
-};
 
 namespace detail {
 

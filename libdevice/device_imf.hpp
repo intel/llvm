@@ -18,9 +18,10 @@
 #include <type_traits>
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
-#if !defined(__SPIR__) && !defined(__LIBDEVICE_HOST_IMPL__)
+#if !defined(__SPIR__) && !defined(__SPIRV__) &&                               \
+    !defined(__LIBDEVICE_HOST_IMPL__)
 #error                                                                         \
-    "__SPIR__ or __LIBDEVICE_HOST_IMPL__ must be defined to enable device imf functions!"
+    "__SPIR__ or __SPIRV__ or __LIBDEVICE_HOST_IMPL__ must be defined to enable device imf functions!"
 #endif
 
 // TODO: Bitcast is valid to trivially copyable object only but using
@@ -110,7 +111,7 @@ template <typename Ty> static inline Ty __imin(Ty x, Ty y) {
 static inline float __fclamp(float x, float y, float z) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmin(__builtin_fmax(x, y), z);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fclamp(x, y, z);
 #endif
 }
@@ -119,7 +120,7 @@ static inline float __fclamp(float x, float y, float z) {
 static inline float __fma(float x, float y, float z) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmaf(x, y, z);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fma(x, y, z);
 #endif
 }
@@ -127,7 +128,7 @@ static inline float __fma(float x, float y, float z) {
 static inline double __fma(double x, double y, double z) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fma(x, y, z);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fma(x, y, z);
 #endif
 }
@@ -142,7 +143,7 @@ static inline _iml_half __fma(_iml_half x, _iml_half y, _iml_half z) {
   float tmp_z = __half2float(z_i);
   float res = __builtin_fmaf(tmp_x, tmp_y, tmp_z);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_fma(x_i, y_i, z_i));
 #endif
 }
@@ -160,7 +161,7 @@ static inline _iml_bf16 __fma(_iml_bf16 x, _iml_bf16 y, _iml_bf16 z) {
 static inline float __sqrt(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_sqrtf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_sqrt(x);
 #endif
 }
@@ -168,7 +169,7 @@ static inline float __sqrt(float x) {
 static inline double __sqrt(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_sqrt(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_sqrt(x);
 #endif
 }
@@ -179,7 +180,7 @@ static inline _iml_half __sqrt(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_sqrtf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_sqrt(x_i));
 #endif
 }
@@ -194,7 +195,7 @@ static inline _iml_bf16 __sqrt(_iml_bf16 x) {
 static inline float __rsqrt(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return 1.f / __builtin_sqrtf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_rsqrt(x);
 #endif
 }
@@ -202,7 +203,7 @@ static inline float __rsqrt(float x) {
 static inline double __rsqrt(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return 1.0 / __builtin_sqrt(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_rsqrt(x);
 #endif
 }
@@ -213,7 +214,7 @@ static inline _iml_half __rsqrt(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = 1.f / __builtin_sqrtf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_rsqrt(x_i));
 #endif
 }
@@ -228,7 +229,7 @@ static inline _iml_bf16 __rsqrt(_iml_bf16 x) {
 static inline float __fmin(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fminf(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fmin(x, y);
 #endif
 }
@@ -236,7 +237,7 @@ static inline float __fmin(float x, float y) {
 static inline double __fmin(double x, double y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmin(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fmin(x, y);
 #endif
 }
@@ -249,7 +250,7 @@ static inline _iml_half __fmin(_iml_half x, _iml_half y) {
   float tmp_y = __half2float(y_i);
   float res = __builtin_fminf(tmp_x, tmp_y);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_fmin(x_i, y_i));
 #endif
 }
@@ -265,7 +266,7 @@ static inline _iml_bf16 __fmin(_iml_bf16 x, _iml_bf16 y) {
 static inline float __fmax(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmaxf(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fmax(x, y);
 #endif
 }
@@ -273,7 +274,7 @@ static inline float __fmax(float x, float y) {
 static inline double __fmax(double x, double y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmax(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fmax(x, y);
 #endif
 }
@@ -286,7 +287,7 @@ static inline _iml_half __fmax(_iml_half x, _iml_half y) {
   float tmp_y = __half2float(y_i);
   float res = __builtin_fmaxf(tmp_x, tmp_y);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_fmax(x_i, y_i));
 #endif
 }
@@ -302,7 +303,7 @@ static inline _iml_bf16 __fmax(_iml_bf16 x, _iml_bf16 y) {
 static inline float __copysign(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_copysignf(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_copysign(x, y);
 #endif
 }
@@ -310,7 +311,7 @@ static inline float __copysign(float x, float y) {
 static inline double __copysign(double x, double y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_copysign(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_copysign(x, y);
 #endif
 }
@@ -323,7 +324,7 @@ static inline _iml_half __copysign(_iml_half x, _iml_half y) {
   float tmp_y = __half2float(y_i);
   float res = __builtin_copysignf(tmp_x, tmp_y);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_copysign(x_i, y_i));
 #endif
 }
@@ -339,7 +340,7 @@ static inline _iml_bf16 __copysign(_iml_bf16 x, _iml_bf16 y) {
 static inline float __fabs(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fabsf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fabs(x);
 #endif
 }
@@ -347,7 +348,7 @@ static inline float __fabs(float x) {
 static inline double __fabs(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fabs(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_fabs(x);
 #endif
 }
@@ -358,7 +359,7 @@ static inline _iml_half __fabs(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_fabsf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_fabs(x_i));
 #endif
 }
@@ -373,7 +374,7 @@ static inline _iml_bf16 __fabs(_iml_bf16 x) {
 static inline float __rint(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_rintf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_rint(x);
 #endif
 }
@@ -381,7 +382,7 @@ static inline float __rint(float x) {
 static inline double __rint(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_rint(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_rint(x);
 #endif
 }
@@ -392,7 +393,7 @@ static inline _iml_half __rint(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_rintf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_rint(x_i));
 #endif
 }
@@ -407,7 +408,7 @@ static inline _iml_bf16 __rint(_iml_bf16 x) {
 static inline float __floor(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_floorf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_floor(x);
 #endif
 }
@@ -415,7 +416,7 @@ static inline float __floor(float x) {
 static inline double __floor(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_floor(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_floor(x);
 #endif
 }
@@ -426,7 +427,7 @@ static inline _iml_half __floor(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_floorf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_floor(x_i));
 #endif
 }
@@ -441,7 +442,7 @@ static inline _iml_bf16 __floor(_iml_bf16 x) {
 static inline float __ceil(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_ceilf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_ceil(x);
 #endif
 }
@@ -449,7 +450,7 @@ static inline float __ceil(float x) {
 static inline double __ceil(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_ceil(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_ceil(x);
 #endif
 }
@@ -460,7 +461,7 @@ static inline _iml_half __ceil(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_ceilf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_ceil(x_i));
 #endif
 }
@@ -475,7 +476,7 @@ static inline _iml_bf16 __ceil(_iml_bf16 x) {
 static inline float __trunc(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_truncf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_trunc(x);
 #endif
 }
@@ -483,7 +484,7 @@ static inline float __trunc(float x) {
 static inline double __trunc(double x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_trunc(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_trunc(x);
 #endif
 }
@@ -491,7 +492,7 @@ static inline double __trunc(double x) {
 static inline float __fast_exp10f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_expf(0x1.26bb1cp1f * x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_exp(0x1.26bb1cp1f * x);
 #endif
 }
@@ -499,7 +500,7 @@ static inline float __fast_exp10f(float x) {
 static inline float __fast_expf(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_expf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_exp(x);
 #endif
 }
@@ -507,7 +508,7 @@ static inline float __fast_expf(float x) {
 static inline float __fast_logf(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_logf(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_log(x);
 #endif
 }
@@ -515,7 +516,7 @@ static inline float __fast_logf(float x) {
 static inline float __fast_log2f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_log2f(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_log(x) / 0x1.62e43p-1f;
 #endif
 }
@@ -523,7 +524,7 @@ static inline float __fast_log2f(float x) {
 static inline float __fast_log10f(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_log10f(x);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_log(x) / 0x1.26bb1cp1f;
 #endif
 }
@@ -531,7 +532,7 @@ static inline float __fast_log10f(float x) {
 static inline float __fast_powf(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_powf(x, y);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_powr(x, y);
 #endif
 }
@@ -554,7 +555,7 @@ static inline float __fast_fdividef(float x, float y) {
 
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return x / y;
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_native_divide(x, y);
 #endif
 }
@@ -565,7 +566,7 @@ static inline _iml_half __trunc(_iml_half x) {
   float tmp_x = __half2float(x_i);
   float res = __builtin_truncf(tmp_x);
   return _iml_half(__float2half(res));
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return _iml_half(__spirv_ocl_trunc(x_i));
 #endif
 }
@@ -582,7 +583,7 @@ static inline int __clz(int x) {
   uint32_t xi32 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_clz(xi32);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_clz(xi32);
 #endif
 }
@@ -593,7 +594,7 @@ static inline int __clzll(long long int x) {
   uint64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_clzll(xi64);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_clz(xi64);
 #endif
 }
@@ -602,7 +603,7 @@ static inline int __popc(unsigned int x) {
   uint32_t xui32 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_popcount(xui32);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_popcount(xui32);
 #endif
 }
@@ -611,7 +612,7 @@ static inline int __popcll(unsigned long long int x) {
   uint64_t xui64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_popcountll(xui64);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_popcount(xui64);
 #endif
 }
@@ -665,7 +666,7 @@ template <typename Ty> static inline Ty __uhadd(Ty x, Ty y) {
                 "__uhadd can only accept unsigned integral type.");
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return (x >> 1) + (y >> 1) + ((x & y) & 0x1);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_u_hadd(x, y);
 #endif
 }
@@ -675,7 +676,7 @@ template <typename Ty> static inline Ty __shadd(Ty x, Ty y) {
                 "__shadd can only accept signed integral type.");
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return (x >> 1) + (y >> 1) + ((x & y) & 0x1);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_s_hadd(x, y);
 #endif
 }
@@ -685,7 +686,7 @@ template <typename Ty> static inline Ty __urhadd(Ty x, Ty y) {
                 "__urhadd can only accept unsigned integral type.");
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return (x >> 1) + (y >> 1) + ((x | y) & 0x1);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_u_rhadd(x, y);
 #endif
 }
@@ -695,7 +696,7 @@ template <typename Ty> static inline Ty __srhadd(Ty x, Ty y) {
                 "__srhadd can only accept signed integral type.");
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return (x >> 1) + (y >> 1) + ((x | y) & 0x1);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ocl_s_rhadd(x, y);
 #endif
 }

@@ -91,6 +91,12 @@ public:
   void expandVEDWithSYCLTypeSRetArg(llvm::Function *F);
   void expandVIDWithSYCLTypeByValComp(llvm::Function *F);
 
+  // It is possible that incoming LLVM IR conversion instructions convert
+  // floating point to non-standard integer types. Such types are not supported
+  // in SPIR-V. This function cleans up such code and removes occurence of
+  // non-standard integer types.
+  void cleanupConversionToNonStdIntegers(llvm::Module *M);
+
   // According to the specification, the operands of a shift instruction must be
   // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
   // i1 operands, they are treated as a bool. We need to extend them to i32 to

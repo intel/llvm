@@ -270,6 +270,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
 
     case Type::Adjusted:
     case Type::Decayed:
+    case Type::ArrayParameter:
     case Type::Pointer:
     case Type::BlockPointer:
     case Type::LValueReference:
@@ -605,6 +606,16 @@ void TypePrinter::printDecayedBefore(const DecayedType *T, raw_ostream &OS) {
   printAdjustedBefore(T, OS);
 }
 
+void TypePrinter::printArrayParameterAfter(const ArrayParameterType *T,
+                                           raw_ostream &OS) {
+  printConstantArrayAfter(T, OS);
+}
+
+void TypePrinter::printArrayParameterBefore(const ArrayParameterType *T,
+                                            raw_ostream &OS) {
+  printConstantArrayBefore(T, OS);
+}
+
 void TypePrinter::printDecayedAfter(const DecayedType *T, raw_ostream &OS) {
   printAdjustedAfter(T, OS);
 }
@@ -643,16 +654,25 @@ void TypePrinter::printDependentAddressSpaceAfter(
 void TypePrinter::printDependentSizedExtVectorBefore(
                                           const DependentSizedExtVectorType *T,
                                           raw_ostream &OS) {
+  if (Policy.UseHLSLTypes)
+    OS << "vector<";
   printBefore(T->getElementType(), OS);
 }
 
 void TypePrinter::printDependentSizedExtVectorAfter(
                                           const DependentSizedExtVectorType *T,
                                           raw_ostream &OS) {
-  OS << " __attribute__((ext_vector_type(";
-  if (T->getSizeExpr())
-    T->getSizeExpr()->printPretty(OS, nullptr, Policy);
-  OS << ")))";
+  if (Policy.UseHLSLTypes) {
+    OS << ", ";
+    if (T->getSizeExpr())
+      T->getSizeExpr()->printPretty(OS, nullptr, Policy);
+    OS << ">";
+  } else {
+    OS << " __attribute__((ext_vector_type(";
+    if (T->getSizeExpr())
+      T->getSizeExpr()->printPretty(OS, nullptr, Policy);
+    OS << ")))";
+  }
   printAfter(T->getElementType(), OS);
 }
 
@@ -814,14 +834,23 @@ void TypePrinter::printDependentVectorAfter(
 
 void TypePrinter::printExtVectorBefore(const ExtVectorType *T,
                                        raw_ostream &OS) {
+  if (Policy.UseHLSLTypes)
+    OS << "vector<";
   printBefore(T->getElementType(), OS);
 }
 
 void TypePrinter::printExtVectorAfter(const ExtVectorType *T, raw_ostream &OS) {
   printAfter(T->getElementType(), OS);
-  OS << " __attribute__((ext_vector_type(";
-  OS << T->getNumElements();
-  OS << ")))";
+
+  if (Policy.UseHLSLTypes) {
+    OS << ", ";
+    OS << T->getNumElements();
+    OS << ">";
+  } else {
+    OS << " __attribute__((ext_vector_type(";
+    OS << T->getNumElements();
+    OS << ")))";
+  }
 }
 
 void TypePrinter::printConstantMatrixBefore(const ConstantMatrixType *T,
@@ -996,6 +1025,17 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     break;
   }
   T->printExceptionSpecification(OS, Policy);
+
+  const FunctionEffectsRef FX = T->getFunctionEffects();
+  for (const auto &CFE : FX) {
+    OS << " __attribute__((" << CFE.Effect.name();
+    if (const Expr *E = CFE.Cond.getCondition()) {
+      OS << '(';
+      E->printPretty(OS, nullptr, Policy);
+      OS << ')';
+    }
+    OS << "))";
+  }
 
   if (T->hasTrailingReturn()) {
     OS << " -> ";
@@ -1211,10 +1251,13 @@ void TypePrinter::printDecltypeBefore(const DecltypeType *T, raw_ostream &OS) {
 
 void TypePrinter::printPackIndexingBefore(const PackIndexingType *T,
                                           raw_ostream &OS) {
-  if (T->hasSelectedType())
+  if (T->hasSelectedType()) {
     OS << T->getSelectedType();
-  else
-    OS << T->getPattern() << "...[" << T->getIndexExpr() << "]";
+  } else {
+    OS << T->getPattern() << "...[";
+    T->getIndexExpr()->printPretty(OS, nullptr, Policy);
+    OS << "]";
+  }
   spaceBeforePlaceHolder(OS);
 }
 
@@ -1467,21 +1510,18 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 
   // If this is a class template specialization, print the template
   // arguments.
-  if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
-    ArrayRef<TemplateArgument> Args;
-    TypeSourceInfo *TAW = Spec->getTypeAsWritten();
-    if (!Policy.PrintCanonicalTypes && TAW) {
-      const TemplateSpecializationType *TST =
-        cast<TemplateSpecializationType>(TAW->getType());
-      Args = TST->template_arguments();
-    } else {
-      const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
-      Args = TemplateArgs.asArray();
-    }
+  if (auto *S = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+    const TemplateParameterList *TParams =
+        S->getSpecializedTemplate()->getTemplateParameters();
+    const ASTTemplateArgumentListInfo *TArgAsWritten =
+        S->getTemplateArgsAsWritten();
     IncludeStrongLifetimeRAII Strong(Policy);
-    printTemplateArgumentList(
-        OS, Args, Policy,
-        Spec->getSpecializedTemplate()->getTemplateParameters());
+    if (TArgAsWritten && !Policy.PrintCanonicalTypes)
+      printTemplateArgumentList(OS, TArgAsWritten->arguments(), Policy,
+                                TParams);
+    else
+      printTemplateArgumentList(OS, S->getTemplateArgs().asArray(), Policy,
+                                TParams);
   }
 
   spaceBeforePlaceHolder(OS);
@@ -1584,14 +1624,14 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
 
   TemplateDecl *TD = T->getTemplateName().getAsTemplateDecl();
-  // FIXME: Null TD never excercised in test suite.
+  // FIXME: Null TD never exercised in test suite.
   if (FullyQualify && TD) {
     if (!Policy.SuppressScope)
       AppendScope(TD->getDeclContext(), OS, TD->getDeclName());
 
     OS << TD->getName();
   } else {
-    T->getTemplateName().print(OS, Policy);
+    T->getTemplateName().print(OS, Policy, TemplateName::Qualified::None);
   }
 
   DefaultTemplateArgsPolicyRAII TemplateArgs(Policy);
@@ -1750,14 +1790,15 @@ void TypePrinter::printPackExpansionAfter(const PackExpansionType *T,
 static void printCountAttributedImpl(const CountAttributedType *T,
                                      raw_ostream &OS,
                                      const PrintingPolicy &Policy) {
+  OS << ' ';
   if (T->isCountInBytes() && T->isOrNull())
-    OS << " __sized_by_or_null(";
+    OS << "__sized_by_or_null(";
   else if (T->isCountInBytes())
-    OS << " __sized_by(";
+    OS << "__sized_by(";
   else if (T->isOrNull())
-    OS << " __counted_by_or_null(";
+    OS << "__counted_by_or_null(";
   else
-    OS << " __counted_by(";
+    OS << "__counted_by(";
   if (T->getCountExpr())
     T->getCountExpr()->printPretty(OS, nullptr, Policy);
   OS << ')';
@@ -1766,14 +1807,14 @@ static void printCountAttributedImpl(const CountAttributedType *T,
 void TypePrinter::printCountAttributedBefore(const CountAttributedType *T,
                                              raw_ostream &OS) {
   printBefore(T->desugar(), OS);
-  if (!T->desugar()->isArrayType())
+  if (!T->isArrayType())
     printCountAttributedImpl(T, OS, Policy);
 }
 
 void TypePrinter::printCountAttributedAfter(const CountAttributedType *T,
                                             raw_ostream &OS) {
   printAfter(T->desugar(), OS);
-  if (T->desugar()->isArrayType())
+  if (T->isArrayType())
     printCountAttributedImpl(T, OS, Policy);
 }
 
@@ -1935,6 +1976,10 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::ArmOut:
   case attr::ArmInOut:
   case attr::ArmPreserves:
+  case attr::NonBlocking:
+  case attr::NonAllocating:
+  case attr::Blocking:
+  case attr::Allocating:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -2280,16 +2325,17 @@ bool clang::isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
 
   if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(Param)) {
     return TTPD->hasDefaultArgument() &&
-           isSubstitutedTemplateArgument(Ctx, Arg, TTPD->getDefaultArgument(),
-                                         Args, Depth);
+           isSubstitutedTemplateArgument(
+               Ctx, Arg, TTPD->getDefaultArgument().getArgument(), Args, Depth);
   } else if (auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(Param)) {
     return TTPD->hasDefaultArgument() &&
            isSubstitutedTemplateArgument(
                Ctx, Arg, TTPD->getDefaultArgument().getArgument(), Args, Depth);
   } else if (auto *NTTPD = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
     return NTTPD->hasDefaultArgument() &&
-           isSubstitutedTemplateArgument(Ctx, Arg, NTTPD->getDefaultArgument(),
-                                         Args, Depth);
+           isSubstitutedTemplateArgument(
+               Ctx, Arg, NTTPD->getDefaultArgument().getArgument(), Args,
+               Depth);
   }
   return false;
 }

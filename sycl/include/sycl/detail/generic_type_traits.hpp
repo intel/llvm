@@ -17,6 +17,8 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
@@ -253,43 +255,14 @@ inline constexpr bool is_genfloatptr_marray_v =
      IsDecorated == access::decorated::no);
 
 template <typename T>
-inline constexpr bool is_nan_type_v = is_contained_v<T, gtl::nan_list>;
+using is_byte = typename
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::is_same<T, std::byte>;
+#else
+    std::false_type;
+#endif
 
-// nan_types
-template <typename T, typename Enable = void> struct nan_types {
-  // Nonsensical case for types implicitly convertible to scalar to avoid
-  // templated overloads which are SFINAE'd out to cause compilation errors.
-  using ret_type = void;
-  using arg_type = int;
-};
-
-template <typename T>
-struct nan_types<
-    T, std::enable_if_t<is_contained_v<T, gtl::unsigned_short_list>, T>> {
-  using ret_type = change_base_type_t<T, half>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_short_list, half>;
-};
-
-template <typename T>
-struct nan_types<
-    T, std::enable_if_t<is_contained_v<T, gtl::unsigned_int_list>, T>> {
-  using ret_type = change_base_type_t<T, float>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_int_list, float>;
-};
-
-template <typename T>
-struct nan_types<
-    T,
-    std::enable_if_t<is_contained_v<T, gtl::unsigned_long_integer_list>, T>> {
-  using ret_type = change_base_type_t<T, double>;
-  using arg_type =
-      find_same_size_type_t<gtl::scalar_unsigned_long_integer_list, double>;
-};
-
-template <typename T> using nan_return_t = typename nan_types<T, T>::ret_type;
-
-template <typename T>
-using nan_argument_base_t = typename nan_types<T, T>::arg_type;
+template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
 
 template <typename T>
 using make_floating_point_t = make_type_t<T, gtl::scalar_floating_list>;
@@ -300,6 +273,13 @@ using make_singed_integer_t = make_type_t<T, gtl::scalar_signed_integer_list>;
 template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
+
+template <int Size>
+using cl_unsigned = std::conditional_t<
+    Size == 1, opencl::cl_uchar,
+    std::conditional_t<
+        Size == 2, opencl::cl_ushort,
+        std::conditional_t<Size == 4, opencl::cl_uint, opencl::cl_ulong>>>;
 
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
@@ -364,6 +344,8 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
     // we use the "else" version only. I suspect that's an issues with
     // non-uniform groups implementation.
@@ -372,6 +354,10 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     else
       return static_cast<typename MatchingVec::vector_t>(
           x.template as<MatchingVec>());
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
     return x.template as<MatchingVec>();
 #endif
@@ -402,7 +388,13 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (is_bfloat16_v<no_ref>) {
+    // On host, don't interpret BF16 as uint16.
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    return sycl::bit_cast<OpenCLType>(x);
+#else
     return std::forward<T>(x);
+#endif
   } else if constexpr (std::is_floating_point_v<no_ref>) {
     static_assert(std::is_same_v<no_ref, float> ||
                       std::is_same_v<no_ref, double>,
@@ -450,16 +442,6 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
 
-// SYCL 2020 4.17.9 (Relation functions), e.g. table 178
-//
-//  genbool isequal (genfloatf x, genfloatf y)
-//  genbool isequal (genfloatd x, genfloatd y)
-//
-// TODO: marray support isn't implemented yet.
-template <typename T>
-using common_rel_ret_t =
-    std::conditional_t<is_vgentype_v<T>, make_singed_integer_t<T>, bool>;
-
 // Try to get vector element count or 1 otherwise
 template <typename T> struct GetNumElements {
   static constexpr int value = 1;
@@ -470,51 +452,6 @@ struct GetNumElements<typename sycl::vec<Type, NumElements>> {
 };
 template <int N> struct GetNumElements<typename sycl::detail::Boolean<N>> {
   static constexpr int value = N;
-};
-
-// Used for relational comparison built-in functions
-template <typename T> struct RelationalReturnType {
-#ifdef __SYCL_DEVICE_ONLY__
-  static constexpr int N = GetNumElements<T>::value;
-  using type = std::conditional_t<N == 1, bool, Boolean<N>>;
-#else
-  using type = common_rel_ret_t<T>;
-#endif
-};
-
-// Type representing the internal return type of relational builtins.
-template <typename T>
-using internal_rel_ret_t = typename RelationalReturnType<T>::type;
-
-// Used for any and all built-in functions
-template <typename T> struct RelationalTestForSignBitType {
-#ifdef __SYCL_DEVICE_ONLY__
-  using return_type = bool;
-  static constexpr int N = GetNumElements<T>::value;
-  using argument_type = std::conditional_t<N == 1, bool, detail::Boolean<N>>;
-#else
-  using return_type = int;
-  using argument_type = T;
-#endif
-};
-
-template <typename T>
-using rel_sign_bit_test_ret_t =
-    typename RelationalTestForSignBitType<T>::return_type;
-
-template <typename T>
-using rel_sign_bit_test_arg_t =
-    typename RelationalTestForSignBitType<T>::argument_type;
-
-template <typename T, typename Enable = void> struct RelConverter {
-  using R = internal_rel_ret_t<T>;
-#ifdef __SYCL_DEVICE_ONLY__
-  using value_t = bool;
-#else
-  using value_t = R;
-#endif
-
-  static R apply(value_t value) { return value; }
 };
 
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those
@@ -531,31 +468,6 @@ public:
   static constexpr bool value = !std::is_same_v<T, type>;
 };
 
-template <typename T>
-struct RelConverter<T,
-                    typename std::enable_if_t<TryToGetElementType<T>::value>> {
-  static const int N = T::size();
-#ifdef __SYCL_DEVICE_ONLY__
-  using bool_t = typename Boolean<N>::vector_t;
-  using ret_t = common_rel_ret_t<T>;
-#else
-  using bool_t = Boolean<N>;
-  using ret_t = internal_rel_ret_t<T>;
-#endif
-
-  static ret_t apply(bool_t value) {
-#ifdef __SYCL_DEVICE_ONLY__
-    typename ret_t::vector_t result(0);
-    for (size_t I = 0; I < N; ++I) {
-      result[I] = value[I];
-    }
-    return result;
-#else
-    return value;
-#endif
-  }
-};
-
 template <typename T> static constexpr T max_v() {
   return (std::numeric_limits<T>::max)();
 }
@@ -563,43 +475,6 @@ template <typename T> static constexpr T max_v() {
 template <typename T> static constexpr T min_v() {
   return (std::numeric_limits<T>::min)();
 }
-
-template <typename T> static constexpr T quiet_NaN() {
-  return std::numeric_limits<T>::quiet_NaN();
-}
-
-// is_same_vector_size
-template <int FirstSize, typename... Args> class is_same_vector_size_impl;
-
-template <int FirstSize, typename T, typename... Args>
-class is_same_vector_size_impl<FirstSize, T, Args...> {
-  using CurrentT = detail::remove_pointer_t<T>;
-  static constexpr int Size = vector_size<CurrentT>::value;
-  static constexpr bool IsSizeEqual = (Size == FirstSize);
-
-public:
-  static constexpr bool value =
-      IsSizeEqual ? is_same_vector_size_impl<FirstSize, Args...>::value : false;
-};
-
-template <int FirstSize>
-class is_same_vector_size_impl<FirstSize> : public std::true_type {};
-
-template <typename T, typename... Args> class is_same_vector_size {
-  using CurrentT = remove_pointer_t<T>;
-  static constexpr int Size = vector_size<CurrentT>::value;
-
-public:
-  static constexpr bool value = is_same_vector_size_impl<Size, Args...>::value;
-};
-
-// check_vector_size
-template <typename... Args> inline void check_vector_size() {
-  static_assert(is_same_vector_size<Args...>::value,
-                "The built-in function arguments must [point to|have] types "
-                "with the same number of elements.");
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -276,6 +276,9 @@ public:
     } else
       SPIRVEntry::setWordCount(WC);
     Ops = TheOps;
+    // The required SPIR-V version depends on the operands for some
+    // instructions.
+    updateModuleVersion();
   }
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
@@ -381,14 +384,14 @@ public:
 class SPIRVMemoryAccess {
 public:
   SPIRVMemoryAccess(const std::vector<SPIRVWord> &TheMemoryAccess)
-      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
-        NoAliasInstID(0) {
+      : TheMemoryAccessMask(0), Alignment(0), SrcAlignment(0),
+        AliasScopeInstID(0), NoAliasInstID(0) {
     memoryAccessUpdate(TheMemoryAccess);
   }
 
   SPIRVMemoryAccess()
-      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
-        NoAliasInstID(0) {}
+      : TheMemoryAccessMask(0), Alignment(0), SrcAlignment(0),
+        AliasScopeInstID(0), NoAliasInstID(0) {}
 
   void memoryAccessUpdate(const std::vector<SPIRVWord> &MemoryAccess) {
     if (!MemoryAccess.size())
@@ -409,7 +412,18 @@ public:
     if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      NoAliasInstID = MemoryAccess[MemAccessNumParam];
+      NoAliasInstID = MemoryAccess[MemAccessNumParam++];
+    }
+
+    // Exit if there is no second memory operand mask
+    if (MemoryAccess.size() == MemAccessNumParam)
+      return;
+
+    size_t SecondMaskId = MemAccessNumParam++;
+    if (MemoryAccess[SecondMaskId] & MemoryAccessAlignedMask) {
+      assert(MemoryAccess.size() > MemAccessNumParam &&
+             "Alignment operand is missing");
+      SrcAlignment = MemoryAccess[MemAccessNumParam];
     }
   }
   SPIRVWord isVolatile() const {
@@ -426,12 +440,14 @@ public:
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
+  SPIRVWord getSrcAlignment() const { return SrcAlignment; }
   SPIRVWord getAliasScopeInstID() const { return AliasScopeInstID; }
   SPIRVWord getNoAliasInstID() const { return NoAliasInstID; }
 
 protected:
   SPIRVWord TheMemoryAccessMask;
   SPIRVWord Alignment;
+  SPIRVWord SrcAlignment;
   SPIRVId AliasScopeInstID;
   SPIRVId NoAliasInstID;
 };
@@ -656,9 +672,20 @@ protected:
              "Invalid type for bitwise instruction");
       assert((Op1Ty->getIntegerBitWidth() == Op2Ty->getIntegerBitWidth()) &&
              "Inconsistent BitWidth");
+    } else if (isBinaryPtrOpCode(OpCode)) {
+      assert((Op1Ty->isTypePointer() && Op2Ty->isTypePointer()) &&
+             "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
+      assert(static_cast<SPIRVTypePointer *>(Op1Ty)->getElementType() ==
+                 static_cast<SPIRVTypePointer *>(Op2Ty)->getElementType() &&
+             "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
     } else {
       assert(0 && "Invalid op code!");
     }
+  }
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (isBinaryPtrOpCode(OpCode))
+      return VersionNumber::SPIRV_1_4;
+    return VersionNumber::SPIRV_1_0;
   }
 };
 
@@ -694,6 +721,9 @@ _SPIRV_OP(BitwiseAnd)
 _SPIRV_OP(BitwiseOr)
 _SPIRV_OP(BitwiseXor)
 _SPIRV_OP(Dot)
+_SPIRV_OP(PtrEqual)
+_SPIRV_OP(PtrNotEqual)
+_SPIRV_OP(PtrDiff)
 #undef _SPIRV_OP
 
 template <Op TheOpCode> class SPIRVInstNoOperand : public SPIRVInstruction {
@@ -820,6 +850,8 @@ protected:
            getCondition()->getType()->isTypeBool());
     assert(getTrueLabel()->isForward() || getTrueLabel()->isLabel());
     assert(getFalseLabel()->isForward() || getFalseLabel()->isLabel());
+    if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      assert(TrueLabelId != FalseLabelId);
   }
   SPIRVId ConditionId;
   SPIRVId TrueLabelId;
@@ -1881,7 +1913,8 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0)
+    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0 &&
+        !Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
       return ExtensionID::SPV_KHR_non_semantic_info;
     return {};
   }
@@ -2022,6 +2055,31 @@ protected:
   SPIRVId Operand;
 };
 
+class SPIRVCopyLogical : public SPIRVInstruction {
+public:
+  const static Op OC = OpCopyLogical;
+
+  // Complete constructor
+  SPIRVCopyLogical(SPIRVType *TheType, SPIRVId TheId, SPIRVValue *TheOperand,
+                   SPIRVBasicBlock *TheBB)
+      : SPIRVInstruction(4, OC, TheType, TheId, TheBB),
+        Operand(TheOperand->getId()) {
+    validate();
+    assert(TheBB && "Invalid BB");
+  }
+  // Incomplete constructor
+  SPIRVCopyLogical() : SPIRVInstruction(OC), Operand(SPIRVID_INVALID) {}
+
+  SPIRVValue *getOperand() { return getValue(Operand); }
+  std::vector<SPIRVValue *> getOperands() override { return {getOperand()}; }
+
+protected:
+  _SPIRV_DEF_ENCDEC3(Type, Id, Operand)
+
+  void validate() const override { SPIRVInstruction::validate(); }
+  SPIRVId Operand;
+};
+
 class SPIRVCopyMemory : public SPIRVInstruction, public SPIRVMemoryAccess {
 public:
   const static Op OC = OpCopyMemory;
@@ -2091,6 +2149,7 @@ public:
         Size(TheSize->getId()) {
     validate();
     assert(TheBB && "Invalid BB");
+    updateModuleVersion();
   }
   // Incomplete constructor
   SPIRVCopyMemorySized()
@@ -2098,6 +2157,13 @@ public:
         Source(SPIRVID_INVALID), Size(0) {
     setHasNoId();
     setHasNoType();
+    updateModuleVersion();
+  }
+
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (getSrcAlignment())
+      return VersionNumber::SPIRV_1_4;
+    return VersionNumber::SPIRV_1_0;
   }
 
   SPIRVValue *getSource() { return getValue(Source); }
@@ -2931,7 +2997,9 @@ protected:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_KHR_integer_dot_product;
+    if (!Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      return ExtensionID::SPV_KHR_integer_dot_product;
+    return {};
   }
 
   void validate() const override {
@@ -2990,6 +3058,12 @@ private:
     }
 
     llvm_unreachable("No mapping for argument type to capability.");
+  }
+
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      return VersionNumber::SPIRV_1_6;
+    return VersionNumber::SPIRV_1_0;
   }
 };
 
@@ -3434,7 +3508,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 6, true, 3)
 #undef _SPIRV_OP
 
 class SPIRVCooperativeMatrixCheckedInstructionsINTELInstBase
@@ -3931,6 +4005,70 @@ _SPIRV_OP(TaskSequenceRelease, false, 2, false)
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
 _SPIRV_OP(TaskSequenceCreate, true, 8, false, 1, 2, 3, 4)
+#undef _SPIRV_OP
+
+template <Op OC> class SPIRVBindlessImagesInstBase : public SPIRVUnaryInst<OC> {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityBindlessImagesINTEL);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_bindless_images;
+  }
+
+  void validate() const override {
+    SPIRVUnary::validate();
+
+    // validate is a const method, whilst getOperand is non-const method
+    // because it may call a method of class Module that may modify LiteralMap
+    // of Module field. That modification is not impacting validate method for
+    // these instructions, so const_cast is safe here.
+    using SPVBindlessImagesInst = SPIRVBindlessImagesInstBase<OC>;
+    SPIRVValue *Input =
+        const_cast<SPVBindlessImagesInst *>(this)->getOperand(0);
+    SPIRVType *InCompTy = Input->getType();
+
+    auto StringAddrMod = [](SPIRVAddressingModelKind Kind) -> std::string {
+      if (Kind == AddressingModelPhysical32)
+        return std::string("Physical32");
+      if (Kind == AddressingModelPhysical64)
+        return std::string("Physical64");
+      return std::string("AddressingModel: ") + std::to_string(Kind);
+    };
+
+    auto InstName = OpCodeNameMap::map(OC);
+    auto AddrMod = this->getModule()->getAddressingModel();
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    SPVErrLog.checkError(
+        (InCompTy->isTypeInt(32) && AddrMod == AddressingModelPhysical32) ||
+            (InCompTy->isTypeInt(64) && AddrMod == AddressingModelPhysical64),
+        SPIRVEC_InvalidInstruction,
+        InstName +
+            "\nParameter value must be a 32-bit scalar in case of "
+            "Physical32 addressing model or a 64-bit scalar in case of "
+            "Physical64 addressing model\n"
+            "Type size: " +
+            std::to_string(InCompTy->getBitWidth()) +
+            "\nAddressing model: " + StringAddrMod(AddrMod) + "\n");
+
+    SPIRVType *ResTy = this->getType();
+    SPVErrLog.checkError(
+        (ResTy->isTypeImage() && OC == internal::OpConvertHandleToImageINTEL) ||
+            (ResTy->isTypeSampler() &&
+             OC == internal::OpConvertHandleToSamplerINTEL) ||
+            (ResTy->isTypeSampledImage() &&
+             OC == internal::OpConvertHandleToSampledImageINTEL),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nIncorrect return type of the instruction must be "
+                   "image/sampler\n");
+  }
+};
+#define _SPIRV_OP(x)                                                           \
+  typedef SPIRVBindlessImagesInstBase<internal::Op##x> SPIRV##x;
+_SPIRV_OP(ConvertHandleToImageINTEL)
+_SPIRV_OP(ConvertHandleToSamplerINTEL)
+_SPIRV_OP(ConvertHandleToSampledImageINTEL)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

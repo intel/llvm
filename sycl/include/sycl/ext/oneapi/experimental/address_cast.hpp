@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <sycl/detail/spirv.hpp>
 #include <sycl/multi_ptr.hpp>
 
 namespace sycl {

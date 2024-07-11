@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 #include "spirv_vars.h"
 
 #define ITT_STUB_ATTRIBUTES __attribute__((noinline, optnone))
@@ -108,5 +108,5 @@ SYCL_EXTERNAL EXTERN_C void
 __itt_offload_atomic_op_finish(void *object, __itt_atomic_mem_op_t op_type,
                                __itt_atomic_mem_order_t mem_order);
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_DEVICE_ITT_H__

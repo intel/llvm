@@ -57,6 +57,7 @@ Maxime France-Pillois, Codeplay +
 Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
+Fábio Mestre, Codeplay +
 
 == Dependencies
 
@@ -116,7 +117,7 @@ is run repeatedly for different inputs, this is particularly useful.
 In order to achieve the goals described in previous sections, the following
 requirements were considered:
 
-1. Ability to update inputs/outputs of the graph between submissions, without
+1. Ability to update parameters of the graph between submissions, without
    changing the overall graph structure.
 2. Enable low effort porting of existing applications to use the extension.
 3. Profiling, debugging, and tracing functionality at the granularity of graph
@@ -205,7 +206,7 @@ Table {counter: tableNumber}. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
 |1     |Initial extension version. Base features are supported.
 |===
 
-=== SYCL Graph Terminology
+=== SYCL Graph Terminology [[terminology]]
 
 Table {counter: tableNumber}. Terminology.
 [%header,cols="1,3"]
@@ -275,7 +276,7 @@ been submitted.
 
 | Edge
 | An edge in a queue recorded graph is expressed through command group
-dependencies in one of two ways. Firstly, through buffer accessors that
+dependencies in one of three ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
@@ -283,7 +284,8 @@ create an edge, it must be an event returned from a queue
 submission captured by the same graph. Otherwise, a synchronous error will be
 thrown with error code `invalid`. `handler::depends_on()` can be
 used to express edges when a user is working with USM memory rather than SYCL
-buffers.
+buffers. Thirdly, for a graph recorded with an in-order queue, an edge is added
+automatically between two sequential command groups submitted to the in-order queue.
 |===
 
 ==== Sub-Graph
@@ -617,12 +619,12 @@ public:
   command_graph<graph_state::executable>
   finalize(const property_list& propList = {}) const;
 
-  bool begin_recording(queue& recordingQueue, const property_list& propList = {});
-  bool begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
+  void begin_recording(queue& recordingQueue, const property_list& propList = {});
+  void begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
 
-  bool end_recording();
-  bool end_recording(queue& recordingQueue);
-  bool end_recording(const std::vector<queue>& recordingQueues);
+  void end_recording();
+  void end_recording(queue& recordingQueue);
+  void end_recording(const std::vector<queue>& recordingQueues);
 
   node add(const property_list& propList = {});
 
@@ -644,6 +646,7 @@ public:
 
     void update(node& node);
     void update(const std::vector<node>& nodes);
+    void update(const command_graph<graph_state::modifiable>& graph);
 };
 
 }  // namespace sycl::ext::oneapi::experimental
@@ -663,6 +666,14 @@ more nodes added to it. Finalization may be a computationally expensive
 operation as the runtime can perform optimizations based on the graph
 structure. After finalization the graph can be submitted for execution on a
 queue one or more times with reduced overhead.
+
+A `command_graph` can be submitted to both in-order and out-of-order queues. Any
+dependencies between the graph and other command-groups submitted to the same 
+queue will be respected. However, the in-order and out-of-order properties of the
+queue have no effect on how the nodes within the graph are executed (e.g. the graph
+nodes without dependency edges may execute out-of-order even when using an in-order
+queue). For further information about how the properties of a queue affect graphs
+<<Queue Properties, see the section on Queue Properties>>
 
 ==== Graph State
 
@@ -693,14 +704,14 @@ graph LR
 
 A graph in the executable state can have the configuration of its nodes modified
 using a concept called graph _update_. This avoids a user having to rebuild and
-finalize a new executable graph when only the inputs & outputs to a graph change
+finalize a new executable graph when only the parameters of graph nodes change
 between submissions.
 
 Updates to a graph will be scheduled after any in-flight executions of the same
 graph and will not affect previous submissions of the same graph. The user is
 not required to wait on any previous submissions of a graph before updating it.
 
-The only type of nodes that are currently supported for updating in a graph are
+The only type of nodes that are currently able to be updated in a graph are
 kernel execution nodes.
 
 The aspects of a kernel execution node that can be configured during update are:
@@ -732,9 +743,9 @@ The other node configuration that can be updated is the execution range of the
 kernel, this can be set through `node::update_nd_range()` or
 `node::update_range()` but does not require any prior registration.
 
-These updated nodes can then be passed to 
-`command_graph<graph_state::executable>::update()` which will update the
-executable graph with the current state of the nodes.
+The executable graph can then be updated by passing the updated nodes to
+`command_graph<graph_state::executable>::update(node& node)` or
+`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`.
 
 Since the structure of the graph became fixed when finalizing, updating
 parameters on a node will not change the already defined dependencies between
@@ -750,6 +761,51 @@ data dependency and prevents unexpected behavior. To achieve this, one
 dynamic parameter for the buffer can be registered with all the nodes which
 use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
 will maintain the graphs data dependencies.
+
+===== Whole Graph Update [[whole-graph-update]]
+
+A graph in the executable state can have all of its nodes updated using the
+`command_graph<graph_state::executable>::update(graph)` method. This method
+takes a source graph in the modifiable state and updates the nodes in the target
+executable state graph to reflect any changes made to the nodes in the source
+graph. The characteristics which will be updated are detailed in the section on
+<<executable-graph-update, Executable Graph Update>>.
+
+Both the source and target graphs for the update must satisfy the following
+conditions:
+
+* Both graphs must have been created with the same device and context.
+* Both graphs must be topologically identical. The graphs are considered
+  topologically identical when:
+
+** Both graphs must have the same number of nodes and edges.
+** Internal edges must be between corresponding nodes in each graph.
+** Nodes must be added in the same order in the two graphs. Nodes may be added
+   via `command_graph::add`, or for a recorded queue via `queue::submit` or
+   queue shortcut functions.
+** Corresponding nodes in each graph must be kernels that have the same type:
+
+*** When the kernel is defined as a lambda, the lambda must be the same.
+*** When the kernel is defined as a named function object, the kernel class
+    must be the same.
+*** When the kernel is defined as a plain function, the function must be the
+    same.
+
+** Edge dependencies for each node in the two graphs must be created in the
+   same order by using the same API invocation to create each edge. See
+   the <<terminology, terminology section>> for an exhaustive definition of
+   how edges are defined in a graph for each of the two graph construction
+   APIs.
+
+Attempting to use whole-graph update with source or target graphs which do not
+satisfy the conditions of topological identity results in undefined behaviour,
+as it may prevent the runtime from pairing nodes in the source and target
+graphs.
+
+It is valid to use nodes that contain dynamic parameters in whole graph updates.
+If a node containing a dynamic parameter is updated through the whole graph
+update API, then any previous updates to the dynamic parameter will be reflected
+in the new graph.
 
 ==== Graph Properties [[graph-properties]]
 
@@ -811,6 +867,25 @@ The `property::graph::updatable` property enables updating a `command_graph`
 when passed on finalization of a modifiable `command_graph`. For further
 information see <<executable-graph-update, the section on Executable Graph
 Update>>.
+
+==== Enable-Profiling Property [[enable-profiling]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property enables profiling events
+returned from submissions of the executable graph. Passing this property
+implies disabling certain optimizations. As a result, the execution time of a
+graph finalized with profiling enabled is longer than that of a graph without
+profiling capability. An error will be thrown when attempting to profile an
+event from a graph submission that was created without this property.
 
 ==== Graph Member Functions
 
@@ -874,7 +949,9 @@ Parameters:
 
 * `syclQueue` - Queue which provides the SYCL device and context for the graph,
   which are immutable characteristics of the graph. All other properties of the
-  queue are ignored for the purposes of graph creation.
+  queue are ignored for the purposes of graph creation. See the
+  <<Queue Properties, Queue Properties>> section for more general information
+  about how queue properties interact with command_graph objects.
 
 * `propList` - Optional parameter for passing properties. Valid `command_graph`
   constructor properties are listed in Section <<graph-properties, Graph Properties>>.
@@ -1016,9 +1093,11 @@ Constraints:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. The only property
-  that is valid to pass here is `property::graph::updatable`, to enable the
+* `propList` - Optional parameter for passing properties. Two properties
+  are valid to pass here. One is `property::graph::updatable` to enable the
   returned executable graph to be <<executable-graph-update, updated>>.
+  The other is <<enable-profiling, `property::graph::enable_profiling`>>
+  to enable profiling events returned from submissions of the executable graph.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
@@ -1136,6 +1215,58 @@ Exceptions:
   `property::graph::updatable` was not set when the executable graph was created.
 * Throws with error code `invalid` if any node in `nodes` is not part of the
   graph.
+
+|
+[source, c++]
+----
+void
+update(const command_graph<graph_state::modifiable>& source);
+----
+
+|Updates all of the nodes in the target graph with parameters from a
+topologically identical source graph in the modifiable state. The full
+definition of what constitutes a topologically identical graph can be found in
+the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
+topology requirements results in undefined behaviour.
+
+The characteristics in the executable graph which will be updated are detailed
+in the section on <<executable-graph-update, Executable Graph Update>>.
+
+It is not an error to update an executable graph such that all parameters of
+nodes in `source` are identical to the arguments of the executable graph prior to
+the update.
+
+The implementation may perform a blocking wait during this call on
+any in-flight executions of that same graph if required by the backend.
+
+This function may only be called if the graph was created with the `updatable`
+property.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `source` - Modifiable graph object used as the source for updating this graph.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `source` contains any node
+  which is not one of the following types:
+
+** `node_type::empty`
+** `node_type::ext_oneapi_barrier`
+** `node_type::kernel`
+
+* Throws synchronously with error code `invalid` if the context or device
+  associated with `source` does not match that of the `command_graph` being
+  updated.
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was
+  created.
 |===
 
 Table {counter: tableNumber}. Member functions of the `command_graph` class for
@@ -1147,13 +1278,14 @@ queue recording.
 |
 [source, c++]
 ----
-bool
+void
 begin_recording(queue& recordingQueue,
                 const property_list& propList = {})
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::recording` state.
+`queue_state::recording` state. This operation is a no-op if `recordingQueue`
+is already in the `queue_state::recording` state.
 
 Parameters:
 
@@ -1163,9 +1295,6 @@ Parameters:
 
 * `propList` - Optional parameter for passing properties. Properties for
   the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Returns: `true` if `recordingQueue` has its state changed from
-`queue_state::executing` to `queue_state::recording`, `false` otherwise.
 
 Exceptions:
 
@@ -1179,13 +1308,14 @@ Exceptions:
 |
 [source, c++]
 ----
-bool
+void
 begin_recording(const std::vector<queue>& recordingQueues,
                 const property_list& propList = {})
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state.
+`queue_state::recording` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::recording` state.
 
 Parameters:
 
@@ -1195,9 +1325,6 @@ Parameters:
 
 * `propList` - Optional parameter for passing properties. Properties for
   the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Returns: `true` if any queue in `recordingQueues` has its state changed from
-`queue_state::executing` to `queue_state::recording`, `false` otherwise.
 
 Exceptions:
 
@@ -1211,30 +1338,27 @@ Exceptions:
 |
 [source, c++]
 ----
-bool end_recording()
+void end_recording()
 ----
 
 |Synchronously finishes recording on all queues that are recording to the
-graph and sets their state to `queue_state::executing`.
-
-Returns: `true` if any queue recording to the graph has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
+graph and sets their state to `queue_state::executing`. This operation is
+a no-op for any queue in the graph that is already in the
+`queue_state::executing` state.
 
 |
 [source, c++]
 ----
-bool end_recording(queue& recordingQueue)
+void end_recording(queue& recordingQueue)
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::executing` state.
+`queue_state::executing` state. This operation is a no-op if `recordingQueue`
+is already in the `queue_state::executing` state.
 
 Parameters:
 
 * `recordingQueue` - A `sycl::queue` object to change to the executing state.
-
-Returns: `true` if `recordingQueue` has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
 
 Exceptions:
 
@@ -1244,19 +1368,17 @@ Exceptions:
 |
 [source, c++]
 ----
-bool end_recording(const std::vector<queue>& recordingQueues)
+void end_recording(const std::vector<queue>& recordingQueues)
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::executing` state.
+`queue_state::executing` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::executing` state.
 
 Parameters:
 
 * `recordingQueues` - List of `sycl::queue` objects to change to the executing
   state.
-
-Returns: `true` if any queue in `recordingQueues` has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
 
 Exceptions:
 
@@ -1352,9 +1474,12 @@ ways:
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
    profiling information to be obtained from the event returned by a graph
-   submission. As it is not defined how a submitted graph will be split up for
-   scheduling at runtime, the `uint64_t` timestamp reported from a profiling
-   query on a graph execution event has the following semantics, which may be
+   submission. The executable graph used for this submission must have been
+   created with the `enable_profiling` property, see
+   <<enable-profiling, Enable-Profiling>> for more details. As it is not
+   defined how a submitted graph will be split up for scheduling at runtime,
+   the `uint64_t` timestamp reported from a profiling query on a graph
+   execution event has the following semantics, which may be
    pessimistic about execution time on device.
 
    * `info::event_profiling::command_submit` - Timestamp when the graph is
@@ -1578,6 +1703,19 @@ As a result, users don't need to manually wrap queue recording code in a
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
 
+=== Command-Group Function Limitations
+
+While not disallowed by the SYCL specification it should be noted that it is not
+possible to capture arbitrary C++ code which is inside a CGF (Command-Group
+Function) used to create a graph node. This code will be evaluated once during
+the call to `queue::submit()` or `command_graph::add()` along with the calls to
+handler functions and this will not be reflected on future executions of the
+graph.
+
+Any code like this should be moved to a separate host-task and added to the
+graph via the recording or explicit APIs in order to be compatible with this
+extension.
+
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
@@ -1676,13 +1814,6 @@ being thrown in the default queue executing state, will still be thrown when a
 queue is in the recording state. Queue query methods operate as usual in
 recording mode, as opposed to throwing.
 
-The `command_graph::begin_recording` and `command_graph::end_recording`
-entry-points return a `bool` value informing the user whether a related queue
-state change occurred. False is returned rather than throwing an exception when
-no queue state is changed. This design is because the queues are already in
-the state the user desires, so if the function threw an exception in this case,
-the application would likely swallow it and then proceed.
-
 === Interaction With Other Extensions [[extension-interaction]]
 
 This section defines the interaction of `sycl_ext_oneapi_graph` with other
@@ -1703,15 +1834,23 @@ passed an invalid event.
 The new handler methods, and queue shortcuts, defined by
 link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
 can only be used in graph nodes created using the Record & Replay API, as
-barriers rely on events to enforce dependencies. For barriers with an empty
-wait list parameter, the semantics are that the barrier node being added to
-will depend on all the existing graph leaf nodes, not only the leaf nodes
-that were added from the queue being recorded.
+barriers rely on events to enforce dependencies.
 
 A synchronous exception will be thrown with error code `invalid` if a user
-tries to add them to a graph using the Explicit API. Empty nodes created with
-the `node::depends_on_all_leaves` property can be used instead of barriers when
-a user is building a graph with the explicit API.
+tries to add a barrier command to a graph using the explicit API. Empty nodes
+created with the `node::depends_on_all_leaves` property can be used instead of
+barriers when a user is building a graph with the explicit API.
+
+The semantics of barriers are defined in `sycl_ext_oneapi_enqueue_barrier` for
+a single command-queue, and correlate as follows to a graph that may contain
+nodes that are recorded from multiple queues and/or added by the explicit API:
+
+* Barriers with an empty wait list parameter will only depend on the leaf nodes
+  that were added to the graph from the queue the barrier command is being
+  recorded from.
+
+* The only commands which have an implicit dependency on the barrier command
+  are those recorded from the same queue the barrier command was submitted to.
 
 ==== sycl_ext_oneapi_memcpy2d
 
@@ -1797,6 +1936,12 @@ code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
 
 == Examples
 
@@ -2088,6 +2233,69 @@ node nodeA = myGraph.add([&](handler& cgh) {
 dynParamAccessor.update(bufferB.get_access());
 ----
 
+=== Whole Graph Update
+
+Example that shows recording and updating several nodes with different
+parameters using <<whole-graph-update, Whole Graph Update>>.
+
+[source,c++]
+----
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+// Enqueue several kernels which use inputPtr
+void run_kernels(int* inputPtr, queue syclQueue){
+  event eventA = syclQueue.submit([&](handler& CGH){
+    CGH.parallel_for(...);
+  });
+  event eventB = syclQueue.submit([&](handler& CGH){
+    CGH.depends_on(eventA);
+    CGH.parallel_for(...);
+  });
+  syclQueue.submit([&](handler& CGH){
+    CGH.depends_on(eventB);
+    CGH.parallel_for(...);
+  });
+}
+
+...
+
+queue myQueue;
+
+// USM allocations
+const size_t n = 1024;
+int *ptrA = malloc_device<int>(n, myQueue);
+int *ptrB = malloc_device<int>(n, myQueue);
+
+// Main graph which will be updated later
+sycl_ext::command_graph mainGraph(myQueue);
+
+// Record the kernels to mainGraph, using ptrA
+mainGraph.begin_recording(myQueue);
+run_kernels(ptrA, myQueue);
+mainGraph.end_recording();
+
+auto execMainGraph = mainGraph.finalize({sycl_ext::property::graph::updatable});
+
+// Execute execMainGraph
+myQueue.ext_oneapi_graph(execMainGraph);
+
+// Record a second graph which records the same kernels, but using ptrB instead
+sycl_ext::command_graph updateGraph(myQueue);
+updateGraph.begin_recording(myQueue);
+run_kernels(ptrB, myQueue);
+updateGraph.end_recording();
+
+// Update execMainGraph using updateGraph. We do not need to finalize
+// updateGraph (this would be expensive)
+execMainGraph.update(updateGraph);
+
+// Execute execMainGraph again, which will now be operating on ptrB instead of
+// ptrA
+myQueue.ext_oneapi_graph(execMainGraph);
+----
+
 == Future Direction [[future-direction]]
 
 This section contains both features of the specification which have been
@@ -2147,89 +2355,6 @@ if all the commands accessing this buffer use `access_mode::write` or the
 `no_init` property because the host memory is not needed in these cases.
 Note, however, that these cases require the application to disable copy-back
 as described in <<buffer-limitations, Buffer Limitations>>.
-
-==== Whole Graph Update
-
-A graph in the executable state can have each nodes inputs & outputs updated
-using the `command_graph::update()` method. This takes a graph in the
-modifiable state and updates the executable graph to use the node input &
-outputs of the modifiable graph, a technique called _Whole Graph Update_. The
-modifiable graph must have the same topology as the graph originally used to
-create the executable graphs, with the nodes targeting the same devices and
-added in the same order.
-If a graph has been updated since its last submission, the sequential 
-execution constraint is no longer required.
-The automatic addition of dependencies is disabled and updated graphs 
-can be submitted simultaneously.
-Users are therefore responsible for explicitly managing potential dependencies
-between these executions to avoid data races.
-
-:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
-
-Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
-[source, c++]
-----
-void
-update(const command_graph<graph_state::modifiable>& graph);
-----
-
-
-|Updates the executable graph node inputs & outputs from a topologically
-identical modifiable graph. A topologically identical graph is one with the
-same structure of nodes and edges, and the nodes added in the same order to
-both graphs. Equivalent nodes in topologically identical graphs each have the
-same command, targeting the same device. There is the additional limitation that
-to update an executable graph, every node in the graph must be either a kernel
-command or a host task.
-
-The only characteristic that can differ between two topologically identical
-graphs during an update are the arguments to kernel nodes. For example,
-the graph may capture different values for the USM pointers or accessors used
-in the graph. It is these kernels arguments in `graph` that constitute the
-inputs & outputs to update to.
-
-Differences in the following characteristics between two graphs during an
-update results in undefined behavior:
-
-* Modifying the native C++ callable of a `host task` node.
-* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
-
-The effects of the update will be visible on the next submission of the
-executable graph without the need for additional user synchronization.
-
-Constraints:
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
-
-Parameters:
-
-* `graph` - Modifiable graph object to update graph node inputs & outputs with.
-  This graph must have the same topology as the original graph used on
-  executable graph creation.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the topology of `graph` is
-  not the same as the existing graph topology, or if the nodes were not added in
-  the same order.
-
-:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
-
-* Throws synchronously with error code `invalid` if `graph` contains any node
-  which is not a kernel command or host task, e.g.
-  {handler-copy-functions}[memory operations].
-
-* Throws synchronously with error code `invalid` if the context or device
-  associated with `graph` does not match that of the `command_graph` being
-  updated.
-
-|===
 
 === Features Still in Development
 
@@ -2294,11 +2419,11 @@ runtime.
 
 === Update More Command Types
 
-Support updating arguments to types of nodes other that kernel execution
+Support updating arguments to types of nodes other than kernel execution
 commands.
 
-**UNRESOLVED** Should be added for at least memory copy nodes, however
-full scope of support needs to be designed and implemented.
+**UNRESOLVED** Should be added for at least memory copy nodes and host-tasks.
+However, the full scope of support needs to be designed and implemented.
 
 === Updatable Property Graph Resubmission
 

@@ -1,6 +1,6 @@
 // Test1 - check that kernel can call a SYCL_EXTERNAL function defined in a
 // different object file.
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE1 %s -c -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -o %t

@@ -66,10 +66,6 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
-// Lowers calls __esimd_slm_alloc, __esimd_slm_free and __esimd_slm_init APIs.
-// See more details in the .cpp file.
-size_t lowerSLMReservationCalls(Module &M);
-
 // Lowers calls to __esimd_set_kernel_properties
 class SYCLLowerESIMDKernelPropsPass
     : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
@@ -91,6 +87,14 @@ public:
 
 class ESIMDRemoveOptnoneNoinlinePass
     : public PassInfoMixin<ESIMDRemoveOptnoneNoinlinePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
+// Lowers calls __esimd_slm_alloc, __esimd_slm_free and __esimd_slm_init APIs.
+// See more details in the .cpp file.
+class ESIMDLowerSLMReservationCalls
+    : public PassInfoMixin<ESIMDLowerSLMReservationCalls> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

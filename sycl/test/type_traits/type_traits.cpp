@@ -51,11 +51,6 @@ void test_vector_element_t() {
                 "");
 }
 
-template <typename T> void test_nan_types() {
-  static_assert(sizeof(d::vector_element_t<d::nan_return_t<T>>) ==
-                sizeof(d::nan_argument_base_t<T>));
-}
-
 template <typename T, typename CheckedT, bool Expected = true>
 void test_make_signed_t() {
   static_assert(is_same<d::make_signed_t<T>, CheckedT>::value == Expected, "");
@@ -86,10 +81,6 @@ void test_is_address_space_compliant() {
 template <typename T, int Checked, bool Expected = true>
 void test_vector_size() {
   static_assert((d::vector_size<T>::value == Checked) == Expected, "");
-}
-
-template <bool Expected, typename... Args> void test_is_same_vector_size() {
-  static_assert(d::is_same_vector_size<Args...>::value == Expected, "");
 }
 
 int main() {
@@ -182,14 +173,6 @@ int main() {
   test_vector_element_t<volatile s::int2, volatile int>();
   test_vector_element_t<const volatile s::int2, const volatile int>();
 
-  test_nan_types<unsigned short>();
-  test_nan_types<unsigned int>();
-  test_nan_types<unsigned long>();
-  test_nan_types<unsigned long long>();
-  test_nan_types<s::ushort2>();
-  test_nan_types<s::uint2>();
-  test_nan_types<s::ulong2>();
-
   test_make_signed_t<int, int>();
   test_make_signed_t<const int, const int>();
   test_make_signed_t<unsigned int, int>();
@@ -215,17 +198,6 @@ int main() {
   test_vector_size<s::float3, 3>();
   test_vector_size<s::double4, 4>();
   test_vector_size<s::vec<int, 1>, 1>();
-
-  test_is_same_vector_size<true, int>();
-  test_is_same_vector_size<true, s::int2>();
-  test_is_same_vector_size<true, int, float>();
-  test_is_same_vector_size<false, int, s::float2>();
-  test_is_same_vector_size<true, s::int2, s::float2>();
-  test_is_same_vector_size<false, s::int2, float>();
-  test_is_same_vector_size<true, s::constant_ptr<int>>();
-  test_is_same_vector_size<true, s::constant_ptr<s::int2>>();
-  test_is_same_vector_size<true, s::constant_ptr<s::int2>, s::int2>();
-  test_is_same_vector_size<false, s::constant_ptr<s::int2>, float>();
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(

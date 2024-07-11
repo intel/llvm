@@ -9,7 +9,7 @@
 #include "spirv_decls.hpp"
 #include "spirv_vars.h"
 #include <cstdint>
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 static inline size_t __get_wg_local_range() {
   return __spirv_BuiltInWorkgroupSize.x * __spirv_BuiltInWorkgroupSize.y *
@@ -30,4 +30,4 @@ static inline void group_barrier() {
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
-#endif
+#endif // __SPIR__ || __SPIRV__

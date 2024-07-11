@@ -9,10 +9,11 @@
 #pragma once
 #include <detail/plugin.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -56,36 +57,6 @@ get_platform_info(sycl::detail::pi::PiPlatform Plt, const PluginPtr &Plugin) {
   std::string Result = get_platform_info_string_impl(
       Plt, Plugin, detail::PiInfoCode<info::platform::extensions>::value);
   return split_string(Result, ' ');
-}
-
-// Host platform information methods
-template <typename Param>
-inline typename Param::return_type get_platform_info_host() = delete;
-
-template <>
-inline std::string get_platform_info_host<info::platform::profile>() {
-  return "FULL PROFILE";
-}
-
-template <>
-inline std::string get_platform_info_host<info::platform::version>() {
-  return "1.2";
-}
-
-template <> inline std::string get_platform_info_host<info::platform::name>() {
-  return "SYCL host platform";
-}
-
-template <>
-inline std::string get_platform_info_host<info::platform::vendor>() {
-  return "";
-}
-
-template <>
-inline std::vector<std::string>
-get_platform_info_host<info::platform::extensions>() {
-  // TODO update when appropriate
-  return {};
 }
 
 } // namespace detail

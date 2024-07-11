@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -26,11 +27,6 @@ namespace experimental::esimd {
 /// Generic work-group split barrier.
 /// @tparam flag  - split barrier action.
 template <split_barrier_action flag> __ESIMD_API void split_barrier() {
-  __esimd_sbarrier(flag);
-}
-
-__SYCL_DEPRECATED("use split_barrier<split_barrier_action>()")
-__ESIMD_API void split_barrier(split_barrier_action flag) {
   __esimd_sbarrier(flag);
 }
 
@@ -88,51 +84,6 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
-///
-/// @tparam execSize is the execution size.
-/// @tparam sfid is the shared function ID.
-/// @tparam numSrc0 is the number of GRFs for source-0.
-/// @tparam numSrc1 is the number of GRFs for source-1.
-/// @tparam numDst is the number of GRFs for destination.
-/// @tparam isEOT is the flag that indicates whether this is an EOT message
-/// (optional - default to 0).
-/// @tparam isSendc is the flag that indicates whether sendc should be used
-/// (optional - default to 0).
-/// @param msgDst is the old value of the destination operand.
-/// @param msgSrc0 is the first source operand of send message.
-/// @param msgSrc1 is the second source operand of send message.
-/// @param exDesc is the extended message descriptor.
-/// @param msgDesc is the message descriptor.
-/// @param mask is the predicate to specify enabled channels (optional - default
-/// to on).
-/// @return the vector value read from memory.
-template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-          uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1,
-          int n1, typename T2, int n2, typename T3, int n3>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_sends")
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-    __ESIMD_NS::simd_mask<execSize> mask = 1) {
-  constexpr unsigned _Width1 = n1 * sizeof(T1);
-  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
-  constexpr unsigned _Width2 = n2 * sizeof(T2);
-  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
-  constexpr unsigned _Width3 = n3 * sizeof(T3);
-  static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
-
-  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
-  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
-  using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
-
-  constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-
-  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, execSize>(
-      modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
-      msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
-}
-
 /// Raw send.
 ///
 /// @param msgDst is the old value of the destination operand.
@@ -170,45 +121,6 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
   return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
-      modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
-      msgSrc0.data(), msgDst.data());
-}
-
-/// Raw send.
-///
-/// @tparam execSize is the execution size.
-/// @tparam sfid is the shared function ID.
-/// @tparam numSrc0 is the number of GRFs for source-0.
-/// @tparam numDst is the number of GRFs for destination.
-/// @tparam isEOT is the flag that indicates whether this is an EOT message
-/// (optional - default to 0).
-/// @tparam isSendc is the flag that indicates whether sendc should be used
-/// (optional - default to 0).
-/// @param msgDst is the old value of the destination operand.
-/// @param msgSrc0 is the first source operand of send message.
-/// @param exDesc is the extended message descriptor.
-/// @param msgDesc is the message descriptor.
-/// @param mask is the predicate to specify enabled channels (optional - default
-/// to on).
-/// @return the vector value read from memory
-template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numDst,
-          uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
-          typename T2, int n2>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_send")
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    uint32_t exDesc, uint32_t msgDesc,
-    __ESIMD_NS::simd_mask<execSize> mask = 1) {
-  constexpr unsigned _Width1 = n1 * sizeof(T1);
-  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
-  constexpr unsigned _Width2 = n2 * sizeof(T2);
-  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
-
-  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
-  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
-
-  constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, execSize>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
 }
@@ -253,44 +165,6 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
       msgSrc0.data(), msgSrc1.data());
 }
 
-/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
-///
-/// @tparam execSize is the execution size.
-/// @tparam sfid is the shared function ID.
-/// @tparam numSrc0 is the number of GRFs for source-0.
-/// @tparam numSrc1 is the number of GRFs for source-1.
-/// @tparam isEOT is the flag that indicates whether this is an EOT message
-/// (optional - default to 0).
-/// @tparam isSendc is the flag that indicates whether sendc should be used
-/// (optional - default to 0).
-/// @param msgSrc0 is the first source operand of send message.
-/// @param msgSrc1 is the second source operand of send message.
-/// @param exDesc is the extended message descriptor.
-/// @param msgDesc is the message descriptor.
-/// @param mask is the predicate to specify enabled channels (optional - default
-/// to on).
-template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-          uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
-          typename T2, int n2>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_sends")
-__ESIMD_API
-    void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                   __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                   uint32_t msgDesc, __ESIMD_NS::simd_mask<execSize> mask = 1) {
-  constexpr unsigned _Width1 = n1 * sizeof(T1);
-  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
-  constexpr unsigned _Width2 = n2 * sizeof(T2);
-  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
-
-  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
-  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
-
-  constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, execSize>(
-      modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
-      msgSrc0.data(), msgSrc1.data());
-}
-
 /// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
@@ -323,36 +197,6 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                             msgSrc0.data());
 }
 
-/// Raw send. Generates a \c send or \c sendc instruction for the message
-/// gateway.
-///
-/// @tparam execSize is the execution size.
-/// @tparam sfid is the shared function ID.
-/// @tparam numSrc0 is the number of GRFs for source-0.
-/// @tparam isEOT is the flag that indicates whether this is an EOT message
-/// (optional - default to 0).
-/// @tparam isSendc is the flag that indicates whether sendc should be used
-/// (optional - default to 0).
-/// @param msgSrc0 is the first source operand of send message.
-/// @param exDesc is the extended message descriptor.
-/// @param msgDesc is the message descriptor.
-/// @param mask is the predicate to specify enabled channels (optional - default
-/// to on).
-template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
-          uint8_t isSendc = 0, typename T1, int n1>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_send")
-__ESIMD_API
-    void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
-                  uint32_t msgDesc, __ESIMD_NS::simd_mask<execSize> mask = 1) {
-  constexpr unsigned _Width1 = n1 * sizeof(T1);
-  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
-  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
-  constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send2_noresult<ElemT1, n1, execSize>(
-      modifier, execSize, mask.data(), numSrc0, sfid, exDesc, msgDesc,
-      msgSrc0.data());
-}
-
 /// @} sycl_esimd_raw_send
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
@@ -360,44 +204,6 @@ __ESIMD_API
 
 /// @addtogroup sycl_esimd_memory_nbarrier
 /// @{
-
-/// Wait on a named barrier
-/// Available only on PVC
-///
-/// @param id  - named barrier id
-__ESIMD_API void named_barrier_wait(uint8_t id) {
-  __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
-}
-
-/// Initialize number of named barriers for a kernel
-/// Available only on PVC
-///
-/// @tparam NbarCount  - number of named barriers
-template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
-  __esimd_nbarrier_init(NbarCount);
-}
-
-/// Perform signal operation for the given named barrier
-/// Available only on PVC
-///
-/// @param barrier_id  - named barrier id
-///
-/// @param producer_consumer_mode  - 2-bit flag to indicate if it's producer
-/// mode (0x1) or consumer mode (0x2). User must ensure the input value is set
-/// correctly and higher order bits are cleared.
-///
-/// @param num_producers  - number of producers
-///
-/// @param num_consumers  - number of consumers
-__ESIMD_API void named_barrier_signal(uint8_t barrier_id,
-                                      uint8_t producer_consumer_mode,
-                                      uint32_t num_producers,
-                                      uint32_t num_consumers) {
-  __esimd_fence(__ESIMD_NS::fence_mask::global_coherent_fence |
-                __ESIMD_NS::fence_mask::local_barrier);
-  __esimd_nbarrier_arrive(barrier_id, producer_consumer_mode, num_producers,
-                          num_consumers);
-}
 
 /// Create explicit scoreboard dependency to avoid device code motion
 /// across this call and preserve the \p value computation even
@@ -769,7 +575,7 @@ __ESIMD_API
                __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   __ESIMD_NS::simd<T, N * NElts> PassThru; // Intentionally uninitialized.
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
@@ -844,7 +650,7 @@ __ESIMD_API
                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred, pass_thru);
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred, pass_thru);
 
 #else
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
@@ -1252,21 +1058,36 @@ lsc_prefetch(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
-/// Prefetches elements located at specified address.
+/// Prefetches elements located at contiguous block of memory of `NElts * S`
+/// bytes  starting from given address, where S is a byte size of an "element"
+/// defined by the \c DS template parameter. The maximum size of prefetched
+/// block is 512 bytes for PVC and 256 bytes for ACM (DG2). When sizeof(T) equal
+/// to 8 the address must be 8-byte aligned. Also, 8-bytes alignment is required
+/// when the function has to load more than 256-bytes. In all other cases 4-byte
+/// alignment is required. When T is 1- or 2-byte type the data is treated as
+/// 4-byte data. Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16,
+/// 32, 64. Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32,
+/// 64, 128. Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64,
+/// 128, 256. Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64,
+/// 128, 256, 512.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @param p is the base pointer.
 ///
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none>
-__ESIMD_API void lsc_prefetch(const T *p) {
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_prefetch(const T *p, FlagsT = {}) {
   __ESIMD_NS::simd_mask<1> Mask = 1;
-  using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
   __ESIMD_DNS::prefetch_impl<T, NElts, DS, PropertyListT>(p, 0, Mask);
 }
 
@@ -1325,13 +1146,25 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
-/// Prefetches elements located at surface.
+/// Prefetches elements located at surface of `NElts * S`
+/// bytes starting from given offset, where S is a byte size of an "element"
+/// defined by the \c DS template parameter. The maximum size of accessed block
+/// is 512 bytes for PVC and 256 bytes for ACM (DG2). When sizeof(T) equal to 8
+/// the address must be 8-byte aligned. Also, 8-bytes alignment is required when
+/// the function has to load more than 256-bytes. In all other cases 4-byte
+/// alignment is required. When T is 1- or 2-byte type the data is treated as
+/// 4-byte data. Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16,
+/// 32, 64. Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32,
+/// 64, 128. Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64,
+/// 128, 256. Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64,
+/// 128, 256, 512.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
@@ -1339,16 +1172,21 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
-    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>>
-lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+    __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
+             FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_prefetch<T, NElts, DS, L1H, L2H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), flags);
 #else
   __ESIMD_NS::simd_mask<1> Mask = 1;
-  using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
   __ESIMD_DNS::prefetch_impl<T, NElts, DS, PropertyListT>(acc, offset, Mask);
 #endif
 }
@@ -1844,7 +1682,7 @@ public:
   /// Copy constructor
   /// </summary>
   config_2d_mem_access(const config_2d_mem_access &other)
-      : payload_data(other.payload) {}
+      : payload_data(other.payload_data) {}
 
   /// <summary>
   /// Constructor
@@ -2639,30 +2477,6 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), src0, src1, pred);
 }
 
-/// Memory fence.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Kind is the Sfid shaded function.
-/// @tparam FenceOp is the fence operation.
-/// @tparam Scope is the operation scope.
-/// @tparam N is the number of channels (platform dependent).
-/// @param pred is predicates.
-template <lsc_memory_kind Kind = lsc_memory_kind::untyped_global,
-          lsc_fence_op FenceOp = lsc_fence_op::none,
-          lsc_scope Scope = lsc_scope::group, int N = 16>
-__SYCL_DEPRECATED("use sycl::ext::intel::esimd::fence<Kind, FenceOp, Scope>()")
-__ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
-  static_assert(
-      Kind != lsc_memory_kind::shared_local ||
-          (FenceOp == lsc_fence_op::none && Scope == lsc_scope::group),
-      "SLM fence must have 'none' lsc_fence_op and 'group' scope");
-  static_assert(Kind != lsc_memory_kind::untyped_global_low_pri,
-                "lsc_memory_kind::untyped_global_low_pri is not supported in HW"
-                " and/or GPU drivers");
-  __esimd_lsc_fence<static_cast<uint8_t>(Kind), static_cast<uint8_t>(FenceOp),
-                    static_cast<uint8_t>(Scope), N>(pred.data());
-}
-
 /// @} sycl_esimd_memory_lsc
 
 /// @defgroup sycl_esimd_hw_thread_queries HW thread .
@@ -2689,6 +2503,14 @@ __ESIMD_API int32_t get_subdevice_id() {
 }
 
 /// @} sycl_esimd_hw_thread_queries
+
+/// Allocate additional named barriers for a kernel
+/// Available only on PVC
+///
+/// @tparam NbarCount  - number of named barriers
+template <uint8_t NbarCount> __ESIMD_API uint8_t named_barrier_allocate() {
+  return __esimd_named_barrier_allocate(NbarCount);
+}
 
 } // namespace experimental::esimd
 
@@ -2894,37 +2716,6 @@ atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0, simd<T, N> src1,
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       acc, offset, src1, src0, mask);
 }
-
-/// RAII-style class used to implement "semi-dynamic" SLM allocation.
-/// SLM is allocated in the constructor and released in the destructor, that's
-/// why it is "dynamic", as opposed to fully static allocation style of
-/// 'slm_init'. Actual offset of SLM chunk allocated by the call is calculated
-/// at compile time, that's why it is "semi-". To calculate SLM usage by a
-/// kernel, compiler finds a path in a callgraph with the largest amount of SLM
-/// "locked" by slm_allocator objects live along the paths. slm_init call also
-/// participates in calculating SLM budget. It can be modelled as
-/// \c slm_allocator object declared at the very beginning of a kernel and live
-/// till its the very end.
-/// Only compile-time constant SLM amount is supported for now, it is provided
-/// as a class' template argument.
-///
-/// Since a call graph is used, function pointers and recursion is not
-/// supported.
-///
-/// @tparam SLMAmount The amount allocated in bytes
-template <int SLMAmount> class slm_allocator {
-  int offset;
-
-public:
-  /// Allocates the amount of SLM which is class' template parameter.
-  slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
-
-  /// @return The allocated chunk's offset in bytes.
-  ESIMD_INLINE int get_offset() const { return offset; }
-
-  /// Releases the SLM chunk allocated in the constructor.
-  ~slm_allocator() { __esimd_slm_free(offset); }
-};
 
 } // namespace esimd
 } // namespace ext::intel

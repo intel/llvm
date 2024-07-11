@@ -1,7 +1,9 @@
 {
   global:
-    /* Export everything from jit_compiler namespace */
-    _ZN12jit_compiler*;
+    /* Export the library entry points */
+    fuseKernels;
+    resetJITConfiguration;
+    addToJITConfiguration;
 
   local:
     *;

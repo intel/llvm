@@ -61,6 +61,7 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -70,6 +71,9 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/Casting.h"
@@ -199,19 +203,19 @@ static void addRuntimeAlignedMetadata(
     LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
     std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
-  bool DecorationFound = false;
+  bool RuntimeAlignedFound = false;
+  [[maybe_unused]] llvm::Metadata *DefaultNode =
+      ConstantAsMetadata::get(ConstantInt::get(Type::getInt1Ty(*Context), 0));
   BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
-    if (Arg->getType()->isTypePointer() &&
+    if (Arg->hasAttr(FunctionParameterAttributeRuntimeAlignedINTEL) ||
         Arg->hasDecorate(internal::DecorationRuntimeAlignedINTEL)) {
-      DecorationFound = true;
+      RuntimeAlignedFound = true;
       ValueVec.push_back(ForeachFnArg(Arg));
     } else {
-      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
-          ConstantInt::get(Type::getInt1Ty(*Context), 0));
       ValueVec.push_back(DefaultNode);
     }
   });
-  if (DecorationFound)
+  if (RuntimeAlignedFound)
     Fn->setMetadata("kernel_arg_runtime_aligned",
                     MDNode::get(*Context, ValueVec));
 }
@@ -1196,10 +1200,12 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
       else {
         NewVec = ConstantVector::getSplat(
             VecElemCount, Constant::getNullValue(Arg->getType()));
-        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "", CI);
+        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "",
+                                           CI->getIterator());
         NewVec = new ShuffleVectorInst(
             NewVec, NewVec,
-            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+            CI->getIterator());
       }
       NewVec->takeName(Arg);
       return NewVec;
@@ -1778,13 +1784,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
     MaybeAlign Align(BC->getAlignment());
+    MaybeAlign SrcAlign =
+        BC->getSrcAlignment() ? MaybeAlign(BC->getSrcAlignment()) : Align;
     llvm::Value *Size = transValue(BC->getSize(), F, BB);
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
-      CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);
+      CI = Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
     }
     if (isFuncNoUnwind())
       CI->getFunction()->addFnAttr(Attribute::NoUnwind);
@@ -2101,6 +2109,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
   }
+  case OpCopyLogical: {
+    SPIRVCopyLogical *CL = static_cast<SPIRVCopyLogical *>(BV);
+    return mapValue(BV, transSPIRVBuiltinFromInst(CL, BB));
+  }
 
   case OpAccessChain:
   case OpInBoundsAccessChain:
@@ -2154,6 +2166,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto *CT = cast<Constant>(Base);
       V = ConstantExpr::getGetElementPtr(BaseTy, CT, Index, IsInbound);
     }
+    return mapValue(BV, V);
+  }
+
+  case OpPtrEqual:
+  case OpPtrNotEqual: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+
+    IRBuilder<> Builder(BB);
+    Value *Op1 = Builder.CreatePtrToInt(Ops[0], Type::getInt64Ty(*Context));
+    Value *Op2 = Builder.CreatePtrToInt(Ops[1], Type::getInt64Ty(*Context));
+    CmpInst::Predicate P =
+        OC == OpPtrEqual ? ICmpInst::ICMP_EQ : ICmpInst::ICMP_NE;
+    Value *V = Builder.CreateICmp(P, Op1, Op2);
+    return mapValue(BV, V);
+  }
+
+  case OpPtrDiff: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+    IRBuilder<> Builder(BB);
+    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
@@ -2409,7 +2443,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
-      return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
+      if (!M->IsNewDbgInfoFormat) {
+        return mapValue(
+            BV, DbgTran->transDebugIntrinsic(ExtInst, BB).get<Instruction *>());
+      } else {
+        auto MaybeRecord = DbgTran->transDebugIntrinsic(ExtInst, BB);
+        if (!MaybeRecord.isNull()) {
+          auto *Record = MaybeRecord.get<DbgRecord *>();
+          Record->setDebugLoc(
+              DbgTran->transDebugScope(static_cast<SPIRVInstruction *>(BV)));
+        }
+        return mapValue(BV, nullptr);
+      }
     default:
       llvm_unreachable("Unknown extended instruction set!");
     }
@@ -2989,6 +3034,10 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     mapValue(BA, &(*I));
     setName(&(*I), BA);
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
+      // Skip this function parameter attribute as it will translated among
+      // OpenCL metadata
+      if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
+        return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
@@ -3205,8 +3254,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
-        isSplitBarrierINTELOpCode(OC) || OC == OpControlBarrier)
+    if (isGroupOpCode(OC) || isGroupNonUniformOpcode(OC) ||
+        isIntelSubgroupOpCode(OC) || isSplitBarrierINTELOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto *Call =
@@ -3314,10 +3364,13 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpSDotAccSatKHR:
   case OpUDotAccSatKHR:
   case OpSUDotAccSatKHR:
+  case OpReadClockKHR:
   case internal::OpJointMatrixLoadINTEL:
   case OpCooperativeMatrixLoadKHR:
   case internal::OpCooperativeMatrixLoadCheckedINTEL:
   case internal::OpTaskSequenceCreateINTEL:
+  case internal::OpConvertHandleToImageINTEL:
+  case internal::OpConvertHandleToSampledImageINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
@@ -3334,6 +3387,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpUConvert:
   case OpUDotKHR:
   case OpUDotAccSatKHR:
+  case OpReadClockKHR:
     IsRetSigned = false;
     break;
   case OpImageRead:
@@ -4393,13 +4447,8 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   });
   // Generate metadata for kernel_arg_runtime_aligned
   addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    auto Literals =
-        Arg->getDecorationLiterals(internal::DecorationRuntimeAlignedINTEL);
-    assert(Literals.size() == 1 &&
-           "RuntimeAlignedINTEL decoration shall have 1 ID literal");
-
     return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt1Ty(*Context), Literals[0]));
+        ConstantInt::get(Type::getInt1Ty(*Context), 1));
   });
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
@@ -4880,7 +4929,7 @@ std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS,
     return {};
   }
   D >> Word;
-  if (!isSPIRVVersionKnown(Word)) {
+  if (!isSPIRVVersionKnown(static_cast<VersionNumber>(Word))) {
     ErrCode = SPIRVEC_InvalidVersionNumber;
     return {};
   }
@@ -5020,6 +5069,7 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM,
                          const SPIRV::TranslatorOpts &Opts,
                          std::string &ErrMsg) {
   std::unique_ptr<Module> M(new Module("", C));
+
   SPIRVToLLVM BTL(M.get(), &BM);
 
   if (!BTL.translate()) {

@@ -2,8 +2,9 @@
 // RUN: %{build} -o %t.out %level_zero_options
 // RUN: %{run} %t.out
 
-#include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

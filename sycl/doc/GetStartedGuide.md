@@ -12,7 +12,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
     * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
@@ -302,32 +301,6 @@ as well as the CUDA Runtime API to be installed, see
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
 CUDA 11, and using a GeForce 1060 device.
 
-### Build DPC++ toolchain with support for ESIMD CPU Emulation
-
-There is experimental support for DPC++ for using ESIMD CPU Emulation.
-
-This feature supports ESIMD CPU Emulation using CM_EMU library
-[CM Emulation project](https://github.com/intel/cm-cpu-emulation). The library
-package will be generated from source codes downloaded from its open source
-project and installed in your deploy directory during toolchain build.
-
-To enable support for ESIMD CPU emulation, follow the instructions for the Linux
-DPC++ toolchain, but add the `--enable-esimd-emulator`.
-
-Enabling this flag requires following packages installed.
-
-* Ubuntu 22.04
-  * libva-dev / 2.7.0-2
-  * libffi-dev / 3.3-4
-  * libtool
-* RHEL 8.\*
-  * libffi
-  * libffi-devel
-  * libva
-  * libva-devel
-
-Currently, this feature was tested and verified on Ubuntu 22.04 environment.
-
 ### Build DPC++ toolchain with support for runtime kernel fusion
 
 Support for the experimental SYCL extension for user-driven kernel fusion at
@@ -439,17 +412,17 @@ run the following commands
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
-    tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
+    tar -zxvf oclcpuexp_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime (requires root access)
+2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
     # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so >
+    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
       /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
 
@@ -469,32 +442,32 @@ folder:
     ```bash
     # OpenCL FPGA emulation RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so.2
     ```
 
-5) Configure library paths (requires root access)
+5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 >
+    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >>
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+    sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
     ```
 
 **Windows (64-bit)**:

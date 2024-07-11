@@ -13,11 +13,12 @@
  * Test check basic support of local memory access in invoke_simd.
  */
 
-#include "../invoke_simd_utils.hpp"
+#include "../../ESIMD/esimd_test_utils.hpp"
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -51,8 +52,8 @@ ESIMD_INLINE void slm_load_store_test(
     dtype *C, esimd::simd<uint32_t, VL> GlobalByteOffsets) SYCL_ESIMD_FUNCTION {
 
   uint32_t LocalAccOffset =
-      static_cast<uint32_t>(
-          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer().get())) +
+      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+          LocalAcc.get_multi_ptr<access::decorated::yes>().get())) +
       LAByteOffset;
   esimd::simd<uint32_t, VL> Offsets(LocalAccOffset, sizeof(dtype));
   auto Local1 = esimd::slm_gather<dtype, VL>(Offsets);

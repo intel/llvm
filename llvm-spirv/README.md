@@ -203,7 +203,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, and `1.4`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, and `1.5`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)
@@ -256,3 +256,9 @@ LLVM/Clang release and there are no objections from the maintainer(s). There
 is no guarantee that older release branches are proactively kept up to date
 with main, but you can request specific commits on older release branches by
 creating a pull request or raising an issue on GitHub.
+
+## Releasing strategy
+
+As mentioned earlier there are branches `llvm_release_*` that get backported
+changes. Those changes if exists are released automatically by github CI on
+monthly basis in a format `<llvm_major>.<llvm_minor>.<latest patch +1>`.

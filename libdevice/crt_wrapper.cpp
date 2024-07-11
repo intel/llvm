@@ -6,9 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "include/spir_global_var.hpp"
+#include "spirv_vars.h"
 #include "wrapper.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#include <cstdint>
+
+#ifndef __NVPTX__
+#define RAND_NEXT_LEN 1024
+DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
+#endif
+
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
@@ -23,6 +32,59 @@ DEVICE_EXTERN_C_INLINE
 int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
+
+#ifndef __NVPTX__
+
+// This simple rand is for ease of use only, the implementation aligns with
+// LLVM libc rand which is based on xorshift64star pseudo random number
+// generator. If work item number <= 1024, each work item has its own internal
+// state stored in RandNext, no data race happens and the sequence of the value
+// generated can be reproduced from run to run. If work item number > 1024,
+// multiple work item may share same 'RandNext' value, data race happens and
+// the value generated can't be reproduced from run to run.
+#define RAND_MAX 0x7fffffff
+#ifdef __SYCL_DEVICE_ONLY__
+#define RAND_NEXT_ACC RandNext.get()
+#endif
+
+DEVICE_EXTERN_C_INLINE
+int rand() {
+  size_t gid =
+      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
+       __spirv_BuiltInGlobalSize.z) +
+      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
+      __spirv_BuiltInGlobalInvocationId.z;
+  size_t global_size = __spirv_BuiltInGlobalSize.x *
+                       __spirv_BuiltInGlobalSize.y *
+                       __spirv_BuiltInGlobalSize.z;
+  size_t gid1 =
+      (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
+  if (RAND_NEXT_ACC[gid1] == 0)
+    RAND_NEXT_ACC[gid1] = 1;
+  uint64_t x = RAND_NEXT_ACC[gid1];
+  x ^= x >> 12;
+  x ^= x << 25;
+  x ^= x >> 27;
+  RAND_NEXT_ACC[gid1] = x;
+  return static_cast<int>((x * 0x2545F4914F6CDD1Dul) >> 32) & RAND_MAX;
+}
+
+DEVICE_EXTERN_C_INLINE
+void srand(unsigned int seed) {
+  size_t gid =
+      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
+       __spirv_BuiltInGlobalSize.z) +
+      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
+      __spirv_BuiltInGlobalInvocationId.z;
+  size_t global_size = __spirv_BuiltInGlobalSize.x *
+                       __spirv_BuiltInGlobalSize.y *
+                       __spirv_BuiltInGlobalSize.z;
+  size_t gid1 =
+      (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
+  RAND_NEXT_ACC[gid1] = seed;
+}
+
+#endif
 
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
@@ -64,4 +126,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_z());
 }
 #endif
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

@@ -8,7 +8,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
 // RUN: %{run} %t_var.out | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstdint>
 #include <iostream>
@@ -56,7 +57,7 @@ int main() {
 
         // Vectors
         sycl::vec<int, 4> v4{5, 6, 7, 8};
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
         // On SPIRV devices, vectors can be printed via native OpenCL types:
         using ocl_int4 = sycl::vec<int, 4>::vector_t;
         {

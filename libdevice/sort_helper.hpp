@@ -6,12 +6,11 @@
 //
 //==------------------------------------------------------------------------==//
 
-#ifndef __LIBDEVICE_SORT_H__
-#define __LIBDEVICE_SORT_H__
+#pragma once
 #include "group_helper.hpp"
 #include <cstdint>
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 template <typename Tp, typename Compare>
 void bubble_sort(Tp *first, const size_t beg, const size_t end, Compare comp) {
   if (beg < end) {
@@ -158,6 +157,4 @@ Tp sub_group_merge_sort(Tp value, uint8_t *scratch, Compare comp) {
   return temp_buffer[idx];
 }
 
-#endif
-
-#endif
+#endif // __SPIR__ || __SPIRV__

@@ -8,7 +8,8 @@
 // Specification (revision 4)
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Queue;

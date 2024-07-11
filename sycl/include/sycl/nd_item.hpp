@@ -53,8 +53,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -86,8 +84,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -149,8 +145,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -165,8 +159,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -181,8 +173,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -198,8 +188,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -529,36 +517,9 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
-nd_item<Dims> this_nd_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> nd_item<Dims> this_nd_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(
-      sycl::detail::declptr<nd_item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

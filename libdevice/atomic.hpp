@@ -9,7 +9,7 @@
 
 #include "spirv_decls.hpp"
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
 static inline int atomicCompareAndSet(SPIR_GLOBAL int *Ptr, int Desired,
@@ -42,4 +42,4 @@ static inline void atomicStore(int *Ptr, int V) {
                       __spv::MemorySemanticsMask::SequentiallyConsistent, V);
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__
