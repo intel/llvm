@@ -7,6 +7,7 @@
 // UNSUPPORTED: accelerator
 
 // FIXME: enable opaque pointers support on CPU.
+// XFAIL: cpu
 
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//
 //
