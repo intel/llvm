@@ -150,7 +150,8 @@ overload.
 
 _Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
 is defined in the application.
-The device `dev` must be one of the devices contained by `ctxt`.
+The device `dev` must be one of the devices contained by `ctxt` or must be a
+descendent device of some device in `ctxt`.
 The kernel `KernelName` must be compatible with the device `dev` as defined by
 `is_compatible`.
 

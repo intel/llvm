@@ -550,8 +550,8 @@ _Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 Available only if `Param` is an information descriptor for the `kernel` class,
 which can be used by the `kernel::get_info(const device&)` overload.
 
-_Preconditions:_ The device `dev` must be one of the devices contained by
-`ctxt`.
+_Preconditions:_ The device `dev` must be one of the devices contained by `ctxt`
+or must be a descendent device of some device in `ctxt`.
 The kernel `Func` must be compatible with the device `dev` as defined by
 `is_compatible`.
 
