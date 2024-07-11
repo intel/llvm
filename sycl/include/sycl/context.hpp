@@ -196,8 +196,7 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept
-  {
+  template <typename propertyT> bool has_property() const noexcept {
     return getPropList().template has_property<propertyT>();
   }
 
@@ -207,8 +206,7 @@ public:
   /// of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const
-  {
+  template <typename propertyT> propertyT get_property() const {
     return getPropList().template get_property<propertyT>();
   }
 

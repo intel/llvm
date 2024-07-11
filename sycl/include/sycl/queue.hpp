@@ -469,16 +469,14 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const noexcept
-  {
+  template <typename PropertyT> bool has_property() const noexcept {
     return getPropList().template has_property<PropertyT>();
   }
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
   /// property, an invalid_object_error SYCL exception is thrown.
-  template <typename PropertyT> PropertyT get_property() const
-  {
+  template <typename PropertyT> PropertyT get_property() const {
     return getPropList().template get_property<PropertyT>();
   }
 

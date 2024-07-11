@@ -913,13 +913,11 @@ public:
 
   bool operator!=(const stream &LHS) const;
 
-  template <typename propertyT> bool has_property() const noexcept
-  {
+  template <typename propertyT> bool has_property() const noexcept {
     return getPropList().template has_property<propertyT>();
   }
 
-  template <typename propertyT> propertyT get_property() const
-  {
+  template <typename propertyT> propertyT get_property() const {
     return getPropList().template get_property<propertyT>();
   }
 
