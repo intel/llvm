@@ -100,7 +100,7 @@ materializeSpecConstants(const char *KernelName,
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
   if (!fusion::FusionPipeline::runMaterializerPasses(
-          *NewMod, SpecConstBlob.begin(), SpecConstBlob.size()) ||
+          *NewMod, SpecConstBlob.to<llvm::ArrayRef>()) ||
       !NewMod->getFunction(KernelName)) {
     return JITResult{"Materializer passes should not fail"};
   }

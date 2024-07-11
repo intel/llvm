@@ -1,22 +1,18 @@
 ; RUN: %if hip_amd %{ opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: --mtriple amdgcn-amd-amdhsa -sycl-materializer-debug-value-size=256\
-; RUN: -passes=sycl-spec-const-materializer -S %s | FileCheck\
-; RUN: --check-prefix=CHECK-MATERIALIZER %s %}
+; RUN: --mtriple amdgcn-amd-amdhsa -passes=sycl-spec-const-materializer -S %s |\
+; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER %s %}
 
 ; RUN: %if cuda %{ opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: --mtriple nvptx64-nvidia-cuda -sycl-materializer-debug-value-size=256\
-; RUN: -passes=sycl-spec-const-materializer -S %s | FileCheck\
-; RUN: --check-prefix=CHECK-MATERIALIZER %s %}
+; RUN: --mtriple nvptx64-nvidia-cuda -passes=sycl-spec-const-materializer -S %s |\
+; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER %s %}
 
 ; RUN: %if hip_amd %{ opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: --mtriple amdgcn-amd-amdhsa -sycl-materializer-debug-value-size=256\
-; RUN: -passes=sycl-spec-const-materializer,early-cse -S %s | FileCheck\
-; RUN: --check-prefix=CHECK-MATERIALIZER-CSE %s %}
+; RUN: --mtriple amdgcn-amd-amdhsa -passes=sycl-spec-const-materializer,early-cse -S %s |\
+; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER-CSE %s %}
 
 ; RUN: %if cuda %{ opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: --mtriple nvptx64-nvidia-cuda -sycl-materializer-debug-value-size=256\
-; RUN: -passes=sycl-spec-const-materializer,early-cse -S %s | FileCheck\
-; RUN: --check-prefix=CHECK-MATERIALIZER-CSE %s %}
+; RUN: --mtriple nvptx64-nvidia-cuda -passes=sycl-spec-const-materializer,early-cse -S %s |\
+; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER-CSE %s %}
 
 source_filename = "multi_type.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"

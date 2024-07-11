@@ -627,17 +627,16 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
 
 sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob) {
+    const std::string &KernelName,
+    const std::vector<unsigned char> &SpecConstBlob) {
   if (!BinImage) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
-    return nullptr;
   }
   if (KernelName.empty()) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Cannot jit kernel with invalid kernel function name");
-    return nullptr;
   }
   auto &PM = detail::ProgramManager::getInstance();
   if (auto CachedKernel =
@@ -653,7 +652,6 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
   if (BinaryImageFormat == ::jit_compiler::BinaryFormat::INVALID) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
-    return nullptr;
   }
   ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
@@ -681,7 +679,6 @@ sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
       std::cerr << Message << "\n";
     }
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
-    return nullptr;
   }
 
   auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();

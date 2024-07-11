@@ -19,21 +19,18 @@
 
 using namespace llvm;
 
-cl::opt<size_t> UseTestConstValues(
-    "sycl-materializer-debug-value-size",
-    cl::desc("Size of the spec const blob, debug use only."));
-
 constexpr llvm::StringLiteral SpecConstDataNodeName{"SYCL_SpecConst_data"};
 
 PreservedAnalyses SYCLSpecConstDataInserter::run(Module &M,
                                                  ModuleAnalysisManager &) {
-  if (M.getNamedMetadata(SpecConstDataNodeName))
-    llvm_unreachable("Did not expect the node to be present.");
+  assert(!M.getNamedMetadata(SpecConstDataNodeName) &&
+         "Did not expect the node to be present.");
 
   auto &Context = M.getContext();
   auto *SpecConstMD = M.getOrInsertNamedMetadata(SpecConstDataNodeName);
   auto *StringMD = MDString::get(
-      Context, StringRef{(const char *)SpecConstData, SpecConstDataSize});
+      Context, StringRef{reinterpret_cast<const char *>(SpecConstData.data()),
+                         SpecConstData.size()});
   auto *TupleMD = MDTuple::get(Context, {StringMD});
   SpecConstMD->addOperand(TupleMD);
 
@@ -103,7 +100,7 @@ void SYCLSpecConstMaterializer::allocateSpecConstant(StringRef KernelName) {
     constexpr unsigned AS = 4;
     auto *SpecConstGlobal = new GlobalVariable(
         *Mod, Ty, /*isConstant*/ true, GlobalValue::WeakODRLinkage, Initializer,
-        Twine("SpecConsBlob_" + KernelName + "_" + Twine(I.index())),
+        Twine("SpecConsBlob_") + KernelName + "_" + Twine(I.index()),
         /*InsertBefore*/ nullptr, GlobalValue::NotThreadLocal, AS,
         /*isExternallyInitialized*/ false);
     TypesAndOffsetsToBlob[I.value()] = SpecConstGlobal;
@@ -251,8 +248,9 @@ SYCLSpecConstMaterializer::handleKernel(llvm::Function &Kernel) {
   if (!readMetadata())
     return PreservedAnalyses::all();
 
-  if (!SpecConstData || SpecConstDataSize < 1)
-    llvm_unreachable("Specialisation constant data not found");
+  // Make sure that the data was in an expected format.
+  assert((!SpecConstData || SpecConstDataSize < 1) &&
+         "Specialisation constant data not found");
 
   populateUses(SpecConstArg);
 
@@ -282,8 +280,8 @@ bool SYCLSpecConstMaterializer::readMetadata() {
 
 PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
                                                  FunctionAnalysisManager &) {
-  if (const char *DebugEnv = std::getenv("SYCL_MATERIALIZER_DEBUG"))
-    if (0 == strcmp(DebugEnv, DEBUG_TYPE)) {
+  if (const char *DebugEnv = std::getenv("SYCL_JIT_COMPILER_DEBUG"))
+    if (0 == strstr(DebugEnv, DEBUG_TYPE)) {
       DebugFlag = true;
       llvm::setCurrentDebugType(DEBUG_TYPE);
     }

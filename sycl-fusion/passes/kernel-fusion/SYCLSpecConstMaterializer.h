@@ -23,24 +23,13 @@ class Function;
 class SYCLSpecConstDataInserter
     : public PassInfoMixin<SYCLSpecConstDataInserter> {
 public:
-  SYCLSpecConstDataInserter(const unsigned char *SpecConstData,
-                            size_t SpecConstDataSize)
-      : SpecConstData(SpecConstData), SpecConstDataSize(SpecConstDataSize) {};
-
-  SYCLSpecConstDataInserter() {
-    SpecConstDataSize = 255;
-    for (unsigned i = 0; i < SpecConstDataSize; ++i)
-      DebugSpecConstData.push_back(i);
-
-    SpecConstData = DebugSpecConstData.data();
-  }
+  SYCLSpecConstDataInserter(ArrayRef<unsigned char> SpecConstData)
+      : SpecConstData(SpecConstData) {};
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  const unsigned char *SpecConstData;
-  size_t SpecConstDataSize;
-  SmallVector<unsigned char> DebugSpecConstData;
+  ArrayRef<unsigned char> SpecConstData;
 };
 
 ///
@@ -88,10 +77,6 @@ private:
   void reportAndReset();
 
 private:
-  // Flag enabling debug output, guarded by: SYCL_MATERIALIZER_DEBUG environment
-  // variable.
-  static const bool IsDebug;
-
   // Run time known values of specialization constants passed from SYCL rt,
   // data pointer and size.
   const unsigned char *SpecConstData;

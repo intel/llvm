@@ -28,7 +28,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_KERNELS` | '1' or '0' | Enable ('1') or disable ('0') JIT compilation of kernels. Only supported for Nvidia and AMD backends. When JIT-ing is enabled SYCL runtime will try to cache and reuse JIT-compiled kernels, furthermore if a kernel uses specialization constants the compiler will attempt to materialize the values in place, turning them to de-facto compile time constants. Default is '0'. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target CPU to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
-| `SYCL_MATERIALIZER_DEBUG` | `sycl-spec-const-materializer` | Enables debug output generation in specialization constants materialization pass. |
+| `SYCL_JIT_COMPILER_DEBUG` | Any(\*) | Passes can specify their own debug types, `sycl-spec-const-materializer` enables debug output generation in specialization constants materialization pass. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

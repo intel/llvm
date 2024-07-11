@@ -40,9 +40,11 @@ public:
   std::unique_ptr<detail::CG>
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
-  sycl::detail::pi::PiKernel materializeSpecConstants(
-      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
-      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
+  sycl::detail::pi::PiKernel
+  materializeSpecConstants(QueueImplPtr Queue,
+                           const RTDeviceBinaryImage *BinImage,
+                           const std::string &KernelName,
+                           const std::vector<unsigned char> &SpecConstBlob);
 
   bool isAvailable() { return Available; }
 
