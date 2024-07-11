@@ -40,13 +40,13 @@ parser = argparse.ArgumentParser(
     epilog='''examples:
 
     %(prog)s ./myapp --myapp-arg
-    %(prog)s --null --profiling --filter ".*(Device|Platform).*" ./hello_world
+    %(prog)s --mock --profiling --filter ".*(Device|Platform).*" ./hello_world
     %(prog)s --adapter libur_adapter_cuda.so --begin ./sycl_app''',
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("command", help="Command to run, including arguments.", nargs=argparse.REMAINDER)
 parser.add_argument("--profiling", help="Measure function execution time.", action="store_true")
 parser.add_argument("--filter", help="Only trace functions that match the provided regex filter.")
-parser.add_argument("--null", help="Force the use of the null adapter.", action="store_true")
+parser.add_argument("--mock", help="Force the use of the mock adapter.", action="store_true")
 parser.add_argument("--adapter", help="Force the use of the provided adapter.", action="append", default=[])
 parser.add_argument("--json", help="Write output in a JSON Trace Event Format.", action="store_true")
 group = parser.add_mutually_exclusive_group()
@@ -113,12 +113,12 @@ env['XPTI_SUBSCRIBERS'] = collector
 
 force_load = None
 
-if args.null:
-    null_lib = get_dynamic_library_name("ur_adapter_null")
-    null_adapter = find_library(args.libpath, null_lib, args.recursive)
-    if null_adapter is None:
-        sys.exit("unable to find the null adapter - " + null_lib)
-    force_load = "\"" + null_adapter + "\""
+if args.mock:
+    mock_lib = get_dynamic_library_name("ur_adapter_mock")
+    mock_adapter = find_library(args.libpath, mock_lib, args.recursive)
+    if mock_adapter is None:
+        sys.exit("unable to find the mock adapter - " + mock_lib)
+    force_load = "\"" + mock_adapter + "\""
 
 for adapter in args.adapter:
     adapter_path = find_library(args.libpath, adapter, args.recursive) if is_filename(adapter) else adapter

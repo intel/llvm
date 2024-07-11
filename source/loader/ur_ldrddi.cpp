@@ -105,7 +105,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRetain
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -586,7 +586,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 /// @brief Intercept function for urDeviceRetain
 __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
-        hDevice ///< [in] handle of the device to get a reference of.
+        hDevice ///< [in][retain] handle of the device to get a reference of.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -863,7 +863,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 /// @brief Intercept function for urContextRetain
 __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
-        hContext ///< [in] handle of the context to get a reference of.
+        hContext ///< [in][retain] handle of the context to get a reference of.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1168,7 +1168,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRetain
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t
+        hMem ///< [in][retain] handle of the memory object to get access
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1526,7 +1527,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
 /// @brief Intercept function for urSamplerRetain
 __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to get access
+        hSampler ///< [in][retain] handle of the sampler object to get access
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -1961,7 +1962,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRetain
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -2346,7 +2347,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 /// @brief Intercept function for urPhysicalMemRetain
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+        hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -2595,7 +2596,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRetain
 __urdlllocal ur_result_t UR_APICALL urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t
+        hProgram ///< [in][retain] handle for the Program to retain
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3185,7 +3187,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3631,7 +3633,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRetain
 __urdlllocal ur_result_t UR_APICALL urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t
+        hQueue ///< [in][retain] handle of the queue object to get access
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -3939,7 +3942,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRetain
 __urdlllocal ur_result_t UR_APICALL urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6600,7 +6603,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
 /// @brief Intercept function for urCommandBufferRetainExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7344,7 +7347,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 /// @brief Intercept function for urCommandBufferRetainCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 

@@ -52,7 +52,7 @@ ur_result_t UR_APICALL urLoaderConfigCreate(
 ///         + `NULL == hLoaderConfig`
 ur_result_t UR_APICALL urLoaderConfigRetain(
     ur_loader_config_handle_t
-        hLoaderConfig ///< [in] loader config handle to retain
+        hLoaderConfig ///< [in][retain] loader config handle to retain
     ) try {
     return ur_lib::urLoaderConfigRetain(hLoaderConfig);
 } catch (...) {
@@ -188,6 +188,34 @@ ur_result_t UR_APICALL urLoaderConfigSetCodeLocationCallback(
     ) try {
     return ur_lib::urLoaderConfigSetCodeLocationCallback(hLoaderConfig,
                                                          pfnCodeloc, pUserData);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief The only adapter reported with mock enabled will be the mock adapter.
+///
+/// @details
+///     - The mock adapter will default to returning ::UR_RESULT_SUCCESS for all
+///       entry points. It will also create and correctly reference count dummy
+///       handles where appropriate. Its behaviour can be modified by linking
+///       the mock library and using the object accessed via
+///       mock::getCallbacks().
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+ur_result_t UR_APICALL urLoaderConfigSetMockingEnabled(
+    ur_loader_config_handle_t
+        hLoaderConfig, ///< [in] Handle to config object mocking will be enabled for.
+    ur_bool_t
+        enable ///< [in] Handle to config object the layer will be enabled for.
+    ) try {
+    return ur_lib::urLoaderConfigSetMockingEnabled(hLoaderConfig, enable);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -341,7 +369,7 @@ ur_result_t UR_APICALL urAdapterRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ur_result_t UR_APICALL urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
     ) try {
     auto pfnAdapterRetain = ur_lib::context->urDdiTable.Global.pfnAdapterRetain;
     if (nullptr == pfnAdapterRetain) {
@@ -912,7 +940,7 @@ ur_result_t UR_APICALL urDeviceGetInfo(
 ///         + `NULL == hDevice`
 ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
-        hDevice ///< [in] handle of the device to get a reference of.
+        hDevice ///< [in][retain] handle of the device to get a reference of.
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Device.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -1253,7 +1281,7 @@ ur_result_t UR_APICALL urContextCreate(
 ///         + `NULL == hContext`
 ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
-        hContext ///< [in] handle of the context to get a reference of.
+        hContext ///< [in][retain] handle of the context to get a reference of.
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Context.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -1621,7 +1649,8 @@ ur_result_t UR_APICALL urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t
+        hMem ///< [in][retain] handle of the memory object to get access
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Mem.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -2021,7 +2050,7 @@ ur_result_t UR_APICALL urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to get access
+        hSampler ///< [in][retain] handle of the sampler object to get access
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Sampler.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -2490,7 +2519,7 @@ ur_result_t UR_APICALL urUSMPoolCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == pPool`
 ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
     ) try {
     auto pfnPoolRetain = ur_lib::context->urDdiTable.USM.pfnPoolRetain;
     if (nullptr == pfnPoolRetain) {
@@ -2882,7 +2911,7 @@ ur_result_t UR_APICALL urPhysicalMemCreate(
 ///         + `NULL == hPhysicalMem`
 ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+        hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.PhysicalMem.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -3186,7 +3215,8 @@ ur_result_t UR_APICALL urProgramLink(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hProgram`
 ur_result_t UR_APICALL urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t
+        hProgram ///< [in][retain] handle for the Program to retain
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Program.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -3815,7 +3845,7 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ur_result_t UR_APICALL urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Kernel.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -4313,7 +4343,8 @@ ur_result_t UR_APICALL urQueueCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t
+        hQueue ///< [in][retain] handle of the queue object to get access
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Queue.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -4671,7 +4702,7 @@ ur_result_t UR_APICALL urEventWait(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
     ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Event.pfnRetain;
     if (nullptr == pfnRetain) {
@@ -7344,7 +7375,7 @@ ur_result_t UR_APICALL urCommandBufferCreateExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
     ) try {
     auto pfnRetainExp =
         ur_lib::context->urDdiTable.CommandBufferExp.pfnRetainExp;
@@ -8143,7 +8174,7 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
     ) try {
     auto pfnRetainCommandExp =
         ur_lib::context->urDdiTable.CommandBufferExp.pfnRetainCommandExp;

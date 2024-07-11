@@ -18,6 +18,6 @@ begin(8) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .
 end(8) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 begin(9) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}}, .pPropSizeRet = nullptr);
 end(9) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
-Found a Null Device gpu.
+Found a Mock Device gpu.
 begin(10) - urAdapterRelease(.hAdapter = {{.*}});
 end(10) - urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS;

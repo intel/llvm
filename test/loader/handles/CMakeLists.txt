@@ -12,6 +12,7 @@ target_link_libraries(test-loader-handles
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::loader
+    ${PROJECT_NAME}::mock
     gmock
     GTest::gtest_main
 )
@@ -23,5 +24,5 @@ add_test(NAME loader-handles
 
 set_tests_properties(loader-handles PROPERTIES
     LABELS "loader"
-    ENVIRONMENT "UR_ENABLE_LOADER_INTERCEPT=1;UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
+    ENVIRONMENT "UR_ENABLE_LOADER_INTERCEPT=1;UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\""
 )

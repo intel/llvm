@@ -10,13 +10,11 @@
  *
  */
 #include "ur_api.h"
-#ifndef UR_ADAPTER_NULL_H
-#define UR_ADAPTER_NULL_H 1
+#ifndef UR_ADAPTER_MOCK_H
+#define UR_ADAPTER_MOCK_H 1
 
 #include "ur_ddi.h"
 #include "ur_util.hpp"
-#include <stdlib.h>
-#include <vector>
 
 namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,15 +26,13 @@ class __urdlllocal context_t {
     context_t();
     ~context_t() = default;
 
-    void *platform;
-
-    void *get() {
-        static uint64_t count = 0x80800000;
-        return reinterpret_cast<void *>(++count);
-    }
+    ur_adapter_handle_t adapter = reinterpret_cast<ur_adapter_handle_t>(1);
+    ur_device_handle_t device = reinterpret_cast<ur_device_handle_t>(2);
+    ur_platform_handle_t platform = reinterpret_cast<ur_platform_handle_t>(3);
 };
 
 extern context_t d_context;
+
 } // namespace driver
 
-#endif /* UR_ADAPTER_NULL_H */
+#endif /* UR_ADAPTER_MOCK_H */
