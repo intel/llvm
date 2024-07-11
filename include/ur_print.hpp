@@ -10654,6 +10654,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                                   *(params->phNativeContext)));
 
     os << ", ";
+    os << ".hAdapter = ";
+
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
+
+    os << ", ";
     os << ".numDevices = ";
 
     os << *(params->pnumDevices);
