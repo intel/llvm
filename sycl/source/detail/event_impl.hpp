@@ -97,8 +97,8 @@ public:
   /// then the call to this member function will block until the requested
   /// info is available. If the queue which submitted the command group this
   /// event is associated with was not constructed with the
-  /// property::queue::enable_profiling property, an invalid_object_error SYCL
-  /// exception is thrown.
+  /// property::queue::enable_profiling property, a SYCL exception with
+  /// errc::invalid error code is thrown.
   ///
   /// \return depends on template parameter.
   template <typename Param> typename Param::return_type get_profiling_info();
@@ -381,7 +381,7 @@ protected:
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
   // stored here.
-  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint = 0;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
@@ -391,10 +391,6 @@ protected:
   // Signifies whether this event is the result of a profiling tag command. This
   // allows for profiling, even if the queue does not have profiling enabled.
   bool MProfilingTagEvent = false;
-
-  friend std::vector<sycl::detail::pi::PiEvent>
-  getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                  std::shared_ptr<sycl::detail::context_impl> Context);
 
   std::atomic_bool MIsEnqueued{false};
 

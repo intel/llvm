@@ -83,8 +83,6 @@ context exception::get_context() const {
   return *MContext;
 }
 
-cl_int exception::get_cl_code() const { return MPIErr; }
-
 const std::error_category &sycl_category() noexcept {
   static const detail::SYCLCategory SYCLCategoryObj;
   return SYCLCategoryObj;
@@ -95,7 +93,13 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-const char *stringifyErrorCode(pi_int32 error) {
+pi_int32 get_pi_error(const exception &e) { return e.MPIErr; }
+exception set_pi_error(exception &&e, pi_int32 pi_err) {
+  e.MPIErr = pi_err;
+  return std::move(e);
+}
+
+__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error) {
   switch (error) {
 #define _PI_ERRC(NAME, VAL)                                                    \
   case NAME:                                                                   \

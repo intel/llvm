@@ -432,10 +432,10 @@ module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
   std::vector<std::string> Names;
   MD1.saveEntryPointNames(Names);
   MD2.saveEntryPointNames(Names);
-  bool link_error = llvm::Linker::linkModules(
-      MD1.getModule(), std::move(MD2.releaseModulePtr()));
+  bool LinkError =
+      llvm::Linker::linkModules(MD1.getModule(), MD2.releaseModulePtr());
 
-  if (link_error) {
+  if (LinkError) {
     error(" error when linking SYCL and ESIMD modules");
   }
   module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
@@ -491,7 +491,7 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
          "This property should be true since the presence of SpecConsts "
          "has been checked before the run of the pass");
   NewModuleDesc->rebuildEntryPoints();
-  return std::move(NewModuleDesc);
+  return NewModuleDesc;
 }
 
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
@@ -710,7 +710,11 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
   }
 
   // Check if module sub group size is compatible with the target.
-  if (ModuleReqs.SubGroupSize.has_value() &&
+  // For ESIMD, the reqd_sub_group_size will be 1; this is not
+  // a supported by any backend (e.g. no backend can support a kernel
+  // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
+  // a special case.
+  if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
       !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
     return false;
 
