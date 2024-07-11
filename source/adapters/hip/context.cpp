@@ -111,8 +111,9 @@ urContextRetain(ur_context_handle_t hContext) {
 // urContextGetNativeHandle should not be implemented in the HIP backend.
 // hipCtx_t is not natively supported by amd devices, and more importantly does
 // not map to ur_context_handle_t in any way.
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
-    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
+                         [[maybe_unused]] ur_native_handle_t *phNativeContext) {
   std::ignore = hContext;
   std::ignore = phNativeContext;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
