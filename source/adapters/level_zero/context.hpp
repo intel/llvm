@@ -217,7 +217,7 @@ struct ur_context_handle_t_ : _ur_object {
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
-  enum EventPoolCacheType {
+  enum ZeEventPoolCacheType {
     HostVisibleCacheType,
     HostInvisibleCacheType,
     HostVisibleCounterBasedRegularCacheType,
@@ -226,11 +226,20 @@ struct ur_context_handle_t_ : _ur_object {
     HostInvisibleCounterBasedImmediateCacheType
   };
 
+  enum EventCacheType {
+    HostVisibleProfilingCacheType,
+    HostVisibleRegularCacheType,
+    HostInvisibleProfilingCacheType,
+    HostInvisibleRegularCacheType,
+    CounterBasedImmediateCacheType,
+    CounterBasedRegularCacheType
+  };
+
   std::list<ze_event_pool_handle_t> *
   getZeEventPoolCache(bool HostVisible, bool WithProfiling,
                       bool CounterBasedEventEnabled, bool UsingImmediateCmdList,
                       ze_device_handle_t ZeDevice) {
-    EventPoolCacheType CacheType;
+    ZeEventPoolCacheType CacheType;
 
     calculateCacheIndex(HostVisible, CounterBasedEventEnabled,
                         UsingImmediateCmdList, CacheType);
@@ -253,7 +262,7 @@ struct ur_context_handle_t_ : _ur_object {
   ur_result_t calculateCacheIndex(bool HostVisible,
                                   bool CounterBasedEventEnabled,
                                   bool UsingImmediateCmdList,
-                                  EventPoolCacheType &CacheType) {
+                                  ZeEventPoolCacheType &CacheType) {
     if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
       CacheType = HostVisibleCounterBasedRegularCacheType;
     } else if (CounterBasedEventEnabled && !HostVisible &&
@@ -311,14 +320,6 @@ struct ur_context_handle_t_ : _ur_object {
   ze_context_handle_t getZeHandle() const;
 
 private:
-  enum EventCacheType {
-    HostVisibleProfilingCacheType,
-    HostVisibleRegularCacheType,
-    HostInvisibleProfilingCacheType,
-    HostInvisibleRegularCacheType,
-    CounterBasedRegularCacheType,
-    CounterBasedImmediateCacheType
-  };
   // Get the cache of events for a provided scope and profiling mode.
   auto getEventCache(bool HostVisible, bool WithProfiling,
                      ur_device_handle_t Device) {
