@@ -301,6 +301,22 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
       addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
       addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
+    } else if (auto Attr = F->getFnAttribute("sycl-max-work-group-size");
+               Attr.isValid()) {
+      // Split values in the comma-separated list integers.
+      SmallVector<StringRef, 3> ValStrs;
+      Attr.getValueAsString().split(ValStrs, ',');
+      assert(ValStrs.size() == 3 && "Must have all three dimensions for "
+                                    "sycl-max-work-group-size property");
+
+      static constexpr const char *Annots[] = {"maxntidx", "maxntidy",
+                                               "maxntidz"};
+      for (auto [AnnotStr, ValStr] : zip(Annots, reverse(ValStrs))) {
+        int Value = 0;
+        bool Error = ValStr.getAsInteger(10, Value);
+        assert(!Error && "The attribute's value is not a number");
+        addNVVMMetadata(F, AnnotStr, Value);
+      }
     }
 
     auto attrValue = [&](Expr *E) {
@@ -320,6 +336,13 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
         HasMinWorkGroupPerCU = true;
       }
+    } else if (auto Attr =
+                   F->getFnAttribute("sycl-min-work-groups-per-multiprocessor");
+               Attr.isValid()) {
+      int Value = 0;
+      bool Error = Attr.getValueAsString().getAsInteger(10, Value);
+      assert(!Error && "The attribute's value is not a number");
+      addNVVMMetadata(F, "minctasm", Value);
     }
 
     if (const auto *MWGPMP =
@@ -333,6 +356,13 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         // The value is guaranteed to be > 0, pass it to the metadata.
         addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
       }
+    } else if (auto Attr =
+                   F->getFnAttribute("sycl-max-work-groups-per-cluster");
+               Attr.isValid()) {
+      int Value = 0;
+      bool Error = Attr.getValueAsString().getAsInteger(10, Value);
+      assert(!Error && "The attribute's value is not a number");
+      addNVVMMetadata(F, "maxclusterrank", Value);
     }
   }
 

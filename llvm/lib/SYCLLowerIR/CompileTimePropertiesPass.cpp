@@ -361,18 +361,29 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
-  if (AttrKindStr == "sycl-work-group-size" ||
-      AttrKindStr == "sycl-work-group-size-hint") {
-    // Split values in the comma-separated list integers.
-    SmallVector<StringRef, 3> ValStrs;
-    Attr.getValueAsString().split(ValStrs, ',');
+  static constexpr std::tuple<const char *, const char *, bool>
+      SimpleWGAttrs[] = {
+          {"sycl-work-group-size", "reqd_work_group_size",
+           /*RequiresAll3Dims*/ false},
+          {"sycl-work-group-size-hint", "work_group_size_hint",
+           /*RequiresAll3Dims*/ false},
+          {"sycl-max-work-group-size", "max_work_group_size",
+           /*RequiresAll3Dims*/ true},
+      };
 
-    assert(ValStrs.size() <= 3 &&
-           "sycl-work-group-size and sycl-work-group-size-hint currently only "
-           "support up to three values");
+  for (auto &[AttrKind, MDStr, Req3D] : SimpleWGAttrs) {
+    if (AttrKindStr != AttrKind)
+      continue;
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> AttrValStrs;
+    Attr.getValueAsString().split(AttrValStrs, ',');
+
+    assert(((Req3D && AttrValStrs.size() == 3) ||
+            (!Req3D && AttrValStrs.size() <= 3)) &&
+           "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
-    std::reverse(ValStrs.begin(), ValStrs.end());
+    std::reverse(AttrValStrs.begin(), AttrValStrs.end());
 
     // Use integer pointer size as closest analogue to size_t.
     IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
@@ -381,24 +392,29 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
-    for (StringRef ValStr : ValStrs)
+    for (StringRef ValStr : AttrValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
-    const char *MDName = (AttrKindStr == "sycl-work-group-size")
-                             ? "reqd_work_group_size"
-                             : "work_group_size_hint";
-    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+    return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MDVals));
   }
 
-  if (AttrKindStr == "sycl-sub-group-size") {
-    uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(
-        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
-                                            MDNode::get(Ctx, MD));
+  static constexpr std::pair<const char *, const char *> SimpleI32Attrs[] = {
+      {"sycl-sub-group-size", "intel_reqd_sub_group_size"},
+      {"sycl-min-work-groups-per-multiprocessor",
+       "min_work_groups_per_multiprocessor"},
+      {"sycl-max-work-groups-per-cluster", "max_work_groups_per_cluster"},
+  };
+
+  for (auto [AttrKind, MDStr] : SimpleI32Attrs) {
+    if (AttrKindStr == AttrKind) {
+      uint32_t SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
+      IntegerType *Ty = Type::getInt32Ty(Ctx);
+      Metadata *MDVal = ConstantAsMetadata::get(
+          Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
+      SmallVector<Metadata *, 1> MD{MDVal};
+      return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MD));
+    }
   }
 
   // The sycl-single-task attribute currently only has an effect when targeting
