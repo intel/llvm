@@ -53,7 +53,10 @@ void buffer_impl::addInteropObject(
         Handles.end()) {
       const PluginPtr &Plugin = getPlugin();
       Plugin->call(urMemRetain, ur::cast<ur_mem_handle_t>(MInteropMemObject));
-      Handles.push_back(ur::cast<ur_native_handle_t>(MInteropMemObject));
+      ur_native_handle_t NativeHandle = 0;
+      Plugin->call(urMemGetNativeHandle, MInteropMemObject, nullptr,
+                   &NativeHandle);
+      Handles.push_back(NativeHandle);
     }
   }
 }
