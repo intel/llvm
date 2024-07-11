@@ -1903,9 +1903,6 @@ the `ext_oneapi_signal_external_semaphore` call complete.
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
 
-The user must ensure to destroy all external semaphore objects once they are no 
-longer required through `release_external_semaphore`.
-
 The user must ensure to destroy all SYCL external semaphore objects used to 
 access the external semaphore once they are no longer required through 
 `release_external_semaphore`.
