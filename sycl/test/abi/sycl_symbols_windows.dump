@@ -3900,16 +3900,9 @@
 ?associateWithHandlerCommon@handler@_V1@sycl@@AEAAXV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@H@Z
 ?begin@exception_list@_V1@sycl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
 ?begin@kernel_bundle_plain@detail@_V1@sycl@@IEBAPEBVdevice_image_plain@234@XZ
-<<<<<<< HEAD
-?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA_NAEAVqueue@67@@Z
-?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA_NAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
-?build_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$01@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@PEAV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
-?build_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$01@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@std@@PEAVstring@156@@Z
-=======
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEAVqueue@67@AEBVproperty_list@67@@Z
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@AEBVproperty_list@67@@Z
 ?build_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$01@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@PEAV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@2@Z
->>>>>>> upstream/sycl
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?cancel_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
@@ -3932,12 +3925,6 @@
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@AEAVimage_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
-<<<<<<< HEAD
-?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
-?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@@Z
-?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@Vstring_view@detail@45@@Z
-=======
->>>>>>> upstream/sycl
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?deleteAccProps@buffer_plain@detail@_V1@sycl@@IEAAXAEBW4PropWithDataKind@234@@Z
 ?depends_on@handler@_V1@sycl@@IEAAXAEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
