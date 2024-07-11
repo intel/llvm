@@ -9,5 +9,5 @@ urDeviceGet(...) -> UR_RESULT_SUCCESS;
 urDeviceGet(...) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
-Found a Null Device gpu.
+Found a Mock Device gpu.
 urAdapterRelease(...) -> UR_RESULT_SUCCESS;

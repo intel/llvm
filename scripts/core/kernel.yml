@@ -292,7 +292,7 @@ details:
 params:
     - type: $x_kernel_handle_t
       name: hKernel
-      desc: "[in] handle for the Kernel to retain"
+      desc: "[in][retain] handle for the Kernel to retain"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Release Kernel."

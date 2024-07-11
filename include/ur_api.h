@@ -226,6 +226,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 226,         ///< Enumerator for ::urBindlessImagesImportExternalMemoryExp
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,      ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
+    UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -601,7 +602,7 @@ urLoaderConfigCreate(
 ///         + `NULL == hLoaderConfig`
 UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigRetain(
-    ur_loader_config_handle_t hLoaderConfig ///< [in] loader config handle to retain
+    ur_loader_config_handle_t hLoaderConfig ///< [in][retain] loader config handle to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -743,6 +744,29 @@ urLoaderConfigSetCodeLocationCallback(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief The only adapter reported with mock enabled will be the mock adapter.
+///
+/// @details
+///     - The mock adapter will default to returning ::UR_RESULT_SUCCESS for all
+///       entry points. It will also create and correctly reference count dummy
+///       handles where appropriate. Its behaviour can be modified by linking
+///       the mock library and using the object accessed via
+///       mock::getCallbacks().
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigSetMockingEnabled(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object mocking will be enabled for.
+    ur_bool_t enable                         ///< [in] Handle to config object the layer will be enabled for.
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' loader
 ///
 /// @details
@@ -863,7 +887,7 @@ urAdapterRelease(
 ///         + `NULL == hAdapter`
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1736,7 +1760,7 @@ urDeviceGetInfo(
 ///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRetain(
-    ur_device_handle_t hDevice ///< [in] handle of the device to get a reference of.
+    ur_device_handle_t hDevice ///< [in][retain] handle of the device to get a reference of.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2217,7 +2241,7 @@ urContextCreate(
 ///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(
-    ur_context_handle_t hContext ///< [in] handle of the context to get a reference of.
+    ur_context_handle_t hContext ///< [in][retain] handle of the context to get a reference of.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2739,7 +2763,7 @@ urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t hMem ///< [in][retain] handle of the memory object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3130,7 +3154,7 @@ urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(
-    ur_sampler_handle_t hSampler ///< [in] handle of the sampler object to get access
+    ur_sampler_handle_t hSampler ///< [in][retain] handle of the sampler object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3690,7 +3714,7 @@ urUSMPoolCreate(
 ///         + `NULL == pPool`
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4046,7 +4070,7 @@ urPhysicalMemCreate(
 ///         + `NULL == hPhysicalMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRetain(
-    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to retain.
+    ur_physical_mem_handle_t hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4334,7 +4358,7 @@ urProgramLink(
 ///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t hProgram ///< [in][retain] handle for the Program to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4985,7 +5009,7 @@ urKernelGetSubGroupInfo(
 ///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5492,7 +5516,7 @@ urQueueCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t hQueue ///< [in][retain] handle of the queue object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5887,7 +5911,7 @@ urEventWait(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8252,7 +8276,7 @@ urCommandBufferCreateExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8799,7 +8823,7 @@ urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in][retain] Handle of the command-buffer command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9656,6 +9680,15 @@ typedef struct ur_loader_config_set_code_location_callback_params_t {
     ur_code_location_callback_t *ppfnCodeloc;
     void **ppUserData;
 } ur_loader_config_set_code_location_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigSetMockingEnabled
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_set_mocking_enabled_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_bool_t *penable;
+} ur_loader_config_set_mocking_enabled_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet

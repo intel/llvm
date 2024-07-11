@@ -263,7 +263,7 @@ details:
 params:
     - type: $x_program_handle_t
       name: hProgram
-      desc: "[in] handle for the Program to retain"
+      desc: "[in][retain] handle for the Program to retain"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Release Program."
