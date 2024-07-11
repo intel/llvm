@@ -174,9 +174,17 @@ device_global<int> same_name;
 // CHECK: [[ANN_doublepump2:@.str[.0-9]*]] = {{.*}}"{memory:DEFAULT}{sizeinfo:4}{pump:2}{{.*}}
 // CHECK: [[ANN_bank_bits2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
 // CHECK: @counter15 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.18" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS15:[0-9]+]]
+// CHECK-INTELFPGA: @global_wrapper = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.19" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS16:[0-9]+]]
+// CHECK-INTELFPGA: [[ANN_memory3:@.str[.0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:48}{{.*}}
+// CHECK-INTELFPGA: [[ANN_numbanks4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10}{numbanks:4}{{.*}}
+// CHECK-INTELFPGA: @global_wrapper1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.20" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS17:[0-9]+]]
+// CHECK-INTELFPGA: [[ANN_private_copies4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:48}{private_copies:16}{{.*}}
+// CHECK-INTELFPGA: [[ANN_simple_dual_port4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10}{simple_dual_port:1}{{.*}}
 // CHECK-INTELFPGA: [[ANN_private_copies_imple_dual_port2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}{memory:DEFAULT}{sizeinfo:4}{private_copies:16}{{.*}}
 // CHECK-INTELFPGA: [[ANN_numbanks3_merge3:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{memory:DEFAULT}{sizeinfo:4,155}{merge:foo:depth}{{.*}}
 // CHECK-INTELFPGA: [[ANN_force_pow2_depth3_doublepump3_numbanks3:@.str[.0-9]*]]  = {{.*}}{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}{memory:DEFAULT}{sizeinfo:4}{pump:2}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
+// CHECK-INTELFPGA: [[ANN_memory4_numbanks4_register4:@.str[.0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:48}{memory:DEFAULT}{sizeinfo:4,10}{numbanks:4}{register:1}{register:1}{{.*}}
+// CHECK-INTELFPGA: [[ANN_private_copies5_simple_dual_port5_register5:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:48}{private_copies:16}{memory:DEFAULT}{sizeinfo:4,10}{simple_dual_port:1}{register:1}{{.*}}
 // CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
 
 struct bar {
@@ -305,6 +313,51 @@ struct bar15 {
 
 [[intel::fpga_register]] device_global<bar15> counter15;
 
+// Base class with different attributes
+class Base {
+public:
+  [[intel::fpga_register]] int reg_attr;
+  int no_attr;
+};
+
+// Derived class with additional attributes
+class Derived : public Base {
+public:
+  [[intel::numbanks(4)]] int arr_attr[10];
+};
+
+// Class with class type member with attributes
+class Wrapper {
+public:
+  [[intel::fpga_memory("MLAB")]] Derived derived_attr;
+};
+
+// Global instance with FPGA attributes
+[[intel::fpga_register]] device_global<Wrapper> global_wrapper;
+
+// Base class with different attributes
+class Base1 {
+public:
+  [[intel::fpga_register]] int reg_attr1;
+  int no_attr1;
+};
+
+// Derived class with additional attributes
+class Derived1 : public Base1 {
+public:
+  [[intel::simple_dual_port]] int arr_attr1[10];
+};
+
+// Class with class type member with attributes
+class Wrapper1 {
+public:
+  [[intel::private_copies(16)]] Derived1 derived_attr1;
+};
+
+// Global instance with FPGA attributes
+device_global<Wrapper1> global_wrapper1;
+
+
 int main() {
   queue q;
 
@@ -364,6 +417,21 @@ int main() {
     non_const_counter15.t30 = 5;
     non_const_counter15.t31 = 9;
     non_const_counter15.arr14[0]++;
+
+    auto& non_const_global_wrapper = const_cast<Wrapper&>(global_wrapper.get());
+    non_const_global_wrapper.derived_attr.reg_attr = 5;
+    non_const_global_wrapper.derived_attr.no_attr = 10;
+    for (int i = 0; i < 10; ++i) {
+      non_const_global_wrapper.derived_attr.arr_attr[i] = i;
+    }
+
+    auto& non_const_global_wrapper1 = const_cast<Wrapper1&>(global_wrapper1.get());
+    non_const_global_wrapper1.derived_attr1.reg_attr1 = 3;
+    non_const_global_wrapper1.derived_attr1.no_attr1 = 20;
+    for (int i = 0; i < 10; ++i) {
+      non_const_global_wrapper1.derived_attr1.arr_attr1[i] = i;
+    }
+
     });
   });
 
@@ -394,22 +462,24 @@ void bar() {
 // CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob9, ptr addrspace(1) [[ANN_singlepump]]{{.*}} i32 27, ptr addrspace(1) null
 // CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob10, ptr addrspace(1) [[ANN_merge]]{{.*}} i32 28, ptr addrspace(1) null
 // CHECK-NOINTELFPGA-SAME: ptr addrspace(1) @Nonconst_glob11, ptr addrspace(1) [[ANN_private_copies]]{{.*}} i32 29, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 188, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter1, ptr addrspace(1) [[ANN_max_replicates1]]{{.*}}, i32 196, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter2, ptr addrspace(1) [[ANN_bankwidth1]]{{.*}}, i32 204, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter3, ptr addrspace(1) [[ANN_memory_default1]]{{.*}}, i32 212, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter4, ptr addrspace(1) [[ANN_numbanks1]]{{.*}}, i32 220, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter5, ptr addrspace(1) [[ANN_force_pow2_depth1]]{{.*}}, i32 228, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter6, ptr addrspace(1) [[ANN_bank_bits1]]{{.*}}, i32 236, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter7, ptr addrspace(1) [[ANN_doublepump1]]{{.*}}, i32 244, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter8, ptr addrspace(1) [[ANN_singlepump1]]{{.*}}, i32 252, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter9, ptr addrspace(1) [[ANN_merge1]]{{.*}}, i32 260, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter10, ptr addrspace(1) [[ANN_private_copies1]]{{.*}}, i32 268, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter11, ptr addrspace(1) [[ANN_simple_dual_port1]]{{.*}}, i32 276, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter12, ptr addrspace(1) [[ANN_private_copies_imple_dual_port2]]{{.*}}, i32 283, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter13, ptr addrspace(1) [[ANN_numbanks3_merge3]]{{.*}}, i32 290, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter14, ptr addrspace(1) [[ANN_force_pow2_depth3_doublepump3_numbanks3]]{{.*}}, i32 298, ptr addrspace(1) null
-// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 306, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 196, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter1, ptr addrspace(1) [[ANN_max_replicates1]]{{.*}}, i32 204, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter2, ptr addrspace(1) [[ANN_bankwidth1]]{{.*}}, i32 212, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter3, ptr addrspace(1) [[ANN_memory_default1]]{{.*}}, i32 220, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter4, ptr addrspace(1) [[ANN_numbanks1]]{{.*}}, i32 228, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter5, ptr addrspace(1) [[ANN_force_pow2_depth1]]{{.*}}, i32 236, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter6, ptr addrspace(1) [[ANN_bank_bits1]]{{.*}}, i32 244, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter7, ptr addrspace(1) [[ANN_doublepump1]]{{.*}}, i32 252, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter8, ptr addrspace(1) [[ANN_singlepump1]]{{.*}}, i32 260, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter9, ptr addrspace(1) [[ANN_merge1]]{{.*}}, i32 268, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter10, ptr addrspace(1) [[ANN_private_copies1]]{{.*}}, i32 276, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter11, ptr addrspace(1) [[ANN_simple_dual_port1]]{{.*}}, i32 284, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter12, ptr addrspace(1) [[ANN_private_copies_imple_dual_port2]]{{.*}}, i32 291, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter13, ptr addrspace(1) [[ANN_numbanks3_merge3]]{{.*}}, i32 298, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter14, ptr addrspace(1) [[ANN_force_pow2_depth3_doublepump3_numbanks3]]{{.*}}, i32 306, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 314, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper, ptr addrspace(1) [[ANN_memory4_numbanks4_register4]]{{.*}}i32 336, ptr addrspace(1) null
+// CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper1, ptr addrspace(1) [[ANN_private_copies5_simple_dual_port5_register5]]{{.*}}i32 358, ptr addrspace(1) null
 // CHECK: @llvm.used = appending addrspace(1) global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
 // CHECK: @llvm.compiler.used = appending addrspace(1) global [2 x ptr addrspace(4)]
 // CHECK-SAME: @_ZL1B
@@ -452,4 +522,7 @@ void bar() {
 // CHECK: attributes #[[DEV_GLOB_FPGA_ATTRS13]] = { "sycl-unique-id"="_Z9counter13" }
 // CHECK: attributes #[[DEV_GLOB_FPGA_ATTRS14]] = { "sycl-unique-id"="_Z9counter14" }
 // CHECK: attributes #[[DEV_GLOB_FPGA_ATTRS15]] = { "sycl-unique-id"="_Z9counter15" }
+// CHECK-INTELFPGA: attributes #[[DEV_GLOB_FPGA_ATTRS16]] = { "sycl-unique-id"="_Z14global_wrapper" }
+// CHECK-INTELFPGA: attributes #[[DEV_GLOB_FPGA_ATTRS17]] = { "sycl-unique-id"="_Z15global_wrapper1" }
+
 // CHECK: attributes #[[SAME_NAME_ANON_NS_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZN12_GLOBAL__N_19same_nameE" }
