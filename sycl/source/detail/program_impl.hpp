@@ -101,23 +101,6 @@ public:
 
   ~program_impl();
 
-  /// Checks if this program_impl has a property of type propertyT.
-  ///
-  /// \return true if this program_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this program_impl.
-  ///
-  /// Throws invalid_object_error if this program_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
-
   /// Returns a valid cl_program instance.
   ///
   /// The instance of cl_program will be retained before returning.
