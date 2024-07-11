@@ -1016,6 +1016,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest.raw_handle;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1068,6 +1069,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest.raw_handle;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = DestImgDesc.width;
   UrDesc.height = DestImgDesc.height;
   UrDesc.depth = DestImgDesc.depth;
@@ -1119,6 +1121,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1170,6 +1173,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest.raw_handle;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = ImageDesc.width;
   UrDesc.height = ImageDesc.height;
   UrDesc.depth = ImageDesc.depth;
@@ -1222,6 +1226,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = SrcImgDesc.width;
   UrDesc.height = SrcImgDesc.height;
   UrDesc.depth = SrcImgDesc.depth;
@@ -1273,6 +1278,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1328,6 +1334,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = DeviceImgDesc.width;
   UrDesc.height = DeviceImgDesc.height;
   UrDesc.depth = DeviceImgDesc.depth;

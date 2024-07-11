@@ -85,6 +85,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   const PluginPtr &Plugin = getPlugin();
 
   ur_image_desc_t Desc = {};
+  Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   Desc.type = getImageType(Dimensions);
   Desc.width = Range3WithOnes[0];
   Desc.height = Range3WithOnes[1];
