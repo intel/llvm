@@ -127,6 +127,7 @@
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
+#include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/Support/CommandLine.h"

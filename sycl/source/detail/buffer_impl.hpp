@@ -48,9 +48,9 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
-          "The use_host_ptr property requires host pointer to be provided",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_host_ptr property requires host pointer to be provided");
   }
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
@@ -60,9 +60,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -74,9 +74,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -89,9 +89,9 @@ public:
 
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(std::const_pointer_cast<void>(HostData),
                           RequiredAlign, IsConstPtr);
@@ -105,9 +105,9 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-      throw sycl::invalid_object_error(
-          "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "The use_pinned_host_memory cannot be used with host pointer");
 
     BaseT::handleHostData(CopyFromInput, RequiredAlign, IsConstPtr);
   }

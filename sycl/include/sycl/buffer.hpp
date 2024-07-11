@@ -438,16 +438,14 @@ public:
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
-      throw sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.", PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Cannot create sub buffer from sub buffer.");
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw sycl::invalid_object_error(
-          "Requested sub-buffer size exceeds the size of the parent buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested sub-buffer size exceeds the size of the parent buffer");
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
-      throw sycl::invalid_object_error(
-          "Requested sub-buffer region is not contiguous",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested sub-buffer region is not contiguous");
   }
 
   buffer(const buffer &rhs,
@@ -539,9 +537,8 @@ public:
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::invalid_object_error(
-          "Requested accessor would exceed the bounds of the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
@@ -562,9 +559,8 @@ public:
                                                        detail::code_location::
                                                            current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::invalid_object_error(
-          "Requested accessor would exceed the bounds of the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
@@ -659,11 +655,11 @@ public:
              std::remove_const_t<ReinterpretT>>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
-      throw sycl::invalid_object_error(
+      throw sycl::exception(
+          make_error_code(errc::invalid),
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
-          "represented by the type and range of this SYCL buffer",
-          PI_ERROR_INVALID_VALUE);
+          "represented by the type and range of this SYCL buffer");
 
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -692,10 +688,9 @@ public:
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
-      throw sycl::invalid_object_error(
-          "Total byte size of buffer is not evenly divisible by the size of "
-          "the reinterpreted type",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Total byte size of buffer is not evenly divisible "
+                            "by the size of the reinterpreted type");
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
