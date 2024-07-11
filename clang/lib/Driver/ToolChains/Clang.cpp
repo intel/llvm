@@ -10783,8 +10783,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if ((!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                        options::OPT_fsycl_remove_unused_external_funcs,
-                       false) &&
-       !isSYCLNativeCPU(TC)) &&
+                       false)) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 

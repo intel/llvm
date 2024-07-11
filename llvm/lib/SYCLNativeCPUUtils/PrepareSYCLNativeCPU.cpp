@@ -12,9 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
@@ -23,7 +27,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -35,7 +38,9 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/GlobalStatus.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
+#include <cstddef>
 #include <utility>
 #include <vector>
 
@@ -264,6 +269,43 @@ static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
 
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
+static bool removeSYCLKernelsConstRefArray(Module &M) {
+  GlobalVariable *GV = M.getGlobalVariable("llvm.used");
+
+  if (!GV) {
+    return false;
+  }
+  assert(GV->user_empty() && "Unexpected llvm.used users");
+  Constant *Initializer = GV->getInitializer();
+  GV->setInitializer(nullptr);
+  GV->eraseFromParent();
+
+  // Destroy the initializer and all operands of it.
+  SmallVector<Constant *, 8> IOperands;
+  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
+    IOperands.push_back(cast<Constant>(*It));
+  assert(llvm::isSafeToDestroyConstant(Initializer) &&
+         "Cannot remove initializer of llvm.used global");
+  Initializer->destroyConstant();
+  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
+    auto Op = (*It)->stripPointerCasts();
+    auto *F = dyn_cast<Function>(Op);
+    if (llvm::isSafeToDestroyConstant(*It)) {
+      (*It)->destroyConstant();
+    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+               !F->use_empty()) {
+      // The element in "llvm.used" array has other users. That is Ok for
+      // specialization constants, but is wrong for kernels.
+      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
+    }
+
+    // Remove unused kernel declarations to avoid LLVM IR check fails.
+    if (F && F->isDeclaration() && F->use_empty())
+      F->eraseFromParent();
+  }
+  return true;
+}
+
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
@@ -331,11 +373,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     UsedBuiltins.push_back({Glob, Entry.second});
   }
 
-  SmallVector<Function *> NewKernels;
-  for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
-    auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    OldF->setName(Name);
+  SmallSet<Function *, 5> RemovableFuncs;
+  SmallSet<StringRef, 5> ProcessedKernels;
+  for (auto &OldF : OldKernels) {
     // if vectorization occurred, at this point we have a wrapper function that
     // runs the vectorized kernel and peels using the scalar kernel. We make it
     // so this wrapper steals the original kernel name.
@@ -344,18 +385,57 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (veczR && veczR.value().first) {
       auto ScalarF = veczR.value().first;
       OldF->takeName(ScalarF);
-      ScalarF->setName(OldF->getName() + "_scalar");
-    } else if (Name != OldF->getName()) {
-      auto RealKernel = M.getFunction(Name);
-      if (RealKernel) {
-        // the real kernel was not inlined in the wrapper, steal its name
-        OldF->takeName(RealKernel);
-      } else {
-        // the real kernel has been inlined, just use the name
-        OldF->setName(Name);
+      ProcessedKernels.insert(OldF->getName());
+      if(ScalarF->use_empty())
+        RemovableFuncs.insert(ScalarF);
+    } else {
+      auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
+      if (!ProcessedKernels.contains(Name) && Name != OldF->getName()) {
+        Function *OrigF = M.getFunction(Name);
+        if (OrigF != nullptr) {
+          // The original kernel is inlined by the work item loop
+          // pass if it contained barriers or group collectives, otherwise
+          // we don't want to (and can't) remove it.
+          if (OrigF->use_empty())
+            RemovableFuncs.insert(OrigF);
+          OldF->takeName(OrigF);
+          ProcessedKernels.insert(Name);
+        } else {
+          OldF->setName(Name);
+        }
       }
     }
+  }
+
+  // Remove the llvm.used array since it is not need anymore at this point.
+  removeSYCLKernelsConstRefArray(M);
+
+  // Find any left over SYCL_EXTERNAL function that has no more uses
+  std::set<Function *> Kernelset(OldKernels.begin(), OldKernels.end());
+  for (auto &F : M) {
+    if (Kernelset.count(&F) == 0 &&
+        F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID) && F.use_empty() &&
+        !F.getName().starts_with("__dpcpp_nativecpu")) {
+      // SYCL_EXTERNAL function end up in static array of function pointers,
+      // at this point we can remove them from the array and remove the function
+      // if no other uses are left.
+      RemovableFuncs.insert(&F);
+    }
+  }
+
+  // Remove unused functions. This is necessary in case they still contain
+  // calls to group collective functions that haven't been processed by the
+  // work item loops pass, which will lead to linker errors.
+  llvm::erase_if(OldKernels,
+                 [&](Function *F) { return RemovableFuncs.contains(F); });
+
+  for (Function *F : RemovableFuncs) {
+    F->eraseFromParent();
+  }
 #endif
+
+  SmallVector<Function *> NewKernels;
+  for (auto &OldF : OldKernels) {
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
     NewF->takeName(OldF);
@@ -422,34 +502,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
   }
-
-#ifdef NATIVECPU_USE_OCK
-  // Define __mux_mem_barrier here using the OCK
-  compiler::utils::BuiltinInfo BI;
-  for (auto &F : M) {
-    if (F.getName() == compiler::utils::MuxBuiltins::mem_barrier) {
-      BI.defineMuxBuiltin(compiler::utils::BaseBuiltinID::eMuxBuiltinMemBarrier,
-                          M);
-    }
-  }
-  // if we find calls to mux barrier now, it means that we had SYCL_EXTERNAL
-  // functions that called __mux_work_group_barrier, which didn't get processed
-  // by the WorkItemLoop pass. This means that the actual function call has been
-  // inlined into the kernel, and the call to __mux_work_group_barrier has been
-  // removed in the inlined call, but not in the original function. The original
-  // function will not be executed (since it has been inlined) and so we can
-  // just define __mux_work_group_barrier as a no-op to avoid linker errors.
-  // Todo: currently we can't remove the function here even if it has no uses,
-  // because we may still emit a declaration for it in the offload-wrapper.
-  auto BarrierF =
-      M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
-  if (BarrierF && BarrierF->isDeclaration()) {
-    IRBuilder<> Builder(M.getContext());
-    auto BB = BasicBlock::Create(M.getContext(), "noop", BarrierF);
-    Builder.SetInsertPoint(BB);
-    Builder.CreateRetVoid();
-  }
-#endif
 
   // removing unused builtins
   SmallVector<Function *> UnusedLibBuiltins;
