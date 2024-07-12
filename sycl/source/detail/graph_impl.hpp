@@ -848,7 +848,7 @@ public:
 };
 
 /// Implementation details of command_graph<modifiable>.
-class graph_impl {
+class graph_impl : public std::enable_shared_from_this<graph_impl> {
 public:
   using ReadLock = std::shared_lock<std::shared_mutex>;
   using WriteLock = std::unique_lock<std::shared_mutex>;
@@ -1191,6 +1191,11 @@ public:
   /// @return vector of events associated to exit nodes.
   std::vector<sycl::detail::EventImplPtr>
   getExitNodesEvents(std::weak_ptr<sycl::detail::queue_impl> Queue);
+
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
+  /// \param Queue[in] The queue to be recorded from.
+  void beginRecording(std::shared_ptr<sycl::detail::queue_impl> Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.

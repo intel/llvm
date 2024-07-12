@@ -1499,6 +1499,15 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+
+  /* If the event dependency has a graph, that means that the queue that created
+   * it was in recording mode. If the current queue is not recording, we need to
+   * set it to recording (implements the transitive queue recording feature).*/
+  auto GraphFromDep = EventImpl->getCommandGraph();
+  if (GraphFromDep && MQueue && !MQueue->getCommandGraph()) {
+    GraphFromDep->beginRecording(MQueue);
+  }
+
   if (!EventImpl)
     return;
   if (EventImpl->isDiscarded()) {

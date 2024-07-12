@@ -620,6 +620,15 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
+void graph_impl::beginRecording(
+    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+  graph_impl::WriteLock Lock(MMutex);
+  if (Queue->getCommandGraph() == nullptr) {
+    Queue->setCommandGraph(shared_from_this());
+    addQueue(Queue);
+  }
+}
+
 // Check if nodes are empty and if so loop back through predecessors until we
 // find the real dependency.
 void exec_graph_impl::findRealDeps(
@@ -1601,16 +1610,13 @@ void modifiable_command_graph::begin_recording(
                           "differs from the graph device.");
   }
 
-  if (QueueImpl->getCommandGraph() == nullptr) {
-    QueueImpl->setCommandGraph(impl);
-    graph_impl::WriteLock Lock(impl->MMutex);
-    impl->addQueue(QueueImpl);
-  }
-  if (QueueImpl->getCommandGraph() != impl) {
+  if (QueueImpl->getCommandGraph() != nullptr) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
   }
+
+  impl->beginRecording(QueueImpl);
 }
 
 void modifiable_command_graph::begin_recording(
