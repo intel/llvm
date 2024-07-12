@@ -200,8 +200,8 @@ public:
 
   /// Gets the specified property of this context.
   ///
-  /// Throws invalid_object_error if this context does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this context does not
+  /// have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
   template <typename propertyT> propertyT get_property() const;
@@ -252,7 +252,6 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // context.hpp depends on exception.hpp but we can't define these ctors in
 // exception.hpp while context is still an incomplete type.
 inline exception::exception(context Ctx, std::error_code EC,
@@ -279,7 +278,6 @@ inline exception::exception(context Ctx, int EV,
 inline exception::exception(context Ctx, int EV,
                             const std::error_category &ECat)
     : exception(Ctx, EV, ECat, "") {}
-#endif
 
 } // namespace _V1
 } // namespace sycl
