@@ -998,7 +998,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
                                              const ArgList &Args,
-                                             bool IsEmbeddedIR = false) {
+                                             bool IsEmbeddedIR) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -2118,7 +2118,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         // through the offload wrapper and link the resulting object to the
         // application.
         auto OutputFile =
-            sycl::runWrapperAndCompile(*SYCLPostLinkFile, LinkerArgs, true);
+            sycl::runWrapperAndCompile(*SYCLPostLinkFile, LinkerArgs, /* IsEmbeddedIR */ true);
         if (!OutputFile)
           return OutputFile.takeError();
         WrappedOutput.push_back(*OutputFile);
