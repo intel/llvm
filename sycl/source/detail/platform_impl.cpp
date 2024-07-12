@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/detail/ur.hpp"
 #include "sycl/info/info_desc.hpp"
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
@@ -134,7 +135,7 @@ std::vector<platform> platform_impl::get_platforms() {
   // There should be just one plugin serving each backend.
   // this is where piPluginInit currently ends up getting called,
   // and it's where LoaderInit and AdapterGet will happen
-  std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+  std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
   std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
   // Then check backend-specific plugins
@@ -463,7 +464,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     break;
   }
 
-  pi_uint32 NumDevices = 0;
+  uint32_t NumDevices = 0;
   MPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
                 0, // CP info::device_type::all
                 nullptr, &NumDevices);
@@ -475,7 +476,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const plugin reference.
-    std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+    std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
                            [&Platform = MUrPlatform](PluginPtr &Plugin) {
                              return Plugin->containsUrPlatform(Platform);

@@ -22,7 +22,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -954,7 +954,7 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MImpl->MAdvice = static_cast<pi_mem_advice>(Advice);
+  MImpl->MAdvice = static_cast<ur_usm_advice_flags_t>(Advice);
   setType(detail::CG::AdviseUSM);
 }
 

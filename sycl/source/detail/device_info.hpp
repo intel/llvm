@@ -15,7 +15,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
@@ -111,19 +111,6 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by UR calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
-template <> struct sycl_to_pi<device> {
-  using type = pi_device;
-};
-template <> struct sycl_to_pi<platform> {
-  using type = pi_platform;
-};
-
 template <typename T> struct sycl_to_ur {
   using type = T;
 };

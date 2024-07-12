@@ -685,7 +685,7 @@ public:
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
   /// \return an event representing advise operation.
   event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
-                   size_t Length, pi_mem_advice Advice,
+                   size_t Length, ur_usm_advice_flags_t Advice,
                    const std::vector<event> &DepEvents, bool CallerNeedsEvent);
 
   /// Puts exception to the list of asynchronous ecxeptions.

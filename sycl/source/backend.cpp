@@ -17,7 +17,7 @@
 #include <sycl/backend.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -32,13 +32,13 @@ namespace detail {
 static const PluginPtr &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return pi::getPlugin<backend::opencl>();
+    return ur::getPlugin<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return pi::getPlugin<backend::ext_oneapi_level_zero>();
+    return ur::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return pi::getPlugin<backend::ext_oneapi_cuda>();
+    return ur::getPlugin<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return pi::getPlugin<backend::ext_oneapi_hip>();
+    return ur::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::runtime),

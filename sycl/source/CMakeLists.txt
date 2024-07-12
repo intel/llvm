@@ -223,7 +223,6 @@ set(SYCL_COMMON_SOURCES
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
-    "detail/pi.cpp"
     "detail/common.cpp"
     "detail/composite_device/composite_device.cpp"
     "detail/config.cpp"

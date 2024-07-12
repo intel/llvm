@@ -13,7 +13,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -204,10 +204,6 @@ public:
     assert(MPlatform && "MPlatform must be not null");
     return MPlatform->getBackend();
   }
-
-  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
-  /// within this context. May return nullptr if no match discovered.
-  DeviceImplPtr findMatchingDeviceImpl(pi_device &DevicePI) const;
 
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.

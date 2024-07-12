@@ -141,7 +141,8 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                       /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+event queue::mem_advise(const void *Ptr, size_t Length,
+                        ur_usm_advice_flags_t Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return mem_advise(Ptr, Length, int(Advice));
@@ -150,14 +151,15 @@ event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {},
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice), {},
                           /*CallerNeedsEvent=*/true);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent},
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice),
+                          {DepEvent},
                           /*CallerNeedsEvent=*/true);
 }
 
@@ -165,7 +167,8 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents,
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice),
+                          DepEvents,
                           /*CallerNeedsEvent=*/true);
 }
 

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_binary_image.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <algorithm>
@@ -59,7 +58,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   return Out;
 }
 
-pi_uint32 DeviceBinaryProperty::asUint32() const {
+uint32_t DeviceBinaryProperty::asUint32() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
@@ -190,7 +189,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
-    Format = pi::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
@@ -228,7 +227,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
-  Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
+  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
     Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;

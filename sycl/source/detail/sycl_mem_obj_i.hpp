@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <ur_api.h>
 
 namespace sycl {

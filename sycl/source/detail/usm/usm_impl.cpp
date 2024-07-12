@@ -11,7 +11,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/aligned_allocator.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
