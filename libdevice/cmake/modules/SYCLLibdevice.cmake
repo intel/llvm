@@ -206,7 +206,7 @@ add_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps
 add_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
 add_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
 add_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
-add_devicelib(libsycl-fallback-gsort SRC fallback-gsort.cpp DEP ${gsort_obj_deps})
+add_devicelib(libsycl-fallback-gsort SRC fallback-gsort.cpp DEP ${gsort_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
