@@ -22,6 +22,10 @@
 
 #include <sycl/range.hpp>
 
+// This is used in trait .def files when there isn't a corresponding backend
+// query but we still need a value to instantiate the template.
+#define SYCL_TRAIT_HANDLED_IN_RT 0
+
 namespace sycl {
 inline namespace _V1 {
 

@@ -16,6 +16,7 @@
 #include <detail/platform_info.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
@@ -85,9 +86,8 @@ static bool IsBannedPlatform(platform Platform) {
                                   name) != std::string::npos;
     const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
     const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
-    if (detail::ur::trace(detail::ur::TraceLevel::PI_TRACE_ALL) &&
-        IsMatchingOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: " << name
+    if (detail::ur::trace() && IsMatchingOCL) {
+      std::cout << "SYCL_UR_TRACE: " << name
                 << " OpenCL platform found but is not compatible." << std::endl;
     }
     return IsMatchingOCL;

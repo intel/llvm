@@ -3257,7 +3257,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
-    Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
+    Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
                  MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
                  OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 

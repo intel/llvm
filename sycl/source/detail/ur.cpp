@@ -64,6 +64,7 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 }
 
 namespace ur {
+bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins);
 
@@ -76,11 +77,6 @@ void contextSetExtendedDeleter(const sycl::context &context,
   auto contextHandle = impl->getHandleRef();
   const auto &Plugin = impl->getPlugin();
   Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
-}
-
-bool trace(TraceLevel Level) {
-  auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
-  return (TraceLevelMask & Level) == Level;
 }
 
 // Initializes all available Plugins.

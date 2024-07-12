@@ -360,7 +360,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
 
   case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::kernel_argument),
             "The kernel argument values have not been specified OR a kernel "
@@ -371,7 +371,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
 
   case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::feature_not_supported),
             "image object is specified as an argument value and the image "
@@ -379,7 +379,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
   case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(make_error_code(errc::invalid),
                         "a sub-buffer object is specified as the value for an "
                         "argument that is a buffer object and the offset "
@@ -389,7 +389,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
 
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::memory_allocation),
             "failure to allocate memory for data store associated with image "
@@ -397,7 +397,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
 
   case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::invalid),
             "image object is specified as an argument value and the image "

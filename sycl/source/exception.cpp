@@ -62,7 +62,7 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
 #else
     : MMsg(std::make_shared<std::string>(WhatArg)),
 #endif
-      MPIErr(UR_RESULT_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
+      MURErr(UR_RESULT_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
 
@@ -95,10 +95,10 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-int32_t get_pi_error(const exception &e) { return e.MPIErr; }
+int32_t get_ur_error(const exception &e) { return e.MURErr; }
 
-exception set_pi_error(exception &&e, int32_t pi_err) {
-  e.MPIErr = pi_err;
+exception set_ur_error(exception &&e, int32_t ur_err) {
+  e.MURErr = ur_err;
   return std::move(e);
 }
 } // namespace detail

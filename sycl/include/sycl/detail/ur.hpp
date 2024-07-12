@@ -241,17 +241,6 @@ __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace ur {
 
-// The SYCL_PI_TRACE sets what we will trace.
-// This is a bit-mask of various things we'd want to trace.
-enum TraceLevel {
-  PI_TRACE_BASIC = 0x1,
-  PI_TRACE_CALLS = 0x2,
-  PI_TRACE_ALL = -1
-};
-
-// Return true if we want to trace UR related activities.
-bool trace(TraceLevel level);
-
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              ur_context_extended_deleter_t func,
                                              void *user_data);
@@ -278,6 +267,9 @@ template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 /// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.
 pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
                                            size_t ImgSize);
+
+// Return true if we want to trace UR related activities.
+bool trace();
 
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);

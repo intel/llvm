@@ -119,13 +119,13 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-NOT: ---> urProgramBuild({{.*}}-vc-codegen{{.*}}-> UR_RESULT_SUCCESS
-// CHECK-WITH-VAR: ---> urProgramBuild({{.*}}-g{{.*}}-> UR_RESULT_SUCCESS
-// CHECK: ---> urKernelCreate({{.*}}SyclKernel{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-NOT: ---> urProgramBuildExp({{.*}}-vc-codegen{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-WITH-VAR: ---> urProgramBuildExp({{.*}}-g{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-NO-VAR: ---> urProgramBuild({{.*}}-vc-codegen
+// CHECK-NO-VAR: ---> urProgramBuildExp({{.*}}-vc-codegen
 // CHECK-WITH-VAR: ---> urProgramBuild({{.*}}-g -vc-codegen
-// CHECK: ---> urKernelCreate({{.*}}SyclKernel{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
