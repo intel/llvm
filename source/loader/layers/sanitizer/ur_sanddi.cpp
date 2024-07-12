@@ -21,11 +21,11 @@ namespace {
 ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
                          const ur_device_handle_t *phDevices) {
     std::shared_ptr<ContextInfo> CI;
-    UR_CALL(context.interceptor->insertContext(Context, CI));
+    UR_CALL(getContext()->interceptor->insertContext(Context, CI));
     for (uint32_t i = 0; i < numDevices; ++i) {
         auto hDevice = phDevices[i];
         std::shared_ptr<DeviceInfo> DI;
-        UR_CALL(context.interceptor->insertDevice(hDevice, DI));
+        UR_CALL(getContext()->interceptor->insertDevice(hDevice, DI));
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
@@ -49,15 +49,15 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
-    auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
+    auto pfnHostAlloc = getContext()->urDdiTable.USM.pfnHostAlloc;
 
     if (nullptr == pfnHostAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urUSMHostAlloc");
+    getContext()->logger.debug("==== urUSMHostAlloc");
 
-    return context.interceptor->allocateMemory(
+    return getContext()->interceptor->allocateMemory(
         hContext, nullptr, pUSMDesc, pool, size, AllocType::HOST_USM, ppMem);
 }
 
@@ -74,15 +74,15 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
-    auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
+    auto pfnDeviceAlloc = getContext()->urDdiTable.USM.pfnDeviceAlloc;
 
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urUSMDeviceAlloc");
+    getContext()->logger.debug("==== urUSMDeviceAlloc");
 
-    return context.interceptor->allocateMemory(
+    return getContext()->interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
 }
 
@@ -99,15 +99,15 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
-    auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
+    auto pfnSharedAlloc = getContext()->urDdiTable.USM.pfnSharedAlloc;
 
     if (nullptr == pfnSharedAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urUSMSharedAlloc");
+    getContext()->logger.debug("==== urUSMSharedAlloc");
 
-    return context.interceptor->allocateMemory(
+    return getContext()->interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
 }
 
@@ -117,15 +117,15 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
 ) {
-    auto pfnFree = context.urDdiTable.USM.pfnFree;
+    auto pfnFree = getContext()->urDdiTable.USM.pfnFree;
 
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urUSMFree");
+    getContext()->logger.debug("==== urUSMFree");
 
-    return context.interceptor->releaseMemory(hContext, pMem);
+    return getContext()->interceptor->releaseMemory(hContext, pMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -135,17 +135,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     ur_program_handle_t hProgram, ///< [in] handle of the program object
     const char *pOptions          ///< [in] string of build options
 ) {
-    auto pfnProgramBuild = context.urDdiTable.Program.pfnBuild;
+    auto pfnProgramBuild = getContext()->urDdiTable.Program.pfnBuild;
 
     if (nullptr == pfnProgramBuild) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urProgramBuild");
+    getContext()->logger.debug("==== urProgramBuild");
 
     UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
 
-    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, hProgram));
+    UR_CALL(
+        getContext()->interceptor->registerDeviceGlobals(hContext, hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -160,17 +161,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
 ) {
-    auto pfnBuildExp = context.urDdiTable.ProgramExp.pfnBuildExp;
+    auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
 
     if (nullptr == pfnBuildExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urProgramBuildExp");
+    getContext()->logger.debug("==== urProgramBuildExp");
 
     UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
-    UR_CALL(context.interceptor->registerDeviceGlobals(GetContext(hProgram),
-                                                       hProgram));
+    UR_CALL(getContext()->interceptor->registerDeviceGlobals(
+        GetContext(hProgram), hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -187,17 +188,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
-    auto pfnProgramLink = context.urDdiTable.Program.pfnLink;
+    auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnProgramLink) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urProgramLink");
+    getContext()->logger.debug("==== urProgramLink");
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
-    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, *phProgram));
+    UR_CALL(
+        getContext()->interceptor->registerDeviceGlobals(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -217,18 +219,19 @@ ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
-    auto pfnProgramLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
+    auto pfnProgramLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
 
     if (nullptr == pfnProgramLinkExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urProgramLinkExp");
+    getContext()->logger.debug("==== urProgramLinkExp");
 
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
-    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, *phProgram));
+    UR_CALL(
+        getContext()->interceptor->registerDeviceGlobals(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -264,20 +267,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
 ) {
-    auto pfnKernelLaunch = context.urDdiTable.Enqueue.pfnKernelLaunch;
+    auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
     if (nullptr == pfnKernelLaunch) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueKernelLaunch");
+    getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
     USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
                              pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
                              workDim);
     UR_CALL(LaunchInfo.initialize());
 
-    UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+    UR_CALL(getContext()->interceptor->preLaunchKernel(hKernel, hQueue,
+                                                       LaunchInfo));
 
     ur_event_handle_t hEvent{};
     ur_result_t result =
@@ -286,8 +290,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        UR_CALL(
-            context.interceptor->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+        UR_CALL(getContext()->interceptor->postLaunchKernel(hKernel, hQueue,
+                                                            LaunchInfo));
     }
 
     if (phEvent) {
@@ -308,13 +312,13 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     ur_context_handle_t
         *phContext ///< [out] pointer to handle of context object created
 ) {
-    auto pfnCreate = context.urDdiTable.Context.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Context.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urContextCreate");
+    getContext()->logger.debug("==== urContextCreate");
 
     ur_result_t result =
         pfnCreate(numDevices, phDevices, pProperties, phContext);
@@ -330,7 +334,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the getContext()->
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -340,13 +344,13 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         phContext ///< [out] pointer to the handle of the context object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Context.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urContextCreateWithNativeHandle");
+    getContext()->logger.debug("==== urContextCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeContext, numDevices, phDevices, pProperties, phContext);
@@ -363,15 +367,15 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext ///< [in] handle of the context to release.
 ) {
-    auto pfnRelease = context.urDdiTable.Context.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Context.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urContextRelease");
+    getContext()->logger.debug("==== urContextRelease");
 
-    UR_CALL(context.interceptor->eraseContext(hContext));
+    UR_CALL(getContext()->interceptor->eraseContext(hContext));
     ur_result_t result = pfnRelease(hContext);
 
     return result;
@@ -388,7 +392,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
 ) {
-    auto pfnBufferCreate = context.urDdiTable.Mem.pfnBufferCreate;
+    auto pfnBufferCreate = getContext()->urDdiTable.Mem.pfnBufferCreate;
 
     if (nullptr == pfnBufferCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -398,7 +402,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    context.logger.debug("==== urMemBufferCreate");
+    getContext()->logger.debug("==== urMemBufferCreate");
 
     void *Host = nullptr;
     if (pProperties) {
@@ -411,7 +415,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 
     std::shared_ptr<MemBuffer> pMemBuffer =
         std::make_shared<MemBuffer>(hContext, size, hostPtrOrNull);
-    ur_result_t result = context.interceptor->insertMemBuffer(pMemBuffer);
+    ur_result_t result = getContext()->interceptor->insertMemBuffer(pMemBuffer);
     *phBuffer = ur_cast<ur_mem_handle_t>(pMemBuffer.get());
 
     return result;
@@ -434,15 +438,15 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Mem.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urMemGetInfo");
+    getContext()->logger.debug("==== urMemGetInfo");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hMemory)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMemory)) {
         UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
         switch (propName) {
         case UR_MEM_INFO_CONTEXT: {
@@ -468,15 +472,15 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
 ) {
-    auto pfnRetain = context.urDdiTable.Mem.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Mem.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urMemRetain");
+    getContext()->logger.debug("==== urMemRetain");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
         MemBuffer->RefCount++;
     } else {
         UR_CALL(pfnRetain(hMem));
@@ -490,20 +494,20 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to release
 ) {
-    auto pfnRelease = context.urDdiTable.Mem.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Mem.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urMemRelease");
+    getContext()->logger.debug("==== urMemRelease");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
         if (--MemBuffer->RefCount != 0) {
             return UR_RESULT_SUCCESS;
         }
         UR_CALL(MemBuffer->free());
-        UR_CALL(context.interceptor->eraseMemBuffer(hMem));
+        UR_CALL(getContext()->interceptor->eraseMemBuffer(hMem));
     } else {
         UR_CALL(pfnRelease(hMem));
     }
@@ -523,21 +527,21 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t
         *phMem ///< [out] pointer to the handle of sub buffer created
 ) {
-    auto pfnBufferPartition = context.urDdiTable.Mem.pfnBufferPartition;
+    auto pfnBufferPartition = getContext()->urDdiTable.Mem.pfnBufferPartition;
 
     if (nullptr == pfnBufferPartition) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urMemBufferPartition");
+    getContext()->logger.debug("==== urMemBufferPartition");
 
-    if (auto ParentBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto ParentBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         if (ParentBuffer->Size < (pRegion->origin + pRegion->size)) {
             return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
         }
         std::shared_ptr<MemBuffer> SubBuffer = std::make_shared<MemBuffer>(
             ParentBuffer, pRegion->origin, pRegion->size);
-        UR_CALL(context.interceptor->insertMemBuffer(SubBuffer));
+        UR_CALL(getContext()->interceptor->insertMemBuffer(SubBuffer));
         *phMem = reinterpret_cast<ur_mem_handle_t>(SubBuffer.get());
     } else {
         UR_CALL(pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion,
@@ -555,15 +559,15 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Mem.pfnGetNativeHandle;
+    auto pfnGetNativeHandle = getContext()->urDdiTable.Mem.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urMemGetNativeHandle");
+    getContext()->logger.debug("==== urMemGetNativeHandle");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
         char *Handle = nullptr;
         UR_CALL(MemBuffer->getHandle(hDevice, Handle));
         *phNativeMem = ur_cast<ur_native_handle_t>(Handle);
@@ -594,19 +598,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferRead = context.urDdiTable.Enqueue.pfnMemBufferRead;
+    auto pfnMemBufferRead = getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
 
     if (nullptr == pfnMemBufferRead) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferRead");
+    getContext()->logger.debug("==== urEnqueueMemBufferRead");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         ur_device_handle_t Device = GetDevice(hQueue);
         char *pSrc = nullptr;
         UR_CALL(MemBuffer->getHandle(Device, pSrc));
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, blockingRead, pDst, pSrc + offset, size,
             numEventsInWaitList, phEventWaitList, phEvent));
     } else {
@@ -640,19 +644,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferWrite = context.urDdiTable.Enqueue.pfnMemBufferWrite;
+    auto pfnMemBufferWrite = getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
 
     if (nullptr == pfnMemBufferWrite) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferWrite");
+    getContext()->logger.debug("==== urEnqueueMemBufferWrite");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         ur_device_handle_t Device = GetDevice(hQueue);
         char *pDst = nullptr;
         UR_CALL(MemBuffer->getHandle(Device, pDst));
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, blockingWrite, pDst + offset, pSrc, size,
             numEventsInWaitList, phEventWaitList, phEvent));
     } else {
@@ -696,15 +700,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferReadRect = context.urDdiTable.Enqueue.pfnMemBufferReadRect;
+    auto pfnMemBufferReadRect =
+        getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
 
     if (nullptr == pfnMemBufferReadRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferReadRect");
+    getContext()->logger.debug("==== urEnqueueMemBufferReadRect");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         char *SrcHandle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, SrcHandle));
@@ -760,15 +765,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                 ///< command instance.
 ) {
     auto pfnMemBufferWriteRect =
-        context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
+        getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
     if (nullptr == pfnMemBufferWriteRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferWriteRect");
+    getContext()->logger.debug("==== urEnqueueMemBufferWriteRect");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         char *DstHandle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, DstHandle));
@@ -809,16 +814,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferCopy = context.urDdiTable.Enqueue.pfnMemBufferCopy;
+    auto pfnMemBufferCopy = getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
 
     if (nullptr == pfnMemBufferCopy) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferCopy");
+    getContext()->logger.debug("==== urEnqueueMemBufferCopy");
 
-    auto SrcBuffer = context.interceptor->getMemBuffer(hBufferSrc);
-    auto DstBuffer = context.interceptor->getMemBuffer(hBufferDst);
+    auto SrcBuffer = getContext()->interceptor->getMemBuffer(hBufferSrc);
+    auto DstBuffer = getContext()->interceptor->getMemBuffer(hBufferDst);
 
     UR_ASSERT((SrcBuffer && DstBuffer) || (!SrcBuffer && !DstBuffer),
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -831,7 +836,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
         char *DstHandle = nullptr;
         UR_CALL(DstBuffer->getHandle(Device, DstHandle));
 
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, false, DstHandle + dstOffset, SrcHandle + srcOffset, size,
             numEventsInWaitList, phEventWaitList, phEvent));
     } else {
@@ -873,16 +878,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferCopyRect = context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
+    auto pfnMemBufferCopyRect =
+        getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
     if (nullptr == pfnMemBufferCopyRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferCopyRect");
+    getContext()->logger.debug("==== urEnqueueMemBufferCopyRect");
 
-    auto SrcBuffer = context.interceptor->getMemBuffer(hBufferSrc);
-    auto DstBuffer = context.interceptor->getMemBuffer(hBufferDst);
+    auto SrcBuffer = getContext()->interceptor->getMemBuffer(hBufferSrc);
+    auto DstBuffer = getContext()->interceptor->getMemBuffer(hBufferDst);
 
     UR_ASSERT((SrcBuffer && DstBuffer) || (!SrcBuffer && !DstBuffer),
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -929,19 +935,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferFill = context.urDdiTable.Enqueue.pfnMemBufferFill;
+    auto pfnMemBufferFill = getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
 
     if (nullptr == pfnMemBufferFill) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferFill");
+    getContext()->logger.debug("==== urEnqueueMemBufferFill");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
         char *Handle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, Handle));
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMFill(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
             hQueue, Handle + offset, patternSize, pPattern, size,
             numEventsInWaitList, phEventWaitList, phEvent));
     } else {
@@ -975,15 +981,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
 ) {
-    auto pfnMemBufferMap = context.urDdiTable.Enqueue.pfnMemBufferMap;
+    auto pfnMemBufferMap = getContext()->urDdiTable.Enqueue.pfnMemBufferMap;
 
     if (nullptr == pfnMemBufferMap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemBufferMap");
+    getContext()->logger.debug("==== urEnqueueMemBufferMap");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
 
         // Translate the host access mode info.
         MemBuffer::AccessMode AccessMode = MemBuffer::UNKNOWN;
@@ -1013,7 +1019,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             ur_usm_desc_t USMDesc{};
             USMDesc.align = MemBuffer->getAlignment();
             ur_usm_pool_handle_t Pool{};
-            UR_CALL(context.interceptor->allocateMemory(
+            UR_CALL(getContext()->interceptor->allocateMemory(
                 Context, nullptr, &USMDesc, Pool, size, AllocType::HOST_USM,
                 ppRetMap));
         }
@@ -1023,7 +1029,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         // we'll aways do copy here.
         char *SrcHandle = nullptr;
         UR_CALL(MemBuffer->getHandle(Device, SrcHandle));
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, blockingMap, *ppRetMap, SrcHandle + offset, size,
             numEventsInWaitList, phEventWaitList, phEvent));
 
@@ -1060,15 +1066,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemUnmap = context.urDdiTable.Enqueue.pfnMemUnmap;
+    auto pfnMemUnmap = getContext()->urDdiTable.Enqueue.pfnMemUnmap;
 
     if (nullptr == pfnMemUnmap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urEnqueueMemUnmap");
+    getContext()->logger.debug("==== urEnqueueMemUnmap");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
         MemBuffer::Mapping Mapping{};
         {
             std::scoped_lock<ur_shared_mutex> Guard(MemBuffer->Mutex);
@@ -1086,12 +1092,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
         ur_context_handle_t Context = GetContext(hQueue);
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, DstHandle));
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, true, DstHandle + Mapping.Offset, pMappedPtr, Mapping.Size,
             numEventsInWaitList, phEventWaitList, phEvent));
 
         if (!MemBuffer->HostPtr) {
-            UR_CALL(context.interceptor->releaseMemory(Context, pMappedPtr));
+            UR_CALL(
+                getContext()->interceptor->releaseMemory(Context, pMappedPtr));
         }
     } else {
         UR_CALL(pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
@@ -1109,16 +1116,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to handle of kernel object created.
 ) {
-    auto pfnCreate = context.urDdiTable.Kernel.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Kernel.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelCreate");
+    getContext()->logger.debug("==== urKernelCreate");
 
     UR_CALL(pfnCreate(hProgram, pKernelName, phKernel));
-    UR_CALL(context.interceptor->insertKernel(*phKernel));
+    UR_CALL(getContext()->interceptor->insertKernel(*phKernel));
 
     return UR_RESULT_SUCCESS;
 }
@@ -1128,17 +1135,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
 ) {
-    auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Kernel.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelRetain");
+    getContext()->logger.debug("==== urKernelRetain");
 
     UR_CALL(pfnRetain(hKernel));
 
-    if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
+    if (auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel)) {
         KernelInfo->RefCount++;
     }
 
@@ -1150,20 +1157,20 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 __urdlllocal ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
 ) {
-    auto pfnRelease = context.urDdiTable.Kernel.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelRelease");
+    getContext()->logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
+    if (auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel)) {
         if (--KernelInfo->RefCount != 0) {
             return UR_RESULT_SUCCESS;
         }
-        UR_CALL(context.interceptor->eraseKernel(hKernel));
+        UR_CALL(getContext()->interceptor->eraseKernel(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1180,19 +1187,19 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
-    auto pfnSetArgValue = context.urDdiTable.Kernel.pfnSetArgValue;
+    auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
     if (nullptr == pfnSetArgValue) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelSetArgValue");
+    getContext()->logger.debug("==== urKernelSetArgValue");
 
     std::shared_ptr<MemBuffer> MemBuffer;
     if (argSize == sizeof(ur_mem_handle_t) &&
-        (MemBuffer = context.interceptor->getMemBuffer(
+        (MemBuffer = getContext()->interceptor->getMemBuffer(
              *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-        auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
+        auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1212,16 +1219,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
         *pProperties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
 ) {
-    auto pfnSetArgMemObj = context.urDdiTable.Kernel.pfnSetArgMemObj;
+    auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
 
     if (nullptr == pfnSetArgMemObj) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelSetArgMemObj");
+    getContext()->logger.debug("==== urKernelSetArgMemObj");
 
-    if (auto MemBuffer = context.interceptor->getMemBuffer(hArgValue)) {
-        auto KernelInfo = context.interceptor->getKernelInfo(hKernel);
+    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hArgValue)) {
+        auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1241,17 +1248,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t
         *pProperties ///< [in][optional] pointer to local buffer properties.
 ) {
-    auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
+    auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
 
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("==== urKernelSetArgLocal (argIndex={}, argSize={})",
-                         argIndex, argSize);
+    getContext()->logger.debug(
+        "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
+        argSize);
 
     {
-        auto KI = context.interceptor->getKernelInfo(hKernel);
+        auto KI = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         // TODO: get local variable alignment
         auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
@@ -1283,9 +1291,9 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1317,9 +1325,9 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1347,9 +1355,9 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1382,9 +1390,9 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1416,9 +1424,9 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1447,9 +1455,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1489,9 +1497,9 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -1512,19 +1520,19 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {
-        context.enabledType = SanitizerType::AddressSanitizer;
+        getContext()->enabledType = SanitizerType::AddressSanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
-        context.enabledType = SanitizerType::MemorySanitizer;
+        getContext()->enabledType = SanitizerType::MemorySanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
-        context.enabledType = SanitizerType::ThreadSanitizer;
+        getContext()->enabledType = SanitizerType::ThreadSanitizer;
     }
 
     // Only support AddressSanitizer now
-    if (context.enabledType != SanitizerType::AddressSanitizer) {
+    if (getContext()->enabledType != SanitizerType::AddressSanitizer) {
         return result;
     }
 
-    if (context.enabledType == SanitizerType::AddressSanitizer) {
+    if (getContext()->enabledType == SanitizerType::AddressSanitizer) {
         if (!(dditable->VirtualMem.pfnReserve && dditable->VirtualMem.pfnMap &&
               dditable->VirtualMem.pfnGranularityGetInfo)) {
             die("Some VirtualMem APIs are needed to enable UR_LAYER_ASAN");

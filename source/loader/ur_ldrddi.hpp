@@ -17,6 +17,7 @@
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
+
 using ur_adapter_object_t = object_t<ur_adapter_handle_t>;
 using ur_adapter_factory_t =
     singleton_factory_t<ur_adapter_object_t, ur_adapter_handle_t>;
@@ -85,6 +86,26 @@ using ur_exp_command_buffer_command_object_t =
 using ur_exp_command_buffer_command_factory_t =
     singleton_factory_t<ur_exp_command_buffer_command_object_t,
                         ur_exp_command_buffer_command_handle_t>;
+
+struct handle_factories {
+    ur_adapter_factory_t ur_adapter_factory;
+    ur_platform_factory_t ur_platform_factory;
+    ur_device_factory_t ur_device_factory;
+    ur_context_factory_t ur_context_factory;
+    ur_event_factory_t ur_event_factory;
+    ur_program_factory_t ur_program_factory;
+    ur_kernel_factory_t ur_kernel_factory;
+    ur_queue_factory_t ur_queue_factory;
+    ur_sampler_factory_t ur_sampler_factory;
+    ur_mem_factory_t ur_mem_factory;
+    ur_physical_mem_factory_t ur_physical_mem_factory;
+    ur_usm_pool_factory_t ur_usm_pool_factory;
+    ur_exp_interop_mem_factory_t ur_exp_interop_mem_factory;
+    ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
+    ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
+    ur_exp_command_buffer_command_factory_t
+        ur_exp_command_buffer_command_factory;
+};
 
 } // namespace ur_loader
 

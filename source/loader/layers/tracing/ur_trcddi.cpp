@@ -30,26 +30,26 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t *
         pNumAdapters ///< [out][optional] returns the total number of adapters available.
 ) {
-    auto pfnAdapterGet = context.urDdiTable.Global.pfnAdapterGet;
+    auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
 
     if (nullptr == pfnAdapterGet) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_adapter_get_params_t params = {&NumEntries, &phAdapters, &pNumAdapters};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ADAPTER_GET,
+                                                   "urAdapterGet", &params);
 
-    context.logger.info("---> urAdapterGet");
+    getContext()->logger.info("---> urAdapterGet");
 
     ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
 
-    context.notify_end(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_GET, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -59,27 +59,27 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
 ) {
-    auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
+    auto pfnAdapterRelease = getContext()->urDdiTable.Global.pfnAdapterRelease;
 
     if (nullptr == pfnAdapterRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_adapter_release_params_t params = {&hAdapter};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RELEASE,
-                                             "urAdapterRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ADAPTER_RELEASE,
+                                                   "urAdapterRelease", &params);
 
-    context.logger.info("---> urAdapterRelease");
+    getContext()->logger.info("---> urAdapterRelease");
 
     ur_result_t result = pfnAdapterRelease(hAdapter);
 
-    context.notify_end(UR_FUNCTION_ADAPTER_RELEASE, "urAdapterRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ADAPTER_RELEASE, "urAdapterRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -89,27 +89,27 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
 ) {
-    auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
+    auto pfnAdapterRetain = getContext()->urDdiTable.Global.pfnAdapterRetain;
 
     if (nullptr == pfnAdapterRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_adapter_retain_params_t params = {&hAdapter};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RETAIN,
-                                             "urAdapterRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ADAPTER_RETAIN,
+                                                   "urAdapterRetain", &params);
 
-    context.logger.info("---> urAdapterRetain");
+    getContext()->logger.info("---> urAdapterRetain");
 
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
-    context.notify_end(UR_FUNCTION_ADAPTER_RETAIN, "urAdapterRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ADAPTER_RETAIN, "urAdapterRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -126,7 +126,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
                ///< be stored.
 ) {
     auto pfnAdapterGetLastError =
-        context.urDdiTable.Global.pfnAdapterGetLastError;
+        getContext()->urDdiTable.Global.pfnAdapterGetLastError;
 
     if (nullptr == pfnAdapterGetLastError) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -134,20 +134,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
 
     ur_adapter_get_last_error_params_t params = {&hAdapter, &ppMessage,
                                                  &pError};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
-                                             "urAdapterGetLastError", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ADAPTER_GET_LAST_ERROR, "urAdapterGetLastError", &params);
 
-    context.logger.info("---> urAdapterGetLastError");
+    getContext()->logger.info("---> urAdapterGetLastError");
 
     ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
 
-    context.notify_end(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
-                       "urAdapterGetLastError", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
+                             "urAdapterGetLastError", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ADAPTER_GET_LAST_ERROR, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -167,7 +168,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
 ) {
-    auto pfnAdapterGetInfo = context.urDdiTable.Global.pfnAdapterGetInfo;
+    auto pfnAdapterGetInfo = getContext()->urDdiTable.Global.pfnAdapterGetInfo;
 
     if (nullptr == pfnAdapterGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -175,21 +176,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 
     ur_adapter_get_info_params_t params = {&hAdapter, &propName, &propSize,
                                            &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_INFO,
-                                             "urAdapterGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ADAPTER_GET_INFO,
+                                                   "urAdapterGetInfo", &params);
 
-    context.logger.info("---> urAdapterGetInfo");
+    getContext()->logger.info("---> urAdapterGetInfo");
 
     ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
                                            pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_ADAPTER_GET_INFO, "urAdapterGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ADAPTER_GET_INFO, "urAdapterGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -212,7 +213,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     uint32_t *
         pNumPlatforms ///< [out][optional] returns the total number of platforms available.
 ) {
-    auto pfnGet = context.urDdiTable.Platform.pfnGet;
+    auto pfnGet = getContext()->urDdiTable.Platform.pfnGet;
 
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -220,21 +221,21 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
 
     ur_platform_get_params_t params = {&phAdapters, &NumAdapters, &NumEntries,
                                        &phPlatforms, &pNumPlatforms};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET,
-                                             "urPlatformGet", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PLATFORM_GET,
+                                                   "urPlatformGet", &params);
 
-    context.logger.info("---> urPlatformGet");
+    getContext()->logger.info("---> urPlatformGet");
 
     ur_result_t result =
         pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_GET, "urPlatformGet", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_GET, "urPlatformGet", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PLATFORM_GET,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -254,7 +255,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Platform.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Platform.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -262,21 +263,21 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 
     ur_platform_get_info_params_t params = {&hPlatform, &propName, &propSize,
                                             &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET_INFO,
-                                             "urPlatformGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PLATFORM_GET_INFO, "urPlatformGetInfo", &params);
 
-    context.logger.info("---> urPlatformGetInfo");
+    getContext()->logger.info("---> urPlatformGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_GET_INFO, "urPlatformGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_GET_INFO, "urPlatformGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PLATFORM_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -287,7 +288,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform
     ur_api_version_t *pVersion      ///< [out] api version
 ) {
-    auto pfnGetApiVersion = context.urDdiTable.Platform.pfnGetApiVersion;
+    auto pfnGetApiVersion = getContext()->urDdiTable.Platform.pfnGetApiVersion;
 
     if (nullptr == pfnGetApiVersion) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -295,20 +296,21 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
 
     ur_platform_get_api_version_params_t params = {&hPlatform, &pVersion};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PLATFORM_GET_API_VERSION,
-                             "urPlatformGetApiVersion", &params);
+        getContext()->notify_begin(UR_FUNCTION_PLATFORM_GET_API_VERSION,
+                                   "urPlatformGetApiVersion", &params);
 
-    context.logger.info("---> urPlatformGetApiVersion");
+    getContext()->logger.info("---> urPlatformGetApiVersion");
 
     ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_GET_API_VERSION,
-                       "urPlatformGetApiVersion", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_GET_API_VERSION,
+                             "urPlatformGetApiVersion", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PLATFORM_GET_API_VERSION, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -320,7 +322,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_native_handle_t *
         phNativePlatform ///< [out] a pointer to the native handle of the platform.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Platform.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Platform.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -329,20 +332,21 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_get_native_handle_params_t params = {&hPlatform,
                                                      &phNativePlatform};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
-                             "urPlatformGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
+                                   "urPlatformGetNativeHandle", &params);
 
-    context.logger.info("---> urPlatformGetNativeHandle");
+    getContext()->logger.info("---> urPlatformGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hPlatform, phNativePlatform);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
-                       "urPlatformGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
+                             "urPlatformGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -360,7 +364,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         phPlatform ///< [out] pointer to the handle of the platform object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Platform.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Platform.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -368,23 +372,23 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 
     ur_platform_create_with_native_handle_params_t params = {
         &hNativePlatform, &hAdapter, &pProperties, &phPlatform};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
-                             "urPlatformCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
+        "urPlatformCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urPlatformCreateWithNativeHandle");
+    getContext()->logger.info("---> urPlatformCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
                                                    pProperties, phPlatform);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
-                       "urPlatformCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
+                             "urPlatformCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -399,7 +403,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
         ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
                          ///< the frontend option.
 ) {
-    auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
+    auto pfnGetBackendOption =
+        getContext()->urDdiTable.Platform.pfnGetBackendOption;
 
     if (nullptr == pfnGetBackendOption) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -408,22 +413,22 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_get_backend_option_params_t params = {
         &hPlatform, &pFrontendOption, &ppPlatformOption};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
-                             "urPlatformGetBackendOption", &params);
+        getContext()->notify_begin(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
+                                   "urPlatformGetBackendOption", &params);
 
-    context.logger.info("---> urPlatformGetBackendOption");
+    getContext()->logger.info("---> urPlatformGetBackendOption");
 
     ur_result_t result =
         pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 
-    context.notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
-                       "urPlatformGetBackendOption", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
+                             "urPlatformGetBackendOption", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -445,7 +450,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     uint32_t *pNumDevices ///< [out][optional] pointer to the number of devices.
     ///< pNumDevices will be updated with the total number of devices available.
 ) {
-    auto pfnGet = context.urDdiTable.Device.pfnGet;
+    auto pfnGet = getContext()->urDdiTable.Device.pfnGet;
 
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -453,20 +458,20 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
 
     ur_device_get_params_t params = {&hPlatform, &DeviceType, &NumEntries,
                                      &phDevices, &pNumDevices};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_DEVICE_GET, "urDeviceGet", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_GET,
+                                                   "urDeviceGet", &params);
 
-    context.logger.info("---> urDeviceGet");
+    getContext()->logger.info("---> urDeviceGet");
 
     ur_result_t result =
         pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
 
-    context.notify_end(UR_FUNCTION_DEVICE_GET, "urDeviceGet", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_GET, "urDeviceGet", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_GET, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -487,7 +492,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Device.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Device.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -495,21 +500,21 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 
     ur_device_get_info_params_t params = {&hDevice, &propName, &propSize,
                                           &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_GET_INFO,
-                                             "urDeviceGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_GET_INFO,
+                                                   "urDeviceGetInfo", &params);
 
-    context.logger.info("---> urDeviceGetInfo");
+    getContext()->logger.info("---> urDeviceGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_DEVICE_GET_INFO, "urDeviceGetInfo", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_GET_INFO, "urDeviceGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -520,27 +525,27 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
         hDevice ///< [in][retain] handle of the device to get a reference of.
 ) {
-    auto pfnRetain = context.urDdiTable.Device.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Device.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_device_retain_params_t params = {&hDevice};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_RETAIN,
-                                             "urDeviceRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_RETAIN,
+                                                   "urDeviceRetain", &params);
 
-    context.logger.info("---> urDeviceRetain");
+    getContext()->logger.info("---> urDeviceRetain");
 
     ur_result_t result = pfnRetain(hDevice);
 
-    context.notify_end(UR_FUNCTION_DEVICE_RETAIN, "urDeviceRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_RETAIN, "urDeviceRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -551,27 +556,27 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     ur_device_handle_t
         hDevice ///< [in][release] handle of the device to release.
 ) {
-    auto pfnRelease = context.urDdiTable.Device.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Device.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_device_release_params_t params = {&hDevice};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_RELEASE,
-                                             "urDeviceRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_RELEASE,
+                                                   "urDeviceRelease", &params);
 
-    context.logger.info("---> urDeviceRelease");
+    getContext()->logger.info("---> urDeviceRelease");
 
     ur_result_t result = pfnRelease(hDevice);
 
-    context.notify_end(UR_FUNCTION_DEVICE_RELEASE, "urDeviceRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_RELEASE, "urDeviceRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -591,7 +596,7 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         pNumDevicesRet ///< [out][optional] pointer to the number of sub-devices the device can be
     ///< partitioned into according to the partitioning property.
 ) {
-    auto pfnPartition = context.urDdiTable.Device.pfnPartition;
+    auto pfnPartition = getContext()->urDdiTable.Device.pfnPartition;
 
     if (nullptr == pfnPartition) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -599,21 +604,21 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
 
     ur_device_partition_params_t params = {&hDevice, &pProperties, &NumDevices,
                                            &phSubDevices, &pNumDevicesRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_PARTITION,
-                                             "urDevicePartition", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_DEVICE_PARTITION, "urDevicePartition", &params);
 
-    context.logger.info("---> urDevicePartition");
+    getContext()->logger.info("---> urDevicePartition");
 
     ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
                                       phSubDevices, pNumDevicesRet);
 
-    context.notify_end(UR_FUNCTION_DEVICE_PARTITION, "urDevicePartition",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_PARTITION, "urDevicePartition",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_PARTITION,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -632,7 +637,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
     ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
 ) {
-    auto pfnSelectBinary = context.urDdiTable.Device.pfnSelectBinary;
+    auto pfnSelectBinary = getContext()->urDdiTable.Device.pfnSelectBinary;
 
     if (nullptr == pfnSelectBinary) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -640,21 +645,22 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
 
     ur_device_select_binary_params_t params = {&hDevice, &pBinaries,
                                                &NumBinaries, &pSelectedBinary};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_SELECT_BINARY,
-                                             "urDeviceSelectBinary", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_DEVICE_SELECT_BINARY, "urDeviceSelectBinary", &params);
 
-    context.logger.info("---> urDeviceSelectBinary");
+    getContext()->logger.info("---> urDeviceSelectBinary");
 
     ur_result_t result =
         pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
 
-    context.notify_end(UR_FUNCTION_DEVICE_SELECT_BINARY, "urDeviceSelectBinary",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_SELECT_BINARY,
+                             "urDeviceSelectBinary", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_SELECT_BINARY,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -666,7 +672,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_native_handle_t
         *phNativeDevice ///< [out] a pointer to the native handle of the device.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Device.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Device.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -674,20 +681,21 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 
     ur_device_get_native_handle_params_t params = {&hDevice, &phNativeDevice};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
-                             "urDeviceGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
+                                   "urDeviceGetNativeHandle", &params);
 
-    context.logger.info("---> urDeviceGetNativeHandle");
+    getContext()->logger.info("---> urDeviceGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hDevice, phNativeDevice);
 
-    context.notify_end(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
-                       "urDeviceGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
+                             "urDeviceGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -704,7 +712,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         *phDevice ///< [out] pointer to the handle of the device object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Device.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Device.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -713,22 +721,22 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_create_with_native_handle_params_t params = {
         &hNativeDevice, &hPlatform, &pProperties, &phDevice};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
-                             "urDeviceCreateWithNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
+                                   "urDeviceCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urDeviceCreateWithNativeHandle");
+    getContext()->logger.info("---> urDeviceCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
                                                    pProperties, phDevice);
 
-    context.notify_end(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
-                       "urDeviceCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
+                             "urDeviceCreateWithNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -745,7 +753,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
                        ///< correlates with the Device's global timestamp value
 ) {
     auto pfnGetGlobalTimestamps =
-        context.urDdiTable.Device.pfnGetGlobalTimestamps;
+        getContext()->urDdiTable.Device.pfnGetGlobalTimestamps;
 
     if (nullptr == pfnGetGlobalTimestamps) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -754,22 +762,22 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ur_device_get_global_timestamps_params_t params = {
         &hDevice, &pDeviceTimestamp, &pHostTimestamp};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
-                             "urDeviceGetGlobalTimestamps", &params);
+        getContext()->notify_begin(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
+                                   "urDeviceGetGlobalTimestamps", &params);
 
-    context.logger.info("---> urDeviceGetGlobalTimestamps");
+    getContext()->logger.info("---> urDeviceGetGlobalTimestamps");
 
     ur_result_t result =
         pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
 
-    context.notify_end(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
-                       "urDeviceGetGlobalTimestamps", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
+                             "urDeviceGetGlobalTimestamps", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -785,7 +793,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     ur_context_handle_t
         *phContext ///< [out] pointer to handle of context object created
 ) {
-    auto pfnCreate = context.urDdiTable.Context.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Context.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -793,21 +801,21 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
     ur_context_create_params_t params = {&DeviceCount, &phDevices, &pProperties,
                                          &phContext};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_CREATE,
-                                             "urContextCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_CONTEXT_CREATE,
+                                                   "urContextCreate", &params);
 
-    context.logger.info("---> urContextCreate");
+    getContext()->logger.info("---> urContextCreate");
 
     ur_result_t result =
         pfnCreate(DeviceCount, phDevices, pProperties, phContext);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_CREATE, "urContextCreate", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_CREATE, "urContextCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -818,27 +826,27 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
         hContext ///< [in][retain] handle of the context to get a reference of.
 ) {
-    auto pfnRetain = context.urDdiTable.Context.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Context.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_context_retain_params_t params = {&hContext};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_RETAIN,
-                                             "urContextRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_CONTEXT_RETAIN,
+                                                   "urContextRetain", &params);
 
-    context.logger.info("---> urContextRetain");
+    getContext()->logger.info("---> urContextRetain");
 
     ur_result_t result = pfnRetain(hContext);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_RETAIN, "urContextRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_RETAIN, "urContextRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -849,27 +857,27 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t
         hContext ///< [in][release] handle of the context to release.
 ) {
-    auto pfnRelease = context.urDdiTable.Context.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Context.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_context_release_params_t params = {&hContext};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_RELEASE,
-                                             "urContextRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_CONTEXT_RELEASE,
+                                                   "urContextRelease", &params);
 
-    context.logger.info("---> urContextRelease");
+    getContext()->logger.info("---> urContextRelease");
 
     ur_result_t result = pfnRelease(hContext);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_RELEASE, "urContextRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_RELEASE, "urContextRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -891,7 +899,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Context.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Context.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -899,21 +907,21 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
 
     ur_context_get_info_params_t params = {&hContext, &propName, &propSize,
                                            &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_GET_INFO,
-                                             "urContextGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_CONTEXT_GET_INFO,
+                                                   "urContextGetInfo", &params);
 
-    context.logger.info("---> urContextGetInfo");
+    getContext()->logger.info("---> urContextGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_GET_INFO, "urContextGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_GET_INFO, "urContextGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -925,7 +933,8 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_native_handle_t *
         phNativeContext ///< [out] a pointer to the native handle of the context.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Context.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Context.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -934,20 +943,21 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_get_native_handle_params_t params = {&hContext,
                                                     &phNativeContext};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
-                             "urContextGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
+                                   "urContextGetNativeHandle", &params);
 
-    context.logger.info("---> urContextGetNativeHandle");
+    getContext()->logger.info("---> urContextGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hContext, phNativeContext);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
-                       "urContextGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
+                             "urContextGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -966,7 +976,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         phContext ///< [out] pointer to the handle of the context object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Context.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -974,23 +984,23 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     ur_context_create_with_native_handle_params_t params = {
         &hNativeContext, &numDevices, &phDevices, &pProperties, &phContext};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
-                             "urContextCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
+        "urContextCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urContextCreateWithNativeHandle");
+    getContext()->logger.info("---> urContextCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeContext, numDevices, phDevices, pProperties, phContext);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
-                       "urContextCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
+                             "urContextCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1005,7 +1015,7 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
 ) {
     auto pfnSetExtendedDeleter =
-        context.urDdiTable.Context.pfnSetExtendedDeleter;
+        getContext()->urDdiTable.Context.pfnSetExtendedDeleter;
 
     if (nullptr == pfnSetExtendedDeleter) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1014,21 +1024,21 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_set_extended_deleter_params_t params = {&hContext, &pfnDeleter,
                                                        &pUserData};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
-                             "urContextSetExtendedDeleter", &params);
+        getContext()->notify_begin(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
+                                   "urContextSetExtendedDeleter", &params);
 
-    context.logger.info("---> urContextSetExtendedDeleter");
+    getContext()->logger.info("---> urContextSetExtendedDeleter");
 
     ur_result_t result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
 
-    context.notify_end(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
-                       "urContextSetExtendedDeleter", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
+                             "urContextSetExtendedDeleter", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1044,7 +1054,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     void *pHost,           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem ///< [out] pointer to handle of image object created
 ) {
-    auto pfnImageCreate = context.urDdiTable.Mem.pfnImageCreate;
+    auto pfnImageCreate = getContext()->urDdiTable.Mem.pfnImageCreate;
 
     if (nullptr == pfnImageCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1052,21 +1062,21 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
 
     ur_mem_image_create_params_t params = {&hContext,   &flags, &pImageFormat,
                                            &pImageDesc, &pHost, &phMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_IMAGE_CREATE,
-                                             "urMemImageCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_MEM_IMAGE_CREATE,
+                                                   "urMemImageCreate", &params);
 
-    context.logger.info("---> urMemImageCreate");
+    getContext()->logger.info("---> urMemImageCreate");
 
     ur_result_t result =
         pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost, phMem);
 
-    context.notify_end(UR_FUNCTION_MEM_IMAGE_CREATE, "urMemImageCreate",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_IMAGE_CREATE, "urMemImageCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_IMAGE_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1082,7 +1092,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
 ) {
-    auto pfnBufferCreate = context.urDdiTable.Mem.pfnBufferCreate;
+    auto pfnBufferCreate = getContext()->urDdiTable.Mem.pfnBufferCreate;
 
     if (nullptr == pfnBufferCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1090,21 +1100,21 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 
     ur_mem_buffer_create_params_t params = {&hContext, &flags, &size,
                                             &pProperties, &phBuffer};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_BUFFER_CREATE,
-                                             "urMemBufferCreate", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_BUFFER_CREATE, "urMemBufferCreate", &params);
 
-    context.logger.info("---> urMemBufferCreate");
+    getContext()->logger.info("---> urMemBufferCreate");
 
     ur_result_t result =
         pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
 
-    context.notify_end(UR_FUNCTION_MEM_BUFFER_CREATE, "urMemBufferCreate",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_BUFFER_CREATE, "urMemBufferCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_BUFFER_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1115,26 +1125,26 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t
         hMem ///< [in][retain] handle of the memory object to get access
 ) {
-    auto pfnRetain = context.urDdiTable.Mem.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Mem.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_mem_retain_params_t params = {&hMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_MEM_RETAIN, "urMemRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_MEM_RETAIN,
+                                                   "urMemRetain", &params);
 
-    context.logger.info("---> urMemRetain");
+    getContext()->logger.info("---> urMemRetain");
 
     ur_result_t result = pfnRetain(hMem);
 
-    context.notify_end(UR_FUNCTION_MEM_RETAIN, "urMemRetain", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_RETAIN, "urMemRetain", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_RETAIN, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1145,26 +1155,26 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t
         hMem ///< [in][release] handle of the memory object to release
 ) {
-    auto pfnRelease = context.urDdiTable.Mem.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Mem.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_mem_release_params_t params = {&hMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_MEM_RELEASE, "urMemRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_MEM_RELEASE,
+                                                   "urMemRelease", &params);
 
-    context.logger.info("---> urMemRelease");
+    getContext()->logger.info("---> urMemRelease");
 
     ur_result_t result = pfnRelease(hMem);
 
-    context.notify_end(UR_FUNCTION_MEM_RELEASE, "urMemRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_RELEASE, "urMemRelease", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_RELEASE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1181,7 +1191,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t
         *phMem ///< [out] pointer to the handle of sub buffer created
 ) {
-    auto pfnBufferPartition = context.urDdiTable.Mem.pfnBufferPartition;
+    auto pfnBufferPartition = getContext()->urDdiTable.Mem.pfnBufferPartition;
 
     if (nullptr == pfnBufferPartition) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1189,21 +1199,22 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 
     ur_mem_buffer_partition_params_t params = {
         &hBuffer, &flags, &bufferCreateType, &pRegion, &phMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_BUFFER_PARTITION,
-                                             "urMemBufferPartition", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_BUFFER_PARTITION, "urMemBufferPartition", &params);
 
-    context.logger.info("---> urMemBufferPartition");
+    getContext()->logger.info("---> urMemBufferPartition");
 
     ur_result_t result =
         pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
 
-    context.notify_end(UR_FUNCTION_MEM_BUFFER_PARTITION, "urMemBufferPartition",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_BUFFER_PARTITION,
+                             "urMemBufferPartition", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_BUFFER_PARTITION,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1218,27 +1229,28 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Mem.pfnGetNativeHandle;
+    auto pfnGetNativeHandle = getContext()->urDdiTable.Mem.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_mem_get_native_handle_params_t params = {&hMem, &hDevice, &phNativeMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
-                                             "urMemGetNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_GET_NATIVE_HANDLE, "urMemGetNativeHandle", &params);
 
-    context.logger.info("---> urMemGetNativeHandle");
+    getContext()->logger.info("---> urMemGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 
-    context.notify_end(UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
-                       "urMemGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
+                             "urMemGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1255,7 +1267,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         *phMem ///< [out] pointer to handle of buffer memory object created.
 ) {
     auto pfnBufferCreateWithNativeHandle =
-        context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
+        getContext()->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
 
     if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1263,23 +1275,23 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 
     ur_mem_buffer_create_with_native_handle_params_t params = {
         &hNativeMem, &hContext, &pProperties, &phMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
-                             "urMemBufferCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
+        "urMemBufferCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urMemBufferCreateWithNativeHandle");
+    getContext()->logger.info("---> urMemBufferCreateWithNativeHandle");
 
     ur_result_t result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
                                                          pProperties, phMem);
 
-    context.notify_end(UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
-                       "urMemBufferCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
+                             "urMemBufferCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1299,7 +1311,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         *phMem ///< [out] pointer to handle of image memory object created.
 ) {
     auto pfnImageCreateWithNativeHandle =
-        context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
+        getContext()->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
 
     if (nullptr == pfnImageCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1308,23 +1320,23 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_mem_image_create_with_native_handle_params_t params = {
         &hNativeMem, &hContext,    &pImageFormat,
         &pImageDesc, &pProperties, &phMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
-                             "urMemImageCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
+        "urMemImageCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urMemImageCreateWithNativeHandle");
+    getContext()->logger.info("---> urMemImageCreateWithNativeHandle");
 
     ur_result_t result = pfnImageCreateWithNativeHandle(
         hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
 
-    context.notify_end(UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
-                       "urMemImageCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
+                             "urMemImageCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1346,7 +1358,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Mem.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1354,21 +1366,21 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 
     ur_mem_get_info_params_t params = {&hMemory, &propName, &propSize,
                                        &pPropValue, &pPropSizeRet};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_MEM_GET_INFO, "urMemGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_MEM_GET_INFO,
+                                                   "urMemGetInfo", &params);
 
-    context.logger.info("---> urMemGetInfo");
+    getContext()->logger.info("---> urMemGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_MEM_GET_INFO, "urMemGetInfo", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_GET_INFO, "urMemGetInfo", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1389,7 +1401,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnImageGetInfo = context.urDdiTable.Mem.pfnImageGetInfo;
+    auto pfnImageGetInfo = getContext()->urDdiTable.Mem.pfnImageGetInfo;
 
     if (nullptr == pfnImageGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1397,21 +1409,21 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
 
     ur_mem_image_get_info_params_t params = {&hMemory, &propName, &propSize,
                                              &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_IMAGE_GET_INFO,
-                                             "urMemImageGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_MEM_IMAGE_GET_INFO, "urMemImageGetInfo", &params);
 
-    context.logger.info("---> urMemImageGetInfo");
+    getContext()->logger.info("---> urMemImageGetInfo");
 
     ur_result_t result =
         pfnImageGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_MEM_IMAGE_GET_INFO, "urMemImageGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_MEM_IMAGE_GET_INFO,
+                             "urMemImageGetInfo", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_IMAGE_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1424,27 +1436,27 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
 ) {
-    auto pfnCreate = context.urDdiTable.Sampler.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Sampler.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_sampler_create_params_t params = {&hContext, &pDesc, &phSampler};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_CREATE,
-                                             "urSamplerCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_SAMPLER_CREATE,
+                                                   "urSamplerCreate", &params);
 
-    context.logger.info("---> urSamplerCreate");
+    getContext()->logger.info("---> urSamplerCreate");
 
     ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_CREATE, "urSamplerCreate", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_CREATE, "urSamplerCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1455,27 +1467,27 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
         hSampler ///< [in][retain] handle of the sampler object to get access
 ) {
-    auto pfnRetain = context.urDdiTable.Sampler.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Sampler.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_sampler_retain_params_t params = {&hSampler};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_RETAIN,
-                                             "urSamplerRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_SAMPLER_RETAIN,
+                                                   "urSamplerRetain", &params);
 
-    context.logger.info("---> urSamplerRetain");
+    getContext()->logger.info("---> urSamplerRetain");
 
     ur_result_t result = pfnRetain(hSampler);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_RETAIN, "urSamplerRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_RETAIN, "urSamplerRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1486,27 +1498,27 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
         hSampler ///< [in][release] handle of the sampler object to release
 ) {
-    auto pfnRelease = context.urDdiTable.Sampler.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Sampler.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_sampler_release_params_t params = {&hSampler};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_RELEASE,
-                                             "urSamplerRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_SAMPLER_RELEASE,
+                                                   "urSamplerRelease", &params);
 
-    context.logger.info("---> urSamplerRelease");
+    getContext()->logger.info("---> urSamplerRelease");
 
     ur_result_t result = pfnRelease(hSampler);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_RELEASE, "urSamplerRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_RELEASE, "urSamplerRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1524,7 +1536,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
 ) {
-    auto pfnGetInfo = context.urDdiTable.Sampler.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Sampler.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1532,21 +1544,21 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
 
     ur_sampler_get_info_params_t params = {&hSampler, &propName, &propSize,
                                            &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_GET_INFO,
-                                             "urSamplerGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_SAMPLER_GET_INFO,
+                                                   "urSamplerGetInfo", &params);
 
-    context.logger.info("---> urSamplerGetInfo");
+    getContext()->logger.info("---> urSamplerGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_GET_INFO, "urSamplerGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_GET_INFO, "urSamplerGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1558,7 +1570,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_native_handle_t *
         phNativeSampler ///< [out] a pointer to the native handle of the sampler.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Sampler.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Sampler.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1567,20 +1580,21 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_get_native_handle_params_t params = {&hSampler,
                                                     &phNativeSampler};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
-                             "urSamplerGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
+                                   "urSamplerGetNativeHandle", &params);
 
-    context.logger.info("---> urSamplerGetNativeHandle");
+    getContext()->logger.info("---> urSamplerGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hSampler, phNativeSampler);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
-                       "urSamplerGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
+                             "urSamplerGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1597,7 +1611,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         phSampler ///< [out] pointer to the handle of the sampler object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Sampler.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Sampler.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1605,23 +1619,23 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 
     ur_sampler_create_with_native_handle_params_t params = {
         &hNativeSampler, &hContext, &pProperties, &phSampler};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
-                             "urSamplerCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
+        "urSamplerCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urSamplerCreateWithNativeHandle");
+    getContext()->logger.info("---> urSamplerCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
                                                    pProperties, phSampler);
 
-    context.notify_end(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
-                       "urSamplerCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
+                             "urSamplerCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1638,7 +1652,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
-    auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
+    auto pfnHostAlloc = getContext()->urDdiTable.USM.pfnHostAlloc;
 
     if (nullptr == pfnHostAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1646,20 +1660,20 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 
     ur_usm_host_alloc_params_t params = {&hContext, &pUSMDesc, &pool, &size,
                                          &ppMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_HOST_ALLOC,
-                                             "urUSMHostAlloc", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC,
+                                                   "urUSMHostAlloc", &params);
 
-    context.logger.info("---> urUSMHostAlloc");
+    getContext()->logger.info("---> urUSMHostAlloc");
 
     ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 
-    context.notify_end(UR_FUNCTION_USM_HOST_ALLOC, "urUSMHostAlloc", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC, "urUSMHostAlloc",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_HOST_ALLOC,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1677,7 +1691,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
-    auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
+    auto pfnDeviceAlloc = getContext()->urDdiTable.USM.pfnDeviceAlloc;
 
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1685,21 +1699,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 
     ur_usm_device_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
                                            &pool,     &size,    &ppMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_DEVICE_ALLOC,
-                                             "urUSMDeviceAlloc", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_DEVICE_ALLOC,
+                                                   "urUSMDeviceAlloc", &params);
 
-    context.logger.info("---> urUSMDeviceAlloc");
+    getContext()->logger.info("---> urUSMDeviceAlloc");
 
     ur_result_t result =
         pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
-    context.notify_end(UR_FUNCTION_USM_DEVICE_ALLOC, "urUSMDeviceAlloc",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_DEVICE_ALLOC, "urUSMDeviceAlloc",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_DEVICE_ALLOC,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1717,7 +1731,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
-    auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
+    auto pfnSharedAlloc = getContext()->urDdiTable.USM.pfnSharedAlloc;
 
     if (nullptr == pfnSharedAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1725,21 +1739,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 
     ur_usm_shared_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
                                            &pool,     &size,    &ppMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_SHARED_ALLOC,
-                                             "urUSMSharedAlloc", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_SHARED_ALLOC,
+                                                   "urUSMSharedAlloc", &params);
 
-    context.logger.info("---> urUSMSharedAlloc");
+    getContext()->logger.info("---> urUSMSharedAlloc");
 
     ur_result_t result =
         pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
-    context.notify_end(UR_FUNCTION_USM_SHARED_ALLOC, "urUSMSharedAlloc",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_SHARED_ALLOC, "urUSMSharedAlloc",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_SHARED_ALLOC,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1750,7 +1764,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
 ) {
-    auto pfnFree = context.urDdiTable.USM.pfnFree;
+    auto pfnFree = getContext()->urDdiTable.USM.pfnFree;
 
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1758,18 +1772,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
 
     ur_usm_free_params_t params = {&hContext, &pMem};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_USM_FREE, "urUSMFree", &params);
+        getContext()->notify_begin(UR_FUNCTION_USM_FREE, "urUSMFree", &params);
 
-    context.logger.info("---> urUSMFree");
+    getContext()->logger.info("---> urUSMFree");
 
     ur_result_t result = pfnFree(hContext, pMem);
 
-    context.notify_end(UR_FUNCTION_USM_FREE, "urUSMFree", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_USM_FREE, "urUSMFree", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_FREE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1789,7 +1803,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     size_t *
         pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
 ) {
-    auto pfnGetMemAllocInfo = context.urDdiTable.USM.pfnGetMemAllocInfo;
+    auto pfnGetMemAllocInfo = getContext()->urDdiTable.USM.pfnGetMemAllocInfo;
 
     if (nullptr == pfnGetMemAllocInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1797,21 +1811,22 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 
     ur_usm_get_mem_alloc_info_params_t params = {
         &hContext, &pMem, &propName, &propSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_GET_MEM_ALLOC_INFO,
-                                             "urUSMGetMemAllocInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_USM_GET_MEM_ALLOC_INFO, "urUSMGetMemAllocInfo", &params);
 
-    context.logger.info("---> urUSMGetMemAllocInfo");
+    getContext()->logger.info("---> urUSMGetMemAllocInfo");
 
     ur_result_t result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
                                             pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_USM_GET_MEM_ALLOC_INFO,
-                       "urUSMGetMemAllocInfo", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_GET_MEM_ALLOC_INFO,
+                             "urUSMGetMemAllocInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_GET_MEM_ALLOC_INFO, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1825,27 +1840,27 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
                    ///< ::ur_usm_pool_limits_desc_t
     ur_usm_pool_handle_t *ppPool ///< [out] pointer to USM memory pool
 ) {
-    auto pfnPoolCreate = context.urDdiTable.USM.pfnPoolCreate;
+    auto pfnPoolCreate = getContext()->urDdiTable.USM.pfnPoolCreate;
 
     if (nullptr == pfnPoolCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_usm_pool_create_params_t params = {&hContext, &pPoolDesc, &ppPool};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_CREATE,
-                                             "urUSMPoolCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_POOL_CREATE,
+                                                   "urUSMPoolCreate", &params);
 
-    context.logger.info("---> urUSMPoolCreate");
+    getContext()->logger.info("---> urUSMPoolCreate");
 
     ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
 
-    context.notify_end(UR_FUNCTION_USM_POOL_CREATE, "urUSMPoolCreate", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_POOL_CREATE, "urUSMPoolCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1855,27 +1870,27 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
 ) {
-    auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
+    auto pfnPoolRetain = getContext()->urDdiTable.USM.pfnPoolRetain;
 
     if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_usm_pool_retain_params_t params = {&pPool};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RETAIN,
-                                             "urUSMPoolRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_POOL_RETAIN,
+                                                   "urUSMPoolRetain", &params);
 
-    context.logger.info("---> urUSMPoolRetain");
+    getContext()->logger.info("---> urUSMPoolRetain");
 
     ur_result_t result = pfnPoolRetain(pPool);
 
-    context.notify_end(UR_FUNCTION_USM_POOL_RETAIN, "urUSMPoolRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_POOL_RETAIN, "urUSMPoolRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1885,27 +1900,27 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
 ) {
-    auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
+    auto pfnPoolRelease = getContext()->urDdiTable.USM.pfnPoolRelease;
 
     if (nullptr == pfnPoolRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_usm_pool_release_params_t params = {&pPool};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RELEASE,
-                                             "urUSMPoolRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_POOL_RELEASE,
+                                                   "urUSMPoolRelease", &params);
 
-    context.logger.info("---> urUSMPoolRelease");
+    getContext()->logger.info("---> urUSMPoolRelease");
 
     ur_result_t result = pfnPoolRelease(pPool);
 
-    context.notify_end(UR_FUNCTION_USM_POOL_RELEASE, "urUSMPoolRelease",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_POOL_RELEASE, "urUSMPoolRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1922,7 +1937,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in pool property value
 ) {
-    auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
+    auto pfnPoolGetInfo = getContext()->urDdiTable.USM.pfnPoolGetInfo;
 
     if (nullptr == pfnPoolGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1930,21 +1945,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
 
     ur_usm_pool_get_info_params_t params = {&hPool, &propName, &propSize,
                                             &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_GET_INFO,
-                                             "urUSMPoolGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_USM_POOL_GET_INFO, "urUSMPoolGetInfo", &params);
 
-    context.logger.info("---> urUSMPoolGetInfo");
+    getContext()->logger.info("---> urUSMPoolGetInfo");
 
     ur_result_t result =
         pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_USM_POOL_GET_INFO, "urUSMPoolGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_POOL_GET_INFO, "urUSMPoolGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1969,7 +1984,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
 ) {
     auto pfnGranularityGetInfo =
-        context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
+        getContext()->urDdiTable.VirtualMem.pfnGranularityGetInfo;
 
     if (nullptr == pfnGranularityGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1978,22 +1993,22 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_virtual_mem_granularity_get_info_params_t params = {
         &hContext, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
-                             "urVirtualMemGranularityGetInfo", &params);
+        getContext()->notify_begin(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
+                                   "urVirtualMemGranularityGetInfo", &params);
 
-    context.logger.info("---> urVirtualMemGranularityGetInfo");
+    getContext()->logger.info("---> urVirtualMemGranularityGetInfo");
 
     ur_result_t result = pfnGranularityGetInfo(
         hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
-                       "urVirtualMemGranularityGetInfo", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
+                             "urVirtualMemGranularityGetInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2012,7 +2027,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
         ppStart ///< [out] pointer to the returned address at the start of reserved virtual
                 ///< memory range.
 ) {
-    auto pfnReserve = context.urDdiTable.VirtualMem.pfnReserve;
+    auto pfnReserve = getContext()->urDdiTable.VirtualMem.pfnReserve;
 
     if (nullptr == pfnReserve) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2020,20 +2035,20 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
 
     ur_virtual_mem_reserve_params_t params = {&hContext, &pStart, &size,
                                               &ppStart};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_RESERVE,
-                                             "urVirtualMemReserve", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_VIRTUAL_MEM_RESERVE, "urVirtualMemReserve", &params);
 
-    context.logger.info("---> urVirtualMemReserve");
+    getContext()->logger.info("---> urVirtualMemReserve");
 
     ur_result_t result = pfnReserve(hContext, pStart, size, ppStart);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_RESERVE, "urVirtualMemReserve",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_RESERVE,
+                             "urVirtualMemReserve", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_RESERVE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2046,27 +2061,27 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
         pStart, ///< [in] pointer to the start of the virtual memory range to free.
     size_t size ///< [in] size in bytes of the virtual memory range to free.
 ) {
-    auto pfnFree = context.urDdiTable.VirtualMem.pfnFree;
+    auto pfnFree = getContext()->urDdiTable.VirtualMem.pfnFree;
 
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_virtual_mem_free_params_t params = {&hContext, &pStart, &size};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_FREE,
-                                             "urVirtualMemFree", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_VIRTUAL_MEM_FREE,
+                                                   "urVirtualMemFree", &params);
 
-    context.logger.info("---> urVirtualMemFree");
+    getContext()->logger.info("---> urVirtualMemFree");
 
     ur_result_t result = pfnFree(hContext, pStart, size);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_FREE, "urVirtualMemFree",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_FREE, "urVirtualMemFree",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_FREE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2085,7 +2100,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags for the physical memory mapping.
 ) {
-    auto pfnMap = context.urDdiTable.VirtualMem.pfnMap;
+    auto pfnMap = getContext()->urDdiTable.VirtualMem.pfnMap;
 
     if (nullptr == pfnMap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2093,21 +2108,21 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
 
     ur_virtual_mem_map_params_t params = {&hContext,     &pStart, &size,
                                           &hPhysicalMem, &offset, &flags};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_MAP,
-                                             "urVirtualMemMap", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_VIRTUAL_MEM_MAP,
+                                                   "urVirtualMemMap", &params);
 
-    context.logger.info("---> urVirtualMemMap");
+    getContext()->logger.info("---> urVirtualMemMap");
 
     ur_result_t result =
         pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_MAP, "urVirtualMemMap", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_MAP, "urVirtualMemMap",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_MAP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2120,27 +2135,27 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
         pStart, ///< [in] pointer to the start of the mapped virtual memory range
     size_t size ///< [in] size in bytes of the virtual memory range.
 ) {
-    auto pfnUnmap = context.urDdiTable.VirtualMem.pfnUnmap;
+    auto pfnUnmap = getContext()->urDdiTable.VirtualMem.pfnUnmap;
 
     if (nullptr == pfnUnmap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_virtual_mem_unmap_params_t params = {&hContext, &pStart, &size};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_UNMAP,
-                                             "urVirtualMemUnmap", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_VIRTUAL_MEM_UNMAP, "urVirtualMemUnmap", &params);
 
-    context.logger.info("---> urVirtualMemUnmap");
+    getContext()->logger.info("---> urVirtualMemUnmap");
 
     ur_result_t result = pfnUnmap(hContext, pStart, size);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_UNMAP, "urVirtualMemUnmap",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_UNMAP, "urVirtualMemUnmap",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_UNMAP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2155,7 +2170,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
 ) {
-    auto pfnSetAccess = context.urDdiTable.VirtualMem.pfnSetAccess;
+    auto pfnSetAccess = getContext()->urDdiTable.VirtualMem.pfnSetAccess;
 
     if (nullptr == pfnSetAccess) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2163,20 +2178,21 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
 
     ur_virtual_mem_set_access_params_t params = {&hContext, &pStart, &size,
                                                  &flags};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS,
-                                             "urVirtualMemSetAccess", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS, "urVirtualMemSetAccess", &params);
 
-    context.logger.info("---> urVirtualMemSetAccess");
+    getContext()->logger.info("---> urVirtualMemSetAccess");
 
     ur_result_t result = pfnSetAccess(hContext, pStart, size, flags);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS,
-                       "urVirtualMemSetAccess", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS,
+                             "urVirtualMemSetAccess", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2199,7 +2215,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
 ) {
-    auto pfnGetInfo = context.urDdiTable.VirtualMem.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.VirtualMem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2208,21 +2224,21 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     ur_virtual_mem_get_info_params_t params = {
         &hContext, &pStart,     &size,        &propName,
         &propSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_GET_INFO,
-                                             "urVirtualMemGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_VIRTUAL_MEM_GET_INFO, "urVirtualMemGetInfo", &params);
 
-    context.logger.info("---> urVirtualMemGetInfo");
+    getContext()->logger.info("---> urVirtualMemGetInfo");
 
     ur_result_t result = pfnGetInfo(hContext, pStart, size, propName, propSize,
                                     pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_VIRTUAL_MEM_GET_INFO, "urVirtualMemGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_GET_INFO,
+                             "urVirtualMemGetInfo", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2240,7 +2256,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_physical_mem_handle_t *
         phPhysicalMem ///< [out] pointer to handle of physical memory object created.
 ) {
-    auto pfnCreate = context.urDdiTable.PhysicalMem.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.PhysicalMem.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2248,21 +2264,21 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 
     ur_physical_mem_create_params_t params = {&hContext, &hDevice, &size,
                                               &pProperties, &phPhysicalMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_CREATE,
-                                             "urPhysicalMemCreate", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PHYSICAL_MEM_CREATE, "urPhysicalMemCreate", &params);
 
-    context.logger.info("---> urPhysicalMemCreate");
+    getContext()->logger.info("---> urPhysicalMemCreate");
 
     ur_result_t result =
         pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
 
-    context.notify_end(UR_FUNCTION_PHYSICAL_MEM_CREATE, "urPhysicalMemCreate",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PHYSICAL_MEM_CREATE,
+                             "urPhysicalMemCreate", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2273,27 +2289,27 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
         hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
 ) {
-    auto pfnRetain = context.urDdiTable.PhysicalMem.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.PhysicalMem.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_physical_mem_retain_params_t params = {&hPhysicalMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_RETAIN,
-                                             "urPhysicalMemRetain", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PHYSICAL_MEM_RETAIN, "urPhysicalMemRetain", &params);
 
-    context.logger.info("---> urPhysicalMemRetain");
+    getContext()->logger.info("---> urPhysicalMemRetain");
 
     ur_result_t result = pfnRetain(hPhysicalMem);
 
-    context.notify_end(UR_FUNCTION_PHYSICAL_MEM_RETAIN, "urPhysicalMemRetain",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PHYSICAL_MEM_RETAIN,
+                             "urPhysicalMemRetain", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2304,27 +2320,28 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
         hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 ) {
-    auto pfnRelease = context.urDdiTable.PhysicalMem.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.PhysicalMem.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_physical_mem_release_params_t params = {&hPhysicalMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_RELEASE,
-                                             "urPhysicalMemRelease", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PHYSICAL_MEM_RELEASE, "urPhysicalMemRelease", &params);
 
-    context.logger.info("---> urPhysicalMemRelease");
+    getContext()->logger.info("---> urPhysicalMemRelease");
 
     ur_result_t result = pfnRelease(hPhysicalMem);
 
-    context.notify_end(UR_FUNCTION_PHYSICAL_MEM_RELEASE, "urPhysicalMemRelease",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PHYSICAL_MEM_RELEASE,
+                             "urPhysicalMemRelease", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2340,7 +2357,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
-    auto pfnCreateWithIL = context.urDdiTable.Program.pfnCreateWithIL;
+    auto pfnCreateWithIL = getContext()->urDdiTable.Program.pfnCreateWithIL;
 
     if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2348,21 +2365,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 
     ur_program_create_with_il_params_t params = {&hContext, &pIL, &length,
                                                  &pProperties, &phProgram};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_IL,
-                                             "urProgramCreateWithIL", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_CREATE_WITH_IL, "urProgramCreateWithIL", &params);
 
-    context.logger.info("---> urProgramCreateWithIL");
+    getContext()->logger.info("---> urProgramCreateWithIL");
 
     ur_result_t result =
         pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_IL,
-                       "urProgramCreateWithIL", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_IL,
+                             "urProgramCreateWithIL", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_IL, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2380,7 +2398,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of Program object created.
 ) {
-    auto pfnCreateWithBinary = context.urDdiTable.Program.pfnCreateWithBinary;
+    auto pfnCreateWithBinary =
+        getContext()->urDdiTable.Program.pfnCreateWithBinary;
 
     if (nullptr == pfnCreateWithBinary) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2389,21 +2408,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_program_create_with_binary_params_t params = {
         &hContext, &hDevice, &size, &pBinary, &pProperties, &phProgram};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
-                             "urProgramCreateWithBinary", &params);
+        getContext()->notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
+                                   "urProgramCreateWithBinary", &params);
 
-    context.logger.info("---> urProgramCreateWithBinary");
+    getContext()->logger.info("---> urProgramCreateWithBinary");
 
     ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
                                              pProperties, phProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
-                       "urProgramCreateWithBinary", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
+                             "urProgramCreateWithBinary", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2416,27 +2436,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
 ) {
-    auto pfnBuild = context.urDdiTable.Program.pfnBuild;
+    auto pfnBuild = getContext()->urDdiTable.Program.pfnBuild;
 
     if (nullptr == pfnBuild) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_program_build_params_t params = {&hContext, &hProgram, &pOptions};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_BUILD,
-                                             "urProgramBuild", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_BUILD,
+                                                   "urProgramBuild", &params);
 
-    context.logger.info("---> urProgramBuild");
+    getContext()->logger.info("---> urProgramBuild");
 
     ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_BUILD, "urProgramBuild", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD, "urProgramBuild",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2450,27 +2470,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
 ) {
-    auto pfnCompile = context.urDdiTable.Program.pfnCompile;
+    auto pfnCompile = getContext()->urDdiTable.Program.pfnCompile;
 
     if (nullptr == pfnCompile) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_program_compile_params_t params = {&hContext, &hProgram, &pOptions};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_COMPILE,
-                                             "urProgramCompile", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_COMPILE,
+                                                   "urProgramCompile", &params);
 
-    context.logger.info("---> urProgramCompile");
+    getContext()->logger.info("---> urProgramCompile");
 
     ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_COMPILE, "urProgramCompile", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE, "urProgramCompile",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2490,7 +2510,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     if (nullptr != phProgram) {
         *phProgram = nullptr;
     }
-    auto pfnLink = context.urDdiTable.Program.pfnLink;
+    auto pfnLink = getContext()->urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnLink) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2498,21 +2518,21 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     ur_program_link_params_t params = {&hContext, &count, &phPrograms,
                                        &pOptions, &phProgram};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_LINK,
-                                             "urProgramLink", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK,
+                                                   "urProgramLink", &params);
 
-    context.logger.info("---> urProgramLink");
+    getContext()->logger.info("---> urProgramLink");
 
     ur_result_t result =
         pfnLink(hContext, count, phPrograms, pOptions, phProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_LINK, "urProgramLink", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK, "urProgramLink", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2523,27 +2543,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t
         hProgram ///< [in][retain] handle for the Program to retain
 ) {
-    auto pfnRetain = context.urDdiTable.Program.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Program.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_program_retain_params_t params = {&hProgram};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_RETAIN,
-                                             "urProgramRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_RETAIN,
+                                                   "urProgramRetain", &params);
 
-    context.logger.info("---> urProgramRetain");
+    getContext()->logger.info("---> urProgramRetain");
 
     ur_result_t result = pfnRetain(hProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_RETAIN, "urProgramRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_RETAIN, "urProgramRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2554,27 +2574,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     ur_program_handle_t
         hProgram ///< [in][release] handle for the Program to release
 ) {
-    auto pfnRelease = context.urDdiTable.Program.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Program.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_program_release_params_t params = {&hProgram};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_RELEASE,
-                                             "urProgramRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_RELEASE,
+                                                   "urProgramRelease", &params);
 
-    context.logger.info("---> urProgramRelease");
+    getContext()->logger.info("---> urProgramRelease");
 
     ur_result_t result = pfnRelease(hProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_RELEASE, "urProgramRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_RELEASE, "urProgramRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2594,7 +2614,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         ppFunctionPointer ///< [out] Returns the pointer to the function if it is found in the program.
 ) {
     auto pfnGetFunctionPointer =
-        context.urDdiTable.Program.pfnGetFunctionPointer;
+        getContext()->urDdiTable.Program.pfnGetFunctionPointer;
 
     if (nullptr == pfnGetFunctionPointer) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2603,22 +2623,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_program_get_function_pointer_params_t params = {
         &hDevice, &hProgram, &pFunctionName, &ppFunctionPointer};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
-                             "urProgramGetFunctionPointer", &params);
+        getContext()->notify_begin(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
+                                   "urProgramGetFunctionPointer", &params);
 
-    context.logger.info("---> urProgramGetFunctionPointer");
+    getContext()->logger.info("---> urProgramGetFunctionPointer");
 
     ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
                                                ppFunctionPointer);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
-                       "urProgramGetFunctionPointer", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
+                             "urProgramGetFunctionPointer", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2639,7 +2659,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
         ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
 ) {
     auto pfnGetGlobalVariablePointer =
-        context.urDdiTable.Program.pfnGetGlobalVariablePointer;
+        getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer;
 
     if (nullptr == pfnGetGlobalVariablePointer) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2648,24 +2668,24 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     ur_program_get_global_variable_pointer_params_t params = {
         &hDevice, &hProgram, &pGlobalVariableName, &pGlobalVariableSizeRet,
         &ppGlobalVariablePointerRet};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
-                             "urProgramGetGlobalVariablePointer", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
+        "urProgramGetGlobalVariablePointer", &params);
 
-    context.logger.info("---> urProgramGetGlobalVariablePointer");
+    getContext()->logger.info("---> urProgramGetGlobalVariablePointer");
 
     ur_result_t result = pfnGetGlobalVariablePointer(
         hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
         ppGlobalVariablePointerRet);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
-                       "urProgramGetGlobalVariablePointer", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
+                             "urProgramGetGlobalVariablePointer", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2686,7 +2706,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Program.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Program.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2694,21 +2714,21 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
 
     ur_program_get_info_params_t params = {&hProgram, &propName, &propSize,
                                            &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_GET_INFO,
-                                             "urProgramGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_GET_INFO,
+                                                   "urProgramGetInfo", &params);
 
-    context.logger.info("---> urProgramGetInfo");
+    getContext()->logger.info("---> urProgramGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_GET_INFO, "urProgramGetInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_GET_INFO, "urProgramGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2731,7 +2751,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
 ) {
-    auto pfnGetBuildInfo = context.urDdiTable.Program.pfnGetBuildInfo;
+    auto pfnGetBuildInfo = getContext()->urDdiTable.Program.pfnGetBuildInfo;
 
     if (nullptr == pfnGetBuildInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2739,21 +2759,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
 
     ur_program_get_build_info_params_t params = {
         &hProgram, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_GET_BUILD_INFO,
-                                             "urProgramGetBuildInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_GET_BUILD_INFO, "urProgramGetBuildInfo", &params);
 
-    context.logger.info("---> urProgramGetBuildInfo");
+    getContext()->logger.info("---> urProgramGetBuildInfo");
 
     ur_result_t result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
                                          pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_GET_BUILD_INFO,
-                       "urProgramGetBuildInfo", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_GET_BUILD_INFO,
+                             "urProgramGetBuildInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_GET_BUILD_INFO, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2768,7 +2789,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
                        ///< descriptions
 ) {
     auto pfnSetSpecializationConstants =
-        context.urDdiTable.Program.pfnSetSpecializationConstants;
+        getContext()->urDdiTable.Program.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2776,23 +2797,23 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
 
     ur_program_set_specialization_constants_params_t params = {
         &hProgram, &count, &pSpecConstants};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
-                             "urProgramSetSpecializationConstants", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
+        "urProgramSetSpecializationConstants", &params);
 
-    context.logger.info("---> urProgramSetSpecializationConstants");
+    getContext()->logger.info("---> urProgramSetSpecializationConstants");
 
     ur_result_t result =
         pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
-                       "urProgramSetSpecializationConstants", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
+                             "urProgramSetSpecializationConstants", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2804,7 +2825,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_native_handle_t *
         phNativeProgram ///< [out] a pointer to the native handle of the program.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Program.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Program.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2813,20 +2835,21 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_get_native_handle_params_t params = {&hProgram,
                                                     &phNativeProgram};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
-                             "urProgramGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
+                                   "urProgramGetNativeHandle", &params);
 
-    context.logger.info("---> urProgramGetNativeHandle");
+    getContext()->logger.info("---> urProgramGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hProgram, phNativeProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
-                       "urProgramGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
+                             "urProgramGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2843,7 +2866,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         phProgram ///< [out] pointer to the handle of the program object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Program.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2851,23 +2874,23 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 
     ur_program_create_with_native_handle_params_t params = {
         &hNativeProgram, &hContext, &pProperties, &phProgram};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
-                             "urProgramCreateWithNativeHandle", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
+        "urProgramCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urProgramCreateWithNativeHandle");
+    getContext()->logger.info("---> urProgramCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
                                                    pProperties, phProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
-                       "urProgramCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
+                             "urProgramCreateWithNativeHandle", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2880,27 +2903,27 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to handle of kernel object created.
 ) {
-    auto pfnCreate = context.urDdiTable.Kernel.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Kernel.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_kernel_create_params_t params = {&hProgram, &pKernelName, &phKernel};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_CREATE,
-                                             "urKernelCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_KERNEL_CREATE,
+                                                   "urKernelCreate", &params);
 
-    context.logger.info("---> urKernelCreate");
+    getContext()->logger.info("---> urKernelCreate");
 
     ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
 
-    context.notify_end(UR_FUNCTION_KERNEL_CREATE, "urKernelCreate", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_CREATE, "urKernelCreate",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2916,7 +2939,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
-    auto pfnSetArgValue = context.urDdiTable.Kernel.pfnSetArgValue;
+    auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
     if (nullptr == pfnSetArgValue) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2924,21 +2947,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
 
     ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
                                                &pProperties, &pArgValue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_VALUE,
-                                             "urKernelSetArgValue", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_ARG_VALUE, "urKernelSetArgValue", &params);
 
-    context.logger.info("---> urKernelSetArgValue");
+    getContext()->logger.info("---> urKernelSetArgValue");
 
     ur_result_t result =
         pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_VALUE, "urKernelSetArgValue",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_VALUE,
+                             "urKernelSetArgValue", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_VALUE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2953,7 +2976,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t
         *pProperties ///< [in][optional] pointer to local buffer properties.
 ) {
-    auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
+    auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
 
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2961,21 +2984,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 
     ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
                                                &pProperties};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
-                                             "urKernelSetArgLocal", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_ARG_LOCAL, "urKernelSetArgLocal", &params);
 
-    context.logger.info("---> urKernelSetArgLocal");
+    getContext()->logger.info("---> urKernelSetArgLocal");
 
     ur_result_t result =
         pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_LOCAL, "urKernelSetArgLocal",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
+                             "urKernelSetArgLocal", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2997,7 +3020,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
 ) {
-    auto pfnGetInfo = context.urDdiTable.Kernel.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Kernel.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3005,21 +3028,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
 
     ur_kernel_get_info_params_t params = {&hKernel, &propName, &propSize,
                                           &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_GET_INFO,
-                                             "urKernelGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_KERNEL_GET_INFO,
+                                                   "urKernelGetInfo", &params);
 
-    context.logger.info("---> urKernelGetInfo");
+    getContext()->logger.info("---> urKernelGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_KERNEL_GET_INFO, "urKernelGetInfo", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_GET_INFO, "urKernelGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3039,7 +3062,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
 ) {
-    auto pfnGetGroupInfo = context.urDdiTable.Kernel.pfnGetGroupInfo;
+    auto pfnGetGroupInfo = getContext()->urDdiTable.Kernel.pfnGetGroupInfo;
 
     if (nullptr == pfnGetGroupInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3047,21 +3070,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
 
     ur_kernel_get_group_info_params_t params = {
         &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_GET_GROUP_INFO,
-                                             "urKernelGetGroupInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_GET_GROUP_INFO, "urKernelGetGroupInfo", &params);
 
-    context.logger.info("---> urKernelGetGroupInfo");
+    getContext()->logger.info("---> urKernelGetGroupInfo");
 
     ur_result_t result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
                                          pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_KERNEL_GET_GROUP_INFO,
-                       "urKernelGetGroupInfo", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_GET_GROUP_INFO,
+                             "urKernelGetGroupInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_GET_GROUP_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3081,7 +3105,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
 ) {
-    auto pfnGetSubGroupInfo = context.urDdiTable.Kernel.pfnGetSubGroupInfo;
+    auto pfnGetSubGroupInfo =
+        getContext()->urDdiTable.Kernel.pfnGetSubGroupInfo;
 
     if (nullptr == pfnGetSubGroupInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3090,21 +3115,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     ur_kernel_get_sub_group_info_params_t params = {
         &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
-                             "urKernelGetSubGroupInfo", &params);
+        getContext()->notify_begin(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
+                                   "urKernelGetSubGroupInfo", &params);
 
-    context.logger.info("---> urKernelGetSubGroupInfo");
+    getContext()->logger.info("---> urKernelGetSubGroupInfo");
 
     ur_result_t result = pfnGetSubGroupInfo(hKernel, hDevice, propName,
                                             propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
-                       "urKernelGetSubGroupInfo", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
+                             "urKernelGetSubGroupInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3114,27 +3140,27 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
 ) {
-    auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Kernel.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_kernel_retain_params_t params = {&hKernel};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_RETAIN,
-                                             "urKernelRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_KERNEL_RETAIN,
+                                                   "urKernelRetain", &params);
 
-    context.logger.info("---> urKernelRetain");
+    getContext()->logger.info("---> urKernelRetain");
 
     ur_result_t result = pfnRetain(hKernel);
 
-    context.notify_end(UR_FUNCTION_KERNEL_RETAIN, "urKernelRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_RETAIN, "urKernelRetain",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3145,27 +3171,27 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t
         hKernel ///< [in][release] handle for the Kernel to release
 ) {
-    auto pfnRelease = context.urDdiTable.Kernel.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_kernel_release_params_t params = {&hKernel};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_RELEASE,
-                                             "urKernelRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_KERNEL_RELEASE,
+                                                   "urKernelRelease", &params);
 
-    context.logger.info("---> urKernelRelease");
+    getContext()->logger.info("---> urKernelRelease");
 
     ur_result_t result = pfnRelease(hKernel);
 
-    context.notify_end(UR_FUNCTION_KERNEL_RELEASE, "urKernelRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_RELEASE, "urKernelRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3181,7 +3207,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
     ///< mapping operation. If null then argument value is considered null.
 ) {
-    auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
+    auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
 
     if (nullptr == pfnSetArgPointer) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3189,21 +3215,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
 
     ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
                                                  &pProperties, &pArgValue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
-                                             "urKernelSetArgPointer", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_ARG_POINTER, "urKernelSetArgPointer", &params);
 
-    context.logger.info("---> urKernelSetArgPointer");
+    getContext()->logger.info("---> urKernelSetArgPointer");
 
     ur_result_t result =
         pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
-                       "urKernelSetArgPointer", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
+                             "urKernelSetArgPointer", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_SET_ARG_POINTER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3220,7 +3247,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
 ) {
-    auto pfnSetExecInfo = context.urDdiTable.Kernel.pfnSetExecInfo;
+    auto pfnSetExecInfo = getContext()->urDdiTable.Kernel.pfnSetExecInfo;
 
     if (nullptr == pfnSetExecInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3228,21 +3255,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 
     ur_kernel_set_exec_info_params_t params = {&hKernel, &propName, &propSize,
                                                &pProperties, &pPropValue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_EXEC_INFO,
-                                             "urKernelSetExecInfo", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_EXEC_INFO, "urKernelSetExecInfo", &params);
 
-    context.logger.info("---> urKernelSetExecInfo");
+    getContext()->logger.info("---> urKernelSetExecInfo");
 
     ur_result_t result =
         pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_EXEC_INFO, "urKernelSetExecInfo",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_EXEC_INFO,
+                             "urKernelSetExecInfo", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_EXEC_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3256,7 +3283,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
         *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
 ) {
-    auto pfnSetArgSampler = context.urDdiTable.Kernel.pfnSetArgSampler;
+    auto pfnSetArgSampler = getContext()->urDdiTable.Kernel.pfnSetArgSampler;
 
     if (nullptr == pfnSetArgSampler) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3264,21 +3291,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 
     ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
                                                  &pProperties, &hArgValue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
-                                             "urKernelSetArgSampler", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_ARG_SAMPLER, "urKernelSetArgSampler", &params);
 
-    context.logger.info("---> urKernelSetArgSampler");
+    getContext()->logger.info("---> urKernelSetArgSampler");
 
     ur_result_t result =
         pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
-                       "urKernelSetArgSampler", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
+                             "urKernelSetArgSampler", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_SET_ARG_SAMPLER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3292,7 +3320,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
         *pProperties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
 ) {
-    auto pfnSetArgMemObj = context.urDdiTable.Kernel.pfnSetArgMemObj;
+    auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
 
     if (nullptr == pfnSetArgMemObj) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3300,21 +3328,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
     ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
                                                  &pProperties, &hArgValue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
-                                             "urKernelSetArgMemObj", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ, "urKernelSetArgMemObj", &params);
 
-    context.logger.info("---> urKernelSetArgMemObj");
+    getContext()->logger.info("---> urKernelSetArgMemObj");
 
     ur_result_t result =
         pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
-                       "urKernelSetArgMemObj", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
+                             "urKernelSetArgMemObj", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3328,7 +3357,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         pSpecConstants ///< [in] array of specialization constant value descriptions
 ) {
     auto pfnSetSpecializationConstants =
-        context.urDdiTable.Kernel.pfnSetSpecializationConstants;
+        getContext()->urDdiTable.Kernel.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3336,23 +3365,23 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 
     ur_kernel_set_specialization_constants_params_t params = {&hKernel, &count,
                                                               &pSpecConstants};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
-                             "urKernelSetSpecializationConstants", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
+        "urKernelSetSpecializationConstants", &params);
 
-    context.logger.info("---> urKernelSetSpecializationConstants");
+    getContext()->logger.info("---> urKernelSetSpecializationConstants");
 
     ur_result_t result =
         pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
 
-    context.notify_end(UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
-                       "urKernelSetSpecializationConstants", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
+                             "urKernelSetSpecializationConstants", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3364,7 +3393,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_native_handle_t
         *phNativeKernel ///< [out] a pointer to the native handle of the kernel.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Kernel.pfnGetNativeHandle;
+    auto pfnGetNativeHandle =
+        getContext()->urDdiTable.Kernel.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3372,20 +3402,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 
     ur_kernel_get_native_handle_params_t params = {&hKernel, &phNativeKernel};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
-                             "urKernelGetNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
+                                   "urKernelGetNativeHandle", &params);
 
-    context.logger.info("---> urKernelGetNativeHandle");
+    getContext()->logger.info("---> urKernelGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
 
-    context.notify_end(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
-                       "urKernelGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
+                             "urKernelGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3404,7 +3435,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Kernel.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3413,22 +3444,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_kernel_create_with_native_handle_params_t params = {
         &hNativeKernel, &hContext, &hProgram, &pProperties, &phKernel};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
-                             "urKernelCreateWithNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
+                                   "urKernelCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urKernelCreateWithNativeHandle");
+    getContext()->logger.info("---> urKernelCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeKernel, hContext, hProgram, pProperties, phKernel);
 
-    context.notify_end(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
-                       "urKernelCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
+                             "urKernelCreateWithNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3453,7 +3484,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ///< suggested local work size that will contain the result of the query
 ) {
     auto pfnGetSuggestedLocalWorkSize =
-        context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
 
     if (nullptr == pfnGetSuggestedLocalWorkSize) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3462,24 +3493,24 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_get_suggested_local_work_size_params_t params = {
         &hKernel,           &hQueue,          &numWorkDim,
         &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
-                             "urKernelGetSuggestedLocalWorkSize", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+        "urKernelGetSuggestedLocalWorkSize", &params);
 
-    context.logger.info("---> urKernelGetSuggestedLocalWorkSize");
+    getContext()->logger.info("---> urKernelGetSuggestedLocalWorkSize");
 
     ur_result_t result = pfnGetSuggestedLocalWorkSize(
         hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
         pSuggestedLocalWorkSize);
 
-    context.notify_end(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
-                       "urKernelGetSuggestedLocalWorkSize", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                             "urKernelGetSuggestedLocalWorkSize", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3497,7 +3528,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
 ) {
-    auto pfnGetInfo = context.urDdiTable.Queue.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Queue.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3505,21 +3536,21 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
 
     ur_queue_get_info_params_t params = {&hQueue, &propName, &propSize,
                                          &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_GET_INFO,
-                                             "urQueueGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_GET_INFO,
+                                                   "urQueueGetInfo", &params);
 
-    context.logger.info("---> urQueueGetInfo");
+    getContext()->logger.info("---> urQueueGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_QUEUE_GET_INFO, "urQueueGetInfo", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_GET_INFO, "urQueueGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3534,7 +3565,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *phQueue ///< [out] pointer to handle of queue object created
 ) {
-    auto pfnCreate = context.urDdiTable.Queue.pfnCreate;
+    auto pfnCreate = getContext()->urDdiTable.Queue.pfnCreate;
 
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3542,20 +3573,20 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 
     ur_queue_create_params_t params = {&hContext, &hDevice, &pProperties,
                                        &phQueue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_CREATE,
-                                             "urQueueCreate", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_CREATE,
+                                                   "urQueueCreate", &params);
 
-    context.logger.info("---> urQueueCreate");
+    getContext()->logger.info("---> urQueueCreate");
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_CREATE, "urQueueCreate", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_CREATE, "urQueueCreate", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_CREATE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3566,27 +3597,27 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     ur_queue_handle_t
         hQueue ///< [in][retain] handle of the queue object to get access
 ) {
-    auto pfnRetain = context.urDdiTable.Queue.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Queue.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_queue_retain_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_RETAIN,
-                                             "urQueueRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_RETAIN,
+                                                   "urQueueRetain", &params);
 
-    context.logger.info("---> urQueueRetain");
+    getContext()->logger.info("---> urQueueRetain");
 
     ur_result_t result = pfnRetain(hQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_RETAIN, "urQueueRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_RETAIN, "urQueueRetain", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3597,27 +3628,27 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_queue_handle_t
         hQueue ///< [in][release] handle of the queue object to release
 ) {
-    auto pfnRelease = context.urDdiTable.Queue.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Queue.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_queue_release_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_RELEASE,
-                                             "urQueueRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_RELEASE,
+                                                   "urQueueRelease", &params);
 
-    context.logger.info("---> urQueueRelease");
+    getContext()->logger.info("---> urQueueRelease");
 
     ur_result_t result = pfnRelease(hQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_RELEASE, "urQueueRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_RELEASE, "urQueueRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3631,7 +3662,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Queue.pfnGetNativeHandle;
+    auto pfnGetNativeHandle = getContext()->urDdiTable.Queue.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3639,20 +3670,21 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 
     ur_queue_get_native_handle_params_t params = {&hQueue, &pDesc,
                                                   &phNativeQueue};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE, "urQueueGetNativeHandle", &params);
 
-    context.logger.info("---> urQueueGetNativeHandle");
+    getContext()->logger.info("---> urQueueGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE,
-                       "urQueueGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE,
+                             "urQueueGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3670,7 +3702,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         *phQueue ///< [out] pointer to the handle of the queue object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Queue.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Queue.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3679,22 +3711,22 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_queue_create_with_native_handle_params_t params = {
         &hNativeQueue, &hContext, &hDevice, &pProperties, &phQueue};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
-                             "urQueueCreateWithNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
+                                   "urQueueCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urQueueCreateWithNativeHandle");
+    getContext()->logger.info("---> urQueueCreateWithNativeHandle");
 
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeQueue, hContext, hDevice, pProperties, phQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
-                       "urQueueCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
+                             "urQueueCreateWithNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3704,27 +3736,27 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be finished.
 ) {
-    auto pfnFinish = context.urDdiTable.Queue.pfnFinish;
+    auto pfnFinish = getContext()->urDdiTable.Queue.pfnFinish;
 
     if (nullptr == pfnFinish) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_queue_finish_params_t params = {&hQueue};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_FINISH,
-                                             "urQueueFinish", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_FINISH,
+                                                   "urQueueFinish", &params);
 
-    context.logger.info("---> urQueueFinish");
+    getContext()->logger.info("---> urQueueFinish");
 
     ur_result_t result = pfnFinish(hQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_FINISH, "urQueueFinish", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_FINISH, "urQueueFinish", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_FINISH,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3734,26 +3766,26 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
 __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
 ) {
-    auto pfnFlush = context.urDdiTable.Queue.pfnFlush;
+    auto pfnFlush = getContext()->urDdiTable.Queue.pfnFlush;
 
     if (nullptr == pfnFlush) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_queue_flush_params_t params = {&hQueue};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_QUEUE_FLUSH, "urQueueFlush", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_QUEUE_FLUSH,
+                                                   "urQueueFlush", &params);
 
-    context.logger.info("---> urQueueFlush");
+    getContext()->logger.info("---> urQueueFlush");
 
     ur_result_t result = pfnFlush(hQueue);
 
-    context.notify_end(UR_FUNCTION_QUEUE_FLUSH, "urQueueFlush", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_QUEUE_FLUSH, "urQueueFlush", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_FLUSH, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3769,7 +3801,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
                     ///< property
     size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
 ) {
-    auto pfnGetInfo = context.urDdiTable.Event.pfnGetInfo;
+    auto pfnGetInfo = getContext()->urDdiTable.Event.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3777,21 +3809,21 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
 
     ur_event_get_info_params_t params = {&hEvent, &propName, &propSize,
                                          &pPropValue, &pPropSizeRet};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_GET_INFO,
-                                             "urEventGetInfo", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_GET_INFO,
+                                                   "urEventGetInfo", &params);
 
-    context.logger.info("---> urEventGetInfo");
+    getContext()->logger.info("---> urEventGetInfo");
 
     ur_result_t result =
         pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_EVENT_GET_INFO, "urEventGetInfo", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_GET_INFO, "urEventGetInfo",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_GET_INFO,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3810,7 +3842,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
                      ///< propValue
 ) {
-    auto pfnGetProfilingInfo = context.urDdiTable.Event.pfnGetProfilingInfo;
+    auto pfnGetProfilingInfo =
+        getContext()->urDdiTable.Event.pfnGetProfilingInfo;
 
     if (nullptr == pfnGetProfilingInfo) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3819,21 +3852,22 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_get_profiling_info_params_t params = {
         &hEvent, &propName, &propSize, &pPropValue, &pPropSizeRet};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
-                             "urEventGetProfilingInfo", &params);
+        getContext()->notify_begin(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
+                                   "urEventGetProfilingInfo", &params);
 
-    context.logger.info("---> urEventGetProfilingInfo");
+    getContext()->logger.info("---> urEventGetProfilingInfo");
 
     ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propSize,
                                              pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
-                       "urEventGetProfilingInfo", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
+                             "urEventGetProfilingInfo", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_EVENT_GET_PROFILING_INFO, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3846,26 +3880,26 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
         phEventWaitList ///< [in][range(0, numEvents)] pointer to a list of events to wait for
                         ///< completion
 ) {
-    auto pfnWait = context.urDdiTable.Event.pfnWait;
+    auto pfnWait = getContext()->urDdiTable.Event.pfnWait;
 
     if (nullptr == pfnWait) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_event_wait_params_t params = {&numEvents, &phEventWaitList};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_EVENT_WAIT, "urEventWait", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_WAIT,
+                                                   "urEventWait", &params);
 
-    context.logger.info("---> urEventWait");
+    getContext()->logger.info("---> urEventWait");
 
     ur_result_t result = pfnWait(numEvents, phEventWaitList);
 
-    context.notify_end(UR_FUNCTION_EVENT_WAIT, "urEventWait", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_WAIT, "urEventWait", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_WAIT, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3875,27 +3909,27 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
 __urdlllocal ur_result_t UR_APICALL urEventRetain(
     ur_event_handle_t hEvent ///< [in][retain] handle of the event object
 ) {
-    auto pfnRetain = context.urDdiTable.Event.pfnRetain;
+    auto pfnRetain = getContext()->urDdiTable.Event.pfnRetain;
 
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_event_retain_params_t params = {&hEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_RETAIN,
-                                             "urEventRetain", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_RETAIN,
+                                                   "urEventRetain", &params);
 
-    context.logger.info("---> urEventRetain");
+    getContext()->logger.info("---> urEventRetain");
 
     ur_result_t result = pfnRetain(hEvent);
 
-    context.notify_end(UR_FUNCTION_EVENT_RETAIN, "urEventRetain", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_RETAIN, "urEventRetain", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_RETAIN,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3905,27 +3939,27 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 __urdlllocal ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t hEvent ///< [in][release] handle of the event object
 ) {
-    auto pfnRelease = context.urDdiTable.Event.pfnRelease;
+    auto pfnRelease = getContext()->urDdiTable.Event.pfnRelease;
 
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_event_release_params_t params = {&hEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_RELEASE,
-                                             "urEventRelease", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_RELEASE,
+                                                   "urEventRelease", &params);
 
-    context.logger.info("---> urEventRelease");
+    getContext()->logger.info("---> urEventRelease");
 
     ur_result_t result = pfnRelease(hEvent);
 
-    context.notify_end(UR_FUNCTION_EVENT_RELEASE, "urEventRelease", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_RELEASE, "urEventRelease",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_RELEASE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3937,27 +3971,28 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_native_handle_t
         *phNativeEvent ///< [out] a pointer to the native handle of the event.
 ) {
-    auto pfnGetNativeHandle = context.urDdiTable.Event.pfnGetNativeHandle;
+    auto pfnGetNativeHandle = getContext()->urDdiTable.Event.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_event_get_native_handle_params_t params = {&hEvent, &phNativeEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_EVENT_GET_NATIVE_HANDLE, "urEventGetNativeHandle", &params);
 
-    context.logger.info("---> urEventGetNativeHandle");
+    getContext()->logger.info("---> urEventGetNativeHandle");
 
     ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
 
-    context.notify_end(UR_FUNCTION_EVENT_GET_NATIVE_HANDLE,
-                       "urEventGetNativeHandle", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_GET_NATIVE_HANDLE,
+                             "urEventGetNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_EVENT_GET_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3974,7 +4009,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         *phEvent ///< [out] pointer to the handle of the event object created.
 ) {
     auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Event.pfnCreateWithNativeHandle;
+        getContext()->urDdiTable.Event.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -3983,22 +4018,22 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_event_create_with_native_handle_params_t params = {
         &hNativeEvent, &hContext, &pProperties, &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
-                             "urEventCreateWithNativeHandle", &params);
+        getContext()->notify_begin(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
+                                   "urEventCreateWithNativeHandle", &params);
 
-    context.logger.info("---> urEventCreateWithNativeHandle");
+    getContext()->logger.info("---> urEventCreateWithNativeHandle");
 
     ur_result_t result =
         pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties, phEvent);
 
-    context.notify_end(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
-                       "urEventCreateWithNativeHandle", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
+                             "urEventCreateWithNativeHandle", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4012,7 +4047,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
 ) {
-    auto pfnSetCallback = context.urDdiTable.Event.pfnSetCallback;
+    auto pfnSetCallback = getContext()->urDdiTable.Event.pfnSetCallback;
 
     if (nullptr == pfnSetCallback) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4020,21 +4055,21 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 
     ur_event_set_callback_params_t params = {&hEvent, &execStatus, &pfnNotify,
                                              &pUserData};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_SET_CALLBACK,
-                                             "urEventSetCallback", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_EVENT_SET_CALLBACK, "urEventSetCallback", &params);
 
-    context.logger.info("---> urEventSetCallback");
+    getContext()->logger.info("---> urEventSetCallback");
 
     ur_result_t result =
         pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
 
-    context.notify_end(UR_FUNCTION_EVENT_SET_CALLBACK, "urEventSetCallback",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_EVENT_SET_CALLBACK,
+                             "urEventSetCallback", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_SET_CALLBACK,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4070,7 +4105,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
 ) {
-    auto pfnKernelLaunch = context.urDdiTable.Enqueue.pfnKernelLaunch;
+    auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
     if (nullptr == pfnKernelLaunch) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4085,22 +4120,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                                 &numEventsInWaitList,
                                                 &phEventWaitList,
                                                 &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
-                                             "urEnqueueKernelLaunch", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH, "urEnqueueKernelLaunch", &params);
 
-    context.logger.info("---> urEnqueueKernelLaunch");
+    getContext()->logger.info("---> urEnqueueKernelLaunch");
 
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
-                       "urEnqueueKernelLaunch", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
+                             "urEnqueueKernelLaunch", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4120,7 +4156,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnEventsWait = context.urDdiTable.Enqueue.pfnEventsWait;
+    auto pfnEventsWait = getContext()->urDdiTable.Enqueue.pfnEventsWait;
 
     if (nullptr == pfnEventsWait) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4128,21 +4164,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
 
     ur_enqueue_events_wait_params_t params = {&hQueue, &numEventsInWaitList,
                                               &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_EVENTS_WAIT,
-                                             "urEnqueueEventsWait", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_EVENTS_WAIT, "urEnqueueEventsWait", &params);
 
-    context.logger.info("---> urEnqueueEventsWait");
+    getContext()->logger.info("---> urEnqueueEventsWait");
 
     ur_result_t result =
         pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT, "urEnqueueEventsWait",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT,
+                             "urEnqueueEventsWait", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_EVENTS_WAIT,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4163,7 +4199,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                 ///< command instance.
 ) {
     auto pfnEventsWaitWithBarrier =
-        context.urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
+        getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
 
     if (nullptr == pfnEventsWaitWithBarrier) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4172,22 +4208,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_enqueue_events_wait_with_barrier_params_t params = {
         &hQueue, &numEventsInWaitList, &phEventWaitList, &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
-                             "urEnqueueEventsWaitWithBarrier", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
+                                   "urEnqueueEventsWaitWithBarrier", &params);
 
-    context.logger.info("---> urEnqueueEventsWaitWithBarrier");
+    getContext()->logger.info("---> urEnqueueEventsWaitWithBarrier");
 
     ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                                   phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
-                       "urEnqueueEventsWaitWithBarrier", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
+                             "urEnqueueEventsWaitWithBarrier", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4212,7 +4248,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferRead = context.urDdiTable.Enqueue.pfnMemBufferRead;
+    auto pfnMemBufferRead = getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
 
     if (nullptr == pfnMemBufferRead) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4222,22 +4258,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
         &hQueue, &hBuffer, &blockingRead,        &offset,
         &size,   &pDst,    &numEventsInWaitList, &phEventWaitList,
         &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ, "urEnqueueMemBufferRead", &params);
 
-    context.logger.info("---> urEnqueueMemBufferRead");
+    getContext()->logger.info("---> urEnqueueMemBufferRead");
 
     ur_result_t result =
         pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ,
-                       "urEnqueueMemBufferRead", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ,
+                             "urEnqueueMemBufferRead", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4264,7 +4301,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferWrite = context.urDdiTable.Enqueue.pfnMemBufferWrite;
+    auto pfnMemBufferWrite = getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
 
     if (nullptr == pfnMemBufferWrite) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4275,22 +4312,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         &size,   &pSrc,    &numEventsInWaitList, &phEventWaitList,
         &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
-                             "urEnqueueMemBufferWrite", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
+                                   "urEnqueueMemBufferWrite", &params);
 
-    context.logger.info("---> urEnqueueMemBufferWrite");
+    getContext()->logger.info("---> urEnqueueMemBufferWrite");
 
     ur_result_t result =
         pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
                           numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
-                       "urEnqueueMemBufferWrite", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
+                             "urEnqueueMemBufferWrite", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4327,7 +4365,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferReadRect = context.urDdiTable.Enqueue.pfnMemBufferReadRect;
+    auto pfnMemBufferReadRect =
+        getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
 
     if (nullptr == pfnMemBufferReadRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4348,24 +4387,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                                        &phEventWaitList,
                                                        &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
-                             "urEnqueueMemBufferReadRect", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
+                                   "urEnqueueMemBufferReadRect", &params);
 
-    context.logger.info("---> urEnqueueMemBufferReadRect");
+    getContext()->logger.info("---> urEnqueueMemBufferReadRect");
 
     ur_result_t result = pfnMemBufferReadRect(
         hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
-                       "urEnqueueMemBufferReadRect", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
+                             "urEnqueueMemBufferReadRect", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4406,7 +4445,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                 ///< command instance.
 ) {
     auto pfnMemBufferWriteRect =
-        context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
+        getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
     if (nullptr == pfnMemBufferWriteRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4427,24 +4466,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                                                         &phEventWaitList,
                                                         &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
-                             "urEnqueueMemBufferWriteRect", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
+                                   "urEnqueueMemBufferWriteRect", &params);
 
-    context.logger.info("---> urEnqueueMemBufferWriteRect");
+    getContext()->logger.info("---> urEnqueueMemBufferWriteRect");
 
     ur_result_t result = pfnMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
-                       "urEnqueueMemBufferWriteRect", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
+                             "urEnqueueMemBufferWriteRect", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4470,7 +4509,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferCopy = context.urDdiTable.Enqueue.pfnMemBufferCopy;
+    auto pfnMemBufferCopy = getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
 
     if (nullptr == pfnMemBufferCopy) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4479,22 +4518,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_enqueue_mem_buffer_copy_params_t params = {
         &hQueue, &hBufferSrc,          &hBufferDst,      &srcOffset, &dstOffset,
         &size,   &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY, "urEnqueueMemBufferCopy", &params);
 
-    context.logger.info("---> urEnqueueMemBufferCopy");
+    getContext()->logger.info("---> urEnqueueMemBufferCopy");
 
     ur_result_t result =
         pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
                          size, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY,
-                       "urEnqueueMemBufferCopy", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY,
+                             "urEnqueueMemBufferCopy", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4529,7 +4569,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferCopyRect = context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
+    auto pfnMemBufferCopyRect =
+        getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
     if (nullptr == pfnMemBufferCopyRect) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4541,24 +4582,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         &dstRowPitch, &dstSlicePitch, &numEventsInWaitList, &phEventWaitList,
         &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
-                             "urEnqueueMemBufferCopyRect", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
+                                   "urEnqueueMemBufferCopyRect", &params);
 
-    context.logger.info("---> urEnqueueMemBufferCopyRect");
+    getContext()->logger.info("---> urEnqueueMemBufferCopyRect");
 
     ur_result_t result = pfnMemBufferCopyRect(
         hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
-                       "urEnqueueMemBufferCopyRect", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
+                             "urEnqueueMemBufferCopyRect", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4583,7 +4624,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemBufferFill = context.urDdiTable.Enqueue.pfnMemBufferFill;
+    auto pfnMemBufferFill = getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
 
     if (nullptr == pfnMemBufferFill) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4598,22 +4639,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
                                                   &numEventsInWaitList,
                                                   &phEventWaitList,
                                                   &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL, "urEnqueueMemBufferFill", &params);
 
-    context.logger.info("---> urEnqueueMemBufferFill");
+    getContext()->logger.info("---> urEnqueueMemBufferFill");
 
     ur_result_t result =
         pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL,
-                       "urEnqueueMemBufferFill", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL,
+                             "urEnqueueMemBufferFill", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4643,7 +4685,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemImageRead = context.urDdiTable.Enqueue.pfnMemImageRead;
+    auto pfnMemImageRead = getContext()->urDdiTable.Enqueue.pfnMemImageRead;
 
     if (nullptr == pfnMemImageRead) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4654,22 +4696,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
         &origin,          &region, &rowPitch,
         &slicePitch,      &pDst,   &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ,
-                                             "urEnqueueMemImageRead", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ, "urEnqueueMemImageRead", &params);
 
-    context.logger.info("---> urEnqueueMemImageRead");
+    getContext()->logger.info("---> urEnqueueMemImageRead");
 
     ur_result_t result = pfnMemImageRead(
         hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch,
         pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ,
-                       "urEnqueueMemImageRead", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ,
+                             "urEnqueueMemImageRead", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4700,7 +4743,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemImageWrite = context.urDdiTable.Enqueue.pfnMemImageWrite;
+    auto pfnMemImageWrite = getContext()->urDdiTable.Enqueue.pfnMemImageWrite;
 
     if (nullptr == pfnMemImageWrite) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4711,22 +4754,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
         &origin,          &region, &rowPitch,
         &slicePitch,      &pSrc,   &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE, "urEnqueueMemImageWrite", &params);
 
-    context.logger.info("---> urEnqueueMemImageWrite");
+    getContext()->logger.info("---> urEnqueueMemImageWrite");
 
     ur_result_t result = pfnMemImageWrite(
         hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch,
         pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE,
-                       "urEnqueueMemImageWrite", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE,
+                             "urEnqueueMemImageWrite", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4758,7 +4802,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemImageCopy = context.urDdiTable.Enqueue.pfnMemImageCopy;
+    auto pfnMemImageCopy = getContext()->urDdiTable.Enqueue.pfnMemImageCopy;
 
     if (nullptr == pfnMemImageCopy) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4767,22 +4811,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_enqueue_mem_image_copy_params_t params = {
         &hQueue, &hImageSrc,           &hImageDst,       &srcOrigin, &dstOrigin,
         &region, &numEventsInWaitList, &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY,
-                                             "urEnqueueMemImageCopy", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY, "urEnqueueMemImageCopy", &params);
 
-    context.logger.info("---> urEnqueueMemImageCopy");
+    getContext()->logger.info("---> urEnqueueMemImageCopy");
 
     ur_result_t result =
         pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                         region, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY,
-                       "urEnqueueMemImageCopy", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY,
+                             "urEnqueueMemImageCopy", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4809,7 +4854,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
 ) {
-    auto pfnMemBufferMap = context.urDdiTable.Enqueue.pfnMemBufferMap;
+    auto pfnMemBufferMap = getContext()->urDdiTable.Enqueue.pfnMemBufferMap;
 
     if (nullptr == pfnMemBufferMap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4819,22 +4864,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         &hQueue,  &hBuffer, &blockingMap,         &mapFlags,
         &offset,  &size,    &numEventsInWaitList, &phEventWaitList,
         &phEvent, &ppRetMap};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP,
-                                             "urEnqueueMemBufferMap", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP, "urEnqueueMemBufferMap", &params);
 
-    context.logger.info("---> urEnqueueMemBufferMap");
+    getContext()->logger.info("---> urEnqueueMemBufferMap");
 
     ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags,
                                          offset, size, numEventsInWaitList,
                                          phEventWaitList, phEvent, ppRetMap);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP,
-                       "urEnqueueMemBufferMap", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP,
+                             "urEnqueueMemBufferMap", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4856,7 +4902,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnMemUnmap = context.urDdiTable.Enqueue.pfnMemUnmap;
+    auto pfnMemUnmap = getContext()->urDdiTable.Enqueue.pfnMemUnmap;
 
     if (nullptr == pfnMemUnmap) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4865,22 +4911,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_enqueue_mem_unmap_params_t params = {
         &hQueue,          &hMem,   &pMappedPtr, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_UNMAP,
-                                             "urEnqueueMemUnmap", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_MEM_UNMAP, "urEnqueueMemUnmap", &params);
 
-    context.logger.info("---> urEnqueueMemUnmap");
+    getContext()->logger.info("---> urEnqueueMemUnmap");
 
     ur_result_t result =
         pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
                     phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_MEM_UNMAP, "urEnqueueMemUnmap",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_MEM_UNMAP, "urEnqueueMemUnmap",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_MEM_UNMAP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4907,7 +4953,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMFill = context.urDdiTable.Enqueue.pfnUSMFill;
+    auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
 
     if (nullptr == pfnUSMFill) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4917,22 +4963,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         &hQueue,          &pMem,   &patternSize,
         &pPattern,        &size,   &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL,
-                                             "urEnqueueUSMFill", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL,
+                                                   "urEnqueueUSMFill", &params);
 
-    context.logger.info("---> urEnqueueUSMFill");
+    getContext()->logger.info("---> urEnqueueUSMFill");
 
     ur_result_t result =
         pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
                    numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL, "urEnqueueUSMFill",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_FILL, "urEnqueueUSMFill",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_FILL,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4957,7 +5003,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMMemcpy = context.urDdiTable.Enqueue.pfnUSMMemcpy;
+    auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
     if (nullptr == pfnUSMMemcpy) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -4966,22 +5012,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_enqueue_usm_memcpy_params_t params = {
         &hQueue,          &blocking, &pDst, &pSrc, &size, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY,
-                                             "urEnqueueUSMMemcpy", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_USM_MEMCPY, "urEnqueueUSMMemcpy", &params);
 
-    context.logger.info("---> urEnqueueUSMMemcpy");
+    getContext()->logger.info("---> urEnqueueUSMMemcpy");
 
     ur_result_t result =
         pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                      phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY, "urEnqueueUSMMemcpy",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY,
+                             "urEnqueueUSMMemcpy", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_MEMCPY,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5004,7 +5050,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMPrefetch = context.urDdiTable.Enqueue.pfnUSMPrefetch;
+    auto pfnUSMPrefetch = getContext()->urDdiTable.Enqueue.pfnUSMPrefetch;
 
     if (nullptr == pfnUSMPrefetch) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5013,22 +5059,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_enqueue_usm_prefetch_params_t params = {
         &hQueue,          &pMem,   &size, &flags, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_PREFETCH,
-                                             "urEnqueueUSMPrefetch", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_USM_PREFETCH, "urEnqueueUSMPrefetch", &params);
 
-    context.logger.info("---> urEnqueueUSMPrefetch");
+    getContext()->logger.info("---> urEnqueueUSMPrefetch");
 
     ur_result_t result =
         pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
                        phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_PREFETCH, "urEnqueueUSMPrefetch",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_PREFETCH,
+                             "urEnqueueUSMPrefetch", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_PREFETCH,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5045,7 +5092,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMAdvise = context.urDdiTable.Enqueue.pfnUSMAdvise;
+    auto pfnUSMAdvise = getContext()->urDdiTable.Enqueue.pfnUSMAdvise;
 
     if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5053,20 +5100,20 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
 
     ur_enqueue_usm_advise_params_t params = {&hQueue, &pMem, &size, &advice,
                                              &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_ADVISE,
-                                             "urEnqueueUSMAdvise", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_USM_ADVISE, "urEnqueueUSMAdvise", &params);
 
-    context.logger.info("---> urEnqueueUSMAdvise");
+    getContext()->logger.info("---> urEnqueueUSMAdvise");
 
     ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_ADVISE, "urEnqueueUSMAdvise",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_ADVISE,
+                             "urEnqueueUSMAdvise", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_ADVISE,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5098,7 +5145,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
 ) {
-    auto pfnUSMFill2D = context.urDdiTable.Enqueue.pfnUSMFill2D;
+    auto pfnUSMFill2D = getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
 
     if (nullptr == pfnUSMFill2D) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5108,22 +5155,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         &hQueue,          &pMem,   &pitch,  &patternSize,
         &pPattern,        &width,  &height, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL_2D,
-                                             "urEnqueueUSMFill2D", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_USM_FILL_2D, "urEnqueueUSMFill2D", &params);
 
-    context.logger.info("---> urEnqueueUSMFill2D");
+    getContext()->logger.info("---> urEnqueueUSMFill2D");
 
     ur_result_t result =
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                      numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL_2D, "urEnqueueUSMFill2D",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_FILL_2D,
+                             "urEnqueueUSMFill2D", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_FILL_2D,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5154,7 +5201,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
 ) {
-    auto pfnUSMMemcpy2D = context.urDdiTable.Enqueue.pfnUSMMemcpy2D;
+    auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
 
     if (nullptr == pfnUSMMemcpy2D) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5165,22 +5212,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         &dstPitch,        &pSrc,     &srcPitch,
         &width,           &height,   &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
-                                             "urEnqueueUSMMemcpy2D", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D, "urEnqueueUSMMemcpy2D", &params);
 
-    context.logger.info("---> urEnqueueUSMMemcpy2D");
+    getContext()->logger.info("---> urEnqueueUSMMemcpy2D");
 
     ur_result_t result =
         pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
                        height, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
-                       "urEnqueueUSMMemcpy2D", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
+                             "urEnqueueUSMMemcpy2D", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5209,7 +5257,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
                 ///< kernel execution instance.
 ) {
     auto pfnDeviceGlobalVariableWrite =
-        context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
+        getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
 
     if (nullptr == pfnDeviceGlobalVariableWrite) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5219,24 +5267,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         &hQueue,          &hProgram, &name, &blockingWrite,
         &count,           &offset,   &pSrc, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
-                             "urEnqueueDeviceGlobalVariableWrite", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
+        "urEnqueueDeviceGlobalVariableWrite", &params);
 
-    context.logger.info("---> urEnqueueDeviceGlobalVariableWrite");
+    getContext()->logger.info("---> urEnqueueDeviceGlobalVariableWrite");
 
     ur_result_t result = pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
-                       "urEnqueueDeviceGlobalVariableWrite", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
+                             "urEnqueueDeviceGlobalVariableWrite", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5265,7 +5313,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
                 ///< kernel execution instance.
 ) {
     auto pfnDeviceGlobalVariableRead =
-        context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
+        getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
 
     if (nullptr == pfnDeviceGlobalVariableRead) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5275,24 +5323,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         &hQueue,          &hProgram, &name, &blockingRead,
         &count,           &offset,   &pDst, &numEventsInWaitList,
         &phEventWaitList, &phEvent};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
-                             "urEnqueueDeviceGlobalVariableRead", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
+        "urEnqueueDeviceGlobalVariableRead", &params);
 
-    context.logger.info("---> urEnqueueDeviceGlobalVariableRead");
+    getContext()->logger.info("---> urEnqueueDeviceGlobalVariableRead");
 
     ur_result_t result = pfnDeviceGlobalVariableRead(
         hQueue, hProgram, name, blockingRead, count, offset, pDst,
         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
-                       "urEnqueueDeviceGlobalVariableRead", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
+                             "urEnqueueDeviceGlobalVariableRead", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5324,7 +5372,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
                 ///< command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
-    auto pfnReadHostPipe = context.urDdiTable.Enqueue.pfnReadHostPipe;
+    auto pfnReadHostPipe = getContext()->urDdiTable.Enqueue.pfnReadHostPipe;
 
     if (nullptr == pfnReadHostPipe) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5334,22 +5382,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
         &hQueue, &hProgram, &pipe_symbol,         &blocking,
         &pDst,   &size,     &numEventsInWaitList, &phEventWaitList,
         &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_READ_HOST_PIPE,
-                                             "urEnqueueReadHostPipe", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_READ_HOST_PIPE, "urEnqueueReadHostPipe", &params);
 
-    context.logger.info("---> urEnqueueReadHostPipe");
+    getContext()->logger.info("---> urEnqueueReadHostPipe");
 
     ur_result_t result =
         pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                         numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_READ_HOST_PIPE,
-                       "urEnqueueReadHostPipe", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_READ_HOST_PIPE,
+                             "urEnqueueReadHostPipe", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_READ_HOST_PIPE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5381,7 +5430,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
         phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
-    auto pfnWriteHostPipe = context.urDdiTable.Enqueue.pfnWriteHostPipe;
+    auto pfnWriteHostPipe = getContext()->urDdiTable.Enqueue.pfnWriteHostPipe;
 
     if (nullptr == pfnWriteHostPipe) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5391,22 +5440,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
         &hQueue, &hProgram, &pipe_symbol,         &blocking,
         &pSrc,   &size,     &numEventsInWaitList, &phEventWaitList,
         &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE, "urEnqueueWriteHostPipe", &params);
 
-    context.logger.info("---> urEnqueueWriteHostPipe");
+    getContext()->logger.info("---> urEnqueueWriteHostPipe");
 
     ur_result_t result =
         pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE,
-                       "urEnqueueWriteHostPipe", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE,
+                             "urEnqueueWriteHostPipe", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5428,7 +5478,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     void **ppMem,         ///< [out] pointer to USM shared memory object
     size_t *pResultPitch  ///< [out] pitch of the allocation
 ) {
-    auto pfnPitchedAllocExp = context.urDdiTable.USMExp.pfnPitchedAllocExp;
+    auto pfnPitchedAllocExp =
+        getContext()->urDdiTable.USMExp.pfnPitchedAllocExp;
 
     if (nullptr == pfnPitchedAllocExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5437,22 +5488,23 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ur_usm_pitched_alloc_exp_params_t params = {
         &hContext, &hDevice,          &pUSMDesc, &pool,        &widthInBytes,
         &height,   &elementSizeBytes, &ppMem,    &pResultPitch};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
-                                             "urUSMPitchedAllocExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_USM_PITCHED_ALLOC_EXP, "urUSMPitchedAllocExp", &params);
 
-    context.logger.info("---> urUSMPitchedAllocExp");
+    getContext()->logger.info("---> urUSMPitchedAllocExp");
 
     ur_result_t result =
         pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
                            height, elementSizeBytes, ppMem, pResultPitch);
 
-    context.notify_end(UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
-                       "urUSMPitchedAllocExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
+                             "urUSMPitchedAllocExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5467,7 +5519,8 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnUnsampledImageHandleDestroyExp =
-        context.urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
 
     if (nullptr == pfnUnsampledImageHandleDestroyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5475,16 +5528,17 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 
     ur_bindless_images_unsampled_image_handle_destroy_exp_params_t params = {
         &hContext, &hDevice, &hImage};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesUnsampledImageHandleDestroyExp", &params);
 
-    context.logger.info("---> urBindlessImagesUnsampledImageHandleDestroyExp");
+    getContext()->logger.info(
+        "---> urBindlessImagesUnsampledImageHandleDestroyExp");
 
     ur_result_t result =
         pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesUnsampledImageHandleDestroyExp", &params, &result,
         instance);
@@ -5494,7 +5548,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         args_str,
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5509,7 +5563,8 @@ urBindlessImagesSampledImageHandleDestroyExp(
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnSampledImageHandleDestroyExp =
-        context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
 
     if (nullptr == pfnSampledImageHandleDestroyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5517,16 +5572,17 @@ urBindlessImagesSampledImageHandleDestroyExp(
 
     ur_bindless_images_sampled_image_handle_destroy_exp_params_t params = {
         &hContext, &hDevice, &hImage};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesSampledImageHandleDestroyExp", &params);
 
-    context.logger.info("---> urBindlessImagesSampledImageHandleDestroyExp");
+    getContext()->logger.info(
+        "---> urBindlessImagesSampledImageHandleDestroyExp");
 
     ur_result_t result =
         pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesSampledImageHandleDestroyExp", &params, &result,
         instance);
@@ -5535,7 +5591,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5552,7 +5608,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         *phImageMem ///< [out] pointer to handle of image memory allocated
 ) {
     auto pfnImageAllocateExp =
-        context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
 
     if (nullptr == pfnImageAllocateExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5560,23 +5616,23 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
     ur_bindless_images_image_allocate_exp_params_t params = {
         &hContext, &hDevice, &pImageFormat, &pImageDesc, &phImageMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
-                             "urBindlessImagesImageAllocateExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
+        "urBindlessImagesImageAllocateExp", &params);
 
-    context.logger.info("---> urBindlessImagesImageAllocateExp");
+    getContext()->logger.info("---> urBindlessImagesImageAllocateExp");
 
     ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
                                              pImageDesc, phImageMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
-                       "urBindlessImagesImageAllocateExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
+                             "urBindlessImagesImageAllocateExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5589,7 +5645,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_exp_image_mem_native_handle_t
         hImageMem ///< [in][release] handle of image memory to be freed
 ) {
-    auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
+    auto pfnImageFreeExp =
+        getContext()->urDdiTable.BindlessImagesExp.pfnImageFreeExp;
 
     if (nullptr == pfnImageFreeExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5598,21 +5655,21 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_bindless_images_image_free_exp_params_t params = {&hContext, &hDevice,
                                                          &hImageMem};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
-                             "urBindlessImagesImageFreeExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
+                                   "urBindlessImagesImageFreeExp", &params);
 
-    context.logger.info("---> urBindlessImagesImageFreeExp");
+    getContext()->logger.info("---> urBindlessImagesImageFreeExp");
 
     ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
-                       "urBindlessImagesImageFreeExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
+                             "urBindlessImagesImageFreeExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5631,7 +5688,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         *phImage ///< [out] pointer to handle of image object created
 ) {
     auto pfnUnsampledImageCreateExp =
-        context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
 
     if (nullptr == pfnUnsampledImageCreateExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5639,24 +5696,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
     ur_bindless_images_unsampled_image_create_exp_params_t params = {
         &hContext, &hDevice, &hImageMem, &pImageFormat, &pImageDesc, &phImage};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesUnsampledImageCreateExp", &params);
 
-    context.logger.info("---> urBindlessImagesUnsampledImageCreateExp");
+    getContext()->logger.info("---> urBindlessImagesUnsampledImageCreateExp");
 
     ur_result_t result = pfnUnsampledImageCreateExp(
         hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
-                       "urBindlessImagesUnsampledImageCreateExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
+        "urBindlessImagesUnsampledImageCreateExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5676,7 +5733,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *phImage ///< [out] pointer to handle of image object created
 ) {
     auto pfnSampledImageCreateExp =
-        context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
 
     if (nullptr == pfnSampledImageCreateExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5685,25 +5742,25 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_bindless_images_sampled_image_create_exp_params_t params = {
         &hContext,   &hDevice,  &hImageMem, &pImageFormat,
         &pImageDesc, &hSampler, &phImage};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesSampledImageCreateExp", &params);
 
-    context.logger.info("---> urBindlessImagesSampledImageCreateExp");
+    getContext()->logger.info("---> urBindlessImagesSampledImageCreateExp");
 
     ur_result_t result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
                                  pImageDesc, hSampler, phImage);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
-                       "urBindlessImagesSampledImageCreateExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
+        "urBindlessImagesSampledImageCreateExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5742,7 +5799,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnImageCopyExp = context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
+    auto pfnImageCopyExp =
+        getContext()->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
 
     if (nullptr == pfnImageCopyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5762,24 +5820,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                                          &phEventWaitList,
                                                          &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
-                             "urBindlessImagesImageCopyExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
+                                   "urBindlessImagesImageCopyExp", &params);
 
-    context.logger.info("---> urBindlessImagesImageCopyExp");
+    getContext()->logger.info("---> urBindlessImagesImageCopyExp");
 
     ur_result_t result = pfnImageCopyExp(
         hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
         dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
         phEvent);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
-                       "urBindlessImagesImageCopyExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
+                             "urBindlessImagesImageCopyExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5795,7 +5853,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     size_t *pPropSizeRet      ///< [out][optional] returned query value size
 ) {
     auto pfnImageGetInfoExp =
-        context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
 
     if (nullptr == pfnImageGetInfoExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5803,23 +5861,23 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 
     ur_bindless_images_image_get_info_exp_params_t params = {
         &hContext, &hImageMem, &propName, &pPropValue, &pPropSizeRet};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
-                             "urBindlessImagesImageGetInfoExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
+        "urBindlessImagesImageGetInfoExp", &params);
 
-    context.logger.info("---> urBindlessImagesImageGetInfoExp");
+    getContext()->logger.info("---> urBindlessImagesImageGetInfoExp");
 
     ur_result_t result = pfnImageGetInfoExp(hContext, hImageMem, propName,
                                             pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
-                       "urBindlessImagesImageGetInfoExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
+                             "urBindlessImagesImageGetInfoExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5836,7 +5894,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         *phImageMem ///< [out] returning memory handle to the individual image
 ) {
     auto pfnMipmapGetLevelExp =
-        context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
 
     if (nullptr == pfnMipmapGetLevelExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5844,23 +5902,23 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 
     ur_bindless_images_mipmap_get_level_exp_params_t params = {
         &hContext, &hDevice, &hImageMem, &mipmapLevel, &phImageMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
-                             "urBindlessImagesMipmapGetLevelExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
+        "urBindlessImagesMipmapGetLevelExp", &params);
 
-    context.logger.info("---> urBindlessImagesMipmapGetLevelExp");
+    getContext()->logger.info("---> urBindlessImagesMipmapGetLevelExp");
 
     ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
                                               mipmapLevel, phImageMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
-                       "urBindlessImagesMipmapGetLevelExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
+                             "urBindlessImagesMipmapGetLevelExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5874,7 +5932,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         hMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
-        context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
 
     if (nullptr == pfnMipmapFreeExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5883,21 +5941,21 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_bindless_images_mipmap_free_exp_params_t params = {&hContext, &hDevice,
                                                           &hMem};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
-                             "urBindlessImagesMipmapFreeExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
+                                   "urBindlessImagesMipmapFreeExp", &params);
 
-    context.logger.info("---> urBindlessImagesMipmapFreeExp");
+    getContext()->logger.info("---> urBindlessImagesMipmapFreeExp");
 
     ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
-                       "urBindlessImagesMipmapFreeExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
+                             "urBindlessImagesMipmapFreeExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5916,7 +5974,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
     auto pfnImportExternalMemoryExp =
-        context.urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
 
     if (nullptr == pfnImportExternalMemoryExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5925,24 +5983,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_bindless_images_import_external_memory_exp_params_t params = {
         &hContext,      &hDevice,         &size,
         &memHandleType, &pInteropMemDesc, &phInteropMem};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
         "urBindlessImagesImportExternalMemoryExp", &params);
 
-    context.logger.info("---> urBindlessImagesImportExternalMemoryExp");
+    getContext()->logger.info("---> urBindlessImagesImportExternalMemoryExp");
 
     ur_result_t result = pfnImportExternalMemoryExp(
         hContext, hDevice, size, memHandleType, pInteropMemDesc, phInteropMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
-                       "urBindlessImagesImportExternalMemoryExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
+        "urBindlessImagesImportExternalMemoryExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5961,7 +6019,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     auto pfnMapExternalArrayExp =
-        context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
 
     if (nullptr == pfnMapExternalArrayExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -5970,23 +6028,23 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_bindless_images_map_external_array_exp_params_t params = {
         &hContext,   &hDevice,     &pImageFormat,
         &pImageDesc, &hInteropMem, &phImageMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
-                             "urBindlessImagesMapExternalArrayExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
+        "urBindlessImagesMapExternalArrayExp", &params);
 
-    context.logger.info("---> urBindlessImagesMapExternalArrayExp");
+    getContext()->logger.info("---> urBindlessImagesMapExternalArrayExp");
 
     ur_result_t result = pfnMapExternalArrayExp(
         hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
-                       "urBindlessImagesMapExternalArrayExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
+                             "urBindlessImagesMapExternalArrayExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6000,7 +6058,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         hInteropMem ///< [in][release] handle of interop memory to be freed
 ) {
     auto pfnReleaseInteropExp =
-        context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
 
     if (nullptr == pfnReleaseInteropExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6008,22 +6066,22 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
     ur_bindless_images_release_interop_exp_params_t params = {
         &hContext, &hDevice, &hInteropMem};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
-                             "urBindlessImagesReleaseInteropExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
+        "urBindlessImagesReleaseInteropExp", &params);
 
-    context.logger.info("---> urBindlessImagesReleaseInteropExp");
+    getContext()->logger.info("---> urBindlessImagesReleaseInteropExp");
 
     ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
-                       "urBindlessImagesReleaseInteropExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
+                             "urBindlessImagesReleaseInteropExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6041,7 +6099,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreExp =
-        context.urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
 
     if (nullptr == pfnImportExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6050,17 +6109,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_bindless_images_import_external_semaphore_exp_params_t params = {
         &hContext, &hDevice, &semHandleType, &pInteropSemaphoreDesc,
         &phInteropSemaphore};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesImportExternalSemaphoreExp", &params);
 
-    context.logger.info("---> urBindlessImagesImportExternalSemaphoreExp");
+    getContext()->logger.info(
+        "---> urBindlessImagesImportExternalSemaphoreExp");
 
     ur_result_t result = pfnImportExternalSemaphoreExp(
         hContext, hDevice, semHandleType, pInteropSemaphoreDesc,
         phInteropSemaphore);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesImportExternalSemaphoreExp", &params, &result,
         instance);
@@ -6069,7 +6129,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6083,7 +6143,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 ) {
     auto pfnDestroyExternalSemaphoreExp =
-        context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
 
     if (nullptr == pfnDestroyExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6091,16 +6152,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
     ur_bindless_images_destroy_external_semaphore_exp_params_t params = {
         &hContext, &hDevice, &hInteropSemaphore};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesDestroyExternalSemaphoreExp", &params);
 
-    context.logger.info("---> urBindlessImagesDestroyExternalSemaphoreExp");
+    getContext()->logger.info(
+        "---> urBindlessImagesDestroyExternalSemaphoreExp");
 
     ur_result_t result =
         pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesDestroyExternalSemaphoreExp", &params, &result,
         instance);
@@ -6109,7 +6171,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6138,7 +6200,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
                 ///< command instance.
 ) {
     auto pfnWaitExternalSemaphoreExp =
-        context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
+        getContext()->urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
 
     if (nullptr == pfnWaitExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6148,25 +6210,25 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         &hQueue,    &hSemaphore,          &hasWaitValue,
         &waitValue, &numEventsInWaitList, &phEventWaitList,
         &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesWaitExternalSemaphoreExp", &params);
 
-    context.logger.info("---> urBindlessImagesWaitExternalSemaphoreExp");
+    getContext()->logger.info("---> urBindlessImagesWaitExternalSemaphoreExp");
 
     ur_result_t result = pfnWaitExternalSemaphoreExp(
         hQueue, hSemaphore, hasWaitValue, waitValue, numEventsInWaitList,
         phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
-                       "urBindlessImagesWaitExternalSemaphoreExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
+        "urBindlessImagesWaitExternalSemaphoreExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6195,7 +6257,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
                 ///< command instance.
 ) {
     auto pfnSignalExternalSemaphoreExp =
-        context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
 
     if (nullptr == pfnSignalExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6205,17 +6268,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         &hQueue,      &hSemaphore,          &hasSignalValue,
         &signalValue, &numEventsInWaitList, &phEventWaitList,
         &phEvent};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesSignalExternalSemaphoreExp", &params);
 
-    context.logger.info("---> urBindlessImagesSignalExternalSemaphoreExp");
+    getContext()->logger.info(
+        "---> urBindlessImagesSignalExternalSemaphoreExp");
 
     ur_result_t result = pfnSignalExternalSemaphoreExp(
         hQueue, hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
         phEventWaitList, phEvent);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesSignalExternalSemaphoreExp", &params, &result,
         instance);
@@ -6224,7 +6288,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6239,7 +6303,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_exp_command_buffer_handle_t
         *phCommandBuffer ///< [out] Pointer to command-Buffer handle.
 ) {
-    auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
+    auto pfnCreateExp = getContext()->urDdiTable.CommandBufferExp.pfnCreateExp;
 
     if (nullptr == pfnCreateExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6248,21 +6312,22 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_command_buffer_create_exp_params_t params = {
         &hContext, &hDevice, &pCommandBufferDesc, &phCommandBuffer};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
-                             "urCommandBufferCreateExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
+                                   "urCommandBufferCreateExp", &params);
 
-    context.logger.info("---> urCommandBufferCreateExp");
+    getContext()->logger.info("---> urCommandBufferCreateExp");
 
     ur_result_t result =
         pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
-                       "urCommandBufferCreateExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
+                             "urCommandBufferCreateExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6273,7 +6338,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
 ) {
-    auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
+    auto pfnRetainExp = getContext()->urDdiTable.CommandBufferExp.pfnRetainExp;
 
     if (nullptr == pfnRetainExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6281,20 +6346,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 
     ur_command_buffer_retain_exp_params_t params = {&hCommandBuffer};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
-                             "urCommandBufferRetainExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
+                                   "urCommandBufferRetainExp", &params);
 
-    context.logger.info("---> urCommandBufferRetainExp");
+    getContext()->logger.info("---> urCommandBufferRetainExp");
 
     ur_result_t result = pfnRetainExp(hCommandBuffer);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
-                       "urCommandBufferRetainExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
+                             "urCommandBufferRetainExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6305,7 +6371,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer ///< [in][release] Handle of the command-buffer object.
 ) {
-    auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
+    auto pfnReleaseExp =
+        getContext()->urDdiTable.CommandBufferExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6313,20 +6380,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
 
     ur_command_buffer_release_exp_params_t params = {&hCommandBuffer};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
-                             "urCommandBufferReleaseExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
+                                   "urCommandBufferReleaseExp", &params);
 
-    context.logger.info("---> urCommandBufferReleaseExp");
+    getContext()->logger.info("---> urCommandBufferReleaseExp");
 
     ur_result_t result = pfnReleaseExp(hCommandBuffer);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
-                       "urCommandBufferReleaseExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
+                             "urCommandBufferReleaseExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6337,7 +6405,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
-    auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
+    auto pfnFinalizeExp =
+        getContext()->urDdiTable.CommandBufferExp.pfnFinalizeExp;
 
     if (nullptr == pfnFinalizeExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6345,21 +6414,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 
     ur_command_buffer_finalize_exp_params_t params = {&hCommandBuffer};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
-                             "urCommandBufferFinalizeExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
+                                   "urCommandBufferFinalizeExp", &params);
 
-    context.logger.info("---> urCommandBufferFinalizeExp");
+    getContext()->logger.info("---> urCommandBufferFinalizeExp");
 
     ur_result_t result = pfnFinalizeExp(hCommandBuffer);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
-                       "urCommandBufferFinalizeExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
+                             "urCommandBufferFinalizeExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6388,7 +6457,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *phCommand ///< [out][optional] Handle to this command.
 ) {
     auto pfnAppendKernelLaunchExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
 
     if (nullptr == pfnAppendKernelLaunchExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6405,25 +6474,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         &pSyncPointWaitList,
         &pSyncPoint,
         &phCommand};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP,
         "urCommandBufferAppendKernelLaunchExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendKernelLaunchExp");
+    getContext()->logger.info("---> urCommandBufferAppendKernelLaunchExp");
 
     ur_result_t result = pfnAppendKernelLaunchExp(
         hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint,
         phCommand);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP,
-                       "urCommandBufferAppendKernelLaunchExp", &params, &result,
-                       instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP,
+        "urCommandBufferAppendKernelLaunchExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6445,7 +6514,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendUSMMemcpyExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
 
     if (nullptr == pfnAppendUSMMemcpyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6454,24 +6523,24 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_command_buffer_append_usm_memcpy_exp_params_t params = {
         &hCommandBuffer,     &pDst,      &pSrc, &size, &numSyncPointsInWaitList,
         &pSyncPointWaitList, &pSyncPoint};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
-                             "urCommandBufferAppendUSMMemcpyExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
+        "urCommandBufferAppendUSMMemcpyExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendUSMMemcpyExp");
+    getContext()->logger.info("---> urCommandBufferAppendUSMMemcpyExp");
 
     ur_result_t result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
                                                numSyncPointsInWaitList,
                                                pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
-                       "urCommandBufferAppendUSMMemcpyExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
+                             "urCommandBufferAppendUSMMemcpyExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6495,7 +6564,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
     auto pfnAppendUSMFillExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
 
     if (nullptr == pfnAppendUSMFillExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6505,24 +6574,24 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         &hCommandBuffer,     &pMemory,   &pPattern,
         &patternSize,        &size,      &numSyncPointsInWaitList,
         &pSyncPointWaitList, &pSyncPoint};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
-                             "urCommandBufferAppendUSMFillExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
+        "urCommandBufferAppendUSMFillExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendUSMFillExp");
+    getContext()->logger.info("---> urCommandBufferAppendUSMFillExp");
 
     ur_result_t result = pfnAppendUSMFillExp(
         hCommandBuffer, pMemory, pPattern, patternSize, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
-                       "urCommandBufferAppendUSMFillExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
+                             "urCommandBufferAppendUSMFillExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6546,7 +6615,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferCopyExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
 
     if (nullptr == pfnAppendMemBufferCopyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6562,25 +6631,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
         "urCommandBufferAppendMemBufferCopyExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferCopyExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferCopyExp");
 
     ur_result_t result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
-                       "urCommandBufferAppendMemBufferCopyExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
+        "urCommandBufferAppendMemBufferCopyExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6604,7 +6673,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferWriteExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
 
     if (nullptr == pfnAppendMemBufferWriteExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6619,25 +6688,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
         "urCommandBufferAppendMemBufferWriteExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferWriteExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferWriteExp");
 
     ur_result_t result = pfnAppendMemBufferWriteExp(
         hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
-                       "urCommandBufferAppendMemBufferWriteExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
+        "urCommandBufferAppendMemBufferWriteExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6660,7 +6729,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferReadExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
 
     if (nullptr == pfnAppendMemBufferReadExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6675,25 +6744,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
         "urCommandBufferAppendMemBufferReadExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferReadExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferReadExp");
 
     ur_result_t result = pfnAppendMemBufferReadExp(
         hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
-                       "urCommandBufferAppendMemBufferReadExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
+        "urCommandBufferAppendMemBufferReadExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6724,7 +6793,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferCopyRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
 
     if (nullptr == pfnAppendMemBufferCopyRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6744,18 +6813,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
         "urCommandBufferAppendMemBufferCopyRectExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferCopyRectExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferCopyRectExp");
 
     ur_result_t result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
         "urCommandBufferAppendMemBufferCopyRectExp", &params, &result,
         instance);
@@ -6764,7 +6833,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6801,7 +6870,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferWriteRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
+        getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
 
     if (nullptr == pfnAppendMemBufferWriteRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6821,18 +6891,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
         "urCommandBufferAppendMemBufferWriteRectExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferWriteRectExp");
+    getContext()->logger.info(
+        "---> urCommandBufferAppendMemBufferWriteRectExp");
 
     ur_result_t result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
         "urCommandBufferAppendMemBufferWriteRectExp", &params, &result,
         instance);
@@ -6841,7 +6912,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6876,7 +6947,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferReadRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
 
     if (nullptr == pfnAppendMemBufferReadRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6896,18 +6967,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
         "urCommandBufferAppendMemBufferReadRectExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferReadRectExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferReadRectExp");
 
     ur_result_t result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
         "urCommandBufferAppendMemBufferReadRectExp", &params, &result,
         instance);
@@ -6916,7 +6987,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6941,7 +7012,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
     auto pfnAppendMemBufferFillExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
 
     if (nullptr == pfnAppendMemBufferFillExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -6957,25 +7028,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
         "urCommandBufferAppendMemBufferFillExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendMemBufferFillExp");
+    getContext()->logger.info("---> urCommandBufferAppendMemBufferFillExp");
 
     ur_result_t result = pfnAppendMemBufferFillExp(
         hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
-                       "urCommandBufferAppendMemBufferFillExp", &params,
-                       &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
+        "urCommandBufferAppendMemBufferFillExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6997,7 +7068,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
     auto pfnAppendUSMPrefetchExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
 
     if (nullptr == pfnAppendUSMPrefetchExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7011,24 +7082,24 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
-                             "urCommandBufferAppendUSMPrefetchExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
+        "urCommandBufferAppendUSMPrefetchExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendUSMPrefetchExp");
+    getContext()->logger.info("---> urCommandBufferAppendUSMPrefetchExp");
 
     ur_result_t result = pfnAppendUSMPrefetchExp(
         hCommandBuffer, pMemory, size, flags, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
-                       "urCommandBufferAppendUSMPrefetchExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
+                             "urCommandBufferAppendUSMPrefetchExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7050,7 +7121,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
     auto pfnAppendUSMAdviseExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
 
     if (nullptr == pfnAppendUSMAdviseExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7064,24 +7135,24 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
         &pSyncPoint};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
-                             "urCommandBufferAppendUSMAdviseExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
+        "urCommandBufferAppendUSMAdviseExp", &params);
 
-    context.logger.info("---> urCommandBufferAppendUSMAdviseExp");
+    getContext()->logger.info("---> urCommandBufferAppendUSMAdviseExp");
 
     ur_result_t result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size,
                                                advice, numSyncPointsInWaitList,
                                                pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
-                       "urCommandBufferAppendUSMAdviseExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
+                             "urCommandBufferAppendUSMAdviseExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7102,7 +7173,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command-buffer execution instance.
 ) {
-    auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
+    auto pfnEnqueueExp =
+        getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
 
     if (nullptr == pfnEnqueueExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7112,21 +7184,22 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         &hCommandBuffer, &hQueue, &numEventsInWaitList, &phEventWaitList,
         &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                             "urCommandBufferEnqueueExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
+                                   "urCommandBufferEnqueueExp", &params);
 
-    context.logger.info("---> urCommandBufferEnqueueExp");
+    getContext()->logger.info("---> urCommandBufferEnqueueExp");
 
     ur_result_t result = pfnEnqueueExp(
         hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                       "urCommandBufferEnqueueExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
+                             "urCommandBufferEnqueueExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7138,29 +7211,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
         hCommand ///< [in][retain] Handle of the command-buffer command.
 ) {
     auto pfnRetainCommandExp =
-        context.urDdiTable.CommandBufferExp.pfnRetainCommandExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnRetainCommandExp;
 
     if (nullptr == pfnRetainCommandExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_command_buffer_retain_command_exp_params_t params = {&hCommand};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
-                             "urCommandBufferRetainCommandExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
+        "urCommandBufferRetainCommandExp", &params);
 
-    context.logger.info("---> urCommandBufferRetainCommandExp");
+    getContext()->logger.info("---> urCommandBufferRetainCommandExp");
 
     ur_result_t result = pfnRetainCommandExp(hCommand);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
-                       "urCommandBufferRetainCommandExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
+                             "urCommandBufferRetainCommandExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7172,29 +7245,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
         hCommand ///< [in][release] Handle of the command-buffer command.
 ) {
     auto pfnReleaseCommandExp =
-        context.urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
 
     if (nullptr == pfnReleaseCommandExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_command_buffer_release_command_exp_params_t params = {&hCommand};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
-                             "urCommandBufferReleaseCommandExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
+        "urCommandBufferReleaseCommandExp", &params);
 
-    context.logger.info("---> urCommandBufferReleaseCommandExp");
+    getContext()->logger.info("---> urCommandBufferReleaseCommandExp");
 
     ur_result_t result = pfnReleaseCommandExp(hCommand);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
-                       "urCommandBufferReleaseCommandExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
+                             "urCommandBufferReleaseCommandExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7208,7 +7281,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
 ) {
     auto pfnUpdateKernelLaunchExp =
-        context.urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
 
     if (nullptr == pfnUpdateKernelLaunchExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7216,23 +7289,23 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
     ur_command_buffer_update_kernel_launch_exp_params_t params = {
         &hCommand, &pUpdateKernelLaunch};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
         "urCommandBufferUpdateKernelLaunchExp", &params);
 
-    context.logger.info("---> urCommandBufferUpdateKernelLaunchExp");
+    getContext()->logger.info("---> urCommandBufferUpdateKernelLaunchExp");
 
     ur_result_t result =
         pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
-                       "urCommandBufferUpdateKernelLaunchExp", &params, &result,
-                       instance);
+    getContext()->notify_end(
+        UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
+        "urCommandBufferUpdateKernelLaunchExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7252,7 +7325,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     size_t *
         pPropSizeRet ///< [out][optional] bytes returned in command-buffer property
 ) {
-    auto pfnGetInfoExp = context.urDdiTable.CommandBufferExp.pfnGetInfoExp;
+    auto pfnGetInfoExp =
+        getContext()->urDdiTable.CommandBufferExp.pfnGetInfoExp;
 
     if (nullptr == pfnGetInfoExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7261,21 +7335,22 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     ur_command_buffer_get_info_exp_params_t params = {
         &hCommandBuffer, &propName, &propSize, &pPropValue, &pPropSizeRet};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
-                             "urCommandBufferGetInfoExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
+                                   "urCommandBufferGetInfoExp", &params);
 
-    context.logger.info("---> urCommandBufferGetInfoExp");
+    getContext()->logger.info("---> urCommandBufferGetInfoExp");
 
     ur_result_t result = pfnGetInfoExp(hCommandBuffer, propName, propSize,
                                        pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
-                       "urCommandBufferGetInfoExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
+                             "urCommandBufferGetInfoExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7296,7 +7371,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
         pPropSizeRet ///< [out][optional] bytes returned in command-buffer command property
 ) {
     auto pfnCommandGetInfoExp =
-        context.urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
+        getContext()->urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
 
     if (nullptr == pfnCommandGetInfoExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7304,23 +7379,23 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
 
     ur_command_buffer_command_get_info_exp_params_t params = {
         &hCommand, &propName, &propSize, &pPropValue, &pPropSizeRet};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
-                             "urCommandBufferCommandGetInfoExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
+        "urCommandBufferCommandGetInfoExp", &params);
 
-    context.logger.info("---> urCommandBufferCommandGetInfoExp");
+    getContext()->logger.info("---> urCommandBufferCommandGetInfoExp");
 
     ur_result_t result = pfnCommandGetInfoExp(hCommand, propName, propSize,
                                               pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
-                       "urCommandBufferCommandGetInfoExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
+                             "urCommandBufferCommandGetInfoExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7357,7 +7432,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
                 ///< kernel execution instance.
 ) {
     auto pfnCooperativeKernelLaunchExp =
-        context.urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
+        getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
 
     if (nullptr == pfnCooperativeKernelLaunchExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7373,24 +7448,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         &numEventsInWaitList,
         &phEventWaitList,
         &phEvent};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
-                             "urEnqueueCooperativeKernelLaunchExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
+        "urEnqueueCooperativeKernelLaunchExp", &params);
 
-    context.logger.info("---> urEnqueueCooperativeKernelLaunchExp");
+    getContext()->logger.info("---> urEnqueueCooperativeKernelLaunchExp");
 
     ur_result_t result = pfnCooperativeKernelLaunchExp(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
-                       "urEnqueueCooperativeKernelLaunchExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
+                             "urEnqueueCooperativeKernelLaunchExp", &params,
+                             &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7408,7 +7483,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     uint32_t *pGroupCountRet ///< [out] pointer to maximum number of groups
 ) {
     auto pfnSuggestMaxCooperativeGroupCountExp =
-        context.urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
+        getContext()
+            ->urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
 
     if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7416,16 +7492,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
     ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
         &hKernel, &localWorkSize, &dynamicSharedMemorySize, &pGroupCountRet};
-    uint64_t instance = context.notify_begin(
+    uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         "urKernelSuggestMaxCooperativeGroupCountExp", &params);
 
-    context.logger.info("---> urKernelSuggestMaxCooperativeGroupCountExp");
+    getContext()->logger.info(
+        "---> urKernelSuggestMaxCooperativeGroupCountExp");
 
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
         hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
 
-    context.notify_end(
+    getContext()->notify_end(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         "urKernelSuggestMaxCooperativeGroupCountExp", &params, &result,
         instance);
@@ -7434,7 +7511,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7463,7 +7540,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ///< reports the timestamp recorded when the command is executed on the device.
 ) {
     auto pfnTimestampRecordingExp =
-        context.urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+        getContext()->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
 
     if (nullptr == pfnTimestampRecordingExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7472,22 +7549,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_enqueue_timestamp_recording_exp_params_t params = {
         &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
-                             "urEnqueueTimestampRecordingExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                                   "urEnqueueTimestampRecordingExp", &params);
 
-    context.logger.info("---> urEnqueueTimestampRecordingExp");
+    getContext()->logger.info("---> urEnqueueTimestampRecordingExp");
 
     ur_result_t result = pfnTimestampRecordingExp(
         hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
-                       "urEnqueueTimestampRecordingExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                             "urEnqueueTimestampRecordingExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7523,7 +7600,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
                 ///< kernel execution instance.
 ) {
     auto pfnKernelLaunchCustomExp =
-        context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+        getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
 
     if (nullptr == pfnKernelLaunchCustomExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7536,24 +7613,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         &launchPropList,  &numEventsInWaitList,
         &phEventWaitList, &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
-                             "urEnqueueKernelLaunchCustomExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                                   "urEnqueueKernelLaunchCustomExp", &params);
 
-    context.logger.info("---> urEnqueueKernelLaunchCustomExp");
+    getContext()->logger.info("---> urEnqueueKernelLaunchCustomExp");
 
     ur_result_t result = pfnKernelLaunchCustomExp(
         hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
         numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
         phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
-                       "urEnqueueKernelLaunchCustomExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                             "urEnqueueKernelLaunchCustomExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7568,7 +7645,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
 ) {
-    auto pfnBuildExp = context.urDdiTable.ProgramExp.pfnBuildExp;
+    auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
 
     if (nullptr == pfnBuildExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7576,20 +7653,20 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
     ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
                                             &pOptions};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
-                                             "urProgramBuildExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp", &params);
 
-    context.logger.info("---> urProgramBuildExp");
+    getContext()->logger.info("---> urProgramBuildExp");
 
     ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7605,7 +7682,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
 ) {
-    auto pfnCompileExp = context.urDdiTable.ProgramExp.pfnCompileExp;
+    auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
 
     if (nullptr == pfnCompileExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7613,21 +7690,21 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
 
     ur_program_compile_exp_params_t params = {&hProgram, &numDevices,
                                               &phDevices, &pOptions};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_COMPILE_EXP,
-                                             "urProgramCompileExp", &params);
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp", &params);
 
-    context.logger.info("---> urProgramCompileExp");
+    getContext()->logger.info("---> urProgramCompileExp");
 
     ur_result_t result =
         pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP,
+                             "urProgramCompileExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7650,7 +7727,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     if (nullptr != phProgram) {
         *phProgram = nullptr;
     }
-    auto pfnLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
+    auto pfnLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
 
     if (nullptr == pfnLinkExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7659,21 +7736,21 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
                                            &count,    &phPrograms, &pOptions,
                                            &phProgram};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
-                                             "urProgramLinkExp", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
+                                                   "urProgramLinkExp", &params);
 
-    context.logger.info("---> urProgramLinkExp");
+    getContext()->logger.info("---> urProgramLinkExp");
 
     ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
                                     phPrograms, pOptions, phProgram);
 
-    context.notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
-                       &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7685,27 +7762,27 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     void *pMem,                   ///< [in] pointer to host memory object
     size_t size ///< [in] size in bytes of the host memory object to be imported
 ) {
-    auto pfnImportExp = context.urDdiTable.USMExp.pfnImportExp;
+    auto pfnImportExp = getContext()->urDdiTable.USMExp.pfnImportExp;
 
     if (nullptr == pfnImportExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
-                                             "urUSMImportExp", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
+                                                   "urUSMImportExp", &params);
 
-    context.logger.info("---> urUSMImportExp");
+    getContext()->logger.info("---> urUSMImportExp");
 
     ur_result_t result = pfnImportExp(hContext, pMem, size);
 
-    context.notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_IMPORT_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7716,27 +7793,27 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to host memory object
 ) {
-    auto pfnReleaseExp = context.urDdiTable.USMExp.pfnReleaseExp;
+    auto pfnReleaseExp = getContext()->urDdiTable.USMExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     ur_usm_release_exp_params_t params = {&hContext, &pMem};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
-                                             "urUSMReleaseExp", &params);
+    uint64_t instance = getContext()->notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
+                                                   "urUSMReleaseExp", &params);
 
-    context.logger.info("---> urUSMReleaseExp");
+    getContext()->logger.info("---> urUSMReleaseExp");
 
     ur_result_t result = pfnReleaseExp(hContext, pMem);
 
-    context.notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp", &params,
-                       &result, instance);
+    getContext()->notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp",
+                             &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_RELEASE_EXP,
                                     &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7749,7 +7826,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t peerDevice ///< [in] handle of the peer device object
 ) {
     auto pfnEnablePeerAccessExp =
-        context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+        getContext()->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
 
     if (nullptr == pfnEnablePeerAccessExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7758,21 +7835,21 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
                                                          &peerDevice};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
-                             "urUsmP2PEnablePeerAccessExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
+                                   "urUsmP2PEnablePeerAccessExp", &params);
 
-    context.logger.info("---> urUsmP2PEnablePeerAccessExp");
+    getContext()->logger.info("---> urUsmP2PEnablePeerAccessExp");
 
     ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
 
-    context.notify_end(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
-                       "urUsmP2PEnablePeerAccessExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
+                             "urUsmP2PEnablePeerAccessExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7785,7 +7862,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t peerDevice ///< [in] handle of the peer device object
 ) {
     auto pfnDisablePeerAccessExp =
-        context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+        getContext()->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
 
     if (nullptr == pfnDisablePeerAccessExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7794,21 +7871,21 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
                                                           &peerDevice};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
-                             "urUsmP2PDisablePeerAccessExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
+                                   "urUsmP2PDisablePeerAccessExp", &params);
 
-    context.logger.info("---> urUsmP2PDisablePeerAccessExp");
+    getContext()->logger.info("---> urUsmP2PDisablePeerAccessExp");
 
     ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
 
-    context.notify_end(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
-                       "urUsmP2PDisablePeerAccessExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
+                             "urUsmP2PDisablePeerAccessExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7832,7 +7909,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnPeerAccessGetInfoExp =
-        context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+        getContext()->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
 
     if (nullptr == pfnPeerAccessGetInfoExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7842,23 +7919,23 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         &commandDevice, &peerDevice, &propName,
         &propSize,      &pPropValue, &pPropSizeRet};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
-                             "urUsmP2PPeerAccessGetInfoExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
+                                   "urUsmP2PPeerAccessGetInfoExp", &params);
 
-    context.logger.info("---> urUsmP2PPeerAccessGetInfoExp");
+    getContext()->logger.info("---> urUsmP2PPeerAccessGetInfoExp");
 
     ur_result_t result =
         pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName, propSize,
                                 pPropValue, pPropSizeRet);
 
-    context.notify_end(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
-                       "urUsmP2PPeerAccessGetInfoExp", &params, &result,
-                       instance);
+    getContext()->notify_end(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
+                             "urUsmP2PPeerAccessGetInfoExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7889,7 +7966,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< been enqueued in nativeEnqueueFunc.
 ) {
     auto pfnNativeCommandExp =
-        context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
+        getContext()->urDdiTable.EnqueueExp.pfnNativeCommandExp;
 
     if (nullptr == pfnNativeCommandExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -7905,22 +7982,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
                                                      &phEventWaitList,
                                                      &phEvent};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
-                             "urEnqueueNativeCommandExp", &params);
+        getContext()->notify_begin(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                                   "urEnqueueNativeCommandExp", &params);
 
-    context.logger.info("---> urEnqueueNativeCommandExp");
+    getContext()->logger.info("---> urEnqueueNativeCommandExp");
 
     ur_result_t result = pfnNativeCommandExp(
         hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
         pProperties, numEventsInWaitList, phEventWaitList, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
-                       "urEnqueueNativeCommandExp", &params, &result, instance);
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
+                             "urEnqueueNativeCommandExp", &params, &result,
+                             instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
-    context.logger.info("({}) -> {};\n", args_str.str(), result);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -7938,15 +8016,15 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Global;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Global;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -7983,15 +8061,16 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     ur_bindless_images_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.BindlessImagesExp;
+    auto &dditable =
+        ur_tracing_layer::getContext()->urDdiTable.BindlessImagesExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8085,15 +8164,16 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     ur_command_buffer_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.CommandBufferExp;
+    auto &dditable =
+        ur_tracing_layer::getContext()->urDdiTable.CommandBufferExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8200,15 +8280,15 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_context_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Context;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Context;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8253,15 +8333,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Enqueue;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Enqueue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8366,15 +8446,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     ur_enqueue_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.EnqueueExp;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.EnqueueExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8413,15 +8493,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_event_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Event;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Event;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8468,15 +8548,15 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Kernel;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Kernel;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8551,15 +8631,15 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
     ur_kernel_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.KernelExp;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.KernelExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8586,15 +8666,15 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Mem;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Mem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8650,15 +8730,15 @@ __urdlllocal ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     ur_physical_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.PhysicalMem;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.PhysicalMem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8689,15 +8769,15 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_platform_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Platform;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Platform;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8739,15 +8819,15 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_program_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Program;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Program;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8818,15 +8898,15 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     ur_program_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.ProgramExp;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.ProgramExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8857,15 +8937,15 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Queue;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Queue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8912,15 +8992,15 @@ __urdlllocal ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_sampler_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Sampler;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Sampler;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -8961,15 +9041,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.USM;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.USM;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -9018,15 +9098,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     ur_usm_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.USMExp;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.USMExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -9057,15 +9137,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
     ur_usm_p2p_exp_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.UsmP2PExp;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.UsmP2PExp;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -9099,15 +9179,15 @@ __urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
     ur_virtual_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.VirtualMem;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.VirtualMem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -9151,15 +9231,15 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_device_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_tracing_layer::context.urDdiTable.Device;
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.Device;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -9211,7 +9291,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     // program launch and the call to `urLoaderInit`
     logger = logger::create_logger("tracing", true, true);
 
-    ur_tracing_layer::context.codelocData = codelocData;
+    ur_tracing_layer::getContext()->codelocData = codelocData;
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetGlobalProcAddrTable(
