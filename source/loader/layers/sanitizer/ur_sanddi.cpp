@@ -411,6 +411,19 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 
     std::shared_ptr<MemBuffer> pMemBuffer =
         std::make_shared<MemBuffer>(hContext, size, hostPtrOrNull);
+
+    if (Host && (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
+        std::shared_ptr<ContextInfo> CtxInfo =
+            context.interceptor->getContextInfo(hContext);
+        for (const auto &hDevice : CtxInfo->DeviceList) {
+            ManagedQueue InternalQueue(hContext, hDevice);
+            char *Handle;
+            UR_CALL(pMemBuffer->getHandle(hDevice, Handle));
+            UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy(
+                InternalQueue, true, Handle, Host, size, 0, nullptr, nullptr));
+        }
+    }
+
     ur_result_t result = context.interceptor->insertMemBuffer(pMemBuffer);
     *phBuffer = ur_cast<ur_mem_handle_t>(pMemBuffer.get());
 
