@@ -1,5 +1,50 @@
 // REQUIRES: linux
-// At first exclude known symbols which needs to be fixed and then check that cxx11 is not matched.
-// RUN: grep -v -f %S/cxx11_abi_exclude_list.txt %S/sycl_symbols_linux.dump | FileCheck %s
-// CHECK-NOT: cxx11
+// RUN: FileCheck %s --input-file %S/sycl_symbols_linux.dump
 
+// This is the list of cases which need to be fixed.
+// Unfortunately --implicit-check-not option is not working as expected with CHECK-DAG, so have to surround each case with CHECK-NOT directive.
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext5intel12experimental15online_compilerILNS3_15source_languageE0EE7compileIJSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISE_EEEEES8_IhSaIhEERKSE_DpRKT_
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext5intel12experimental15online_compilerILNS3_15source_languageE1EE7compileIJSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISE_EEEEES8_IhSaIhEERKSE_DpRKT_
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext5intel12experimental9pipe_base13get_pipe_nameB5cxx11EPKv
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext6oneapi12experimental6detail17build_from_sourceERNS0_13kernel_bundleILNS0_12bundle_stateE3EEERKSt6vectorINS0_6deviceESaISA_EERKS9_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISK_EEPSK_SO_
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext6oneapi12experimental6detail30make_kernel_bundle_from_sourceERKNS0_7contextENS3_15source_languageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorISt4pairISE_SE_ESaISJ_EE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext6oneapi12experimental6detail30make_kernel_bundle_from_sourceERKNS0_7contextENS3_15source_languageERKSt6vectorISt4byteSaISA_EES9_ISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESL_ESaISM_EE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext6oneapi15filter_selectorC1ERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V13ext6oneapi15filter_selectorC2ERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16ONEAPI15filter_selectorC1ERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16ONEAPI15filter_selectorC2ERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16detail19kernel_bundle_plain21ext_oneapi_get_kernelERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16detail19kernel_bundle_plain21ext_oneapi_has_kernelERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16detail6OSUtil10getDirNameB5cxx11EPKc
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16detail6OSUtil16getCurrentDSODirB5cxx11Ev
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16device32ext_oneapi_supports_cl_c_featureERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16opencl13has_extensionERKNS0_6deviceERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZN4sycl3_V16opencl13has_extensionERKNS0_8platformERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZNK4sycl3_V13ext6oneapi12experimental6detail24modifiable_command_graph11print_graphENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZNK4sycl3_V16device13has_extensionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZNK4sycl3_V16device21ext_oneapi_cl_profileB5cxx11Ev
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZNK4sycl3_V16device32ext_oneapi_supports_cl_extensionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPNS0_3ext6oneapi12experimental10cl_versionE
+// CHECK-NOT: cxx11
+// CHECK-DAG:_ZNK4sycl3_V18platform13has_extensionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+// CHECK-NOT: cxx11
