@@ -273,8 +273,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-fallback-complex-fp64", "libm-fp64"},
       {"libsycl-fallback-cmath", "libm-fp32"},
       {"libsycl-fallback-cmath-fp64", "libm-fp64"},
-      {"libsycl-fallback-imf", "libimf-fp32"},
       {"libsycl-fallback-gsort", "libgsort-fp32"},
+      {"libsycl-fallback-imf", "libimf-fp32"},
       {"libsycl-fallback-imf-fp64", "libimf-fp64"},
       {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
   const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
@@ -412,6 +412,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "fallback-cmath-fp64",
     "fallback-complex",
     "fallback-complex-fp64",
+    "fallback-gsort",
     "fallback-imf",
     "fallback-imf-fp64",
     "fallback-imf-bf16",
