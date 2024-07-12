@@ -76,30 +76,32 @@ those to learn to use the library.
 
 SYCLcompat adopts [semantic versioning](https://semver.org/)
 (`major.minor.patch`) in a manner which aligns with oneAPI releases. Each oneAPI
-product release has an associated SYCLcompat release. When breaking changes have
-been made to SYCLcompat's API since the last release, `major` is incremented,
-otherwise `minor` is incremented. Use of `patch` is described below.
+product release has an associated SYCLcompat release. Between oneAPI releases,
+there will be at most one `major` or `minor` bump. In other words, if a given
+oneAPI release has SYCLcompat version `1.0.0`, the next release will have either
+`1.1.0` or, if breaking changes have been made, `2.0.0`. This guarantee has
+implications for code merged to the `sycl` branch, described below.
 
 Between release cycles, ongoing updates to SYCLcompat (including possibly
-breaking changes) are merged into DPC++'s
-[`sycl`](https://github.com/intel/llvm/tree/sycl) branch. To enable projects
-pulling SYCLcompat from source to distinguish from the latest release version,
-the `patch` version in the `sycl` branch is incremented immediately following a
-oneAPI release.
-
-If important updates (e.g. bugfixes, breaking changes) are pushed to the `sycl`
-branch between oneAPI release cycles, `patch` will be incremented.
+breaking changes) are merged into DPC++ via PRs to the
+[`sycl`](https://github.com/intel/llvm/tree/sycl) branch. If a PR introduces the
+*first* breaking changes since the last release, that PR must bump to the next
+`major` version. Otherwise, if the PR introduces *new functionality* and neither
+the `major` nor `minor` have been bumped since the last release, it must bump to
+the next `minor` release. If a PR introduces important bugfixes to existing
+functionality, `patch` should be bumped, and there are no limits to how many
+`patch` bumps can occur between release cycles.
 
 ### Release Process
 
 Once all changes planned for a release have been merged, the release process is
 defined as:
 
-1. Assess whether API breaks have occurred since last oneAPI release.
-2. Bump to next `major` or `minor` accordingly.
-3. oneAPI release is delivered.
-4. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat_major.minor.0`.
-5. Increment the `patch` version in `sycl` branch to `1`.
+1. Check the `major.minor` version associated with the *previous* release.
+2. Confirm the version bump process outlined above has been followed.
+3. If no version bump has occurred since previous release, bump to next `minor`.
+4. oneAPI release is delivered.
+5. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat-major.minor.0`.
 
 ### Changelog
 
