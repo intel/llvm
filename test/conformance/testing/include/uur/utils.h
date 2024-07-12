@@ -195,7 +195,15 @@ inline std::string GetDeviceName(ur_device_handle_t device) {
     if (!device_uuid.empty()) {
         device_uuid += "____";
     }
-    return GTestSanitizeString(device_name + device_uuid);
+
+    size_t device_id = 0;
+    if (uur::DevicesEnvironment::instance) {
+        auto &devices = uur::DevicesEnvironment::instance->devices;
+        device_id =
+            std::find(devices.begin(), devices.end(), device) - devices.begin();
+    }
+    return GTestSanitizeString(device_name + "_" + std::to_string(device_id) +
+                               "_" + device_uuid);
 }
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {

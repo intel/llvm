@@ -22,7 +22,7 @@ function(add_usm_test name)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(usm-${name} PROPERTIES
         LABELS "usm"
-        ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\"")
+        ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\"")
     target_compile_definitions("usm_test-${name}" PRIVATE DEVICES_ENVIRONMENT)
 endfunction()
 

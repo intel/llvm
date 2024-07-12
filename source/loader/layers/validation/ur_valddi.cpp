@@ -79,7 +79,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRetain
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
 ) {
     auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
 
@@ -531,7 +531,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 /// @brief Intercept function for urDeviceRetain
 __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
-        hDevice ///< [in] handle of the device to get a reference of.
+        hDevice ///< [in][retain] handle of the device to get a reference of.
 ) {
     auto pfnRetain = context.urDdiTable.Device.pfnRetain;
 
@@ -827,7 +827,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 /// @brief Intercept function for urContextRetain
 __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
-        hContext ///< [in] handle of the context to get a reference of.
+        hContext ///< [in][retain] handle of the context to get a reference of.
 ) {
     auto pfnRetain = context.urDdiTable.Context.pfnRetain;
 
@@ -1199,7 +1199,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRetain
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t
+        hMem ///< [in][retain] handle of the memory object to get access
 ) {
     auto pfnRetain = context.urDdiTable.Mem.pfnRetain;
 
@@ -1608,7 +1609,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
 /// @brief Intercept function for urSamplerRetain
 __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to get access
+        hSampler ///< [in][retain] handle of the sampler object to get access
 ) {
     auto pfnRetain = context.urDdiTable.Sampler.pfnRetain;
 
@@ -2104,7 +2105,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRetain
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
 ) {
     auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
 
@@ -2581,7 +2582,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 /// @brief Intercept function for urPhysicalMemRetain
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+        hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
 ) {
     auto pfnRetain = context.urDdiTable.PhysicalMem.pfnRetain;
 
@@ -2849,6 +2850,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLink = context.urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnLink) {
@@ -2887,7 +2891,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRetain
 __urdlllocal ur_result_t UR_APICALL urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t
+        hProgram ///< [in][retain] handle for the Program to retain
 ) {
     auto pfnRetain = context.urDdiTable.Program.pfnRetain;
 
@@ -3549,7 +3554,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
 ) {
     auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
 
@@ -4071,7 +4076,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRetain
 __urdlllocal ur_result_t UR_APICALL urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t
+        hQueue ///< [in][retain] handle of the queue object to get access
 ) {
     auto pfnRetain = context.urDdiTable.Queue.pfnRetain;
 
@@ -4390,7 +4396,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRetain
 __urdlllocal ur_result_t UR_APICALL urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
 ) {
     auto pfnRetain = context.urDdiTable.Event.pfnRetain;
 
@@ -5979,10 +5985,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if ((patternSize & (patternSize - 1)) != 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
         if (size % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
@@ -6857,7 +6859,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnUnsampledImageHandleDestroyExp =
@@ -6873,10 +6875,6 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hImage) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -6903,7 +6901,7 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         hImage ///< [in][release] pointer to handle of image object to destroy
 ) {
     auto pfnSampledImageHandleDestroyExp =
@@ -6919,10 +6917,6 @@ urBindlessImagesSampledImageHandleDestroyExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hImage) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -6951,7 +6945,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] pointer to handle of image memory allocated
 ) {
     auto pfnImageAllocateExp =
@@ -6982,7 +6976,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7008,7 +7002,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
@@ -7023,10 +7017,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -7051,12 +7041,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
     auto pfnUnsampledImageCreateExp =
@@ -7075,10 +7065,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hImageMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == pImageFormat) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -7091,7 +7077,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7117,13 +7103,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
     auto pfnSampledImageCreateExp =
@@ -7139,10 +7125,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7162,7 +7144,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7254,7 +7236,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
@@ -7283,10 +7265,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageGetInfoExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
-    ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,    ///< [out][optional] returned query value
-    size_t *pPropSizeRet ///< [out][optional] returned query value size
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_native_handle_t
+        hImageMem,            ///< [in] handle to the image memory
+    ur_image_info_t propName, ///< [in] queried info name
+    void *pPropValue,         ///< [out][optional] returned query value
+    size_t *pPropSizeRet      ///< [out][optional] returned query value size
 ) {
     auto pfnImageGetInfoExp =
         context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
@@ -7296,7 +7280,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hImageMem) {
+        if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7309,8 +7293,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
         }
     }
 
-    ur_result_t result =
-        pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    ur_result_t result = pfnImageGetInfoExp(hContext, hImageMem, propName,
+                                            pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -7320,10 +7309,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] returning memory handle to the individual image
 ) {
     auto pfnMipmapGetLevelExp =
@@ -7339,10 +7328,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7372,7 +7357,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
@@ -7388,10 +7373,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         }
 
         if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -7479,7 +7460,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_mem_handle_t *
+    ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     auto pfnMapExternalArrayExp =
@@ -7514,7 +7495,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7853,7 +7834,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
 /// @brief Intercept function for urCommandBufferRetainExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
 ) {
     auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
 
@@ -8086,10 +8067,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         }
 
         if (patternSize > size) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if ((patternSize & (patternSize - 1)) != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -8745,7 +8722,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 /// @brief Intercept function for urCommandBufferRetainCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
 ) {
     auto pfnRetainCommandExp =
         context.urDdiTable.CommandBufferExp.pfnRetainCommandExp;
@@ -9285,6 +9262,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
     auto pfnLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
 
     if (nullptr == pfnLinkExp) {
@@ -9557,8 +9537,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< events that must be complete before the kernel execution.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
-        phEvent ///< [in,out] return an event object that identifies the work that has
-                ///< been enqueued in nativeEnqueueFunc.
+        phEvent ///< [out][optional] return an event object that identifies the work that has
+    ///< been enqueued in nativeEnqueueFunc.
 ) {
     auto pfnNativeCommandExp =
         context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
@@ -9573,10 +9553,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
         }
 
         if (NULL == pfnNativeEnqueue) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == phEvent) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
