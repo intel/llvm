@@ -744,7 +744,8 @@ struct VecTypeIsProhibitedForShuffleEmulation
 template <typename T>
 using EnableIfNativeShuffle =
     std::enable_if_t<detail::is_arithmetic<T>::value &&
-                         !VecTypeIsProhibitedForShuffleEmulation<T>::value,
+                         !VecTypeIsProhibitedForShuffleEmulation<T>::value &&
+                         !detail::is_marray_v<T>,
                      T>;
 
 template <typename T>
