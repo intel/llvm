@@ -448,14 +448,13 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
       urMemBufferPartition, ur::cast<ur_mem_handle_t>(ParentMemObj),
       UR_MEM_FLAG_READ_WRITE, UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
-    throw invalid_object_error(
-        "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment",
-        UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::invalid),
+                  "Specified offset of the sub-buffer being constructed is not "
+                  "a multiple of the memory base address alignment"),
+        Error);
 
-  if (Error != UR_RESULT_SUCCESS) {
-    Plugin->reportUrError(Error, "allocateMemSubBuffer()");
-  }
+  Plugin->checkUrResult(Error);
 
   return NewMem;
 }
@@ -737,8 +736,8 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
-    throw runtime_error("Not supported configuration of memcpy requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "Not supported configuration of memcpy requested");
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -825,8 +824,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     }
     // The sycl::handler uses a parallel_for kernel in the case of unusable
     // Range or Offset, not CG:Fill. So we should not be here.
-    throw runtime_error("Not supported configuration of fill requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of fill requested");
   } else {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
@@ -845,8 +844,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          std::vector<ur_event_handle_t> DepEvents,
                          ur_event_handle_t &OutEvent) {
   if (!Queue) {
-    throw runtime_error("Not supported configuration of map requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of map requested");
   }
 
   ur_map_flags_t Flags = 0;
@@ -891,8 +890,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 
   // Execution on host is not supported here.
   if (!Queue) {
-    throw runtime_error("Not supported configuration of unmap requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of unmap requested");
   }
   // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
@@ -919,8 +918,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   }
 
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
@@ -947,8 +947,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   }
 
   if (!Mem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1519,8 +1519,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
   ur_result_t Result = Plugin->call_nocheck(
@@ -1543,8 +1543,8 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
 
   if (!DstMem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem,
@@ -1585,8 +1585,8 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   }
   // The sycl::handler uses a parallel_for kernel in the case of unusable
   // Range or Offset, not CG:Fill. So we should not be here.
-  throw runtime_error("Not supported configuration of fill requested",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "Not supported configuration of fill requested");
 }
 
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(

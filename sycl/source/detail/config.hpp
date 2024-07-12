@@ -250,10 +250,9 @@ public:
     if (ValStr) {
       // Throw if the input string is empty.
       if (ValStr[0] == '\0')
-        throw invalid_parameter_error(
-            "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
-            "variable: value should not be null.",
-            UR_RESULT_ERROR_INVALID_VALUE);
+        throw exception(make_error_code(errc::invalid),
+                        "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
+                        "variable: value should not be null.");
 
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
@@ -311,17 +310,16 @@ public:
         try {
           Result = std::stoi(ValueStr);
         } catch (...) {
-          throw invalid_parameter_error(
-              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-              "variable: value should be a number",
-              UR_RESULT_ERROR_INVALID_VALUE);
+          throw exception(make_error_code(errc::invalid),
+                          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE "
+                          "environment variable: value should be a number");
         }
 
       if (Result < 1)
-        throw invalid_parameter_error(
+        throw exception(
+            make_error_code(errc::invalid),
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-            "variable: value should be larger than zero",
-            UR_RESULT_ERROR_INVALID_VALUE);
+            "variable: value should be larger than zero");
 
       return Result;
     }();
@@ -361,7 +359,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, UR_RESULT_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }
@@ -583,7 +581,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, UR_RESULT_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }

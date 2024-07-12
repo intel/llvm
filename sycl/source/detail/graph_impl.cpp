@@ -961,7 +961,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               static_cast<sycl::detail::CGExecKernel *>(
                   NodeImpl->MCommandGroup.get());
           auto OutEvent = CreateNewEvent();
-          ur_result_t Res = sycl::detail::enqueueImpKernel(
+          sycl::detail::enqueueImpKernel(
               Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
               CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
               // TODO: Pass accessor mem allocations
@@ -969,11 +969,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               // TODO: Extract from handler
               UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
               CG->MKernelUsesClusterLaunch);
-          if (Res != UR_RESULT_SUCCESS) {
-            throw sycl::exception(
-                sycl::make_error_code(sycl::errc::kernel),
-                "Error during emulated graph command group submission.");
-          }
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their

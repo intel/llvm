@@ -86,19 +86,18 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                  sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0],
                  nullptr);
 
-    if (!DeviceIds.empty()) {
-      std::shared_ptr<detail::platform_impl> Platform =
-          platform_impl::getPlatformFromUrDevice(DeviceIds[0], Plugin);
-      for (ur_device_handle_t Dev : DeviceIds) {
-        MDevices.emplace_back(createSyclObjFromImpl<device>(
-            Platform->getOrMakeDeviceImpl(Dev, Platform)));
-      }
-      MPlatform = Platform;
-    } else {
-      throw invalid_parameter_error(
-          "No devices in the provided device list and native context.",
-          UR_RESULT_ERROR_INVALID_VALUE);
+    if (DeviceIds.empty())
+      throw exception(
+          make_error_code(errc::invalid),
+          "No devices in the provided device list and native context.");
+
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromUrDevice(DeviceIds[0], Plugin);
+    for (ur_device_handle_t Dev : DeviceIds) {
+      MDevices.emplace_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Dev, Platform)));
     }
+    MPlatform = Platform;
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
@@ -512,7 +511,9 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
   using BuildState = KernelProgramCache::BuildState;
   BuildState NewState = BuildRes->waitUntilTransition();
   if (NewState == BuildState::BS_Failed)
-    throw compile_program_error(BuildRes->Error.Msg, BuildRes->Error.Code);
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::build), BuildRes->Error.Msg),
+        BuildRes->Error.Code);
 
   assert(NewState == BuildState::BS_Done);
   return BuildRes->Val;

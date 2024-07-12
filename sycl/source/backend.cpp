@@ -63,6 +63,8 @@ backend convertUrBackend(ur_platform_backend_t UrBackend) {
     // no idea what to do here
     return backend::all;
   }
+  throw exception(make_error_code(errc::runtime),
+                  "convertBackend: Unsupported backend");
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {

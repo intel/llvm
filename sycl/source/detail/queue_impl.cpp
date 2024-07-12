@@ -221,8 +221,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
   }
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,

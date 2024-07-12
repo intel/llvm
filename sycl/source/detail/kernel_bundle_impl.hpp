@@ -151,9 +151,9 @@ public:
         break;
       case bundle_state::input:
       case bundle_state::ext_oneapi_source:
-        throw sycl::runtime_error("Internal error. The target state should not "
-                                  "be input or ext_oneapi_source",
-                                  UR_RESULT_ERROR_INVALID_OPERATION);
+        throw exception(make_error_code(errc::runtime),
+                        "Internal error. The target state should not be input "
+                        "or ext_oneapi_source");
         break;
       }
     }

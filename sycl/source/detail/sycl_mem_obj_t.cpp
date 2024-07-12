@@ -52,9 +52,9 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
                sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_mem",
-        UR_RESULT_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
     Plugin->call(urMemRetain, MInteropMemObject);
@@ -107,9 +107,8 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
                sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_mem",
-        UR_RESULT_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
     Plugin->call(urMemRetain, MInteropMemObject);

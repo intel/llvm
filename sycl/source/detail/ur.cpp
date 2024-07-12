@@ -92,7 +92,7 @@ std::vector<PluginPtr> &initializeUr() {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
-  __SYCL_CHECK_OCL_CODE_THROW(Call, sycl::runtime_error, nullptr)
+  __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
 
   ur_loader_config_handle_t config = nullptr;
   CHECK_UR_SUCCESS(urLoaderConfigCreate(&config))

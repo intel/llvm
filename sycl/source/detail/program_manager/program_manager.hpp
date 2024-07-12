@@ -291,12 +291,18 @@ private:
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, ur_device_handle_t Device,
-                   uint32_t DeviceLibReqMask);
+                   uint32_t DeviceLibReqMask,
+                   const std::vector<ur_program_handle_t> &ProgramsToLink);
+
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
+
+  std::set<RTDeviceBinaryImage *>
+  collectDependentDeviceImagesForVirtualFunctions(
+      const RTDeviceBinaryImage &Img, device Dev);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
@@ -351,6 +357,11 @@ private:
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
   std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Caches list of device images that use or provide virtual functions from
+  /// the same set. Used to simplify access.
+  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
+      m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.
   std::mutex m_BuiltInKernelIDsMutex;

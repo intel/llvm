@@ -1,4 +1,3 @@
-//===----------- commands.cpp - SYCL commands -------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -2562,7 +2561,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   return Res;
 }
 
-ur_result_t enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -2677,8 +2676,6 @@ ur_result_t enqueueImpKernel(
     detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
@@ -2883,8 +2880,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   default:
-    throw runtime_error("CG type not implemented for command buffers.",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "CG type not implemented for command buffers.");
   }
 }
 
@@ -3007,11 +3004,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         EventImpl = MEvent;
       }
     }
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch);
+
+    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
+                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch);
+
+    return UR_RESULT_SUCCESS;
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

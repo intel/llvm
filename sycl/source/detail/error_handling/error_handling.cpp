@@ -297,10 +297,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   // is not consistent with the required number of sub-groups for kernel in the
   // program source.
 
-  // Fallback
-  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  throw runtime_error(
-      "UR backend failed. UR backend returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range),
+                  "internal error: expected HasLocalSize");
 }
 
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
@@ -342,9 +340,7 @@ void handleInvalidValue(const device_impl &DeviceImpl,
   }
 
   // fallback
-  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
-  throw runtime_error(
-      "Native API failed. Native API returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range), "unknown internal error");
 }
 
 void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
@@ -420,8 +416,8 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
-    throw runtime_error(
-        "Native API failed. Native API returns: " + codeToString(Error), Error);
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::runtime), "UR error"), Error);
   }
 }
 

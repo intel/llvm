@@ -1171,7 +1171,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
     NF->addMetadata(KindID, *Node);
 
   if (IsNVPTXKernel(F))
-    UpdateNVPTXMetadata(*(F->getParent()), F, NF);
+    UpdateNVPTXMetadata(*(F->getParent()), F, NF, ArgAlive);
 
   // If either the return value(s) or argument(s) are removed, then probably the
   // function does not follow standard calling conventions anymore. Hence, add
@@ -1249,8 +1249,9 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   return PreservedAnalyses::none();
 }
 
-void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
-                                                      Function *NF) {
+void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
+    Module &M, Function *F, Function *NF,
+    const SmallVectorImpl<bool> &ArgAlive) {
 
   auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
   if (!NvvmMetadata)
@@ -1260,7 +1261,7 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
     const auto &FuncOperand = MetadataNode->getOperand(0);
     if (!FuncOperand)
       continue;
-    auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+    auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
     if (!FuncConstant)
       continue;
     auto *Func = dyn_cast<Function>(FuncConstant->getValue());
@@ -1268,5 +1269,70 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
       continue;
     // Update the metadata with the new function
     MetadataNode->replaceOperandWith(0, llvm::ConstantAsMetadata::get(NF));
+
+    // Carefully update any and all grid_constant annotations, since those are
+    // denoted parameter indices, which may have changed
+    for (unsigned I = 1; I < MetadataNode->getNumOperands() - 1; I += 2) {
+      if (auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(I));
+          Type && Type->getString() == "grid_constant") {
+        LLVMContext &Ctx = NF->getContext();
+        LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - updating nvvm "
+                             "grid_constant annotations for fn: "
+                          << NF->getName() << "\n");
+        // The 'value' operand is a list of integers denoting parameter indices
+        const auto *OldGridConstParamIdxs =
+            dyn_cast<MDNode>(MetadataNode->getOperand(I + 1));
+        assert(OldGridConstParamIdxs &&
+               "Unexpected NVVM annotation format: expected MDNode operand");
+        // For each parameter that's identified as a grid_constant, count how
+        // many arguments before that position are dead, and shift the number
+        // down by that amount.
+        // Note that there's no guaranteed order to the parameter indices, so
+        // there's fewer 'smart' things like counting up incrementally as we go.
+        SmallVector<Metadata *, 8> NewGridConstParamOps;
+        for (const auto &Op : OldGridConstParamIdxs->operands()) {
+          auto *ParamIdx = mdconst::dyn_extract<ConstantInt>(Op);
+          // If the operand's not a constant, or its constant value is not
+          // within the range of the old function's parameter list (note - it
+          // counts from 1), it's not well-defined. Just strip it out for
+          // safety.
+          if (!ParamIdx || ParamIdx->isZero() ||
+              ParamIdx->getZExtValue() > F->arg_size())
+            continue;
+
+          size_t OldParamIdx = ParamIdx->getZExtValue() - 1;
+          // If the parameter is no longer alive, it's definitely not a
+          // grid_constant. Strip it out.
+          if (!ArgAlive[OldParamIdx])
+            continue;
+
+          unsigned ShiftDownAmt = 0;
+          for (unsigned i = 0; i < std::min(F->arg_size(), OldParamIdx); i++) {
+            if (!ArgAlive[i])
+              ShiftDownAmt++;
+          }
+          NewGridConstParamOps.push_back(
+              ConstantAsMetadata::get(ConstantInt::get(
+                  Type::getInt32Ty(Ctx), OldParamIdx - ShiftDownAmt + 1)));
+        }
+
+        // Update the metadata with the new grid_constant information
+        MDNode *NewGridConstParamIdxs = MDNode::get(Ctx, NewGridConstParamOps);
+
+        LLVM_DEBUG(dbgs() << "  * updating old annotation {";
+                   auto PrintList =
+                       [](const MDNode *MD) {
+                         for (const auto &O : MD->operands())
+                           if (const auto *ParamNo =
+                                   mdconst::dyn_extract<ConstantInt>(O))
+                             dbgs() << ParamNo->getZExtValue() << ",";
+                       };
+                   PrintList(OldGridConstParamIdxs);
+                   dbgs() << "} to new annotation {";
+                   PrintList(NewGridConstParamIdxs); dbgs() << "}\n";);
+
+        MetadataNode->replaceOperandWith(I + 1, NewGridConstParamIdxs);
+      }
+    }
   }
 }

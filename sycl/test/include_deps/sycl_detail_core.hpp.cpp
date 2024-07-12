@@ -112,7 +112,6 @@
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp

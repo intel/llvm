@@ -626,7 +626,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      const detail::EventImplPtr &OutEventImpl,
                                      bool read);
 
-ur_result_t enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,

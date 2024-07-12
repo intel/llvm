@@ -1056,9 +1056,8 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
                            UrInfoCode<info::device::parent_device>::value,
                            sizeof(result), &result, nullptr);
     if (result == nullptr)
-      throw invalid_object_error(
-          "No parent for device because it is not a subdevice",
-          UR_RESULT_ERROR_INVALID_DEVICE);
+      throw exception(make_error_code(errc::invalid),
+                      "No parent for device because it is not a subdevice");
 
     const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
@@ -1281,9 +1280,9 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   if (std::is_same<Param,
                    sycl::_V1::ext::intel::info::device::free_memory>::value) {
     if (!Dev->has(aspect::ext_intel_free_memory))
-      throw invalid_object_error(
-          "The device does not have the ext_intel_free_memory aspect",
-          UR_RESULT_ERROR_INVALID_DEVICE);
+      throw exception(
+          make_error_code(errc::invalid),
+          "The device does not have the ext_intel_free_memory aspect");
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
