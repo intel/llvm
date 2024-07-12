@@ -618,7 +618,8 @@ inline pi_result mock_piextMemImageCopy(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+inline pi_result mock_piextMemImageGetInfo(pi_context context,
+                                           pi_image_mem_handle mem_handle,
                                            pi_image_info param_name,
                                            void *param_value,
                                            size_t *param_value_size_ret) {

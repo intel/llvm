@@ -105,7 +105,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon May 20 15:50:02 2024 +0100
   #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
   #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8f9bf707861520e7ebb9b871ec3abdd8a89eba55)
+  set(UNIFIED_RUNTIME_TAG 8ad8e38cd0852987e3bbf3c82f037bff6554b37f)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
