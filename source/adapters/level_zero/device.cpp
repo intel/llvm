@@ -1305,6 +1305,32 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   return UR_RESULT_SUCCESS;
 }
 
+void ZeDriverVersionStringExtension::setZeDriverVersionString(
+    ur_platform_handle_t_ *Platform) {
+  // Check if Intel Driver Version String is available. If yes, save the API
+  // pointer. The pointer will be used when reading the Driver Version for
+  // users.
+  ze_driver_handle_t DriverHandle = Platform->ZeDriver;
+  if (auto extension = Platform->zeDriverExtensionMap.find(
+          "ZE_intel_get_driver_version_string");
+      extension != Platform->zeDriverExtensionMap.end()) {
+    if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                        (DriverHandle, "zeIntelGetDriverVersionString",
+                         reinterpret_cast<void **>(
+                             &zeIntelGetDriverVersionStringPointer))) == 0) {
+      // Intel Driver Version String is Supported by this Driver.
+      Supported = true;
+    }
+  }
+}
+
+void ZeDriverVersionStringExtension::getDriverVersionString(
+    ze_driver_handle_t DriverHandle, char *pDriverVersion,
+    size_t *pVersionSize) {
+  ZE_CALL_NOCHECK(zeIntelGetDriverVersionStringPointer,
+                  (DriverHandle, pDriverVersion, pVersionSize));
+}
+
 void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
   // Check if USM hostptr import feature is available. If yes, save the API
   // pointers. The pointers will be used for both import/release of SYCL buffer

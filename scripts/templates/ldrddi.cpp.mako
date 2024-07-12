@@ -49,7 +49,7 @@ namespace ur_loader
     {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;<%
         add_local = False
-    %>
+    %>${th.get_initial_null_set(obj)}
 
         %if re.match(r"\w+AdapterGet$", th.make_func_name(n, tags, obj)):
         
@@ -271,7 +271,7 @@ namespace ur_loader
         del add_local
         %>
         %for i, item in enumerate(epilogue):
-        %if 0 == i and not item['release']:
+        %if 0 == i and not item['release'] and not item['retain'] and not th.always_wrap_outputs(obj):
         if( ${X}_RESULT_SUCCESS != result )
             return result;
 
@@ -281,7 +281,7 @@ namespace ur_loader
         ##%if item['release']:
         ##// release loader handle
         ##${item['factory']}.release( ${item['name']} );
-        %if not item['release'] and not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
+        %if not item['release'] and not item['retain'] and not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
         try
         {
             %if 'typename' in item:
@@ -309,7 +309,7 @@ namespace ur_loader
                     ${item['factory']}.getInstance( ${item['name']}[ i ], dditable ) );
             %else:
             // convert platform handle to loader handle
-            %if item['optional']:
+            %if item['optional'] or th.always_wrap_outputs(obj):
             if( nullptr != ${item['name']} )
                 *${item['name']} = reinterpret_cast<${item['type']}>(
                     ${item['factory']}.getInstance( *${item['name']}, dditable ) );

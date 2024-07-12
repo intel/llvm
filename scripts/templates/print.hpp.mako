@@ -115,7 +115,7 @@ namespace ${x}::details {
 template <typename T> struct is_handle : std::false_type {};
 %for spec in specs:
 %for obj in spec['objects']:
-%if re.match(r"handle", obj['type']):
+%if th.type_traits.is_handle(th.make_type_name(n, tags, obj)) and not th.type_traits.is_native_handle(th.make_type_name(n, tags, obj)):
 template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_type {};
 %endif
 %endfor

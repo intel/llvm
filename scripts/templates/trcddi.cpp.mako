@@ -36,7 +36,7 @@ namespace ur_tracing_layer
         ${line}
         %endfor
         )
-    {
+    {${th.get_initial_null_set(obj)}
         auto ${th.make_pfn_name(n, tags, obj)} = context.${n}DdiTable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
 
         if( nullptr == ${th.make_pfn_name(n, tags, obj)} )

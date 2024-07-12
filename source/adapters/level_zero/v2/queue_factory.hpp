@@ -18,12 +18,11 @@ namespace v2 {
 
 inline bool shouldUseQueueV2(ur_device_handle_t Device,
                              ur_queue_flags_t Flags) {
-  const char *UrRet = std::getenv("UR_L0_USE_QUEUE_V2");
+  std::ignore = Device;
+  std::ignore = Flags;
 
-  // only support immediate, in-order for now
-  return UrRet && std::stoi(UrRet) && Device->useImmediateCommandLists() &&
-         (Flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) == 0 &&
-         (Flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0;
+  const char *UrRet = std::getenv("UR_L0_USE_QUEUE_V2");
+  return UrRet && std::stoi(UrRet);
 }
 
 inline ur_queue_handle_t createQueue(ur_context_handle_t Context,
@@ -32,6 +31,8 @@ inline ur_queue_handle_t createQueue(ur_context_handle_t Context,
   if (!shouldUseQueueV2(Device, Flags)) {
     throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
+
+  // TODO: For now, always use immediate, in-order
   return new ur_queue_immediate_in_order_t(Context, Device, Flags);
 }
 

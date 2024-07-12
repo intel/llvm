@@ -226,6 +226,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 226,         ///< Enumerator for ::urBindlessImagesImportExternalMemoryExp
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,      ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
+    UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -601,7 +602,7 @@ urLoaderConfigCreate(
 ///         + `NULL == hLoaderConfig`
 UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigRetain(
-    ur_loader_config_handle_t hLoaderConfig ///< [in] loader config handle to retain
+    ur_loader_config_handle_t hLoaderConfig ///< [in][retain] loader config handle to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -743,6 +744,29 @@ urLoaderConfigSetCodeLocationCallback(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief The only adapter reported with mock enabled will be the mock adapter.
+///
+/// @details
+///     - The mock adapter will default to returning ::UR_RESULT_SUCCESS for all
+///       entry points. It will also create and correctly reference count dummy
+///       handles where appropriate. Its behaviour can be modified by linking
+///       the mock library and using the object accessed via
+///       mock::getCallbacks().
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigSetMockingEnabled(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object mocking will be enabled for.
+    ur_bool_t enable                         ///< [in] Handle to config object the layer will be enabled for.
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' loader
 ///
 /// @details
@@ -863,7 +887,7 @@ urAdapterRelease(
 ///         + `NULL == hAdapter`
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1736,7 +1760,7 @@ urDeviceGetInfo(
 ///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRetain(
-    ur_device_handle_t hDevice ///< [in] handle of the device to get a reference of.
+    ur_device_handle_t hDevice ///< [in][retain] handle of the device to get a reference of.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2217,7 +2241,7 @@ urContextCreate(
 ///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(
-    ur_context_handle_t hContext ///< [in] handle of the context to get a reference of.
+    ur_context_handle_t hContext ///< [in][retain] handle of the context to get a reference of.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2739,7 +2763,7 @@ urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t hMem ///< [in][retain] handle of the memory object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3130,7 +3154,7 @@ urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(
-    ur_sampler_handle_t hSampler ///< [in] handle of the sampler object to get access
+    ur_sampler_handle_t hSampler ///< [in][retain] handle of the sampler object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3690,7 +3714,7 @@ urUSMPoolCreate(
 ///         + `NULL == pPool`
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4046,7 +4070,7 @@ urPhysicalMemCreate(
 ///         + `NULL == hPhysicalMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRetain(
-    ur_physical_mem_handle_t hPhysicalMem ///< [in] handle of the physical memory object to retain.
+    ur_physical_mem_handle_t hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4277,6 +4301,11 @@ urProgramCompile(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
+///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
+///       will contain an unspecified program or `nullptr`. Implementations may
+///       use the build log of this program (accessible via
+///       ::urProgramGetBuildInfo) to provide an error log for the linking
+///       failure.
 ///
 /// @remarks
 ///   _Analogues_
@@ -4329,7 +4358,7 @@ urProgramLink(
 ///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t hProgram ///< [in][retain] handle for the Program to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4980,7 +5009,7 @@ urKernelGetSubGroupInfo(
 ///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5487,7 +5516,7 @@ urQueueCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t hQueue ///< [in][retain] handle of the queue object to get access
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5882,7 +5911,7 @@ urEventWait(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6894,7 +6923,6 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -7322,11 +7350,11 @@ urEnqueueWriteHostPipe(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of bindless image
-typedef struct ur_exp_image_handle_t_ *ur_exp_image_handle_t;
+typedef uintptr_t ur_exp_image_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of bindless image memory
-typedef struct ur_exp_image_mem_handle_t_ *ur_exp_image_mem_handle_t;
+typedef uintptr_t ur_exp_image_mem_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of interop memory
@@ -7544,14 +7572,13 @@ urUSMPitchedAllocExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
+    ur_context_handle_t hContext,       ///< [in] handle of the context object
+    ur_device_handle_t hDevice,         ///< [in] handle of the device object
+    ur_exp_image_native_handle_t hImage ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7569,14 +7596,13 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t hImage  ///< [in][release] pointer to handle of image object to destroy
+    ur_context_handle_t hContext,       ///< [in] handle of the context object
+    ur_device_handle_t hDevice,         ///< [in] handle of the device object
+    ur_exp_image_native_handle_t hImage ///< [in][release] pointer to handle of image object to destroy
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7602,16 +7628,16 @@ urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageAllocateExp(
-    ur_context_handle_t hContext,          ///< [in] handle of the context object
-    ur_device_handle_t hDevice,            ///< [in] handle of the device object
-    const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_exp_image_mem_handle_t *phImageMem  ///< [out] pointer to handle of image memory allocated
+    ur_context_handle_t hContext,                ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                  ///< [in] handle of the device object
+    const ur_image_format_t *pImageFormat,       ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc,           ///< [in] pointer to image description
+    ur_exp_image_mem_native_handle_t *phImageMem ///< [out] pointer to handle of image memory allocated
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7629,14 +7655,13 @@ urBindlessImagesImageAllocateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageFreeExp(
-    ur_context_handle_t hContext,       ///< [in] handle of the context object
-    ur_device_handle_t hDevice,         ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem ///< [in][release] handle of image memory to be freed
+    ur_context_handle_t hContext,              ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t hImageMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7654,7 +7679,6 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -7662,17 +7686,18 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageCreateExp(
-    ur_context_handle_t hContext,          ///< [in] handle of the context object
-    ur_device_handle_t hDevice,            ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
-    const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
+    ur_context_handle_t hContext,               ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                 ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t *pImageFormat,      ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc,          ///< [in] pointer to image description
+    ur_exp_image_native_handle_t *phImage       ///< [out] pointer to handle of image object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7690,7 +7715,6 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImageMem`
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -7699,19 +7723,20 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageCreateExp(
-    ur_context_handle_t hContext,          ///< [in] handle of the context object
-    ur_device_handle_t hDevice,            ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
-    const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_sampler_handle_t hSampler,          ///< [in] sampler to be used
-    ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
+    ur_context_handle_t hContext,               ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                 ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t *pImageFormat,      ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc,          ///< [in] pointer to image description
+    ur_sampler_handle_t hSampler,               ///< [in] sampler to be used
+    ur_exp_image_native_handle_t *phImage       ///< [out] pointer to handle of image object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7741,7 +7766,7 @@ urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -7779,7 +7804,7 @@ urBindlessImagesImageCopyExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hImageMem`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_IMAGE_INFO_DEPTH < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
@@ -7793,10 +7818,11 @@ urBindlessImagesImageCopyExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
-    ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,                    ///< [out][optional] returned query value
-    size_t *pPropSizeRet                 ///< [out][optional] returned query value size
+    ur_context_handle_t hContext,               ///< [in] handle of the context object
+    ur_exp_image_mem_native_handle_t hImageMem, ///< [in] handle to the image memory
+    ur_image_info_t propName,                   ///< [in] queried info name
+    void *pPropValue,                           ///< [out][optional] returned query value
+    size_t *pPropSizeRet                        ///< [out][optional] returned query value size
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7814,18 +7840,17 @@ urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapGetLevelExp(
-    ur_context_handle_t hContext,         ///< [in] handle of the context object
-    ur_device_handle_t hDevice,           ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem,  ///< [in] memory handle to the mipmap image
-    uint32_t mipmapLevel,                 ///< [in] requested level of the mipmap
-    ur_exp_image_mem_handle_t *phImageMem ///< [out] returning memory handle to the individual image
+    ur_context_handle_t hContext,                ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                  ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t hImageMem,  ///< [in] memory handle to the mipmap image
+    uint32_t mipmapLevel,                        ///< [in] requested level of the mipmap
+    ur_exp_image_mem_native_handle_t *phImageMem ///< [out] returning memory handle to the individual image
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7843,14 +7868,13 @@ urBindlessImagesMipmapGetLevelExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in][release] handle of image memory to be freed
+    ur_context_handle_t hContext,         ///< [in] handle of the context object
+    ur_device_handle_t hDevice,           ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t hMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7905,18 +7929,18 @@ urBindlessImagesImportExternalMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMapExternalArrayExp(
-    ur_context_handle_t hContext,            ///< [in] handle of the context object
-    ur_device_handle_t hDevice,              ///< [in] handle of the device object
-    const ur_image_format_t *pImageFormat,   ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc,       ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_mem_handle_t *phImageMem    ///< [out] image memory handle to the externally allocated memory
+    ur_context_handle_t hContext,                ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                  ///< [in] handle of the device object
+    const ur_image_format_t *pImageFormat,       ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc,           ///< [in] pointer to image description
+    ur_exp_interop_mem_handle_t hInteropMem,     ///< [in] interop memory handle to the external memory
+    ur_exp_image_mem_native_handle_t *phImageMem ///< [out] image memory handle to the externally allocated memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8252,7 +8276,7 @@ urCommandBufferCreateExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8386,7 +8410,6 @@ urCommandBufferAppendUSMMemcpyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -8800,7 +8823,7 @@ urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in][retain] Handle of the command-buffer command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9276,6 +9299,11 @@ urProgramCompileExp(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `phDevices`.
+///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
+///       will contain an unspecified program or `nullptr`. Implementations may
+///       use the build log of this program (accessible via
+///       ::urProgramGetBuildInfo) to provide an error log for the linking
+///       failure.
 ///
 /// @remarks
 ///   _Analogues_
@@ -9568,7 +9596,6 @@ typedef void (*ur_exp_enqueue_native_command_function_t)(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNativeEnqueue`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
@@ -9588,7 +9615,7 @@ urEnqueueNativeCommandExp(
     const ur_event_handle_t *phEventWaitList,                      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                                    ///< events that must be complete before the kernel execution.
                                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
-    ur_event_handle_t *phEvent                                     ///< [in,out] return an event object that identifies the work that has
+    ur_event_handle_t *phEvent                                     ///< [out][optional] return an event object that identifies the work that has
                                                                    ///< been enqueued in nativeEnqueueFunc.
 );
 
@@ -9653,6 +9680,15 @@ typedef struct ur_loader_config_set_code_location_callback_params_t {
     ur_code_location_callback_t *ppfnCodeloc;
     void **ppUserData;
 } ur_loader_config_set_code_location_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigSetMockingEnabled
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_set_mocking_enabled_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_bool_t *penable;
+} ur_loader_config_set_mocking_enabled_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
@@ -11034,7 +11070,7 @@ typedef struct ur_enqueue_native_command_exp_params_t {
 typedef struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_handle_t *phImage;
+    ur_exp_image_native_handle_t *phImage;
 } ur_bindless_images_unsampled_image_handle_destroy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11044,7 +11080,7 @@ typedef struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t {
 typedef struct ur_bindless_images_sampled_image_handle_destroy_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_handle_t *phImage;
+    ur_exp_image_native_handle_t *phImage;
 } ur_bindless_images_sampled_image_handle_destroy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11056,7 +11092,7 @@ typedef struct ur_bindless_images_image_allocate_exp_params_t {
     ur_device_handle_t *phDevice;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_exp_image_mem_handle_t **pphImageMem;
+    ur_exp_image_mem_native_handle_t **pphImageMem;
 } ur_bindless_images_image_allocate_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11066,7 +11102,7 @@ typedef struct ur_bindless_images_image_allocate_exp_params_t {
 typedef struct ur_bindless_images_image_free_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_mem_handle_t *phImageMem;
+    ur_exp_image_mem_native_handle_t *phImageMem;
 } ur_bindless_images_image_free_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11076,10 +11112,10 @@ typedef struct ur_bindless_images_image_free_exp_params_t {
 typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_mem_handle_t *phImageMem;
+    ur_exp_image_mem_native_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_exp_image_handle_t **pphImage;
+    ur_exp_image_native_handle_t **pphImage;
 } ur_bindless_images_unsampled_image_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11089,11 +11125,11 @@ typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
 typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_mem_handle_t *phImageMem;
+    ur_exp_image_mem_native_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_sampler_handle_t *phSampler;
-    ur_exp_image_handle_t **pphImage;
+    ur_exp_image_native_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11121,7 +11157,8 @@ typedef struct ur_bindless_images_image_copy_exp_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_image_get_info_exp_params_t {
-    ur_exp_image_mem_handle_t *phImageMem;
+    ur_context_handle_t *phContext;
+    ur_exp_image_mem_native_handle_t *phImageMem;
     ur_image_info_t *ppropName;
     void **ppPropValue;
     size_t **ppPropSizeRet;
@@ -11134,9 +11171,9 @@ typedef struct ur_bindless_images_image_get_info_exp_params_t {
 typedef struct ur_bindless_images_mipmap_get_level_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_mem_handle_t *phImageMem;
+    ur_exp_image_mem_native_handle_t *phImageMem;
     uint32_t *pmipmapLevel;
-    ur_exp_image_mem_handle_t **pphImageMem;
+    ur_exp_image_mem_native_handle_t **pphImageMem;
 } ur_bindless_images_mipmap_get_level_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11146,7 +11183,7 @@ typedef struct ur_bindless_images_mipmap_get_level_exp_params_t {
 typedef struct ur_bindless_images_mipmap_free_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_image_mem_handle_t *phMem;
+    ur_exp_image_mem_native_handle_t *phMem;
 } ur_bindless_images_mipmap_free_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11172,7 +11209,7 @@ typedef struct ur_bindless_images_map_external_array_exp_params_t {
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_interop_mem_handle_t *phInteropMem;
-    ur_exp_image_mem_handle_t **pphImageMem;
+    ur_exp_image_mem_native_handle_t **pphImageMem;
 } ur_bindless_images_map_external_array_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

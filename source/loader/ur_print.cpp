@@ -2001,6 +2001,14 @@ ur_result_t urPrintLoaderConfigSetCodeLocationCallbackParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintLoaderConfigSetMockingEnabledParams(
+    const struct ur_loader_config_set_mocking_enabled_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintMemImageCreateParams(const struct ur_mem_image_create_params_t *params,
                             char *buffer, const size_t buff_size,
