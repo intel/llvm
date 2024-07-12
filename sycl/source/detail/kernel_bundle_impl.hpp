@@ -361,11 +361,21 @@ public:
   }
 
   std::string trimXsFlags(std::string &str) {
-    auto start = std::find_if(str.begin(), str.end(), [](char c) {
-      return !std::isspace(c) && c != '\'' && c != '"';
+    // trim first and last quote if they exist, but no others.
+    char encounteredQuote = '\0';
+    auto start = std::find_if(str.begin(), str.end(), [&](char c) {
+      if (!encounteredQuote && (c == '\'' || c == '"')) {
+        encounteredQuote = c;
+        return false;
+      }
+      return !std::isspace(c);
     });
-    auto end = std::find_if(str.rbegin(), str.rend(), [](char c) {
-                 return !std::isspace(c) && c != '\'' && c != '"';
+    auto end = std::find_if(str.rbegin(), str.rend(), [&](char c) {
+                 if (c == encounteredQuote) {
+                   encounteredQuote = '\0';
+                   return false;
+                 }
+                 return !std::isspace(c);
                }).base();
     if (start != std::end(str) && end != std::begin(str) && start < end) {
       return std::string(start, end);

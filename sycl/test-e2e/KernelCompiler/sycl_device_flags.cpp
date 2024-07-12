@@ -7,16 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: level_zero
+// UNSUPPORTED: windows
+
+// IGC shader dump not available on Windows
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out
-// RUN: grep -ze-exp-register-file-size=256 %t.dump/OCL_asmaf99e2d4667ef6d3_options.txt
+// RUN: grep -e '-doubleGRF' %t.dump/OCL_asmaf99e2d4667ef6d3_options.txt
 
 // clang-format off
 /*
     clang++ -fsycl -o sdf.bin sycl_device_flags.cpp
     IGC_ShaderDumpEnable=1 IGC_DumpToCustomDir=./dump NEO_CACHE_PERSISTENT=0 ./sdf.bin 
-    grep -ze-exp-register-file-size=256 ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
+    grep -e '-doubleGRF' ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
 
     Note: there are files named  xxx_options.txt and xxx_internal_options.txt in
     the IGC dump directory. The file with "internal_options.txt"  is NOT the
@@ -77,7 +80,7 @@ int main() {
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
-  std::vector<std::string> flags{"-Xs '-ze-exp-register-file-size=256'"};
+  std::vector<std::string> flags{"-Xs '-doubleGRF'"};
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
 
