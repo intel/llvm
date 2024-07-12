@@ -6240,6 +6240,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
+#if 0
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     if (FTD)
       FTD->getTemplateParameters()->print(O, S.getASTContext());
@@ -6254,6 +6255,25 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "("
       << ParmList << ");\n";
+#endif
+    std::string ParmList;
+    bool FirstParam = true;
+    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        ParmList += ", ";
+      ParmList += Param->getType().getCanonicalType().getAsString();
+    }
+    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    if (FTD) {
+      Policy.SuppressDefinition = true;
+      FTD->print(O, Policy);
+      O << ";\n";
+    } else {
+      O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "("
+        << ParmList << ");\n";
+    }
 
     // Generate a shim function that returns the address of the free function.
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
