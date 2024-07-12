@@ -47,13 +47,13 @@ struct DeviceInfo {
 
     explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Device.pfnRetain(Device);
+            getContext()->urDdiTable.Device.pfnRetain(Device);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
     ~DeviceInfo() {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Device.pfnRelease(Handle);
+            getContext()->urDdiTable.Device.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
@@ -69,13 +69,13 @@ struct QueueInfo {
     explicit QueueInfo(ur_queue_handle_t Queue)
         : Handle(Queue), LastEvent(nullptr) {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Queue.pfnRetain(Queue);
+            getContext()->urDdiTable.Queue.pfnRetain(Queue);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
     ~QueueInfo() {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Queue.pfnRelease(Handle);
+            getContext()->urDdiTable.Queue.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 };
@@ -91,13 +91,13 @@ struct KernelInfo {
 
     explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Kernel.pfnRetain(Kernel);
+            getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
     ~KernelInfo() {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Kernel.pfnRelease(Handle);
+            getContext()->urDdiTable.Kernel.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 };
@@ -110,13 +110,13 @@ struct ContextInfo {
 
     explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Context.pfnRetain(Context);
+            getContext()->urDdiTable.Context.pfnRetain(Context);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
     ~ContextInfo() {
         [[maybe_unused]] auto Result =
-            context.urDdiTable.Context.pfnRelease(Handle);
+            getContext()->urDdiTable.Context.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 

@@ -68,13 +68,13 @@ ur_result_t SetupShadowMemory(ur_context_handle_t Context, uptr &ShadowBegin,
     // multiple contexts. Therefore, we just create one shadow memory here.
     static ur_result_t Result = [&Context]() {
         // TODO: Protect Bad Zone
-        auto Result = context.urDdiTable.VirtualMem.pfnReserve(
+        auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
             Context, nullptr, SHADOW_SIZE, (void **)&LOW_SHADOW_BEGIN);
         if (Result == UR_RESULT_SUCCESS) {
             HIGH_SHADOW_END = LOW_SHADOW_BEGIN + SHADOW_SIZE;
             // Retain the context which reserves shadow memory
             ShadowContext = Context;
-            context.urDdiTable.Context.pfnRetain(Context);
+            getContext()->urDdiTable.Context.pfnRetain(Context);
         }
         return Result;
     }();
@@ -88,9 +88,9 @@ ur_result_t DestroyShadowMemory() {
         if (!ShadowContext) {
             return UR_RESULT_SUCCESS;
         }
-        auto Result = context.urDdiTable.VirtualMem.pfnFree(
+        auto Result = getContext()->urDdiTable.VirtualMem.pfnFree(
             ShadowContext, (const void *)LOW_SHADOW_BEGIN, SHADOW_SIZE);
-        context.urDdiTable.Context.pfnRelease(ShadowContext);
+        getContext()->urDdiTable.Context.pfnRelease(ShadowContext);
         return Result;
     }();
     return Result;

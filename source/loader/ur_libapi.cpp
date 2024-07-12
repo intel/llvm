@@ -251,17 +251,7 @@ ur_result_t UR_APICALL urLoaderInit(
     ur_loader_config_handle_t
         hLoaderConfig ///< [in][optional] Handle of loader config handle.
     ) try {
-
-    if (UR_DEVICE_INIT_FLAGS_MASK & device_flags) {
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
-    }
-
-    static ur_result_t result = UR_RESULT_SUCCESS;
-    std::call_once(ur_lib::context->initOnce, [device_flags, hLoaderConfig]() {
-        result = ur_lib::context->Init(device_flags, hLoaderConfig);
-    });
-
-    return result;
+    return ur_lib::urLoaderInit(device_flags, hLoaderConfig);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -315,7 +305,7 @@ ur_result_t UR_APICALL urAdapterGet(
     uint32_t *
         pNumAdapters ///< [out][optional] returns the total number of adapters available.
     ) try {
-    auto pfnAdapterGet = ur_lib::context->urDdiTable.Global.pfnAdapterGet;
+    auto pfnAdapterGet = ur_lib::getContext()->urDdiTable.Global.pfnAdapterGet;
     if (nullptr == pfnAdapterGet) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -345,7 +335,7 @@ ur_result_t UR_APICALL urAdapterRelease(
     ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
     ) try {
     auto pfnAdapterRelease =
-        ur_lib::context->urDdiTable.Global.pfnAdapterRelease;
+        ur_lib::getContext()->urDdiTable.Global.pfnAdapterRelease;
     if (nullptr == pfnAdapterRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -371,7 +361,8 @@ ur_result_t UR_APICALL urAdapterRelease(
 ur_result_t UR_APICALL urAdapterRetain(
     ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
     ) try {
-    auto pfnAdapterRetain = ur_lib::context->urDdiTable.Global.pfnAdapterRetain;
+    auto pfnAdapterRetain =
+        ur_lib::getContext()->urDdiTable.Global.pfnAdapterRetain;
     if (nullptr == pfnAdapterRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -434,7 +425,7 @@ ur_result_t UR_APICALL urAdapterGetLastError(
                ///< be stored.
     ) try {
     auto pfnAdapterGetLastError =
-        ur_lib::context->urDdiTable.Global.pfnAdapterGetLastError;
+        ur_lib::getContext()->urDdiTable.Global.pfnAdapterGetLastError;
     if (nullptr == pfnAdapterGetLastError) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -484,7 +475,7 @@ ur_result_t UR_APICALL urAdapterGetInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
     ) try {
     auto pfnAdapterGetInfo =
-        ur_lib::context->urDdiTable.Global.pfnAdapterGetInfo;
+        ur_lib::getContext()->urDdiTable.Global.pfnAdapterGetInfo;
     if (nullptr == pfnAdapterGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -533,7 +524,7 @@ ur_result_t UR_APICALL urPlatformGet(
     uint32_t *
         pNumPlatforms ///< [out][optional] returns the total number of platforms available.
     ) try {
-    auto pfnGet = ur_lib::context->urDdiTable.Platform.pfnGet;
+    auto pfnGet = ur_lib::getContext()->urDdiTable.Platform.pfnGet;
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -588,7 +579,7 @@ ur_result_t UR_APICALL urPlatformGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Platform.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Platform.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -619,7 +610,7 @@ ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_api_version_t *pVersion      ///< [out] api version
     ) try {
     auto pfnGetApiVersion =
-        ur_lib::context->urDdiTable.Platform.pfnGetApiVersion;
+        ur_lib::getContext()->urDdiTable.Platform.pfnGetApiVersion;
     if (nullptr == pfnGetApiVersion) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -658,7 +649,7 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
         phNativePlatform ///< [out] a pointer to the native handle of the platform.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Platform.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Platform.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -699,7 +690,7 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         phPlatform ///< [out] pointer to the handle of the platform object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Platform.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Platform.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -744,7 +735,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
                          ///< the frontend option.
     ) try {
     auto pfnGetBackendOption =
-        ur_lib::context->urDdiTable.Platform.pfnGetBackendOption;
+        ur_lib::getContext()->urDdiTable.Platform.pfnGetBackendOption;
     if (nullptr == pfnGetBackendOption) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -801,7 +792,7 @@ ur_result_t UR_APICALL urDeviceGet(
     uint32_t *pNumDevices ///< [out][optional] pointer to the number of devices.
     ///< pNumDevices will be updated with the total number of devices available.
     ) try {
-    auto pfnGet = ur_lib::context->urDdiTable.Device.pfnGet;
+    auto pfnGet = ur_lib::getContext()->urDdiTable.Device.pfnGet;
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -902,7 +893,7 @@ ur_result_t UR_APICALL urDeviceGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Device.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Device.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -942,7 +933,7 @@ ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
         hDevice ///< [in][retain] handle of the device to get a reference of.
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Device.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Device.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -979,7 +970,7 @@ ur_result_t UR_APICALL urDeviceRelease(
     ur_device_handle_t
         hDevice ///< [in][release] handle of the device to release.
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Device.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Device.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1030,7 +1021,7 @@ ur_result_t UR_APICALL urDevicePartition(
         pNumDevicesRet ///< [out][optional] pointer to the number of sub-devices the device can be
     ///< partitioned into according to the partitioning property.
     ) try {
-    auto pfnPartition = ur_lib::context->urDdiTable.Device.pfnPartition;
+    auto pfnPartition = ur_lib::getContext()->urDdiTable.Device.pfnPartition;
     if (nullptr == pfnPartition) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1079,7 +1070,8 @@ ur_result_t UR_APICALL urDeviceSelectBinary(
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
     ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
     ) try {
-    auto pfnSelectBinary = ur_lib::context->urDdiTable.Device.pfnSelectBinary;
+    auto pfnSelectBinary =
+        ur_lib::getContext()->urDdiTable.Device.pfnSelectBinary;
     if (nullptr == pfnSelectBinary) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1118,7 +1110,7 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
         *phNativeDevice ///< [out] a pointer to the native handle of the device.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Device.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Device.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1158,7 +1150,7 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         *phDevice ///< [out] pointer to the handle of the device object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Device.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Device.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1198,7 +1190,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
                        ///< correlates with the Device's global timestamp value
     ) try {
     auto pfnGetGlobalTimestamps =
-        ur_lib::context->urDdiTable.Device.pfnGetGlobalTimestamps;
+        ur_lib::getContext()->urDdiTable.Device.pfnGetGlobalTimestamps;
     if (nullptr == pfnGetGlobalTimestamps) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1247,7 +1239,7 @@ ur_result_t UR_APICALL urContextCreate(
     ur_context_handle_t
         *phContext ///< [out] pointer to handle of context object created
     ) try {
-    auto pfnCreate = ur_lib::context->urDdiTable.Context.pfnCreate;
+    auto pfnCreate = ur_lib::getContext()->urDdiTable.Context.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1283,7 +1275,7 @@ ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
         hContext ///< [in][retain] handle of the context to get a reference of.
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Context.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Context.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1316,7 +1308,7 @@ ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t
         hContext ///< [in][release] handle of the context to release.
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Context.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Context.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1372,7 +1364,7 @@ ur_result_t UR_APICALL urContextGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Context.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Context.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1411,7 +1403,7 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
         phNativeContext ///< [out] a pointer to the native handle of the context.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Context.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Context.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1452,7 +1444,7 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         phContext ///< [out] pointer to the handle of the context object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Context.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1493,7 +1485,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
     ) try {
     auto pfnSetExtendedDeleter =
-        ur_lib::context->urDdiTable.Context.pfnSetExtendedDeleter;
+        ur_lib::getContext()->urDdiTable.Context.pfnSetExtendedDeleter;
     if (nullptr == pfnSetExtendedDeleter) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1564,7 +1556,7 @@ ur_result_t UR_APICALL urMemImageCreate(
     void *pHost,           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem ///< [out] pointer to handle of image object created
     ) try {
-    auto pfnImageCreate = ur_lib::context->urDdiTable.Mem.pfnImageCreate;
+    auto pfnImageCreate = ur_lib::getContext()->urDdiTable.Mem.pfnImageCreate;
     if (nullptr == pfnImageCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1616,7 +1608,7 @@ ur_result_t UR_APICALL urMemBufferCreate(
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
     ) try {
-    auto pfnBufferCreate = ur_lib::context->urDdiTable.Mem.pfnBufferCreate;
+    auto pfnBufferCreate = ur_lib::getContext()->urDdiTable.Mem.pfnBufferCreate;
     if (nullptr == pfnBufferCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1652,7 +1644,7 @@ ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t
         hMem ///< [in][retain] handle of the memory object to get access
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Mem.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Mem.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1683,7 +1675,7 @@ ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t
         hMem ///< [in][release] handle of the memory object to release
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Mem.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Mem.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1733,7 +1725,7 @@ ur_result_t UR_APICALL urMemBufferPartition(
         *phMem ///< [out] pointer to the handle of sub buffer created
     ) try {
     auto pfnBufferPartition =
-        ur_lib::context->urDdiTable.Mem.pfnBufferPartition;
+        ur_lib::getContext()->urDdiTable.Mem.pfnBufferPartition;
     if (nullptr == pfnBufferPartition) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1778,7 +1770,7 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Mem.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Mem.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1817,7 +1809,7 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         *phMem ///< [out] pointer to handle of buffer memory object created.
     ) try {
     auto pfnBufferCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
     if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1862,7 +1854,7 @@ ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         *phMem ///< [out] pointer to handle of image memory object created.
     ) try {
     auto pfnImageCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
     if (nullptr == pfnImageCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1918,7 +1910,7 @@ ur_result_t UR_APICALL urMemGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Mem.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Mem.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -1972,7 +1964,7 @@ ur_result_t UR_APICALL urMemImageGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
-    auto pfnImageGetInfo = ur_lib::context->urDdiTable.Mem.pfnImageGetInfo;
+    auto pfnImageGetInfo = ur_lib::getContext()->urDdiTable.Mem.pfnImageGetInfo;
     if (nullptr == pfnImageGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2020,7 +2012,7 @@ ur_result_t UR_APICALL urSamplerCreate(
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
     ) try {
-    auto pfnCreate = ur_lib::context->urDdiTable.Sampler.pfnCreate;
+    auto pfnCreate = ur_lib::getContext()->urDdiTable.Sampler.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2052,7 +2044,7 @@ ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
         hSampler ///< [in][retain] handle of the sampler object to get access
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Sampler.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Sampler.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2084,7 +2076,7 @@ ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
         hSampler ///< [in][release] handle of the sampler object to release
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Sampler.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Sampler.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2132,7 +2124,7 @@ ur_result_t UR_APICALL urSamplerGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Sampler.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Sampler.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2171,7 +2163,7 @@ ur_result_t UR_APICALL urSamplerGetNativeHandle(
         phNativeSampler ///< [out] a pointer to the native handle of the sampler.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Sampler.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Sampler.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2211,7 +2203,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         phSampler ///< [out] pointer to the handle of the sampler object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Sampler.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Sampler.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2269,7 +2261,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
     ) try {
-    auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
+    auto pfnHostAlloc = ur_lib::getContext()->urDdiTable.USM.pfnHostAlloc;
     if (nullptr == pfnHostAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2328,7 +2320,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
     ) try {
-    auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
+    auto pfnDeviceAlloc = ur_lib::getContext()->urDdiTable.USM.pfnDeviceAlloc;
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2388,7 +2380,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
         size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
     ) try {
-    auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
+    auto pfnSharedAlloc = ur_lib::getContext()->urDdiTable.USM.pfnSharedAlloc;
     if (nullptr == pfnSharedAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2416,7 +2408,7 @@ ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
     ) try {
-    auto pfnFree = ur_lib::context->urDdiTable.USM.pfnFree;
+    auto pfnFree = ur_lib::getContext()->urDdiTable.USM.pfnFree;
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2458,7 +2450,7 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
         pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
     ) try {
     auto pfnGetMemAllocInfo =
-        ur_lib::context->urDdiTable.USM.pfnGetMemAllocInfo;
+        ur_lib::getContext()->urDdiTable.USM.pfnGetMemAllocInfo;
     if (nullptr == pfnGetMemAllocInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2498,7 +2490,7 @@ ur_result_t UR_APICALL urUSMPoolCreate(
                    ///< ::ur_usm_pool_limits_desc_t
     ur_usm_pool_handle_t *ppPool ///< [out] pointer to USM memory pool
     ) try {
-    auto pfnPoolCreate = ur_lib::context->urDdiTable.USM.pfnPoolCreate;
+    auto pfnPoolCreate = ur_lib::getContext()->urDdiTable.USM.pfnPoolCreate;
     if (nullptr == pfnPoolCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2521,7 +2513,7 @@ ur_result_t UR_APICALL urUSMPoolCreate(
 ur_result_t UR_APICALL urUSMPoolRetain(
     ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
     ) try {
-    auto pfnPoolRetain = ur_lib::context->urDdiTable.USM.pfnPoolRetain;
+    auto pfnPoolRetain = ur_lib::getContext()->urDdiTable.USM.pfnPoolRetain;
     if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2551,7 +2543,7 @@ ur_result_t UR_APICALL urUSMPoolRetain(
 ur_result_t UR_APICALL urUSMPoolRelease(
     ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
     ) try {
-    auto pfnPoolRelease = ur_lib::context->urDdiTable.USM.pfnPoolRelease;
+    auto pfnPoolRelease = ur_lib::getContext()->urDdiTable.USM.pfnPoolRelease;
     if (nullptr == pfnPoolRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2593,7 +2585,7 @@ ur_result_t UR_APICALL urUSMPoolGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in pool property value
     ) try {
-    auto pfnPoolGetInfo = ur_lib::context->urDdiTable.USM.pfnPoolGetInfo;
+    auto pfnPoolGetInfo = ur_lib::getContext()->urDdiTable.USM.pfnPoolGetInfo;
     if (nullptr == pfnPoolGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2646,7 +2638,7 @@ ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
     ) try {
     auto pfnGranularityGetInfo =
-        ur_lib::context->urDdiTable.VirtualMem.pfnGranularityGetInfo;
+        ur_lib::getContext()->urDdiTable.VirtualMem.pfnGranularityGetInfo;
     if (nullptr == pfnGranularityGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2681,7 +2673,7 @@ ur_result_t UR_APICALL urVirtualMemReserve(
         ppStart ///< [out] pointer to the returned address at the start of reserved virtual
                 ///< memory range.
     ) try {
-    auto pfnReserve = ur_lib::context->urDdiTable.VirtualMem.pfnReserve;
+    auto pfnReserve = ur_lib::getContext()->urDdiTable.VirtualMem.pfnReserve;
     if (nullptr == pfnReserve) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2709,7 +2701,7 @@ ur_result_t UR_APICALL urVirtualMemFree(
         pStart, ///< [in] pointer to the start of the virtual memory range to free.
     size_t size ///< [in] size in bytes of the virtual memory range to free.
     ) try {
-    auto pfnFree = ur_lib::context->urDdiTable.VirtualMem.pfnFree;
+    auto pfnFree = ur_lib::getContext()->urDdiTable.VirtualMem.pfnFree;
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2746,7 +2738,7 @@ ur_result_t UR_APICALL urVirtualMemMap(
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags for the physical memory mapping.
     ) try {
-    auto pfnMap = ur_lib::context->urDdiTable.VirtualMem.pfnMap;
+    auto pfnMap = ur_lib::getContext()->urDdiTable.VirtualMem.pfnMap;
     if (nullptr == pfnMap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2778,7 +2770,7 @@ ur_result_t UR_APICALL urVirtualMemUnmap(
         pStart, ///< [in] pointer to the start of the mapped virtual memory range
     size_t size ///< [in] size in bytes of the virtual memory range.
     ) try {
-    auto pfnUnmap = ur_lib::context->urDdiTable.VirtualMem.pfnUnmap;
+    auto pfnUnmap = ur_lib::getContext()->urDdiTable.VirtualMem.pfnUnmap;
     if (nullptr == pfnUnmap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2810,7 +2802,8 @@ ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
     ) try {
-    auto pfnSetAccess = ur_lib::context->urDdiTable.VirtualMem.pfnSetAccess;
+    auto pfnSetAccess =
+        ur_lib::getContext()->urDdiTable.VirtualMem.pfnSetAccess;
     if (nullptr == pfnSetAccess) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2850,7 +2843,7 @@ ur_result_t UR_APICALL urVirtualMemGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.VirtualMem.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.VirtualMem.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2889,7 +2882,7 @@ ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_physical_mem_handle_t *
         phPhysicalMem ///< [out] pointer to handle of physical memory object created.
     ) try {
-    auto pfnCreate = ur_lib::context->urDdiTable.PhysicalMem.pfnCreate;
+    auto pfnCreate = ur_lib::getContext()->urDdiTable.PhysicalMem.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2913,7 +2906,7 @@ ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
         hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.PhysicalMem.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.PhysicalMem.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2937,7 +2930,7 @@ ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
         hPhysicalMem ///< [in][release] handle of the physical memory object to release.
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.PhysicalMem.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.PhysicalMem.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -2986,7 +2979,8 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
-    auto pfnCreateWithIL = ur_lib::context->urDdiTable.Program.pfnCreateWithIL;
+    auto pfnCreateWithIL =
+        ur_lib::getContext()->urDdiTable.Program.pfnCreateWithIL;
     if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3041,7 +3035,7 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
         *phProgram ///< [out] pointer to handle of Program object created.
     ) try {
     auto pfnCreateWithBinary =
-        ur_lib::context->urDdiTable.Program.pfnCreateWithBinary;
+        ur_lib::getContext()->urDdiTable.Program.pfnCreateWithBinary;
     if (nullptr == pfnCreateWithBinary) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3084,7 +3078,7 @@ ur_result_t UR_APICALL urProgramBuild(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
     ) try {
-    auto pfnBuild = ur_lib::context->urDdiTable.Program.pfnBuild;
+    auto pfnBuild = ur_lib::getContext()->urDdiTable.Program.pfnBuild;
     if (nullptr == pfnBuild) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3126,7 +3120,7 @@ ur_result_t UR_APICALL urProgramCompile(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
     ) try {
-    auto pfnCompile = ur_lib::context->urDdiTable.Program.pfnCompile;
+    auto pfnCompile = ur_lib::getContext()->urDdiTable.Program.pfnCompile;
     if (nullptr == pfnCompile) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3184,7 +3178,7 @@ ur_result_t UR_APICALL urProgramLink(
     if (nullptr != phProgram) {
         *phProgram = nullptr;
     }
-    auto pfnLink = ur_lib::context->urDdiTable.Program.pfnLink;
+    auto pfnLink = ur_lib::getContext()->urDdiTable.Program.pfnLink;
     if (nullptr == pfnLink) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3218,7 +3212,7 @@ ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t
         hProgram ///< [in][retain] handle for the Program to retain
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Program.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Program.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3252,7 +3246,7 @@ ur_result_t UR_APICALL urProgramRelease(
     ur_program_handle_t
         hProgram ///< [in][release] handle for the Program to release
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Program.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Program.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3306,7 +3300,7 @@ ur_result_t UR_APICALL urProgramGetFunctionPointer(
         ppFunctionPointer ///< [out] Returns the pointer to the function if it is found in the program.
     ) try {
     auto pfnGetFunctionPointer =
-        ur_lib::context->urDdiTable.Program.pfnGetFunctionPointer;
+        ur_lib::getContext()->urDdiTable.Program.pfnGetFunctionPointer;
     if (nullptr == pfnGetFunctionPointer) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3357,7 +3351,7 @@ ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
         ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
     ) try {
     auto pfnGetGlobalVariablePointer =
-        ur_lib::context->urDdiTable.Program.pfnGetGlobalVariablePointer;
+        ur_lib::getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer;
     if (nullptr == pfnGetGlobalVariablePointer) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3410,7 +3404,7 @@ ur_result_t UR_APICALL urProgramGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Program.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Program.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3453,7 +3447,8 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
     ) try {
-    auto pfnGetBuildInfo = ur_lib::context->urDdiTable.Program.pfnGetBuildInfo;
+    auto pfnGetBuildInfo =
+        ur_lib::getContext()->urDdiTable.Program.pfnGetBuildInfo;
     if (nullptr == pfnGetBuildInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3495,7 +3490,7 @@ ur_result_t UR_APICALL urProgramSetSpecializationConstants(
                        ///< descriptions
     ) try {
     auto pfnSetSpecializationConstants =
-        ur_lib::context->urDdiTable.Program.pfnSetSpecializationConstants;
+        ur_lib::getContext()->urDdiTable.Program.pfnSetSpecializationConstants;
     if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3534,7 +3529,7 @@ ur_result_t UR_APICALL urProgramGetNativeHandle(
         phNativeProgram ///< [out] a pointer to the native handle of the program.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Program.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Program.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3574,7 +3569,7 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         phProgram ///< [out] pointer to the handle of the program object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Program.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3610,7 +3605,7 @@ ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to handle of kernel object created.
     ) try {
-    auto pfnCreate = ur_lib::context->urDdiTable.Kernel.pfnCreate;
+    auto pfnCreate = ur_lib::getContext()->urDdiTable.Kernel.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3648,7 +3643,8 @@ ur_result_t UR_APICALL urKernelSetArgValue(
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
-    auto pfnSetArgValue = ur_lib::context->urDdiTable.Kernel.pfnSetArgValue;
+    auto pfnSetArgValue =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgValue;
     if (nullptr == pfnSetArgValue) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3683,7 +3679,8 @@ ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t
         *pProperties ///< [in][optional] pointer to local buffer properties.
     ) try {
-    auto pfnSetArgLocal = ur_lib::context->urDdiTable.Kernel.pfnSetArgLocal;
+    auto pfnSetArgLocal =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgLocal;
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3735,7 +3732,7 @@ ur_result_t UR_APICALL urKernelGetInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Kernel.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Kernel.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3775,7 +3772,8 @@ ur_result_t UR_APICALL urKernelGetGroupInfo(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
     ) try {
-    auto pfnGetGroupInfo = ur_lib::context->urDdiTable.Kernel.pfnGetGroupInfo;
+    auto pfnGetGroupInfo =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnGetGroupInfo;
     if (nullptr == pfnGetGroupInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3813,7 +3811,7 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
                      ///< queried by propName.
     ) try {
     auto pfnGetSubGroupInfo =
-        ur_lib::context->urDdiTable.Kernel.pfnGetSubGroupInfo;
+        ur_lib::getContext()->urDdiTable.Kernel.pfnGetSubGroupInfo;
     if (nullptr == pfnGetSubGroupInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3847,7 +3845,7 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Kernel.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Kernel.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3881,7 +3879,7 @@ ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t
         hKernel ///< [in][release] handle for the Kernel to release
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Kernel.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Kernel.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3921,7 +3919,8 @@ ur_result_t UR_APICALL urKernelSetArgPointer(
         pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
     ///< mapping operation. If null then argument value is considered null.
     ) try {
-    auto pfnSetArgPointer = ur_lib::context->urDdiTable.Kernel.pfnSetArgPointer;
+    auto pfnSetArgPointer =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgPointer;
     if (nullptr == pfnSetArgPointer) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3964,7 +3963,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
     ) try {
-    auto pfnSetExecInfo = ur_lib::context->urDdiTable.Kernel.pfnSetExecInfo;
+    auto pfnSetExecInfo =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetExecInfo;
     if (nullptr == pfnSetExecInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -3998,7 +3998,8 @@ ur_result_t UR_APICALL urKernelSetArgSampler(
         *pProperties, ///< [in][optional] pointer to sampler properties.
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
     ) try {
-    auto pfnSetArgSampler = ur_lib::context->urDdiTable.Kernel.pfnSetArgSampler;
+    auto pfnSetArgSampler =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgSampler;
     if (nullptr == pfnSetArgSampler) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4033,7 +4034,8 @@ ur_result_t UR_APICALL urKernelSetArgMemObj(
         *pProperties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
     ) try {
-    auto pfnSetArgMemObj = ur_lib::context->urDdiTable.Kernel.pfnSetArgMemObj;
+    auto pfnSetArgMemObj =
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr == pfnSetArgMemObj) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4080,7 +4082,7 @@ ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         pSpecConstants ///< [in] array of specialization constant value descriptions
     ) try {
     auto pfnSetSpecializationConstants =
-        ur_lib::context->urDdiTable.Kernel.pfnSetSpecializationConstants;
+        ur_lib::getContext()->urDdiTable.Kernel.pfnSetSpecializationConstants;
     if (nullptr == pfnSetSpecializationConstants) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4119,7 +4121,7 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
         *phNativeKernel ///< [out] a pointer to the native handle of the kernel.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Kernel.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Kernel.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4162,7 +4164,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         *phKernel ///< [out] pointer to the handle of the kernel object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Kernel.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4213,7 +4215,7 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ///< suggested local work size that will contain the result of the query
     ) try {
     auto pfnGetSuggestedLocalWorkSize =
-        ur_lib::context->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+        ur_lib::getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
     if (nullptr == pfnGetSuggestedLocalWorkSize) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4263,7 +4265,7 @@ ur_result_t UR_APICALL urQueueGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Queue.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Queue.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4310,7 +4312,7 @@ ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *phQueue ///< [out] pointer to handle of queue object created
     ) try {
-    auto pfnCreate = ur_lib::context->urDdiTable.Queue.pfnCreate;
+    auto pfnCreate = ur_lib::getContext()->urDdiTable.Queue.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4346,7 +4348,7 @@ ur_result_t UR_APICALL urQueueRetain(
     ur_queue_handle_t
         hQueue ///< [in][retain] handle of the queue object to get access
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Queue.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Queue.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4384,7 +4386,7 @@ ur_result_t UR_APICALL urQueueRelease(
     ur_queue_handle_t
         hQueue ///< [in][release] handle of the queue object to release
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Queue.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Queue.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4425,7 +4427,7 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Queue.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Queue.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4467,7 +4469,7 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         *phQueue ///< [out] pointer to the handle of the queue object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Queue.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Queue.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4505,7 +4507,7 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be finished.
     ) try {
-    auto pfnFinish = ur_lib::context->urDdiTable.Queue.pfnFinish;
+    auto pfnFinish = ur_lib::getContext()->urDdiTable.Queue.pfnFinish;
     if (nullptr == pfnFinish) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4541,7 +4543,7 @@ ur_result_t UR_APICALL urQueueFinish(
 ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
     ) try {
-    auto pfnFlush = ur_lib::context->urDdiTable.Queue.pfnFlush;
+    auto pfnFlush = ur_lib::getContext()->urDdiTable.Queue.pfnFlush;
     if (nullptr == pfnFlush) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4587,7 +4589,7 @@ ur_result_t UR_APICALL urEventGetInfo(
                     ///< property
     size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
     ) try {
-    auto pfnGetInfo = ur_lib::context->urDdiTable.Event.pfnGetInfo;
+    auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Event.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4634,7 +4636,7 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
                      ///< propValue
     ) try {
     auto pfnGetProfilingInfo =
-        ur_lib::context->urDdiTable.Event.pfnGetProfilingInfo;
+        ur_lib::getContext()->urDdiTable.Event.pfnGetProfilingInfo;
     if (nullptr == pfnGetProfilingInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4673,7 +4675,7 @@ ur_result_t UR_APICALL urEventWait(
         phEventWaitList ///< [in][range(0, numEvents)] pointer to a list of events to wait for
                         ///< completion
     ) try {
-    auto pfnWait = ur_lib::context->urDdiTable.Event.pfnWait;
+    auto pfnWait = ur_lib::getContext()->urDdiTable.Event.pfnWait;
     if (nullptr == pfnWait) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4704,7 +4706,7 @@ ur_result_t UR_APICALL urEventWait(
 ur_result_t UR_APICALL urEventRetain(
     ur_event_handle_t hEvent ///< [in][retain] handle of the event object
     ) try {
-    auto pfnRetain = ur_lib::context->urDdiTable.Event.pfnRetain;
+    auto pfnRetain = ur_lib::getContext()->urDdiTable.Event.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4735,7 +4737,7 @@ ur_result_t UR_APICALL urEventRetain(
 ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t hEvent ///< [in][release] handle of the event object
     ) try {
-    auto pfnRelease = ur_lib::context->urDdiTable.Event.pfnRelease;
+    auto pfnRelease = ur_lib::getContext()->urDdiTable.Event.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4774,7 +4776,7 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
         *phNativeEvent ///< [out] a pointer to the native handle of the event.
     ) try {
     auto pfnGetNativeHandle =
-        ur_lib::context->urDdiTable.Event.pfnGetNativeHandle;
+        ur_lib::getContext()->urDdiTable.Event.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4814,7 +4816,7 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         *phEvent ///< [out] pointer to the handle of the event object created.
     ) try {
     auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Event.pfnCreateWithNativeHandle;
+        ur_lib::getContext()->urDdiTable.Event.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4859,7 +4861,7 @@ ur_result_t UR_APICALL urEventSetCallback(
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
     ) try {
-    auto pfnSetCallback = ur_lib::context->urDdiTable.Event.pfnSetCallback;
+    auto pfnSetCallback = ur_lib::getContext()->urDdiTable.Event.pfnSetCallback;
     if (nullptr == pfnSetCallback) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4931,7 +4933,8 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
     ) try {
-    auto pfnKernelLaunch = ur_lib::context->urDdiTable.Enqueue.pfnKernelLaunch;
+    auto pfnKernelLaunch =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
     if (nullptr == pfnKernelLaunch) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -4987,7 +4990,7 @@ ur_result_t UR_APICALL urEnqueueEventsWait(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnEventsWait = ur_lib::context->urDdiTable.Enqueue.pfnEventsWait;
+    auto pfnEventsWait = ur_lib::getContext()->urDdiTable.Enqueue.pfnEventsWait;
     if (nullptr == pfnEventsWait) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5044,7 +5047,7 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                 ///< command instance.
     ) try {
     auto pfnEventsWaitWithBarrier =
-        ur_lib::context->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
     if (nullptr == pfnEventsWaitWithBarrier) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5108,7 +5111,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferRead(
                 ///< command instance.
     ) try {
     auto pfnMemBufferRead =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferRead;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
     if (nullptr == pfnMemBufferRead) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5174,7 +5177,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                 ///< command instance.
     ) try {
     auto pfnMemBufferWrite =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWrite;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
     if (nullptr == pfnMemBufferWrite) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5260,7 +5263,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                 ///< command instance.
     ) try {
     auto pfnMemBufferReadRect =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferReadRect;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
     if (nullptr == pfnMemBufferReadRect) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5351,7 +5354,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                 ///< command instance.
     ) try {
     auto pfnMemBufferWriteRect =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWriteRect;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
     if (nullptr == pfnMemBufferWriteRect) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5414,7 +5417,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                 ///< command instance.
     ) try {
     auto pfnMemBufferCopy =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopy;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
     if (nullptr == pfnMemBufferCopy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5493,7 +5496,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
                 ///< command instance.
     ) try {
     auto pfnMemBufferCopyRect =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopyRect;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
     if (nullptr == pfnMemBufferCopyRect) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5561,7 +5564,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferFill(
                 ///< command instance.
     ) try {
     auto pfnMemBufferFill =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemBufferFill;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
     if (nullptr == pfnMemBufferFill) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5631,7 +5634,8 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnMemImageRead = ur_lib::context->urDdiTable.Enqueue.pfnMemImageRead;
+    auto pfnMemImageRead =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageRead;
     if (nullptr == pfnMemImageRead) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5703,7 +5707,7 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
                 ///< command instance.
     ) try {
     auto pfnMemImageWrite =
-        ur_lib::context->urDdiTable.Enqueue.pfnMemImageWrite;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageWrite;
     if (nullptr == pfnMemImageWrite) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5769,7 +5773,8 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnMemImageCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemImageCopy;
+    auto pfnMemImageCopy =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageCopy;
     if (nullptr == pfnMemImageCopy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5841,7 +5846,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferMap(
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
     ) try {
-    auto pfnMemBufferMap = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferMap;
+    auto pfnMemBufferMap =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferMap;
     if (nullptr == pfnMemBufferMap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5897,7 +5903,7 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnMemUnmap = ur_lib::context->urDdiTable.Enqueue.pfnMemUnmap;
+    auto pfnMemUnmap = ur_lib::getContext()->urDdiTable.Enqueue.pfnMemUnmap;
     if (nullptr == pfnMemUnmap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -5957,7 +5963,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnUSMFill = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill;
+    auto pfnUSMFill = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMFill;
     if (nullptr == pfnUSMFill) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6013,7 +6019,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnUSMMemcpy = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy;
+    auto pfnUSMMemcpy = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
     if (nullptr == pfnUSMMemcpy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6073,7 +6079,8 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnUSMPrefetch = ur_lib::context->urDdiTable.Enqueue.pfnUSMPrefetch;
+    auto pfnUSMPrefetch =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMPrefetch;
     if (nullptr == pfnUSMPrefetch) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6121,7 +6128,7 @@ ur_result_t UR_APICALL urEnqueueUSMAdvise(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
     ) try {
-    auto pfnUSMAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMAdvise;
+    auto pfnUSMAdvise = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMAdvise;
     if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6189,7 +6196,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
     ) try {
-    auto pfnUSMFill2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill2D;
+    auto pfnUSMFill2D = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
     if (nullptr == pfnUSMFill2D) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6255,7 +6262,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
     ) try {
-    auto pfnUSMMemcpy2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy2D;
+    auto pfnUSMMemcpy2D =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
     if (nullptr == pfnUSMMemcpy2D) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6310,7 +6318,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
                 ///< kernel execution instance.
     ) try {
     auto pfnDeviceGlobalVariableWrite =
-        ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
     if (nullptr == pfnDeviceGlobalVariableWrite) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6365,7 +6373,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
                 ///< kernel execution instance.
     ) try {
     auto pfnDeviceGlobalVariableRead =
-        ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
     if (nullptr == pfnDeviceGlobalVariableRead) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6422,7 +6430,8 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
                 ///< command
     ///< and can be used to query or queue a wait for this command to complete.
     ) try {
-    auto pfnReadHostPipe = ur_lib::context->urDdiTable.Enqueue.pfnReadHostPipe;
+    auto pfnReadHostPipe =
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnReadHostPipe;
     if (nullptr == pfnReadHostPipe) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6479,7 +6488,7 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ///< and can be used to query or queue a wait for this command to complete.
     ) try {
     auto pfnWriteHostPipe =
-        ur_lib::context->urDdiTable.Enqueue.pfnWriteHostPipe;
+        ur_lib::getContext()->urDdiTable.Enqueue.pfnWriteHostPipe;
     if (nullptr == pfnWriteHostPipe) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6549,7 +6558,7 @@ ur_result_t UR_APICALL urUSMPitchedAllocExp(
     size_t *pResultPitch  ///< [out] pitch of the allocation
     ) try {
     auto pfnPitchedAllocExp =
-        ur_lib::context->urDdiTable.USMExp.pfnPitchedAllocExp;
+        ur_lib::getContext()->urDdiTable.USMExp.pfnPitchedAllocExp;
     if (nullptr == pfnPitchedAllocExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6584,8 +6593,8 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
         hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnUnsampledImageHandleDestroyExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnUnsampledImageHandleDestroyExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
     if (nullptr == pfnUnsampledImageHandleDestroyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6619,8 +6628,8 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
         hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     auto pfnSampledImageHandleDestroyExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnSampledImageHandleDestroyExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
     if (nullptr == pfnSampledImageHandleDestroyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6666,7 +6675,7 @@ ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         *phImageMem ///< [out] pointer to handle of image memory allocated
     ) try {
     auto pfnImageAllocateExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
     if (nullptr == pfnImageAllocateExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6701,7 +6710,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         hImageMem ///< [in][release] handle of image memory to be freed
     ) try {
     auto pfnImageFreeExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageFreeExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageFreeExp;
     if (nullptr == pfnImageFreeExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6749,8 +6758,8 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     auto pfnUnsampledImageCreateExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnUnsampledImageCreateExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
     if (nullptr == pfnUnsampledImageCreateExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6802,7 +6811,8 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     auto pfnSampledImageCreateExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
     if (nullptr == pfnSampledImageCreateExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6876,7 +6886,7 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                 ///< command instance.
     ) try {
     auto pfnImageCopyExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
     if (nullptr == pfnImageCopyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6919,7 +6929,7 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     size_t *pPropSizeRet      ///< [out][optional] returned query value size
     ) try {
     auto pfnImageGetInfoExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
     if (nullptr == pfnImageGetInfoExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6959,7 +6969,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         *phImageMem ///< [out] returning memory handle to the individual image
     ) try {
     auto pfnMipmapGetLevelExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
     if (nullptr == pfnMipmapGetLevelExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -6994,7 +7004,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         hMem ///< [in][release] handle of image memory to be freed
     ) try {
     auto pfnMipmapFreeExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
     if (nullptr == pfnMipmapFreeExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7039,8 +7049,8 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         *phInteropMem ///< [out] interop memory handle to the external memory
     ) try {
     auto pfnImportExternalMemoryExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnImportExternalMemoryExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
     if (nullptr == pfnImportExternalMemoryExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7086,7 +7096,8 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     auto pfnMapExternalArrayExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
     if (nullptr == pfnMapExternalArrayExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7122,7 +7133,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         hInteropMem ///< [in][release] handle of interop memory to be freed
     ) try {
     auto pfnReleaseInteropExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+        ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
     if (nullptr == pfnReleaseInteropExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7165,8 +7176,8 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
     ) try {
     auto pfnImportExternalSemaphoreExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnImportExternalSemaphoreExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
     if (nullptr == pfnImportExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7203,8 +7214,8 @@ ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
     auto pfnDestroyExternalSemaphoreExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnDestroyExternalSemaphoreExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
     if (nullptr == pfnDestroyExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7253,8 +7264,8 @@ ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
                 ///< command instance.
     ) try {
     auto pfnWaitExternalSemaphoreExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnWaitExternalSemaphoreExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
     if (nullptr == pfnWaitExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7306,8 +7317,8 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
                 ///< command instance.
     ) try {
     auto pfnSignalExternalSemaphoreExp =
-        ur_lib::context->urDdiTable.BindlessImagesExp
-            .pfnSignalExternalSemaphoreExp;
+        ur_lib::getContext()
+            ->urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
     if (nullptr == pfnSignalExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7350,7 +7361,7 @@ ur_result_t UR_APICALL urCommandBufferCreateExp(
         *phCommandBuffer ///< [out] Pointer to command-Buffer handle.
     ) try {
     auto pfnCreateExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnCreateExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnCreateExp;
     if (nullptr == pfnCreateExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7378,7 +7389,7 @@ ur_result_t UR_APICALL urCommandBufferRetainExp(
         hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
     ) try {
     auto pfnRetainExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnRetainExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnRetainExp;
     if (nullptr == pfnRetainExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7407,7 +7418,7 @@ ur_result_t UR_APICALL urCommandBufferReleaseExp(
         hCommandBuffer ///< [in][release] Handle of the command-buffer object.
     ) try {
     auto pfnReleaseExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnReleaseExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnReleaseExp;
     if (nullptr == pfnReleaseExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7436,7 +7447,7 @@ ur_result_t UR_APICALL urCommandBufferFinalizeExp(
         hCommandBuffer ///< [in] Handle of the command-buffer object.
     ) try {
     auto pfnFinalizeExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnFinalizeExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnFinalizeExp;
     if (nullptr == pfnFinalizeExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7493,7 +7504,8 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *phCommand ///< [out][optional] Handle to this command.
     ) try {
     auto pfnAppendKernelLaunchExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
     if (nullptr == pfnAppendKernelLaunchExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7545,7 +7557,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendUSMMemcpyExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
     if (nullptr == pfnAppendUSMMemcpyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7600,7 +7612,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
     auto pfnAppendUSMFillExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
     if (nullptr == pfnAppendUSMFillExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7649,7 +7661,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferCopyExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
     if (nullptr == pfnAppendMemBufferCopyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7699,7 +7712,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferWriteExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
     if (nullptr == pfnAppendMemBufferWriteExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7748,7 +7762,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferReadExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
     if (nullptr == pfnAppendMemBufferReadExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7804,8 +7819,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferCopyRectExp =
-        ur_lib::context->urDdiTable.CommandBufferExp
-            .pfnAppendMemBufferCopyRectExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
     if (nullptr == pfnAppendMemBufferCopyRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7869,8 +7884,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferWriteRectExp =
-        ur_lib::context->urDdiTable.CommandBufferExp
-            .pfnAppendMemBufferWriteRectExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
     if (nullptr == pfnAppendMemBufferWriteRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7932,8 +7947,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferReadRectExp =
-        ur_lib::context->urDdiTable.CommandBufferExp
-            .pfnAppendMemBufferReadRectExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
     if (nullptr == pfnAppendMemBufferReadRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -7987,7 +8002,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
     auto pfnAppendMemBufferFillExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
     if (nullptr == pfnAppendMemBufferFillExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8044,7 +8060,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
     auto pfnAppendUSMPrefetchExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
     if (nullptr == pfnAppendUSMPrefetchExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8101,7 +8118,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
     auto pfnAppendUSMAdviseExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
     if (nullptr == pfnAppendUSMAdviseExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8148,7 +8165,7 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                 ///< command-buffer execution instance.
     ) try {
     auto pfnEnqueueExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnEnqueueExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
     if (nullptr == pfnEnqueueExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8177,7 +8194,7 @@ ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
         hCommand ///< [in][retain] Handle of the command-buffer command.
     ) try {
     auto pfnRetainCommandExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnRetainCommandExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnRetainCommandExp;
     if (nullptr == pfnRetainCommandExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8206,7 +8223,7 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
         hCommand ///< [in][release] Handle of the command-buffer command.
     ) try {
     auto pfnReleaseCommandExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
     if (nullptr == pfnReleaseCommandExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8256,7 +8273,8 @@ ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
     ) try {
     auto pfnUpdateKernelLaunchExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
+        ur_lib::getContext()
+            ->urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
     if (nullptr == pfnUpdateKernelLaunchExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8303,7 +8321,7 @@ ur_result_t UR_APICALL urCommandBufferGetInfoExp(
         pPropSizeRet ///< [out][optional] bytes returned in command-buffer property
     ) try {
     auto pfnGetInfoExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnGetInfoExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnGetInfoExp;
     if (nullptr == pfnGetInfoExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8351,7 +8369,7 @@ ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
         pPropSizeRet ///< [out][optional] bytes returned in command-buffer command property
     ) try {
     auto pfnCommandGetInfoExp =
-        ur_lib::context->urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
+        ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
     if (nullptr == pfnCommandGetInfoExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8418,7 +8436,8 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
                 ///< kernel execution instance.
     ) try {
     auto pfnCooperativeKernelLaunchExp =
-        ur_lib::context->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
+        ur_lib::getContext()
+            ->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
     if (nullptr == pfnCooperativeKernelLaunchExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8454,8 +8473,8 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     uint32_t *pGroupCountRet ///< [out] pointer to maximum number of groups
     ) try {
     auto pfnSuggestMaxCooperativeGroupCountExp =
-        ur_lib::context->urDdiTable.KernelExp
-            .pfnSuggestMaxCooperativeGroupCountExp;
+        ur_lib::getContext()
+            ->urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
     if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8503,7 +8522,7 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ///< reports the timestamp recorded when the command is executed on the device.
     ) try {
     auto pfnTimestampRecordingExp =
-        ur_lib::context->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+        ur_lib::getContext()->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
     if (nullptr == pfnTimestampRecordingExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8590,7 +8609,7 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
                 ///< kernel execution instance.
     ) try {
     auto pfnKernelLaunchCustomExp =
-        ur_lib::context->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+        ur_lib::getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
     if (nullptr == pfnKernelLaunchCustomExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8638,7 +8657,7 @@ ur_result_t UR_APICALL urProgramBuildExp(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
     ) try {
-    auto pfnBuildExp = ur_lib::context->urDdiTable.ProgramExp.pfnBuildExp;
+    auto pfnBuildExp = ur_lib::getContext()->urDdiTable.ProgramExp.pfnBuildExp;
     if (nullptr == pfnBuildExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8683,7 +8702,8 @@ ur_result_t UR_APICALL urProgramCompileExp(
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
     ) try {
-    auto pfnCompileExp = ur_lib::context->urDdiTable.ProgramExp.pfnCompileExp;
+    auto pfnCompileExp =
+        ur_lib::getContext()->urDdiTable.ProgramExp.pfnCompileExp;
     if (nullptr == pfnCompileExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8745,7 +8765,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     if (nullptr != phProgram) {
         *phProgram = nullptr;
     }
-    auto pfnLinkExp = ur_lib::context->urDdiTable.ProgramExp.pfnLinkExp;
+    auto pfnLinkExp = ur_lib::getContext()->urDdiTable.ProgramExp.pfnLinkExp;
     if (nullptr == pfnLinkExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8778,7 +8798,7 @@ ur_result_t UR_APICALL urUSMImportExp(
     void *pMem,                   ///< [in] pointer to host memory object
     size_t size ///< [in] size in bytes of the host memory object to be imported
     ) try {
-    auto pfnImportExp = ur_lib::context->urDdiTable.USMExp.pfnImportExp;
+    auto pfnImportExp = ur_lib::getContext()->urDdiTable.USMExp.pfnImportExp;
     if (nullptr == pfnImportExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8808,7 +8828,7 @@ ur_result_t UR_APICALL urUSMReleaseExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to host memory object
     ) try {
-    auto pfnReleaseExp = ur_lib::context->urDdiTable.USMExp.pfnReleaseExp;
+    auto pfnReleaseExp = ur_lib::getContext()->urDdiTable.USMExp.pfnReleaseExp;
     if (nullptr == pfnReleaseExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8859,7 +8879,7 @@ ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t peerDevice ///< [in] handle of the peer device object
     ) try {
     auto pfnEnablePeerAccessExp =
-        ur_lib::context->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
+        ur_lib::getContext()->urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
     if (nullptr == pfnEnablePeerAccessExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8911,7 +8931,7 @@ ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t peerDevice ///< [in] handle of the peer device object
     ) try {
     auto pfnDisablePeerAccessExp =
-        ur_lib::context->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
+        ur_lib::getContext()->urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
     if (nullptr == pfnDisablePeerAccessExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -8969,7 +8989,7 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
     ) try {
     auto pfnPeerAccessGetInfoExp =
-        ur_lib::context->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
+        ur_lib::getContext()->urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
     if (nullptr == pfnPeerAccessGetInfoExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
@@ -9019,7 +9039,7 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< been enqueued in nativeEnqueueFunc.
     ) try {
     auto pfnNativeCommandExp =
-        ur_lib::context->urDdiTable.EnqueueExp.pfnNativeCommandExp;
+        ur_lib::getContext()->urDdiTable.EnqueueExp.pfnNativeCommandExp;
     if (nullptr == pfnNativeCommandExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }

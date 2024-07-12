@@ -37,23 +37,23 @@ namespace ur_tracing_layer
         %endfor
         )
     {${th.get_initial_null_set(obj)}
-        auto ${th.make_pfn_name(n, tags, obj)} = context.${n}DdiTable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
+        auto ${th.make_pfn_name(n, tags, obj)} = getContext()->${n}DdiTable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
 
         if( nullptr == ${th.make_pfn_name(n, tags, obj)} )
             return ${X}_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
         ${th.make_pfncb_param_type(n, tags, obj)} params = { &${",&".join(th.make_param_lines(n, tags, obj, format=["name"]))} };
-        uint64_t instance = context.notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
+        uint64_t instance = getContext()->notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
 
-        context.logger.info("---> ${th.make_func_name(n, tags, obj)}");
+        getContext()->logger.info("---> ${th.make_func_name(n, tags, obj)}");
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
-        context.notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
+        getContext()->notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
 
         std::ostringstream args_str;
         ur::extras::printFunctionParams(args_str, ${th.make_func_etor(n, tags, obj)}, &params);
-        context.logger.info("({}) -> {};\n", args_str.str(), result);
+        getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
         return result;
     }
@@ -79,13 +79,13 @@ namespace ur_tracing_layer
         %endfor
         )
     {
-        auto& dditable = ur_tracing_layer::context.${n}DdiTable.${tbl['name']};
+        auto& dditable = ur_tracing_layer::getContext()->${n}DdiTable.${tbl['name']};
 
         if( nullptr == pDdiTable )
             return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
-        if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) != UR_MAJOR_VERSION(version) ||
-            UR_MINOR_VERSION(ur_tracing_layer::context.version) > UR_MINOR_VERSION(version))
+        if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) != UR_MAJOR_VERSION(version) ||
+            UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) > UR_MINOR_VERSION(version))
             return ${X}_RESULT_ERROR_UNSUPPORTED_VERSION;
 
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
@@ -122,7 +122,7 @@ namespace ur_tracing_layer
         // program launch and the call to `urLoaderInit`
         logger = logger::create_logger("tracing", true, true);
 
-        ur_tracing_layer::context.codelocData = codelocData;
+        ur_tracing_layer::getContext()->codelocData = codelocData;
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )
