@@ -99,14 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
-  # Merge: 76c6bf9a 0cd10f63
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 11 15:12:38 2024 +0100
-  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
-  #     [DeviceSanitizer] Support detecting misaligned access error
-  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
+  # commit 4095b4ac5421c21db6aacedcad158f1e807f7add
+  # Author: Sean Stirling <sean.stirling@codeplay.com>
+  # Date:   Tue, 4 Jun 2024 13:52:21 +0100
+  #     [PATCH] [Bindless][Exp] Rename interop related structs/funcs with
+  #     "external"
+  set(UNIFIED_RUNTIME_TAG d1a7c662d77b9bd9aacfc4ffaa56113806267e75)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
