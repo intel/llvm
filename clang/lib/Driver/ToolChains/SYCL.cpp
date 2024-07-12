@@ -222,7 +222,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   llvm::StringMap<bool> DeviceLibLinkInfo = {
       {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
       {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
-      {"libm-bfloat16", true}, {"internal", true}};
+      {"libm-bfloat16", true}, {"libgsort-fp32", true}, {"internal", true}};
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
@@ -274,6 +274,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-fallback-cmath", "libm-fp32"},
       {"libsycl-fallback-cmath-fp64", "libm-fp64"},
       {"libsycl-fallback-imf", "libimf-fp32"},
+      {"libsycl-fallback-gsort", "libgsort-fp32"},
       {"libsycl-fallback-imf-fp64", "libimf-fp64"},
       {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
   const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
