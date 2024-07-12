@@ -12,7 +12,7 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: llvm-split -sycl-split=auto -S < %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -34,7 +34,7 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-module-split -split=source -S < %s -o %t2
+; RUN: llvm-split -sycl-split=source -S < %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -56,7 +56,7 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-module-split -split=kernel -S < %s -o %t2
+; RUN: llvm-split -sycl-split=kernel -S < %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz

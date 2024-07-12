@@ -17,9 +17,13 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -63,6 +67,88 @@ static cl::opt<std::string>
 static cl::opt<std::string>
     MCPU("mcpu", cl::desc("Target CPU, ignored if -mtriple is not used"),
          cl::value_desc("cpu"), cl::cat(SplitCategory));
+
+cl::opt<module_split::IRSplitMode> SYCLSplitMode(
+    "sycl-split", cl::desc("split input module"), cl::Optional,
+    cl::init(module_split::SPLIT_NONE),
+    cl::values(clEnumValN(module_split::SPLIT_PER_TU, "source",
+                          "1 output module per source (translation unit)"),
+               clEnumValN(module_split::SPLIT_PER_KERNEL, "kernel",
+                          "1 output module per kernel"),
+               clEnumValN(module_split::SPLIT_AUTO, "auto",
+                          "Choose split mode automatically")),
+    cl::cat(SplitCategory));
+
+cl::opt<bool> OutputAssembly{"S", cl::desc("Write output as LLVM assembly"),
+                             cl::cat(SplitCategory)};
+
+void writeStringToFile(const std::string &Content, StringRef Path) {
+  std::error_code EC;
+  raw_fd_ostream OS(Path, EC);
+  if (EC) {
+    errs() << formatv("error opening file: {0}\n", Path);
+    exit(1);
+  }
+
+  OS << Content << "\n";
+}
+
+void writePropertiesToFile(const util::PropertySetRegistry &Properties,
+                           StringRef Path) {
+  std::error_code EC;
+  raw_fd_ostream OS(Path, EC);
+  if (EC) {
+    errs() << formatv("error opening file: {0}\n", Path);
+    exit(1);
+  }
+
+  Properties.write(OS);
+}
+
+void dumpSplitModulesAsTable(
+    const std::vector<module_split::SplitModule> &SplitModules,
+    StringRef Path) {
+  std::vector<StringRef> Columns = {"Code", "Properties", "Symbols"};
+  auto TableOrErr = util::SimpleTable::create(Columns);
+  if (!TableOrErr) {
+    errs() << "can't create a table\n";
+    exit(1);
+  }
+
+  std::unique_ptr<util::SimpleTable> Table = std::move(*TableOrErr);
+  for (const auto &[I, SM] : enumerate(SplitModules)) {
+    std::string SymbolsFile = (Twine(Path) + "_" + Twine(I) + ".sym").str();
+    std::string PropertiesFile = (Twine(Path) + "_" + Twine(I) + ".prop").str();
+    writePropertiesToFile(SM.Properties, PropertiesFile);
+    writeStringToFile(SM.Symbols, SymbolsFile);
+    SmallVector<StringRef, 3> Row = {SM.ModuleFilePath, PropertiesFile,
+                                     SymbolsFile};
+    Table->addRow(Row);
+  }
+
+  std::error_code EC;
+  raw_fd_ostream OS((Path + ".table").str(), EC);
+  if (EC) {
+    errs() << formatv("error opening file: {0}\n", Path);
+    exit(1);
+  }
+
+  Table->write(OS);
+}
+
+Error SYCLSplitModule(std::unique_ptr<Module> M) {
+  module_split::ModuleSplitterSettings Settings;
+  Settings.Mode = SYCLSplitMode;
+  Settings.OutputAssembly = OutputAssembly;
+  Settings.OutputPrefix = OutputFilename;
+  auto SplitModulesOrErr =
+      module_split::splitSYCLModule(std::move(M), Settings);
+  if (!SplitModulesOrErr)
+    return SplitModulesOrErr.takeError();
+
+  dumpSplitModulesAsTable(*SplitModulesOrErr, OutputFilename);
+  return Error::success();
+}
 
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
@@ -116,6 +202,16 @@ int main(int argc, char **argv) {
     // Declare success.
     Out->keep();
   };
+
+  if (SYCLSplitMode != module_split::IRSplitMode::SPLIT_NONE) {
+    auto E = SYCLSplitModule(std::move(M));
+    if (!E) {
+      errs() << E << "\n";
+      Err.print(argv[0], errs());
+    }
+
+    return 0;
+  }
 
   if (TM) {
     if (PreserveLocals) {

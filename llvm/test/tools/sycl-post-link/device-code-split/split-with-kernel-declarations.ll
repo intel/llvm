@@ -6,7 +6,7 @@
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-PER-SOURCE-SYM0
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-PER-SOURCE-SYM1
 ;
-; RUN: sycl-module-split -split=source -S < %s -o %t1
+; RUN: llvm-split -sycl-split=source -S < %s -o %t1
 ; RUN: FileCheck %s -input-file=%t1.table --check-prefix CHECK-PER-SOURCE-TABLE
 ; RUN: FileCheck %s -input-file=%t1_0.sym --check-prefix CHECK-PER-SOURCE-SYM0
 ; RUN: FileCheck %s -input-file=%t1_1.sym --check-prefix CHECK-PER-SOURCE-SYM1
@@ -17,7 +17,7 @@
 ; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefix CHECK-PER-KERNEL-SYM2
 ; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefix CHECK-PER-KERNEL-SYM0
 ;
-; RUN: sycl-module-split -split=kernel -S < %s -o %t3
+; RUN: llvm-split -sycl-split=kernel -S < %s -o %t3
 ; RUN: FileCheck %s -input-file=%t3.table --check-prefix CHECK-PER-KERNEL-TABLE
 ; RUN: FileCheck %s -input-file=%t3_0.sym --check-prefix CHECK-PER-KERNEL-SYM1
 ; RUN: FileCheck %s -input-file=%t3_1.sym --check-prefix CHECK-PER-KERNEL-SYM2

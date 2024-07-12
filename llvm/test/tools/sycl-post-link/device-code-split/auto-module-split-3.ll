@@ -15,7 +15,7 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-SYM
 ;
 ;
-; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: llvm-split -sycl-split=auto -S < %s -o %t2
 ;
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-TU0-IR \
 ; RUN:     --implicit-check-not TU0_kernel --implicit-check-not _Z3foov \
