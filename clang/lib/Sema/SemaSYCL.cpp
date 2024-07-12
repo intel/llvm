@@ -6240,22 +6240,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
-#if 0
-    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
-    if (FTD)
-      FTD->getTemplateParameters()->print(O, S.getASTContext());
-    std::string ParmList;
-    bool FirstParam = true;
-    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      if (FirstParam)
-        FirstParam = false;
-      else
-        ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString();
-    }
-    O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "("
-      << ParmList << ");\n";
-#endif
     std::string ParmList;
     bool FirstParam = true;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {

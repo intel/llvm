@@ -117,7 +117,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT: }
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_ as a free function kernel
-// CHECK-NEXT: void ff_3(int *, int, int);
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_3<int>;
 // CHECK-NEXT: }
@@ -133,7 +133,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT: }
  
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_ as a free function kernel
-// CHECK-NEXT: void ff_3(float *, float, float);
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(float *, float, float))ff_3<float>;
 // CHECK-NEXT: }
@@ -149,7 +149,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT: }
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
-// CHECK-NEXT: void ff_3(double *, double, double);
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
 // CHECK-NEXT: }
