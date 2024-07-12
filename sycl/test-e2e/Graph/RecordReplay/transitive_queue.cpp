@@ -10,18 +10,6 @@
 // from a graph, should change the state of the queue to recording mode.
 
 #include "../graph_common.hpp"
-#include <optional>
-
-std::optional<exp_ext::command_graph<>> getGraphFromQueue(queue &Q) {
-  try {
-    return {Q.ext_oneapi_get_graph()};
-  } catch (exception &E) {
-    if (E.code() == sycl::errc::invalid) {
-      return {};
-    }
-  }
-  assert(false && "Unexpected exception from ext_oneapi_get_graph()");
-}
 
 int main() {
   queue Q1;
