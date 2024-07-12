@@ -477,11 +477,15 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
     for (uint32_t i = 2; i < CI->arg_size(); ++i) {
       const Value *Arg = CI->getArgOperand(i);
       if (Arg->getType()->isPointerTy()) {
-        const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
-        if (!ASC)
-          continue;
-        uint32_t AddressSpace =
-            ASC->getOperand(0)->getType()->getPointerAddressSpace();
+        uint32_t AddressSpace = Arg->getType()->getPointerAddressSpace();
+        if (AddressSpace == 4) {
+          const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
+          if (!ASC)
+            continue;
+
+          AddressSpace =
+              ASC->getOperand(0)->getType()->getPointerAddressSpace();
+        }
         ArgumentMap[i - 2] = AddressSpace;
       }
     }
