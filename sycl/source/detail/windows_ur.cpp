@@ -20,7 +20,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-namespace pi {
+namespace ur {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
   // Tells the system to not display the critical-error-handler message box.
@@ -70,7 +70,7 @@ static std::filesystem::path getCurrentDSODirPath() {
   return std::filesystem::path(Path);
 }
 
-} // namespace pi
+} // namespace ur
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
