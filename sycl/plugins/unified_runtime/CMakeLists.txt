@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
-  # Merge: 01af5602 79be9c5f
+  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
+  # Merge: 76c6bf9a 0cd10f63
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 13:52:48 2024 +0100
-  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
-  #     Refactor Level Zero Command-Buffer implementation
-  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
+  # Date:   Thu Jul 11 15:12:38 2024 +0100
+  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
+  #     [DeviceSanitizer] Support detecting misaligned access error
+  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
