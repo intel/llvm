@@ -1567,6 +1567,15 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
             << "-device" << Target;
       }
+      // ocloc has different names for some of the newer architectures;
+      // translate them to the apropriate value here.
+      DepInfo =
+          llvm::StringSwitch<StringRef>(DepInfo)
+              .Cases("pvc_vg", "12_61_7", "pvc_xt_c0_vg")
+              .Cases("mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4", "mtl_s")
+              .Cases("mtl_h", "12_71_4", "mtl_p")
+              .Cases("arl_h", "12_74_4", "xe_lpgplus_b0")
+              .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
