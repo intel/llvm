@@ -104,24 +104,6 @@ context::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool context::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 cl_context context::get() const { return impl->get(); }
 
 backend context::get_backend() const noexcept { return impl->getBackend(); }
@@ -137,6 +119,10 @@ std::vector<device> context::get_devices() const {
 context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
+
+const property_list &context::getPropList() const {
+  return impl->getPropList();
+}
 
 } // namespace _V1
 } // namespace sycl
