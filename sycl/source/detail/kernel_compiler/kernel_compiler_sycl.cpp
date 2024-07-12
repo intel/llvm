@@ -257,7 +257,7 @@ bool SYCL_Compilation_Available() {
   std::filesystem::path DumpPath = tmp / (id + "_version.txt");
   std::string Compiler = getCompilerName();
   std::string TestCommand =
-      Compiler + " --version &> " + DumpPath.make_preferred().string();
+      Compiler + " --version > " + DumpPath.make_preferred().string();
   int result = std::system(TestCommand.c_str());
 
   return (result == 0);
