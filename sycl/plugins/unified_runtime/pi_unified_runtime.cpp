@@ -1381,11 +1381,12 @@ __SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
   return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
 }
 
-__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context Context,
+                                             pi_image_mem_handle MemHandle,
                                              pi_image_info ParamName,
                                              void *ParamValue,
                                              size_t *ParamValueSizeRet) {
-  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+  return pi2ur::piextMemImageGetInfo(Context, MemHandle, ParamName, ParamValue,
                                      ParamValueSizeRet);
 }
 

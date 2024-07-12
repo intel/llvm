@@ -2732,9 +2732,9 @@ public:
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
     if (Dst.get_size() < Src.get_size())
-      throw sycl::invalid_object_error(
-          "The destination accessor size is too small to copy the memory into.",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The destination accessor size is too small to "
+                            "copy the memory into.");
 
     if (copyAccToAccHelper(Src, Dst))
       return;

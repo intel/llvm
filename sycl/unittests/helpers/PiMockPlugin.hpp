@@ -28,6 +28,16 @@ struct DummyHandleT {
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
+
+  template <typename T> T getDataAs() {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data());
+  }
+
+  template <typename T> T setDataAs(T Val) {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data()) = Val;
+  }
 };
 
 using DummyHandlePtrT = DummyHandleT *;
@@ -592,7 +602,8 @@ inline pi_result mock_piextMemImageCopy(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+inline pi_result mock_piextMemImageGetInfo(pi_context context,
+                                           pi_image_mem_handle mem_handle,
                                            pi_image_info param_name,
                                            void *param_value,
                                            size_t *param_value_size_ret) {

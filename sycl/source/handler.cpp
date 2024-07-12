@@ -269,17 +269,14 @@ event handler::finalize() {
 #else
       auto EnqueueKernel = [&]() {
 #endif
-        // 'Result' for single point of return
-        pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                  MKernel, MKernelName.c_str(), RawEvents,
-                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
-                                  MImpl->MKernelIsCooperative,
-                                  MImpl->MKernelUsesClusterLaunch);
+        enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                         MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+                         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+                         MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -290,7 +287,6 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
-        return Result;
       };
 
       bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
@@ -305,9 +301,7 @@ event handler::finalize() {
       }
 
       if (DiscardEvent) {
-        if (PI_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
+        EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
         MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
@@ -318,10 +312,8 @@ event handler::finalize() {
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
 
-        if (PI_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
-        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
+        EnqueueKernel();
+        if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -504,9 +496,8 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Internal Error. Command group cannot be constructed.");
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -796,7 +787,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "Invalid kernel param kind");
     break;
   }
 }

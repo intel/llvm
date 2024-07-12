@@ -511,7 +511,9 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
   using BuildState = KernelProgramCache::BuildState;
   BuildState NewState = BuildRes->waitUntilTransition();
   if (NewState == BuildState::BS_Failed)
-    throw compile_program_error(BuildRes->Error.Msg, BuildRes->Error.Code);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::build), BuildRes->Error.Msg),
+        BuildRes->Error.Code);
 
   assert(NewState == BuildState::BS_Done);
   return BuildRes->Val;
