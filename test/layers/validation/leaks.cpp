@@ -5,20 +5,44 @@
 
 #include "fixtures.hpp"
 
-TEST_F(urTest, testUrAdapterGetLeak) {
+#include <ur_mock_helpers.hpp>
+
+// We need a fake handle for the below adapter leak test.
+inline ur_result_t fakeAdapter_urAdapterGet(void *pParams) {
+    auto params = *static_cast<ur_adapter_get_params_t *>(pParams);
+    **params.pphAdapters = reinterpret_cast<ur_adapter_handle_t>(0x1);
+    return UR_RESULT_SUCCESS;
+}
+
+class adapterLeakTest : public urTest {
+    void SetUp() override {
+        urTest::SetUp();
+        mock::getCallbacks().set_replace_callback("urAdapterGet",
+                                                  &fakeAdapter_urAdapterGet);
+        mock::getCallbacks().set_replace_callback("urAdapterRetain",
+                                                  &genericSuccessCallback);
+    }
+
+    void TearDown() override {
+        mock::getCallbacks().resetCallbacks();
+        urTest::TearDown();
+    }
+};
+
+TEST_F(adapterLeakTest, testUrAdapterGetLeak) {
     ur_adapter_handle_t adapter = nullptr;
     ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
     ASSERT_NE(nullptr, adapter);
 }
 
-TEST_F(urTest, testUrAdapterRetainLeak) {
+TEST_F(adapterLeakTest, testUrAdapterRetainLeak) {
     ur_adapter_handle_t adapter = nullptr;
     ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
     ASSERT_NE(nullptr, adapter);
     ASSERT_EQ(urAdapterRetain(adapter), UR_RESULT_SUCCESS);
 }
 
-TEST_F(urTest, testUrAdapterRetainNonexistent) {
+TEST_F(adapterLeakTest, testUrAdapterRetainNonexistent) {
     ur_adapter_handle_t adapter = (ur_adapter_handle_t)0xBEEF;
     ASSERT_EQ(urAdapterRetain(adapter), UR_RESULT_SUCCESS);
     ASSERT_NE(nullptr, adapter);

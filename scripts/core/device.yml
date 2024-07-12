@@ -505,7 +505,7 @@ params:
     - type: "$x_device_handle_t"
       name: hDevice
       desc: |
-            [in] handle of the device to get a reference of.
+            [in][retain] handle of the device to get a reference of.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the device handle reference indicating end of its usage"

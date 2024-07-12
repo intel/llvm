@@ -94,6 +94,7 @@ analogue:
 details:
     - "The application may call this function from simultaneous threads."
     - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `phDevices`."
+    - "If a non-success code is returned and `phProgram` is not `nullptr`, it will contain an unspecified program or `nullptr`. Implementations may use the build log of this program (accessible via $xProgramGetBuildInfo) to provide an error log for the linking failure."
 params:
     - type: $x_context_handle_t
       name: hContext

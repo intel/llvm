@@ -184,7 +184,7 @@ details:
 params:
     - type: $x_queue_handle_t
       name: hQueue
-      desc: "[in] handle of the queue object to get access"
+      desc: "[in][retain] handle of the queue object to get access"
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

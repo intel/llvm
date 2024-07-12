@@ -119,11 +119,13 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   std::ignore = hContext;
   std::ignore = count;
   std::ignore = phPrograms;
   std::ignore = pOptions;
-  std::ignore = phProgram;
 
   DIE_NO_IMPLEMENTATION
 }
@@ -144,7 +146,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *) {
+    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -764,7 +764,7 @@ def _generate_returns(obj, meta):
             elif type_traits.is_funcptr(param['type'], meta):
                 _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`" % accessor)
 
-            elif type_traits.is_handle(param['type']) and not type_traits.is_ipc_handle(item['type']):
+            elif type_traits.is_handle(param['type']) and not type_traits.is_ipc_handle(item['type']) and not type_traits.is_native_handle(item['type']):
                 _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`" % accessor)
 
         def append_enum_checks(param, accessor: str):
