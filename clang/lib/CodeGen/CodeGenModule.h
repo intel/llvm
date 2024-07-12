@@ -627,7 +627,7 @@ private:
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
 
-  llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
+  llvm::MapVector<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
   // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
   // when used with -fincremental-extensions.
