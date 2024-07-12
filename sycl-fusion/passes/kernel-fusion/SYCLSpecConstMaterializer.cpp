@@ -249,7 +249,7 @@ SYCLSpecConstMaterializer::handleKernel(llvm::Function &Kernel) {
     return PreservedAnalyses::all();
 
   // Make sure that the data was in an expected format.
-  assert((!SpecConstData || SpecConstDataSize < 1) &&
+  assert(SpecConstData && SpecConstDataSize > 0 &&
          "Specialisation constant data not found");
 
   populateUses(SpecConstArg);
