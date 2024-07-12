@@ -128,7 +128,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     Message += Acc;
   }
   Message += Suffix;
-  throw sycl::runtime_error(Message, PI_ERROR_DEVICE_NOT_FOUND);
+  throw exception(make_error_code(errc::runtime), Message);
 }
 
 // select_device(selector)
@@ -230,14 +230,6 @@ __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
     Score += detail::getDevicePreference(dev);
   }
   return Score;
-}
-
-int host_selector::operator()(const device &dev) const {
-  // Host device has been removed and host_selector has been deprecated, so this
-  // should never be able to select a device.
-  std::ignore = dev;
-  traceDeviceSelector("info::device_type::host");
-  return detail::REJECT_DEVICE_SCORE;
 }
 
 __SYCL_EXPORT detail::DSelectorInvocableType

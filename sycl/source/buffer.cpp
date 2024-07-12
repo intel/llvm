@@ -54,12 +54,12 @@ buffer_plain::buffer_plain(
 }
 
 buffer_plain::buffer_plain(
-    pi_native_handle MemObject, context SyclContext,
+    pi_native_handle MemObject, const context &SyclContext,
     std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
-    bool OwnNativeHandle, event AvailableEvent) {
-  impl = std::make_shared<detail::buffer_impl>(
-      MemObject, std::move(SyclContext), std::move(Allocator), OwnNativeHandle,
-      std::move(AvailableEvent));
+    bool OwnNativeHandle, const event &AvailableEvent) {
+  impl = std::make_shared<detail::buffer_impl>(MemObject, SyclContext,
+                                               std::move(Allocator),
+                                               OwnNativeHandle, AvailableEvent);
 }
 
 void buffer_plain::set_final_data_internal() { impl->set_final_data(nullptr); }
@@ -81,24 +81,6 @@ void buffer_plain::constructorNotification(const detail::code_location &CodeLoc,
 void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool buffer_plain::has_property<param_type>() const noexcept { \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type buffer_plain::get_property<param_type>() const {    \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 std::vector<pi_native_handle>
 buffer_plain::getNativeVector(backend BackendName) const {
@@ -126,6 +108,10 @@ void buffer_plain::handleRelease() const {
   // Buffer copy will have pointer to the same impl.
   if (impl.use_count() == 1)
     impl->detachMemoryObject(impl);
+}
+
+const property_list &buffer_plain::getPropList() const {
+  return impl->getPropList();
 }
 
 } // namespace detail
