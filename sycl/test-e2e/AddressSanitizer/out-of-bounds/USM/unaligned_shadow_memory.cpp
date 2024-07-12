@@ -1,4 +1,3 @@
-// UNSUPPORTED: cuda || hip
 // REQUIRES: linux
 // RUN: %{build} %device_asan_flags -DTEST1 -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK1 %s

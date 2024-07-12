@@ -1,4 +1,3 @@
-// UNSUPPORTED: cuda || hip
 // REQUIRES: linux, aspect-fp64
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s

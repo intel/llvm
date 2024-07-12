@@ -1,4 +1,3 @@
-// UNSUPPORTED: cuda || hip
 // REQUIRES: linux
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_1 -c -o %t1.o
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_2 -c -o %t2.o
