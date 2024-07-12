@@ -14,7 +14,6 @@
 // RUN: %if cpu %{ env SYCL_PROGRAM_APPEND_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 
 #include <cassert>
-#include <memory>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
