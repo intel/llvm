@@ -211,9 +211,8 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
   }
   // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
-  // TODO(pi2ur): Reimplement this when the switch to uintptr_t is done
-  return 0; // (backend_return_t<backend::ext_oneapi_cuda,
-            // device>)(Obj.getNative());
+  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
+      Obj.getNative());
 }
 
 #ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
