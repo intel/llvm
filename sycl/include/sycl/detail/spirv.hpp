@@ -750,7 +750,9 @@ using EnableIfNativeShuffle =
 
 template <typename T>
 using EnableIfNonScalarShuffle =
-    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
+    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value ||
+                         detail::is_marray_v<T>,
+                     T>;
 
 #else  // ifndef __NVPTX__
 
