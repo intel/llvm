@@ -55,7 +55,7 @@ DEVICE_EXTERN_C_INLINE
 double round(double x) { return __devicelib_round(x); }
 
 DEVICE_EXTERN_C_INLINE
-double lround(double x) { return __devicelib_lround(x); }
+long lround(double x) { return __devicelib_lround(x); }
 
 DEVICE_EXTERN_C_INLINE
 double floor(double x) { return __devicelib_floor(x); }
