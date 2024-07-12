@@ -281,7 +281,7 @@ bool SYCLSpecConstMaterializer::readMetadata() {
 PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
                                                  FunctionAnalysisManager &) {
   if (const char *DebugEnv = std::getenv("SYCL_JIT_COMPILER_DEBUG"))
-    if (0 == strstr(DebugEnv, DEBUG_TYPE)) {
+    if (strstr(DebugEnv, DEBUG_TYPE)) {
       DebugFlag = true;
       llvm::setCurrentDebugType(DEBUG_TYPE);
     }
