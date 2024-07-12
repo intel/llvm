@@ -105,7 +105,7 @@ defined as:
 
 ### Changelog
 
-Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](/sycl/ReleaseNotes.md).
+Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](https://github.com/intel/llvm/blob/sycl/sycl/ReleaseNotes.md).
 
 ## Features
 
