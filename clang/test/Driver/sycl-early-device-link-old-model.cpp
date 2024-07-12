@@ -1,7 +1,6 @@
 // Testing for early AOT device linking.  These tests use -fno-sycl-rdc
 // -c to create final device binaries during the link step when using -fsycl.
 // Behavior is restricted to spir64_gen targets for now.
-// Old offloading model only
 
 // Create object that contains final device image
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \

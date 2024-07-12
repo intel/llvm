@@ -1,5 +1,4 @@
 // Test checks -fsycl-add-default-spec-consts-image flag.
-// Old offloading model only
 
 // Check usages when warning should be issued.
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image 2>&1 %s | FileCheck %s -check-prefix=CHECK-NON-AOT

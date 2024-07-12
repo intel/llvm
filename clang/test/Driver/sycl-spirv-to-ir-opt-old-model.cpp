@@ -1,5 +1,5 @@
 ///
-/// Tests for -Xspirv-to-ir-wrapper, old offloading model only
+/// Tests for -Xspirv-to-ir-wrapper
 ///
 
 // RUN: touch %tfoo.o

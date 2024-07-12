@@ -1,5 +1,4 @@
 /// test behaviors of passing a fat static lib with -fno-sycl-rdc
-/// old offloading model only
 // UNSUPPORTED: system-windows
 
 // Build a fat static lib that will be used for all tests

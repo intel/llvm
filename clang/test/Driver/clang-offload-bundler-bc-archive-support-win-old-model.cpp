@@ -1,5 +1,4 @@
 // Target "host-x86_64-pc-windows-msvc" only works on Windows
-// Old offloading model only
 // REQUIRES: system-windows
 
 // Ensure that bundled BC files in archives can work with:

@@ -1,5 +1,5 @@
 // UNSUPPORTED: system-windows
-// Test temp file cleanup, old offloading model only
+// Test temp file cleanup
 
 // RUN: mkdir -p %t_dir
 // RUN: env TMPDIR=%t_dir TEMP=%t_dir TMP=%t_dir                           \

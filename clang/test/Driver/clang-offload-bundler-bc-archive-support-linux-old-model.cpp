@@ -1,5 +1,4 @@
 // Target "host-x86_64-unknown-linux-gnu" only works on Linux
-// Old offloading model only
 // REQUIRES: system-linux
 
 // Ensure that bundled BC files in archives can work with:

@@ -1,4 +1,4 @@
-/// Check llvm-spirv extensions that are set - old offload model only
+/// Check llvm-spirv extensions that are set
 
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT

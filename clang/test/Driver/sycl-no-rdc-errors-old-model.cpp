@@ -1,5 +1,4 @@
 /// Tests driver errors for -no-sycl-rdc
-/// old offloading model only
 
 // RUN: %clang -target %itanium_abi_triple -c %s -o %t.o
 // RUN: %clang -target spir64_gen -emit-llvm -c %s -o %t

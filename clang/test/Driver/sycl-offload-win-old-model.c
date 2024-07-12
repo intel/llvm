@@ -1,7 +1,5 @@
 ///
 /// Perform several driver tests for SYCL offloading on Windows.
-/// Specific for old offloading model, as it is testing lib and object
-/// consumption.
 ///
 
 // REQUIRES: x86-registered-target

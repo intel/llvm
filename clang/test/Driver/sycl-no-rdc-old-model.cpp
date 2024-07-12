@@ -1,4 +1,4 @@
-/// Tests for -fno-sycl-rdc, old offloading model only
+/// Tests for -fno-sycl-rdc
 // UNSUPPORTED: system-windows
 
 // RUN: touch %t1.cpp

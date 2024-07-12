@@ -1,5 +1,4 @@
 // SYCL offloading tests using -fsycl-dump-device-code
-// Old offloading model only
 
 // Verify that -fsycl-dump-device-code puts the device code (.spv files)
 // in the user provided directory.

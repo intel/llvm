@@ -1,6 +1,5 @@
 ///
 /// Perform several driver tests for SYCL offloading involving static libs
-/// Specific to the old offloading model
 ///
 // REQUIRES: x86-registered-target
 
