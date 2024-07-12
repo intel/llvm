@@ -106,7 +106,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Jul 9 15:57:44 2024 +0100
   #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
   #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
-  set(UNIFIED_RUNTIME_TAG e7e465f59c7a76d2be0d1144521820853ca90b58)
+  set(UNIFIED_RUNTIME_TAG 60eb35fe42fa0b62a4609fb7284c812778c0bca0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
