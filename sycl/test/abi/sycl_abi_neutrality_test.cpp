@@ -1,4 +1,5 @@
 // REQUIRES: linux
+// UNSUPPORTED: libcxx
 // RUN: FileCheck %s --input-file %S/sycl_symbols_linux.dump
 
 // The purpose of this test is to check that all symbols which are visible from
