@@ -13,6 +13,7 @@
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h
