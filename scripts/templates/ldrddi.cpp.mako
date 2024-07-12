@@ -262,9 +262,16 @@ namespace ur_loader
         %>
         %for i, item in enumerate(epilogue):
         %if 0 == i and not item['release'] and not item['retain'] and not th.always_wrap_outputs(obj):
-        if( ${X}_RESULT_SUCCESS != result )
+        ## TODO: Remove once we have a concrete way for submitting warnings in place.
+        %if re.match(r"urEnqueue\w+", th.make_func_name(n, tags, obj)):
+        // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+        if( ${X}_RESULT_SUCCESS != result && ${X}_RESULT_ERROR_ADAPTER_SPECIFIC != result )
+            return result;
+        %else:
+        if( ${X}_RESULT_SUCCESS != result)
             return result;
 
+        %endif
         %endif
         ## Before we can re-enable the releases we will need ref-counted object_t.
         ## See unified-runtime github issue #1784
