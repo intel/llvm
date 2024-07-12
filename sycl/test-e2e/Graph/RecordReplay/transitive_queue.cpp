@@ -35,9 +35,7 @@ int main() {
   Q1.copy(DataC.data(), PtrC, Size);
   Q1.wait_and_throw();
 
-  exp_ext::command_graph Graph{
-      Q1.get_context(), Q1.get_device(),
-      exp_ext::property::graph::assume_buffer_outlives_graph{}};
+  exp_ext::command_graph Graph{Q1.get_context(), Q1.get_device()};
 
   Graph.begin_recording(Q1);
 
