@@ -110,7 +110,6 @@
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-NOT: "{{.*}}libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-NOT: "{{.*}}libsycl-cmath-fp64.bc"
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: "{{.*}}libsycl-imf.bc"
-// SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: "{{.*}}libsycl-imf.bc"
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: "{{.*}}libsycl-imf-fp64.bc"
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: "{{.*}}libsycl-imf-bf16.bc"
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: "{{.*}}libsycl-fallback-cassert.bc"
