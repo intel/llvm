@@ -469,12 +469,16 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const noexcept;
+  template <typename PropertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<PropertyT>();
+  }
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an SYCL exception with errc::invalid error code.
-  template <typename PropertyT> PropertyT get_property() const;
+  /// property, an SYCL exception with errc::invalid error code is thrown.
+  template <typename PropertyT> PropertyT get_property() const {
+    return getPropList().template get_property<PropertyT>();
+  }
 
   /// Fills the specified memory with the specified pattern.
   ///
@@ -2724,11 +2728,6 @@ private:
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
-  /// Checks if the event needs to be discarded and if so, discards it and
-  /// returns a discarded event. Otherwise, it returns input event.
-  /// TODO: move to impl class in the next ABI Breaking window
-  event discard_or_return(const event &Event);
-
   // Function to postprocess submitted command
   // Arguments:
   // bool IsKernel - true if the submitted command was kernel, false otherwise
@@ -2884,6 +2883,7 @@ private:
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
                                const std::vector<event> &DepEvents);
+  const property_list &getPropList() const;
 };
 
 } // namespace _V1
