@@ -3799,6 +3799,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::roundeven:
   case Intrinsic::sin:
   case Intrinsic::sqrt:
+  case Intrinsic::tan:
   case Intrinsic::trunc:
   case Intrinsic::ctpop:
   case Intrinsic::ctlz:
@@ -3922,6 +3923,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Sin;
   case Intrinsic::sqrt:
     return OpenCLLIB::Sqrt;
+  case Intrinsic::tan:
+    return OpenCLLIB::Tan;
   case Intrinsic::trunc:
     return OpenCLLIB::Trunc;
   default:
@@ -3948,6 +3951,8 @@ static SPIRVWord getNativeBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Native_sin;
   case Intrinsic::sqrt:
     return OpenCLLIB::Native_sqrt;
+  case Intrinsic::tan:
+    return OpenCLLIB::Native_tan;
   default:
     return getBuiltinIdForIntrinsic(IID);
   }
@@ -4067,6 +4072,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::roundeven:
   case Intrinsic::sin:
   case Intrinsic::sqrt:
+  case Intrinsic::tan:
   case Intrinsic::trunc: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;

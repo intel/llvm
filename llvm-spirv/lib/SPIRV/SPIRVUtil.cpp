@@ -1871,6 +1871,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::roundeven:
   case Intrinsic::sin:
   case Intrinsic::sqrt:
+  case Intrinsic::tan:
   case Intrinsic::trunc: {
     // Although some of the intrinsics above take multiple arguments, it is
     // sufficient to check arg 0 because the LLVM Verifier will have checked
