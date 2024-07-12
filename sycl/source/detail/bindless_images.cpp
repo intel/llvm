@@ -118,11 +118,10 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  auto urImageHandle =
-      reinterpret_cast<ur_exp_image_mem_native_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesUnsampledImageHandleDestroyExp, C, Device, urImageHandle);
+      urBindlessImagesUnsampledImageHandleDestroyExp, C, Device,
+      imageHandle.raw_handle);
 }
 
 __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
@@ -141,11 +140,10 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  ur_exp_image_mem_native_handle_t urImageHandle =
-      reinterpret_cast<ur_exp_image_mem_native_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesSampledImageHandleDestroyExp, C, Device, urImageHandle);
+      urBindlessImagesSampledImageHandleDestroyExp, C, Device,
+      imageHandle.raw_handle);
 }
 
 __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
@@ -362,7 +360,7 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
                                     Device, memHandle.raw_handle, &urFormat,
                                     &urDesc, &urImageHandle);
 
-  return unsampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
+  return unsampled_image_handle{urImageHandle};
 }
 
 __SYCL_EXPORT unsampled_image_handle
@@ -499,7 +497,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       reinterpret_cast<ur_exp_image_mem_native_handle_t>(devPtr), &urFormat, &urDesc,
       urSampler, &urImageHandle);
 
-  return sampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
+  return sampled_image_handle{urImageHandle};
 }
 
 __SYCL_EXPORT sampled_image_handle
