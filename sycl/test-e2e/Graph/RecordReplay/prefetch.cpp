@@ -3,7 +3,7 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// prefetch command not supported for OpenCL
+// Inteded - prefetch command not supported for OpenCL
 // UNSUPPORTED: opencl
 
 // Since Prefetch is only a memory hint that doesn't
