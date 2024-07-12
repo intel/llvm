@@ -27,9 +27,8 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
@@ -76,6 +75,8 @@ ModulePass *llvm::createSYCLLowerInvokeSimdPass() {
 
 namespace {
 // TODO support lambda and functor overloads
+
+ValueMap<const Value *, SmallDenseMap<uint32_t, uint32_t>> ArgAddrSpaceMap;
 
 using ValueSetImpl = SmallPtrSetImpl<Value *>;
 using ValueSet = SmallPtrSet<Value *, 4>;
@@ -321,83 +322,33 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     SimdF->addFnAttr(INVOKE_SIMD_DIRECT_TARGET_ATTR);
   }
 
-  // Infer address space for some of the ESIMD intrinsics to generate more
-  // efficient code on BE.
   if (!SimdF->isDeclaration()) {
-    for (Instruction &I : instructions(SimdF)) {
-      auto *CI = dyn_cast<CallInst>(&I);
-      Function *Callee = nullptr;
-      if (CI && (Callee = CI->getCalledFunction())) {
-        IRBuilder<> Builder(CI);
-        StringRef Name = Callee->getName();
-        if (!Name.consume_front("_Z"))
-          continue;
-        Name = Name.drop_while([](char C) { return std::isdigit(C); });
+    const SmallDenseMap<uint32_t, uint32_t> &ArgMap = ArgAddrSpaceMap[SimdF];
+    for (const auto &MapEntry : ArgMap) {
+      const uint32_t ArgNo = MapEntry.first;
+      const uint32_t ArgAddrSpace = MapEntry.second;
 
-        Value *PtrArg = nullptr;
-        int argNo = -1;
-        // Cuurently only block_load/block_store are supported as native masked
-        // gather/scatter are not supported when used with invoke_simd due to
-        // tome driver issues. The support will be added once the driver issue
-        // is resolved.
-        if (Name.starts_with("__esimd_svm_block_ld") ||
-            Name.starts_with("__esimd_svm_block_st")) {
-          PtrArg = CI->getArgOperand(0);
-        }
-
-        if (!PtrArg)
+      Argument *Arg = SimdF->getArg(ArgNo);
+      for (User *ArgUse : Arg->users()) {
+        Instruction *Instr = dyn_cast<Instruction>(ArgUse);
+        if (!Instr)
           continue;
-        // Skip if the argument already has non generic address space.
-        if (PtrArg->getType()->getPointerAddressSpace() != 4)
-          continue;
-        const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(PtrArg);
-        if (GEP) {
-          const Value *GepPtr = GEP->getPointerOperand();
-          // Get the argument number which contains the pointer that is used in
-          // the ESIMD API calls.
-          for (const Argument &Op : CI->getFunction()->args()) {
-            if (GepPtr == &Op) {
-              argNo = Op.getArgNo();
-              break;
-            }
-          }
-        }
-
-        if (argNo < 0)
-          continue;
-        Function *parentF = CI->getFunction();
-        // Check the uses of function that contains the ESIMD API calls.
-        for (auto It = parentF->use_begin(); It != parentF->use_end(); It++) {
-          const User *FCall = It->getUser();
-
-          const CallInst *ISCI = dyn_cast<CallInst>(FCall);
-          if (!ISCI)
+        const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(ArgUse);
+        if (ASC) {
+          if (ASC->getDestAddressSpace() == ArgAddrSpace)
             continue;
-          // The function is used in the call but not as a callee.
-          if ((ISCI->getCalledFunction() != parentF)) {
-            // The function is called by invoke_simd intrinsic
-            if (ISCI->getCalledFunction()->getName().starts_with(
-                    esimd::INVOKE_SIMD_PREF)) {
-              // Invoke_simd function has 2 more arguments in front of original
-              // function arguments.
-              // Currently we always cast original address space to generic
-              // address space before calling invoke_simd
-              const AddrSpaceCastInst *ASC =
-                  dyn_cast<AddrSpaceCastInst>(ISCI->getArgOperand(argNo + 2));
-              if (!ASC)
-                continue;
-              unsigned AddressSpace =
-                  ASC->getOperand(0)->getType()->getPointerAddressSpace();
-              // Generate address space cast instruction for original ESIMD API
-              // argument and replace the argument for the call.
-              const Type *Ty = PtrArg->getType();
-              PointerType *NPT =
-                  PointerType::get(Ty->getContext(), AddressSpace);
-              Type *T1 = Ty->getWithNewType(NPT);
-              Value *NewPtr = Builder.CreateAddrSpaceCast(PtrArg, T1);
+        }
+        for (unsigned int i = 0; i < ArgUse->getNumOperands(); ++i) {
+          if (ArgUse->getOperand(i) == Arg) {
+            const Type *Ty = ArgUse->getOperand(i)->getType();
 
-              CI->setArgOperand(0, NewPtr);
-            }
+            PointerType *NPT = PointerType::get(Ty->getContext(), ArgAddrSpace);
+
+            auto *NewInstr = new AddrSpaceCastInst(ArgUse->getOperand(i), NPT);
+            NewInstr->insertBefore(Instr);
+            NewInstr->setDebugLoc(Instr->getDebugLoc());
+
+            ArgUse->setOperand(i, NewInstr);
           }
         }
       }
@@ -521,6 +472,24 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
       ISCalls.insert(CI);
     }
   }
+  for (const CallInst *CI : ISCalls) {
+    SmallDenseMap<uint32_t, uint32_t> ArgumentMap;
+    for (uint32_t i = 2; i < CI->arg_size(); ++i) {
+      const Value *Arg = CI->getArgOperand(i);
+      if (Arg->getType()->isPointerTy()) {
+        const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
+        if (!ASC)
+          continue;
+        uint32_t AddressSpace =
+            ASC->getOperand(0)->getType()->getPointerAddressSpace();
+        ArgumentMap[i - 2] = AddressSpace;
+      }
+    }
+    if (!ArgumentMap.empty()) {
+      ArgAddrSpaceMap[CI->getArgOperand(1)] = ArgumentMap;
+    }
+  }
+
   for (CallInst *CI : ISCalls) {
     Modified |= processInvokeSimdCall(CI, ClonedHelpers);
   }
