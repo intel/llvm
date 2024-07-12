@@ -1288,6 +1288,9 @@ public:
   uint16_t
   getPointerAuthVTablePointerDiscriminator(const CXXRecordDecl *RD);
 
+  /// Return the "other" type-specific discriminator for the given type.
+  uint16_t getPointerAuthTypeDiscriminator(QualType T) const;
+
   /// Apply Objective-C protocol qualifiers to the given type.
   /// \param allowOnPointerType specifies if we can apply protocol
   /// qualifiers on ObjCObjectPointerType. It can be set to true when
