@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
-  # Merge: 6b33a1bb 5dc794cb
+  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
+  # Merge: 76c6bf9a 0cd10f63
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 15:05:31 2024 +0100
-  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
-  #     [L0] Use Intel Level Zero Driver String extension
-  set(UNIFIED_RUNTIME_TAG 529e8b9c34acd231eb5b829f6af8123e5f09c974)
+  # Date:   Thu Jul 11 15:12:38 2024 +0100
+  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
+  #     [DeviceSanitizer] Support detecting misaligned access error
+  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

@@ -463,12 +463,16 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const noexcept;
+  template <typename PropertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<PropertyT>();
+  }
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an SYCL exception with errc::invalid error code.
-  template <typename PropertyT> PropertyT get_property() const;
+  /// property, an SYCL exception with errc::invalid error code is thrown.
+  template <typename PropertyT> PropertyT get_property() const {
+    return getPropList().template get_property<PropertyT>();
+  }
 
   /// Fills the specified memory with the specified pattern.
   ///
@@ -2878,6 +2882,7 @@ private:
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
                                const std::vector<event> &DepEvents);
+  const property_list &getPropList() const;
 };
 
 } // namespace _V1
