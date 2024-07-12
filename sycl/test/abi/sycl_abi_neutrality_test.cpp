@@ -1,7 +1,19 @@
 // REQUIRES: linux
 // RUN: FileCheck %s --input-file %S/sycl_symbols_linux.dump
 
-// This is the list of cases which need to be fixed.
+// The purpose of this test is to check that all symbols which are visible from
+// SYCL library are ABI neutral (see
+// https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html). It
+// means that SYCL library must not export symbols in "__cxx11" namespace or
+// with "cxx11" tag because such symbols correspond to the new ABI entries
+// (_GLIBCXX_USE_CXX11_ABI=1, default) and won't work with a program that uses
+// the old ABI (_GLIBCXX_USE_CXX11_ABI=0). All APIs exported from SYCL RT must
+// avoid using classes like std::string and std::list impacted by dual-abi issue
+// and have to use abi-neutral counterpart provided by SYCL RT (e.g
+// sycl::detail::string, etc.).
+
+// New exclusions are NOT ALLOWED to this file. All remaining cases which need
+// to be fixed are listed below.
 // Unfortunately --implicit-check-not option is not working as expected with CHECK-DAG, so have to surround each case with CHECK-NOT directive.
 // CHECK-NOT: cxx11
 // CHECK-DAG:_ZN4sycl3_V13ext5intel12experimental15online_compilerILNS3_15source_languageE0EE7compileIJSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISE_EEEEES8_IhSaIhEERKSE_DpRKT_
