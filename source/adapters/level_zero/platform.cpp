@@ -159,18 +159,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ur_result_t ur_platform_handle_t_::initialize() {
-  // Cache driver properties
-  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
-  ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
-  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
-  // Intel Level-Zero GPU driver stores version as:
-  // | 31 - 24 | 23 - 16 | 15 - 0 |
-  // |  Major  |  Minor  | Build  |
-  auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
-  auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
-  auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
-  ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
@@ -209,6 +197,33 @@ ur_result_t ur_platform_handle_t_::initialize() {
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
+  }
+
+  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
+                                        (void **)&ZeDriverHandleExpTranslated));
+
+  // Check if intel Driver Version Extension is supported.
+  ZeDriverVersionString.setZeDriverVersionString(this);
+  // Cache driver properties
+  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+  ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+  if (!ZeDriverVersionString.Supported) {
+    uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+    // Intel Level-Zero GPU driver stores version as:
+    // | 31 - 24 | 23 - 16 | 15 - 0 |
+    // |  Major  |  Minor  | Build  |
+    auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
+    auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
+    auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
+    ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
+  } else {
+    size_t sizeOfDriverString = 0;
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 nullptr, &sizeOfDriverString);
+    ZeDriverVersion.resize(sizeOfDriverString);
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 ZeDriverVersion.data(),
+                                                 &sizeOfDriverString);
   }
 
   // Check if import user ptr into USM feature has been requested.

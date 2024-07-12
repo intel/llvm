@@ -447,6 +447,22 @@ const bool ExposeCSliceInAffinityPartitioning = [] {
 const std::pair<int, int>
 getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
 
+class ZeDriverVersionStringExtension {
+  // Pointer to function for Intel Driver Version String
+  ze_result_t (*zeIntelGetDriverVersionStringPointer)(
+      ze_driver_handle_t hDriver, char *, size_t *) = nullptr;
+
+public:
+  // Whether platform supports Intel Driver Version String.
+  bool Supported;
+
+  ZeDriverVersionStringExtension() : Supported{false} {}
+
+  void setZeDriverVersionString(ur_platform_handle_t_ *Platform);
+  void getDriverVersionString(ze_driver_handle_t DriverHandle,
+                              char *pDriverVersion, size_t *pVersionSize);
+};
+
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
   ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
