@@ -1194,7 +1194,7 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
-  /// \param Queue[in] The queue to be recorded from.
+  /// @param[in] Queue The queue to be recorded from.
   void beginRecording(std::shared_ptr<sycl::detail::queue_impl> Queue);
 
   /// Store the last barrier node that was submitted to the queue.
