@@ -6982,13 +6982,18 @@ static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
   if (!VD)
     return false;
 
+  // Exclude implicit parameters and non-type template parameters.
+  if (VD->getKind() == Decl::ImplicitParam ||
+      VD->getKind() == Decl::NonTypeTemplateParm)
+    return false;
+
   // Check for non-static data member.
   if (isa<FieldDecl>(D))
     return false;
 
   // Check for SYCL device global attribute decoration.
-  if (S.SYCL().
-		  isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType()))
+  if (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          VD->getType()))
     return false;
 
   // Check for constant variables and variables in the OpenCL constant
