@@ -6979,19 +6979,27 @@ static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
   }
 
   const auto *VD = dyn_cast<VarDecl>(D);
-  if (!VD) return false;
+  if (!VD)
+    return false;
 
   // Check for non-static data member.
-  if (isa<FieldDecl>(D)) return false;
+  if (isa<FieldDecl>(D))
+    return false;
 
   // Check for SYCL device global attribute decoration.
-  if (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())) return false;
+  if (S.SYCL().
+		  isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType()))
+    return false;
 
-  // Check for constant variables and variables in the OpenCL constant address space.
-  if (VD->getType().isConstQualified() || VD->getType().getAddressSpace() == LangAS::opencl_constant) return false;
+  // Check for constant variables and variables in the OpenCL constant
+  // address space.
+  if (VD->getType().isConstQualified() ||
+      VD->getType().getAddressSpace() == LangAS::opencl_constant)
+    return false;
 
   // Check for static storage class or local storage.
-  if (VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) return false;
+  if (VD->getStorageClass() == SC_Static || VD->hasLocalStorage())
+    return false;
 
   return true;
 }
