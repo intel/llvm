@@ -23,8 +23,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw sycl::invalid_parameter_error("No device of forced type.",
-                                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "No device of forced type.");
   }
 }
 } // namespace detail
@@ -69,11 +69,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 }
 
 cl_device_id device::get() const { return impl->get(); }
-
-bool device::is_host() const {
-  assert(false && "device::is_host should not be called in implementation.");
-  return false;
-}
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -139,9 +134,8 @@ device::get_info_impl<info::device::parent_device>() const {
   // have parents, but we don't want to return them. They must pretend to be
   // parentless root devices.
   if (impl->isRootDevice())
-    throw invalid_object_error(
-        "No parent for device because it is not a subdevice",
-        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::invalid),
+                    "No parent for device because it is not a subdevice");
   else
     return impl->template get_info<info::device::parent_device>();
 }

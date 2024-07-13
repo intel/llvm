@@ -249,10 +249,9 @@ public:
     MHostPtrReadOnly = IsConstPtr;
     setAlign(RequiredAlign);
     if (useHostPtr())
-      throw runtime_error(
-          "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.",
-          PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::invalid),
+                      "Buffer constructor from a pair of iterator values does "
+                      "not support use_host_ptr property.");
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();
@@ -277,7 +276,7 @@ public:
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime), "Not implemented");
   }
 
   MemObjType getType() const override { return MemObjType::Undefined; }
@@ -324,11 +323,13 @@ public:
 
   /// Returns true if any graphs are currently using this memory object.
   bool isUsedInGraph() const { return MGraphUseCount > 0; }
-
+ 
+  const property_list &getPropList() const { return MProps; }
+ 
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
-                        void *&HostPtr, bool &HostPtrReadOnly);
+  void determineHostPtr(bool InitFromUserData, void *&HostPtr,
+                        bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
   std::unique_ptr<SYCLMemObjAllocator> MAllocator;

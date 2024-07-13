@@ -53,8 +53,7 @@ context::context(const std::vector<device> &DeviceList,
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
-    throw invalid_parameter_error("DeviceList is empty.",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid), "DeviceList is empty.");
   }
 
   const auto &RefPlatform =
@@ -64,9 +63,8 @@ context::context(const std::vector<device> &DeviceList,
                     return (detail::getSyclObjImpl(CurrentDevice.get_platform())
                                 ->getHandleRef() != RefPlatform);
                   }))
-    throw invalid_parameter_error(
-        "Can't add devices across platforms to a single context.",
-        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::invalid),
+                    "Can't add devices across platforms to a single context.");
   else
     impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
                                                   PropList);
@@ -106,30 +104,7 @@ context::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool context::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 cl_context context::get() const { return impl->get(); }
-
-bool context::is_host() const {
-  assert(false && "context::is_host should not be called in implementation.");
-  return false;
-}
 
 backend context::get_backend() const noexcept { return impl->getBackend(); }
 
@@ -144,6 +119,10 @@ std::vector<device> context::get_devices() const {
 context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
+
+const property_list &context::getPropList() const {
+  return impl->getPropList();
+}
 
 } // namespace _V1
 } // namespace sycl
