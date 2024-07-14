@@ -254,9 +254,13 @@ protected:
               image_channel_type Type, bool OwnNativeHandle,
               range<3> Range3WithOnes);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   range<3> get_range() const;
 
@@ -301,6 +305,8 @@ protected:
   void unsampledImageDestructorNotification(void *UserObj);
 
   std::shared_ptr<detail::image_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 // Common base class for image implementations
@@ -954,7 +960,12 @@ public:
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
   ~unsampled_image() {
-    common_base::unsampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::unsampledImageDestructorNotification(
+          (void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~unsampled_image", e);
+    }
   }
 
   bool operator==(const unsampled_image &rhs) const {
@@ -1095,7 +1106,11 @@ public:
   sampled_image &operator=(sampled_image &&rhs) = default;
 
   ~sampled_image() {
-    common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sampled_image", e);
+    }
   }
 
   bool operator==(const sampled_image &rhs) const {

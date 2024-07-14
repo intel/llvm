@@ -21,8 +21,9 @@ void symbol_that_does_not_exist();
 void test() {
   sycl::queue Queue;
 
-  // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating "PI_ERROR_BUILD_PROGRAM_FAILURE".
+  // Submitting this kernel should result in an exception with error code
+  // `sycl::errc::build` and a message indicating
+  // "PI_ERROR_BUILD_PROGRAM_FAILURE".
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -40,12 +41,14 @@ void test() {
     Queue.submit(
         [&](sycl::handler &CGH) { CGH.single_task<class SingleTask>(Kernel); });
     assert(false && "There must be compilation error");
-  } catch (const sycl::compile_program_error &e) {
+  } catch (const sycl::exception &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
-    assert(Msg.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos);
+    assert(e.code() == sycl::errc::build &&
+           "Caught exception was not a compilation error");
+    assert(sycl::detail::get_pi_error(e) == PI_ERROR_BUILD_PROGRAM_FAILURE);
   } catch (...) {
-    assert(false && "There must be sycl::compile_program_error");
+    assert(false && "Caught exception was not a compilation error");
   }
 }
 

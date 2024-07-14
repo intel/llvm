@@ -147,7 +147,7 @@ public:
   getAuxiliaryResources() const {
     return {};
   }
-  virtual void clearAuxiliaryResources(){};
+  virtual void clearAuxiliaryResources() {};
 
   virtual ~CG() = default;
 
@@ -178,6 +178,7 @@ public:
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
   bool MKernelIsCooperative = false;
+  bool MKernelUsesClusterLaunch = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -188,7 +189,8 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-               bool KernelIsCooperative, detail::code_location loc = {})
+               bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
+               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
@@ -196,7 +198,8 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)),
-        MKernelIsCooperative(KernelIsCooperative) {
+        MKernelIsCooperative(KernelIsCooperative),
+        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
@@ -247,11 +250,11 @@ public:
 /// "Fill memory" command group class.
 class CGFill : public CG {
 public:
-  std::vector<char> MPattern;
+  std::vector<unsigned char> MPattern;
   AccessorImplHost *MPtr;
 
-  CGFill(std::vector<char> Pattern, void *Ptr, CG::StorageInitHelper CGData,
-         detail::code_location loc = {})
+  CGFill(std::vector<unsigned char> Pattern, void *Ptr,
+         CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(Fill, std::move(CGData), std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((AccessorImplHost *)Ptr) {}
   AccessorImplHost *getReqToFill() { return MPtr; }
@@ -289,18 +292,18 @@ public:
 
 /// "Fill USM" command group class.
 class CGFillUSM : public CG {
-  std::vector<char> MPattern;
+  std::vector<unsigned char> MPattern;
   void *MDst;
   size_t MLength;
 
 public:
-  CGFillUSM(std::vector<char> Pattern, void *DstPtr, size_t Length,
+  CGFillUSM(std::vector<unsigned char> Pattern, void *DstPtr, size_t Length,
             CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(FillUSM, std::move(CGData), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  int getFill() { return MPattern[0]; }
+  const std::vector<unsigned char> &getPattern() { return MPattern; }
 };
 
 /// "Prefetch USM" command group class.
@@ -378,14 +381,14 @@ public:
 
 /// "Fill 2D USM" command group class.
 class CGFill2DUSM : public CG {
-  std::vector<char> MPattern;
+  std::vector<unsigned char> MPattern;
   void *MDst;
   size_t MPitch;
   size_t MWidth;
   size_t MHeight;
 
 public:
-  CGFill2DUSM(std::vector<char> Pattern, void *DstPtr, size_t Pitch,
+  CGFill2DUSM(std::vector<unsigned char> Pattern, void *DstPtr, size_t Pitch,
               size_t Width, size_t Height, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
       : CG(Fill2DUSM, std::move(CGData), std::move(loc)),
@@ -395,7 +398,7 @@ public:
   size_t getPitch() const { return MPitch; }
   size_t getWidth() const { return MWidth; }
   size_t getHeight() const { return MHeight; }
-  const std::vector<char> &getPattern() const { return MPattern; }
+  const std::vector<unsigned char> &getPattern() const { return MPattern; }
 };
 
 /// "Memset 2D USM" command group class.

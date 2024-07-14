@@ -210,6 +210,13 @@ template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayFetch(ImageT, TempArgT,
                                                           int);
 
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageArrayFetch(ImageT,
+                                                                 TempArgT, int);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayRead(ImageT, TempArgT, int);
+
 template <typename ImageT, typename CoordT, typename ValT>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageArrayWrite(ImageT, CoordT, int,
                                                           ValT);
@@ -1292,25 +1299,6 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
-
-template <typename RetT, typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
-__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
-                                int ClusterMode = -1,
-                                unsigned int ResponseCapacity = 0,
-                                unsigned int InvocationCapacity = 0) noexcept;
-
-template <typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
-                               ArgsT... Args) noexcept;
-
-template <typename RetT>
-extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
-
-extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

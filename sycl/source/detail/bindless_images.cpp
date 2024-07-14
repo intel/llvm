@@ -802,15 +802,18 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_WIDTH, &Width, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_WIDTH,
+      &Width, nullptr);
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT, &Height, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT,
+      &Height, nullptr);
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_DEPTH, &Depth, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_DEPTH,
+      &Depth, nullptr);
 
   return {Width, Height, Depth};
 }
@@ -834,7 +837,8 @@ get_image_channel_type(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_FORMAT,
+      &PIFormat, nullptr);
 
   image_channel_type ChannelType =
       sycl::detail::convertChannelType(PIFormat.image_channel_data_type);
@@ -862,10 +866,6 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  if (CtxImpl->is_host()) {
-    throw sycl::exception(sycl::make_error_code(sycl::errc::memory_allocation),
-                          "Cannot allocate pitched memory on host!");
-  }
 
   pi_context PiContext = CtxImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
@@ -924,7 +924,8 @@ get_image_num_channels(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_FORMAT,
+      &PIFormat, nullptr);
 
   image_channel_order Order =
       sycl::detail::convertChannelOrder(PIFormat.image_channel_order);

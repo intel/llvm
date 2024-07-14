@@ -75,32 +75,10 @@ public:
 
   ~context_impl();
 
-  /// Checks if this context_impl has a property of type propertyT.
-  ///
-  /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this context_impl.
-  ///
-  /// Throws invalid_object_error if this context_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
-
   /// Gets OpenCL interoperability context handle.
   ///
   /// \return an instance of OpenCL cl_context.
   cl_context get() const;
-
-  /// Checks if this context is a host context.
-  ///
-  /// \return true if this context is a host context.
-  bool is_host() const;
 
   /// Gets asynchronous exception handler.
   ///
@@ -179,12 +157,6 @@ public:
   /// it returns true if the device is either a member of the context or a
   /// descendant of a member.
   bool isDeviceValid(DeviceImplPtr Device) {
-    // OpenCL does not support using descendants of context members within that
-    // context yet.
-    // TODO remove once this limitation is lifted
-    if (!is_host() && Device->getBackend() == backend::opencl)
-      return hasDevice(Device);
-
     while (!hasDevice(Device)) {
       if (Device->isRootDevice()) {
         if (Device->has(aspect::ext_oneapi_is_component)) {
@@ -195,6 +167,12 @@ public:
           return hasDevice(detail::getSyclObjImpl(CompositeDevice));
         }
 
+        return false;
+      } else if (Device->getBackend() == backend::opencl) {
+        // OpenCL does not support using descendants of context members within
+        // that context yet. We make the exception in case it supports
+        // component/composite devices.
+        // TODO remove once this limitation is lifted
         return false;
       }
       Device = detail::getSyclObjImpl(
@@ -265,6 +243,8 @@ public:
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
+  const property_list &getPropList() const { return MPropList; }
+
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
@@ -272,7 +252,6 @@ private:
   sycl::detail::pi::PiContext MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
-  bool MHostContext;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;

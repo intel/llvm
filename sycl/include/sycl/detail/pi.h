@@ -191,9 +191,18 @@
 //       `win32_nt_dx12_resource` value.
 //       the `pi_external_semaphore_handle_type` enum now has a new
 //       `win32_nt_dx12_fence` value.
+// 15.54 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
+// PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
+// _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
+// pi_virtual_access_flags bit flags.
+// 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
+// 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 16.57 Added mappings to UR launch properties extension
+// (piextEnqueueKernelLaunchCustom)
+// 17.58 Added context parameter to piextMemImageGetInfo
 
-#define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 53
+#define _PI_H_VERSION_MAJOR 17
+#define _PI_H_VERSION_MINOR 58
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -312,7 +321,8 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
-  PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  // Not supported anymore:
+  // PI_EXT_PLATFORM_BACKEND_ESIMD = 5,
   PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 
@@ -504,6 +514,15 @@ typedef enum {
 
   // Timestamp enqueue
   PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
+
+  // Virtual memory support
+  PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x2011E,
+
+  // Native enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT = 0x2011F,
+
+  // Return whether cluster launch is supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
 } _pi_device_info;
 
 typedef enum {
@@ -755,6 +774,15 @@ typedef enum {
   PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 0x1143,
 } _pi_sampler_cubemap_filter_mode;
 
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM = 0x30100,
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED = 0x30101,
+} _pi_virtual_mem_granularity_info;
+
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE = 0x30200,
+} _pi_virtual_mem_info;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -847,6 +875,10 @@ constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE = (1 << 
 constexpr pi_queue_properties PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE = (1 << 8);
 // clang-format on
 
+using pi_virtual_access_flags = pi_bitfield;
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_RW = (1 << 0);
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_READ_ONLY = (1 << 1);
+
 typedef enum {
   // No preference for SLM or data cache.
   PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
@@ -888,6 +920,8 @@ using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
 using pi_kernel_cache_config = _pi_kernel_cache_config;
+using pi_virtual_mem_granularity_info = _pi_virtual_mem_granularity_info;
+using pi_virtual_mem_info = _pi_virtual_mem_info;
 
 using pi_image_copy_flags = _pi_image_copy_flags;
 
@@ -1050,6 +1084,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
   "SYCL/device requirements"
 /// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
+/// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1240,6 +1276,7 @@ struct _pi_program;
 struct _pi_kernel;
 struct _pi_event;
 struct _pi_sampler;
+struct _pi_physical_mem;
 
 using pi_platform = _pi_platform *;
 using pi_device = _pi_device *;
@@ -1254,6 +1291,8 @@ using pi_image_handle = pi_uint64;
 using pi_image_mem_handle = void *;
 using pi_interop_mem_handle = pi_uint64;
 using pi_interop_semaphore_handle = pi_uint64;
+using pi_physical_mem = _pi_physical_mem *;
+using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -1287,8 +1326,28 @@ typedef enum {
           ///< P2P link, otherwise such operations are not supported.
 } _pi_peer_attr;
 
+typedef enum {
+  PI_LAUNCH_PROPERTY_IGNORE = 0x0,
+  PI_LAUNCH_PROPERTY_COOPERATIVE = 0x1,
+  PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION = 0x2,
+} _pi_launch_property_id;
+
+typedef union {
+  int cooperative;
+  int32_t cluster_dims[3];
+} _pi_launch_property_value;
+
 using pi_mem_info = _pi_mem_info;
 using pi_peer_attr = _pi_peer_attr;
+using pi_launch_property_id = _pi_launch_property_id;
+using pi_launch_property_value = _pi_launch_property_value;
+
+typedef struct {
+  pi_launch_property_id id;
+  pi_launch_property_value value;
+} _pi_launch_property;
+
+using pi_launch_property = _pi_launch_property;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1903,6 +1962,14 @@ __SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_size, const size_t *local_work_size,
+    pi_uint32 num_props_in_launch_prop_list,
+    const pi_launch_property *launch_prop_list,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
 __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
@@ -2145,22 +2212,22 @@ __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
 /// \param ptr is the memory to be freed
 __SYCL_EXPORT pi_result piextUSMFree(pi_context context, void *ptr);
 
-/// USM Memset API
+/// USM Fill API
 ///
 /// \param queue is the queue to submit to
-/// \param ptr is the ptr to memset
-/// \param value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// \param count is the size in bytes to memset
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                              pi_int32 value, size_t count,
-                                              pi_uint32 num_events_in_waitlist,
-                                              const pi_event *events_waitlist,
-                                              pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                            const void *pattern,
+                                            size_t patternSize, size_t count,
+                                            pi_uint32 num_events_in_waitlist,
+                                            const pi_event *events_waitlist,
+                                            pi_event *event);
 
 /// USM Memcpy API
 ///
@@ -2336,6 +2403,125 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
+
+///
+/// Virtual memory
+///
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param context is the context to get the granularity from.
+/// \param device is the device to get the granularity from.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret);
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param device is the device the physical memory is on.
+/// \param mem_size is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param ret_physical_mem is the handle for the resulting physical memory.
+__SYCL_EXPORT pi_result
+piextPhysicalMemCreate(pi_context context, pi_device device, size_t mem_size,
+                       pi_physical_mem *ret_physical_mem);
+
+/// API for retaining a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to retain.
+__SYCL_EXPORT pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
+
+/// API for releasing a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to free.
+__SYCL_EXPORT pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
+
+/// API for reserving a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param range_size is the size of the virtual address range to reserve in
+///        bytes.
+/// \param ret_ptr is the pointer to the start of the resulting virtual memory
+///        range.
+__SYCL_EXPORT pi_result piextVirtualMemReserve(pi_context context,
+                                               const void *start,
+                                               size_t range_size,
+                                               void **ret_ptr);
+
+/// API for freeing a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+__SYCL_EXPORT pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                                            size_t range_size);
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+/// \param physical_mem is the handle for the physical memory to map ptr to.
+/// \param offset is the offset into physical_mem in bytes to map ptr to.
+/// \param flags is the access flags to set for the mapping.
+__SYCL_EXPORT pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                                           size_t range_size,
+                                           pi_physical_mem physical_mem,
+                                           size_t offset,
+                                           pi_virtual_access_flags flags);
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context context,
+                                             const void *ptr,
+                                             size_t range_size);
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param flags is the access flags to set for the mapped virtual access range.
+__SYCL_EXPORT pi_result piextVirtualMemSetAccess(pi_context context,
+                                                 const void *ptr,
+                                                 size_t range_size,
+                                                 pi_virtual_access_flags flags);
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+__SYCL_EXPORT pi_result
+piextVirtualMemGetInfo(pi_context context, const void *ptr, size_t range_size,
+                       pi_virtual_mem_info param_name, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret);
 
 ///
 /// Plugin
@@ -2917,13 +3103,16 @@ __SYCL_EXPORT pi_result piextMemImageCopy(
 
 /// API to query an image memory handle for specific properties.
 ///
+/// \param context is the handle to the context
 /// \param mem_handle is the handle to the image memory
 /// \param param_name is the queried info name
 /// \param param_value is the returned query value
 /// \param param_value_size_ret is the returned query value size
-__SYCL_EXPORT pi_result piextMemImageGetInfo(
-    const pi_image_mem_handle mem_handle, pi_image_info param_name,
-    void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
+                                             pi_image_mem_handle mem_handle,
+                                             pi_image_info param_name,
+                                             void *param_value,
+                                             size_t *param_value_size_ret);
 
 /// [DEPRECATED] This function is deprecated in favor of
 /// `piextImportExternalMemory`
@@ -3054,6 +3243,25 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
     bool has_signal_value, pi_uint64 signal_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API to enqueue work through a backend API such that the plugin can schedule
+/// the backend API calls within its own DAG.
+///
+/// \param command_queue is the queue instructed to signal
+/// \param fn is the user submitted native function enqueueing work to a
+///        backend API
+/// \param data is the data that will be used in fn
+/// \param num_mems is the number of mems in mem_list
+/// \param mem_list is the list of mems that are used in fn
+/// \param num_events_in_wait_list is the number of events in the wait list
+/// \param event_wait_list is the list of events to wait on before this
+/// operation
+/// \param event is the returned event representing this operation
+__SYCL_EXPORT pi_result piextEnqueueNativeCommand(
+    pi_queue command_queue, pi_enqueue_native_command_function fn, void *data,
+    pi_uint32 num_mems, const pi_mem *mem_list,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 

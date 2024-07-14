@@ -436,7 +436,10 @@ public:
 
     using T = ConvertBoolAndByteT<DataT>;
     using R = ConvertBoolAndByteT<convertT>;
-    static_assert(std::is_integral_v<R> || detail::is_floating_point<R>::value,
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
+    static_assert(std::is_integral_v<R> ||
+                      detail::is_floating_point<R>::value ||
+                      std::is_same_v<R, bfloat16>,
                   "Unsupported convertT");
 
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
@@ -486,9 +489,9 @@ public:
           !std::is_same_v<convertT, bool>;
 
       if constexpr (canUseNativeVectorConvert) {
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(
-            detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                                OpenCLVecR>(NativeVector));
+        auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                                OpenCLVecR>(NativeVector);
+        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
       } else
 #endif // __SYCL_DEVICE_ONLY__
       {
@@ -497,11 +500,16 @@ public:
           auto val =
               detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                   getValue(I));
-          Result[I] = static_cast<convertT>(val);
+#ifdef __SYCL_DEVICE_ONLY__
+          // On device, we interpret BF16 as uint16.
+          if constexpr (std::is_same_v<convertT, bfloat16>)
+            Result[I] = sycl::bit_cast<convertT>(val);
+          else
+#endif
+            Result[I] = static_cast<convertT>(val);
         }
       }
     }
-
     return Result;
   }
 
@@ -564,6 +572,11 @@ public:
         MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
+  void load(size_t Offset, const DataT *Ptr) {
+    for (int I = 0; I < NumElements; ++I)
+      m_Data[I] = Ptr[Offset * NumElements + I];
+  }
+
   template <access::address_space Space, access::decorated DecorateAddress>
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
@@ -583,6 +596,10 @@ public:
         MultiPtr(Acc);
     store(Offset, MultiPtr);
   }
+  void store(size_t Offset, DataT *Ptr) const {
+    for (int I = 0; I < NumElements; ++I)
+      Ptr[Offset * NumElements + I] = m_Data[I];
+  }
 
 private:
   // fields
@@ -590,7 +607,7 @@ private:
   // "The elements of an instance of the SYCL vec class template are stored
   // in memory sequentially and contiguously and are aligned to the size of
   // the element type in bytes multiplied by the number of elements."
-  static constexpr int alignment = std::min((size_t)64, sizeof(DataType));
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
   alignas(alignment) DataType m_Data;
 
   // friends
@@ -1348,14 +1365,18 @@ public:
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
     vec_t Tmp;
-    Tmp.template load(offset, ptr);
+    Tmp.load(offset, ptr);
     *this = Tmp;
   }
 
   template <typename convertT, rounding_mode roundingMode>
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
-    vec_t Tmp = *this;
+    vec_t Tmp;
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    for (size_t I = 0; I < Idxs.size(); ++I) {
+      Tmp[I] = (*m_Vector)[Idxs[I]];
+    }
     return Tmp.template convert<convertT, roundingMode>();
   }
 
