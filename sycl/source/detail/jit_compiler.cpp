@@ -70,11 +70,11 @@ jit_compiler::jit_compiler() {
 }
 
 static ::jit_compiler::BinaryFormat
-translateBinaryImageFormat(pi_device_binary_type Type) {
+translateBinaryImageFormat(ur_device_binary_type Type) {
   switch (Type) {
-  case PI_DEVICE_BINARY_TYPE_SPIRV:
+  case UR_DEVICE_BINARY_TYPE_SPIRV:
     return ::jit_compiler::BinaryFormat::SPIRV;
-  case PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+  case UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return ::jit_compiler::BinaryFormat::LLVM;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -124,7 +124,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
         [isNvidia](RTDeviceBinaryImage *DI) {
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
-          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+          return DI->getFormat() == UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
                  DI->getRawData().DeviceTargetSpec == TargetSpec;
         });
     if (DeviceImage == DeviceImages.end()) {
@@ -974,28 +974,28 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   return FusedCG;
 }
 
-pi_device_binaries jit_compiler::createPIDeviceBinary(
+ur_device_binaries jit_compiler::createPIDeviceBinary(
     const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
     ::jit_compiler::BinaryFormat Format) {
 
   const char *TargetSpec = nullptr;
-  pi_device_binary_type BinFormat = PI_DEVICE_BINARY_TYPE_NATIVE;
+  ur_device_binary_type BinFormat = UR_DEVICE_BINARY_TYPE_NATIVE;
   switch (Format) {
   case ::jit_compiler::BinaryFormat::PTX: {
-    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
-    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    TargetSpec = __SYCL_UR_DEVICE_BINARY_TARGET_NVPTX64;
+    BinFormat = UR_DEVICE_BINARY_TYPE_NONE;
     break;
   }
   case ::jit_compiler::BinaryFormat::AMDGCN: {
-    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
-    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    TargetSpec = __SYCL_UR_DEVICE_BINARY_TARGET_AMDGCN;
+    BinFormat = UR_DEVICE_BINARY_TYPE_NONE;
     break;
   }
   case ::jit_compiler::BinaryFormat::SPIRV: {
     TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
-                     ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
-                     : __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32;
-    BinFormat = PI_DEVICE_BINARY_TYPE_SPIRV;
+                     ? __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64
+                     : __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV32;
+    BinFormat = UR_DEVICE_BINARY_TYPE_SPIRV;
     break;
   }
   default:
@@ -1015,12 +1015,12 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
   // Create a property entry for the argument usage mask for the fused kernel.
   auto ArgMask = encodeArgUsageMask(FusedKernelInfo.Args.UsageMask);
   PropertyContainer ArgMaskProp{FusedKernelName, ArgMask.data(), ArgMask.size(),
-                                pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+                                ur_property_type::UR_PROPERTY_TYPE_BYTE_ARRAY};
 
   // Create a property set for the argument usage masks of all kernels
   // (currently only one).
   PropertySetContainer ArgMaskPropSet{
-      __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
+      __SYCL_UR_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
 
   ArgMaskPropSet.addProperty(std::move(ArgMaskProp));
 
@@ -1029,7 +1029,7 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::PTX ||
       Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
-    // See CUDA UR (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
         FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
         [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
@@ -1040,21 +1040,21 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
       auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
       std::stringstream PropName;
       PropName << FusedKernelInfo.Name.c_str();
-      PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+      PropName << __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
       PropertyContainer ReqdWorkGroupSizeProp{
           PropName.str(), Encoded.data(), Encoded.size(),
-          pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+          ur_property_type::UR_PROPERTY_TYPE_BYTE_ARRAY};
       PropertySetContainer ProgramMetadata{
-          __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+          __SYCL_UR_PROPERTY_SET_PROGRAM_METADATA};
       ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
       Binary.addProperty(std::move(ProgramMetadata));
     }
   }
   if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     PropertyContainer NeedFinalization{
-        __SYCL_PI_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
+        __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
     PropertySetContainer ProgramMetadata{
-        __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+        __SYCL_UR_PROPERTY_SET_PROGRAM_METADATA};
     ProgramMetadata.addProperty(std::move(NeedFinalization));
     Binary.addProperty(std::move(ProgramMetadata));
   }
@@ -1106,7 +1106,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   std::vector<uint8_t> Encoded(NumBytes, 0u);
   uint8_t *Ptr = Encoded.data();
   // Skip 64-bit wide size argument with value 0 at the start of the data.
-  // See CUDA UR (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
   Ptr += sizeof(uint64_t);
   for (const auto &Val : Attr.Values) {
     auto UVal = static_cast<uint32_t>(Val);

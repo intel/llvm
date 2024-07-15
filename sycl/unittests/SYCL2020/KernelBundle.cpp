@@ -11,7 +11,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -42,22 +42,22 @@ struct KernelInfo<TestKernelWithAspects> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
+static sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     pi_device_binary_type BinaryType,
+                     ur_device_binary_type BinaryType,
                      const char *DeviceTargetSpec,
                      const std::vector<sycl::aspect> &Aspects = {}) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
   if (!Aspects.empty())
     addDeviceRequirementsProps(PropSet, Aspects);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{BinaryType, // Format
+  UrImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
@@ -68,18 +68,18 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[] = {
-    generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+static sycl::unittest::UrImage Imgs[] = {
+    generateDefaultImage({"TestKernel"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"TestKernelExeOnly"}, UR_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
     // A device image without entires
-    generateDefaultImage({}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({}, UR_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
     generateDefaultImage(
-        {"TestKernelWithAspects"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-        __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
-static sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
+        {"TestKernelWithAspects"}, UR_DEVICE_BINARY_TYPE_NATIVE,
+        __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
+static sycl::unittest::UrImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);

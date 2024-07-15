@@ -29,7 +29,7 @@
 #include <detail/device_impl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -73,23 +73,23 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::UrImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   setKernelUsesAssert({KernelName}, PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -99,20 +99,20 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage generateCopierKernelImage() {
+static sycl::unittest::UrImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -122,9 +122,9 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
+sycl::unittest::UrImage Imgs[] = {generateDefaultImage(),
                                   generateCopierKernelImage()};
-sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+sycl::unittest::UrImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
   int Flag = 0;

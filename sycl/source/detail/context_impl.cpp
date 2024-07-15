@@ -373,7 +373,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     auto DeviceGlobals = InitRef.MBinImage->getDeviceGlobals();
     std::vector<std::string> DeviceGlobalIds;
     DeviceGlobalIds.reserve(DeviceGlobals.size());
-    for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals)
+    for (const ur_device_binary_property &DeviceGlobal : DeviceGlobals)
       DeviceGlobalIds.push_back(DeviceGlobal->Name);
     std::vector<DeviceGlobalMapEntry *> DeviceGlobalEntries =
         detail::ProgramManager::getInstance().getDeviceGlobalEntries(

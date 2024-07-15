@@ -27,8 +27,8 @@ template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 } // namespace jit_compiler
 
-struct pi_device_binaries_struct;
-struct _pi_offload_entry_struct;
+struct ur_device_binaries_struct;
+struct _ur_offload_entry_struct;
 
 namespace sycl {
 inline namespace _V1 {
@@ -56,7 +56,7 @@ private:
   jit_compiler &operator=(const jit_compiler &) = delete;
   jit_compiler &operator=(const jit_compiler &&) = delete;
 
-  pi_device_binaries
+  ur_device_binaries
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
 

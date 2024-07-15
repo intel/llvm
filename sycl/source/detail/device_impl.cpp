@@ -72,7 +72,7 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
   MPlatform = Platform;
 
   MIsAssertFailSupported =
-      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+      has_extension(UR_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
 }
 
 device_impl::~device_impl() {

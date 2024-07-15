@@ -328,7 +328,7 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
-pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
+ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
                                            size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   auto MatchMagicNumber = [&](auto Number) {
@@ -337,14 +337,14 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   };
 
   if (MatchMagicNumber(uint32_t{0x07230203}))
-    return PI_DEVICE_BINARY_TYPE_SPIRV;
+    return UR_DEVICE_BINARY_TYPE_SPIRV;
 
   if (MatchMagicNumber(uint32_t{0xDEC04342}))
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   if (MatchMagicNumber(uint32_t{0x43544E49}))
     // 'I', 'N', 'T', 'C' ; Intel native
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
@@ -352,16 +352,16 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
     uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
     if (ELFHdrType == 0xFF04)
       // OpenCL executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return UR_DEVICE_BINARY_TYPE_NATIVE;
 
     if (ELFHdrType == 0xFF12)
       // ZEBIN executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return UR_DEVICE_BINARY_TYPE_NATIVE;
 
     // Newer ZEBIN format does not have a special header type, but can instead
     // be identified by having a required .ze_info section.
     if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return UR_DEVICE_BINARY_TYPE_NATIVE;
   }
 
   if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
@@ -370,9 +370,9 @@ pi_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
     //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
     //
     // option.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
+    return UR_DEVICE_BINARY_TYPE_NATIVE;
 
-  return PI_DEVICE_BINARY_TYPE_NONE;
+  return UR_DEVICE_BINARY_TYPE_NONE;
 }
 
 // Report error and no return (keeps compiler from printing warnings).

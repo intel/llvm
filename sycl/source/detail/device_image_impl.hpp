@@ -126,8 +126,8 @@ public:
            "native_specialization_constant() called for unimplemented case");
 
     auto IsJITSPIRVTarget = [](const char *Target) {
-      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
-              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+      return (strcmp(Target, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV32) == 0);
     };
     return (MContext.get_backend() == backend::opencl ||
             MContext.get_backend() == backend::ext_oneapi_level_zero) &&
@@ -225,7 +225,7 @@ public:
   }
 
   bool specialization_constants_replaced_with_default() const noexcept {
-    pi_device_binary_property Prop =
+    ur_device_binary_property Prop =
         MBinImage->getProperty("specConstsReplacedWithDefault");
     return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
   }
@@ -262,7 +262,7 @@ public:
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      //  Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      //  Uses UR_MEM_FLAGS_HOST_PTR_COPY instead of UR_MEM_FLAGS_HOST_PTR_USE
       //  since post-enqueue cleanup might trigger destruction of
       //  device_image_impl and, as a result, destruction of MSpecConstsBlob
       //  while MSpecConstsBuffer is still in use.

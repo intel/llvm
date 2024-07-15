@@ -80,7 +80,7 @@ static ur_result_t redefinedProgramGetInfoAfter(void *pParams) {
 }
 
 class PersistentDeviceCodeCache
-    : public ::testing::TestWithParam<pi_device_binary_type> {
+    : public ::testing::TestWithParam<ur_device_binary_type> {
 public:
 #ifdef _WIN32
   int setenv(const char *name, const char *value, int overwrite) {
@@ -219,7 +219,7 @@ protected:
   unittest::UrMock<> Mock;
   platform Plt;
   device Dev;
-  pi_device_binary_struct BinStruct{/*Version*/ 1,
+  ur_device_binary_struct BinStruct{/*Version*/ 1,
                                     /*Kind*/ 4,
                                     /*Format*/ GetParam(),
                                     /*DeviceTargetSpec*/ nullptr,
@@ -233,7 +233,7 @@ protected:
                                     /*EntriesEnd*/ nullptr,
                                     /*PropertySetsBegin*/ nullptr,
                                     /*PropertySetsEnd*/ nullptr};
-  pi_device_binary Bin = &BinStruct;
+  ur_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   ur_program_handle_t NativeProg;
 };
@@ -450,6 +450,6 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,
-                         ::testing::Values(PI_DEVICE_BINARY_TYPE_SPIRV,
-                                           PI_DEVICE_BINARY_TYPE_NATIVE));
+                         ::testing::Values(UR_DEVICE_BINARY_TYPE_SPIRV,
+                                           UR_DEVICE_BINARY_TYPE_NATIVE));
 } // namespace

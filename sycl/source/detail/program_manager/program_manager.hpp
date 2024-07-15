@@ -35,12 +35,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_register_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_register_lib(ur_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_unregister_lib(ur_device_binaries desc);
 
 // +++ }
 
@@ -157,7 +157,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr Context);
 
-  void addImages(pi_device_binaries DeviceImages);
+  void addImages(ur_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr Context);
@@ -366,12 +366,12 @@ private:
   /// Protects built-in kernel ID cache.
   std::mutex m_BuiltInKernelIDsMutex;
 
-  // Keeps track of pi_program to image correspondence. Needed for:
+  // Keeps track of ur_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
   //   injecting their current values before compiling the SPIR-V; the binary
   //   image object has info about all spec constants used in the module
   // - finding kernel argument masks for kernels associated with each
-  //   pi_program
+  //   ur_program
   // NOTE: using RTDeviceBinaryImage raw pointers is OK, since they are not
   // referenced from outside SYCL runtime and RTDeviceBinaryImage object
   // lifetime matches program manager's one.
