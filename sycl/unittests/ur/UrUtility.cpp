@@ -1,4 +1,4 @@
-//==--------------------- PiUtility.cpp -- check for internal PI utilities -==//
+//==--------------------- UrUtility.cpp -- check for internal ur utilities -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,35 +15,35 @@
 namespace {
 using namespace sycl;
 
-TEST(PiUtilityTest, CheckPiCastScalar) {
+TEST(UrUtilityTest, CheckUrCastScalar) {
   std::int32_t I = 42;
   std::int64_t L = 1234;
   float F = 31.2f;
   double D = 4321.1234;
-  float ItoF = detail::pi::cast<float>(I);
-  double LtoD = detail::pi::cast<double>(L);
-  std::int32_t FtoI = detail::pi::cast<std::int32_t>(F);
-  std::int32_t DtoL = detail::pi::cast<std::int64_t>(D);
+  float ItoF = detail::ur::cast<float>(I);
+  double LtoD = detail::ur::cast<double>(L);
+  std::int32_t FtoI = detail::ur::cast<std::int32_t>(F);
+  std::int32_t DtoL = detail::ur::cast<std::int64_t>(D);
   EXPECT_EQ((std::int32_t)F, FtoI);
   EXPECT_EQ((float)I, ItoF);
   EXPECT_EQ((std::int64_t)D, DtoL);
   EXPECT_EQ((double)L, LtoD);
 }
 
-TEST(PiUtilityTest, CheckPiCastVector) {
+TEST(UrUtilityTest, CheckUrCastVector) {
   std::vector<std::int32_t> IVec{6, 1, 5, 2, 3, 4};
-  std::vector<float> IVecToFVec = detail::pi::cast<std::vector<float>>(IVec);
+  std::vector<float> IVecToFVec = detail::ur::cast<std::vector<float>>(IVec);
   ASSERT_EQ(IVecToFVec.size(), IVec.size());
   for (size_t I = 0; I < IVecToFVec.size(); ++I)
     EXPECT_EQ(IVecToFVec[I], (float)IVec[I]);
 }
 
-TEST(PiUtilityTest, CheckPiCastOCLEventVector) {
+TEST(UrUtilityTest, CheckUrCastOCLEventVector) {
   // Current special case for vectors of OpenCL vectors. This may change in the
   // future.
   std::vector<cl_event> EVec{(cl_event)0};
-  pi_native_handle ENativeHandle = detail::pi::cast<pi_native_handle>(EVec);
-  EXPECT_EQ(ENativeHandle, (pi_native_handle)EVec[0]);
+  ur_native_handle_t ENativeHandle = detail::ur::cast<ur_native_handle_t>(EVec);
+  EXPECT_EQ(ENativeHandle, (ur_native_handle_t)EVec[0]);
 }
 
 } // namespace
