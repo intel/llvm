@@ -269,6 +269,8 @@ static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
 
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
+// TODO: taken from sycl-post-link. It should be possible to move this function
+// to a common helper header.
 static bool removeSYCLKernelsConstRefArray(Module &M) {
   GlobalVariable *GV = M.getGlobalVariable("llvm.used");
 
@@ -374,63 +376,65 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
 #ifdef NATIVECPU_USE_OCK
-  SmallSet<Function *, 5> RemovableFuncs;
-  SmallSet<StringRef, 5> ProcessedKernels;
-  for (auto &OldF : OldKernels) {
-    // if vectorization occurred, at this point we have a wrapper function that
-    // runs the vectorized kernel and peels using the scalar kernel. We make it
-    // so this wrapper steals the original kernel name.
-    std::optional<compiler::utils::LinkMetadataResult> veczR =
-        compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
-    if (veczR && veczR.value().first) {
-      auto ScalarF = veczR.value().first;
-      OldF->takeName(ScalarF);
-      ProcessedKernels.insert(OldF->getName());
-      if(ScalarF->use_empty())
-        RemovableFuncs.insert(ScalarF);
-    } else {
-      auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-      if (!ProcessedKernels.contains(Name) && Name != OldF->getName()) {
-        Function *OrigF = M.getFunction(Name);
-        if (OrigF != nullptr) {
-          // The original kernel is inlined by the work item loop
-          // pass if it contained barriers or group collectives, otherwise
-          // we don't want to (and can't) remove it.
-          if (OrigF->use_empty())
-            RemovableFuncs.insert(OrigF);
-          OldF->takeName(OrigF);
-          ProcessedKernels.insert(Name);
-        } else {
-          OldF->setName(Name);
+  {
+    SmallSet<Function *, 5> RemovableFuncs;
+    SmallSet<StringRef, 5> ProcessedKernels;
+    for (auto &OldF : OldKernels) {
+      // if vectorization occurred, at this point we have a wrapper function
+      // that runs the vectorized kernel and peels using the scalar kernel. We
+      // make it so this wrapper steals the original kernel name.
+      std::optional<compiler::utils::LinkMetadataResult> veczR =
+          compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
+      if (veczR && veczR.value().first) {
+        auto ScalarF = veczR.value().first;
+        OldF->takeName(ScalarF);
+        ProcessedKernels.insert(OldF->getName());
+        if (ScalarF->use_empty())
+          RemovableFuncs.insert(ScalarF);
+      } else {
+        auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
+        if (!ProcessedKernels.contains(Name) && Name != OldF->getName()) {
+          Function *OrigF = M.getFunction(Name);
+          if (OrigF != nullptr) {
+            // The original kernel is inlined by the work item loop
+            // pass if it contained barriers or group collectives, otherwise
+            // we don't want to (and can't) remove it.
+            if (OrigF->use_empty())
+              RemovableFuncs.insert(OrigF);
+            OldF->takeName(OrigF);
+            ProcessedKernels.insert(Name);
+          } else {
+            OldF->setName(Name);
+          }
         }
       }
     }
-  }
 
-  // Remove the llvm.used array since it is not need anymore at this point.
-  removeSYCLKernelsConstRefArray(M);
+    // Remove the llvm.used array since it is not need anymore at this point.
+    removeSYCLKernelsConstRefArray(M);
 
-  // Find any left over SYCL_EXTERNAL function that has no more uses
-  std::set<Function *> Kernelset(OldKernels.begin(), OldKernels.end());
-  for (auto &F : M) {
-    if (Kernelset.count(&F) == 0 &&
-        F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID) && F.use_empty() &&
-        !F.getName().starts_with("__dpcpp_nativecpu")) {
-      // SYCL_EXTERNAL function end up in static array of function pointers,
-      // at this point we can remove them from the array and remove the function
-      // if no other uses are left.
-      RemovableFuncs.insert(&F);
+    // Find any left over SYCL_EXTERNAL function that has no more uses
+    std::set<Function *> Kernelset(OldKernels.begin(), OldKernels.end());
+    for (auto &F : M) {
+      if (Kernelset.count(&F) == 0 &&
+          F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID) && F.use_empty() &&
+          !F.getName().starts_with("__dpcpp_nativecpu")) {
+        // SYCL_EXTERNAL function end up in static array of function pointers,
+        // at this point we can remove them from the array and remove the
+        // function if no other uses are left.
+        RemovableFuncs.insert(&F);
+      }
     }
-  }
 
-  // Remove unused functions. This is necessary in case they still contain
-  // calls to group collective functions that haven't been processed by the
-  // work item loops pass, which will lead to linker errors.
-  llvm::erase_if(OldKernels,
-                 [&](Function *F) { return RemovableFuncs.contains(F); });
+    // Remove unused functions. This is necessary in case they still contain
+    // calls to group collective functions that haven't been processed by the
+    // work item loops pass, which will lead to linker errors.
+    llvm::erase_if(OldKernels,
+                   [&](Function *F) { return RemovableFuncs.contains(F); });
 
-  for (Function *F : RemovableFuncs) {
-    F->eraseFromParent();
+    for (Function *F : RemovableFuncs) {
+      F->eraseFromParent();
+    }
   }
 #endif
 
@@ -496,26 +500,26 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       OldI->replaceAllUsesWith(NewI);
       OldI->eraseFromParent();
     }
-    for (auto temp : ToRemove2)
-      temp->eraseFromParent();
+    for (auto Temp : ToRemove2)
+      Temp->eraseFromParent();
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
   }
 
-  // removing unused builtins
+  // Removing unused builtins
   SmallVector<Function *> UnusedLibBuiltins;
   for (auto &F : M) {
     if (IsUnusedBuiltinOrPrivateDef(F)) {
       UnusedLibBuiltins.push_back(&F);
     }
   }
-  for (Function *f : UnusedLibBuiltins) {
-    f->eraseFromParent();
+  for (Function *F : UnusedLibBuiltins) {
+    F->eraseFromParent();
     ModuleChanged = true;
   }
-  for (auto it = M.begin(); it != M.end();) {
-    auto Curr = it++;
+  for (auto It = M.begin(); It != M.end();) {
+    auto Curr = It++;
     Function &F = *Curr;
     if (F.getNumUses() == 0 && F.isDeclaration() &&
         F.getName().starts_with("__mux_")) {
