@@ -323,7 +323,9 @@ public:
 
   /// Returns true if any graphs are currently using this memory object.
   bool isUsedInGraph() const { return MGraphUseCount > 0; }
-
+ 
+  const property_list &getPropList() const { return MProps; }
+ 
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(bool InitFromUserData, void *&HostPtr,
