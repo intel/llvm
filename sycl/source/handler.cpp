@@ -1500,6 +1500,13 @@ void handler::depends_on(const std::vector<event> &Events) {
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
 
+  if (!EventImpl)
+    return;
+  if (EventImpl->isDiscarded()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Queue operation cannot depend on discarded event.");
+  }
+
   /* If the event dependency has a graph, that means that the queue that created
    * it was in recording mode. If the current queue is not recording, we need to
    * set it to recording (implements the transitive queue recording feature).*/
@@ -1508,12 +1515,6 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     GraphFromDep->beginRecording(MQueue);
   }
 
-  if (!EventImpl)
-    return;
-  if (EventImpl->isDiscarded()) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Queue operation cannot depend on discarded event.");
-  }
   if (auto Graph = getCommandGraph(); Graph) {
     auto EventGraph = EventImpl->getCommandGraph();
     if (EventGraph == nullptr) {

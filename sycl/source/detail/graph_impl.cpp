@@ -1610,7 +1610,8 @@ void modifiable_command_graph::begin_recording(
                           "differs from the graph device.");
   }
 
-  if (QueueImpl->getCommandGraph() != nullptr) {
+  auto QueueGraph = QueueImpl->getCommandGraph();
+  if (QueueGraph != nullptr && QueueGraph != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
