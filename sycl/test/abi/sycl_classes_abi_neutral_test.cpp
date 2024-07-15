@@ -1,5 +1,5 @@
-// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -o %t.out | grep -Pzo "0 \| class sycl::.*\n([^\n].*\n)*" | sort -z | FileCheck --implicit-check-not "{{std::basic_string|std::list}}" %s
-// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -o %t.out | grep -Pzo "0 \| class sycl::.*\n([^\n].*\n)*" | sort -z | FileCheck %s
+// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts-complete %s -o %t.out | grep -Pzo "0 \| class sycl::.*\n([^\n].*\n)*" | sort -z | FileCheck --implicit-check-not "{{std::basic_string|std::list}}" %s
+// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts-complete %s -o %t.out | grep -Pzo "0 \| class sycl::.*\n([^\n].*\n)*" | sort -z | FileCheck --implicit-check-not "{{std::basic_string|std::list}}" %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
