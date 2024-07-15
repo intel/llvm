@@ -24,7 +24,7 @@ int main() {
     // CHECK-DAG:        sycl_device_name : {{.*}}
     // CHECK-DAG:        sycl_context : {{.*}}
     // CHECK: [SYCL] Runtime reports:
-    // CHECK-NEXT: what:  NULL pointer argument in memory copy operation. -30 (PI_ERROR_INVALID_VALUE)
+    // CHECK-NEXT: what:  NULL pointer argument in memory copy operation.
     // CHECK-NEXT: where:{{.*}}code_location_queue_submit.cpp:[[# @LINE + 2 ]] main
     try {
       Q.submit(

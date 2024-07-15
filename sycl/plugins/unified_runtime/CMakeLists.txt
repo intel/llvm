@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9d3bce6ad92e6f0a4af0139f9744584b5a402827
-  # Merge: e0775441 1c9c2d0b
+  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
+  # Merge: 76c6bf9a 0cd10f63
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 9 15:57:44 2024 +0100
-  #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
-  #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
-  set(UNIFIED_RUNTIME_TAG 9d3bce6ad92e6f0a4af0139f9744584b5a402827)
+  # Date:   Thu Jul 11 15:12:38 2024 +0100
+  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
+  #     [DeviceSanitizer] Support detecting misaligned access error
+  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
