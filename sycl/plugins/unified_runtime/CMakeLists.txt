@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ddafd29b8b2d29e17041e0e2be7b3f3e2b05297d
-  # Merge: a7920efd e226873d
+  # commit 7e38af77174f92bf4025122b1fa8e3fc49f3ba29
+  # Merge: ddafd29b 6c7d7a76
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 15 13:21:15 2024 +0100
-  #     Merge pull request #1862 from pbalcer/fix-asan-init
-  #     [ASAN] fix recursive initialization of sanitizer context
-  set(UNIFIED_RUNTIME_TAG ddafd29b8b2d29e17041e0e2be7b3f3e2b05297d)
+  # Date:   Mon Jul 15 15:14:47 2024 +0100
+  #     Merge pull request #1863 from kbenzie/benie/main-reverts
+  #     Revert "Merge pull request #1849 from ayylol/cl-subgroupsizes"
+  set(UNIFIED_RUNTIME_TAG 7e38af77174f92bf4025122b1fa8e3fc49f3ba29)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
