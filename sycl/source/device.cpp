@@ -267,7 +267,8 @@ bool device::ext_oneapi_can_compile(
   return impl->extOneapiCanCompile(Language);
 }
 
-bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
+
   const detail::pi::PiDevice Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
@@ -278,7 +279,7 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
-      Feature, ipVersion);
+      Feature.data(), ipVersion);
 }
 
 bool device::ext_oneapi_supports_cl_c_version(
@@ -297,7 +298,7 @@ bool device::ext_oneapi_supports_cl_c_version(
 }
 
 bool device::ext_oneapi_supports_cl_extension(
-    const std::string &Name,
+    detail::string_view Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
   const detail::pi::PiDevice Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
@@ -309,7 +310,7 @@ bool device::ext_oneapi_supports_cl_extension(
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
-      Name, VersionPtr, ipVersion);
+      Name.data(), VersionPtr, ipVersion);
 }
 
 std::string device::ext_oneapi_cl_profile() const {

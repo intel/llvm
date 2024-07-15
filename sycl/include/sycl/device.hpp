@@ -302,7 +302,9 @@ public:
   /// \param Feature
   ///
   /// \return true if supported
-  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
+  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+    return ext_oneapi_supports_cl_c_feature(detail::string_view{Feature});
+  }
 
   /// Indicates if the device supports kernel bundles written in a particular
   /// OpenCL C version
@@ -322,7 +324,9 @@ public:
   /// extension identified by `name`.
   bool ext_oneapi_supports_cl_extension(
       const std::string &name,
-      ext::oneapi::experimental::cl_version *version = nullptr) const;
+      ext::oneapi::experimental::cl_version *version = nullptr) const {
+    return ext_oneapi_supports_cl_extension(detail::string_view{name}, version);
+  }
 
   /// Retrieve the OpenCl Device Profile
   ///
@@ -365,6 +369,10 @@ private:
   get_info_impl() const;
 
   bool has_extension(detail::string_view extension_name) const;
+  bool ext_oneapi_supports_cl_c_feature(detail::string_view Feature);
+  bool ext_oneapi_supports_cl_extension(
+      detail::string_view name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const;
 };
 
 } // namespace _V1
