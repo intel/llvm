@@ -20,7 +20,7 @@ context_t *getContext() { return context_t::get_direct(); }
 context_t::context_t()
     : logger(logger::create_logger("sanitizer", false, false,
                                    logger::Level::WARN)),
-      interceptor(std::make_unique<SanitizerInterceptor>()) {}
+      interceptor(std::make_unique<SanitizerInterceptor>(logger)) {}
 
 ur_result_t context_t::tearDown() { return UR_RESULT_SUCCESS; }
 
