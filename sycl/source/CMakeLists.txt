@@ -341,7 +341,7 @@ if (MSVC)
 endif()
 
 check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
-if (HAS_SEMANTIC_INTERPOSITION_FLAG)
+if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   # See https://github.com/llvm/llvm-project/issues/58295.
   set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
 endif()

@@ -253,6 +253,7 @@ public:
     case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
       handleKernelSetArgPointer(
           static_cast<ur_kernel_set_arg_pointer_params_t *>(Data->args_data));
+      return;
     default:
       return;
     }
