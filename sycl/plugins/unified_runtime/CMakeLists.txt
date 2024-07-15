@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ee4864fdba53829a06428d98c5d739ff193676ea
-  # Merge: ea31b3ec 3f4d574f
+  # commit ddafd29b8b2d29e17041e0e2be7b3f3e2b05297d
+  # Merge: a7920efd e226873d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jul 12 10:25:29 2024 +0100
-  #     Merge pull request #1852 from igchor/program_build_fix
-  #     [L0] Use all devices from a context in urProgramBuild
-  set(UNIFIED_RUNTIME_TAG ee4864fdba53829a06428d98c5d739ff193676ea)
+  # Date:   Mon Jul 15 13:21:15 2024 +0100
+  #     Merge pull request #1862 from pbalcer/fix-asan-init
+  #     [ASAN] fix recursive initialization of sanitizer context
+  set(UNIFIED_RUNTIME_TAG ddafd29b8b2d29e17041e0e2be7b3f3e2b05297d)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
