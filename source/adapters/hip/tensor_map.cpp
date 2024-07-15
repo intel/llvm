@@ -26,4 +26,3 @@ UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
     ur_exp_tensor_map_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-
