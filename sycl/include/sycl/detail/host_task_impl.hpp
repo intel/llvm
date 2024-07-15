@@ -94,7 +94,7 @@ handler::host_task_impl(FuncT &&Func) {
 template <typename FuncT>
 std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                             void(interop_handle)>::value>
-handler::ext_oneapi_enqueue_custom_operation_impl(FuncT &&Func) {
+handler::ext_oneapi_enqueue_native_command_impl(FuncT &&Func) {
   throwIfActionIsCreated();
 
   MNDRDesc.set(range<1>(1));

@@ -402,12 +402,12 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
   sycl::free(ImgMemUSM, Ctxt);
 }
 
-// ext_oneapi_enqueue_custom_operation isn't supported with SYCL graphs
+// ext_oneapi_enqueue_native_command isn't supported with SYCL graphs
 TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
     Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_oneapi_enqueue_custom_operation([=](sycl::interop_handle IH) {});
+      CGH.ext_oneapi_enqueue_native_command([=](sycl::interop_handle IH) {});
     });
   } catch (exception &Exception) {
     ExceptionCode = Exception.code();
