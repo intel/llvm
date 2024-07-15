@@ -72,7 +72,7 @@ public:
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
   /// cl_kernel will be returned. If this kernel is a host kernel,
-  /// an invalid_object_error exception will be thrown.
+  /// an exception with errc::invalid error code will be thrown.
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
