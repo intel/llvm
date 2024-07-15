@@ -100,12 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit 4095b4ac5421c21db6aacedcad158f1e807f7add
+  # commit c799e69d1f2114dbaa28bff4aae47f4b1e93ad17
   # Author: Sean Stirling <sean.stirling@codeplay.com>
   # Date:   Tue, 4 Jun 2024 13:52:21 +0100
   #     [PATCH] [Bindless][Exp] Rename interop related structs/funcs with
   #     "external"
-  set(UNIFIED_RUNTIME_TAG d1a7c662d77b9bd9aacfc4ffaa56113806267e75)
+  set(UNIFIED_RUNTIME_TAG c799e69d1f2114dbaa28bff4aae47f4b1e93ad17)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
