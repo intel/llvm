@@ -426,7 +426,7 @@ public:
       Res = Plugin->call_nocheck(urProgramBuild, ContextImpl->getHandleRef(),
                                  UrProgram, nullptr);
     }
-    Plugin->checkUrResult(Res);
+    Plugin->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;

@@ -838,7 +838,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
               "Device and/or backend does not support querying timestamp."),
           UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
-      Plugin->checkUrResult(Result);
+      Plugin->checkUrResult<errc::feature_not_supported>(Result);
     }
     // Until next sync we will compute device time based on the host time
     // returned in HostTime, so make this our base host time.

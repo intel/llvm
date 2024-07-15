@@ -1403,7 +1403,12 @@ ProgramManager::ProgramPtr ProgramManager::build(ProgramPtr Program,
       Error = Plugin->call_nocheck(urProgramBuild, Context->getHandleRef(),
                                    Program.get(), Options.c_str());
     }
-    Plugin->checkUrResult(Error);
+
+    if (Error != UR_RESULT_SUCCESS)
+      throw detail::set_ur_error(
+          exception(make_error_code(errc::build),
+                    getProgramBuildLog(Program.get(), Context)),
+          Error);
 
     return Program;
   }
@@ -1411,7 +1416,7 @@ ProgramManager::ProgramPtr ProgramManager::build(ProgramPtr Program,
   // Include the main program and compile/link everything together
   auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
                        Context->getHandleRef(), CompileOptions.c_str());
-  Plugin->checkUrResult(Res);
+  Plugin->checkUrResult<errc::build>(Res);
   LinkPrograms.push_back(Program.get());
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
