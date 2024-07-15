@@ -10703,6 +10703,12 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
+static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
+  // Enable when SYCL RT supports dynamic linking
+  //  return (TCArgs.hasArg(options::OPT_shared));
+  return false;
+}
+
 static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
@@ -10729,6 +10735,9 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  if (supportDynamicLinking(TCArgs))
+    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10776,6 +10785,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                        options::OPT_fsycl_remove_unused_external_funcs,
                        false) &&
        !isSYCLNativeCPU(TC)) &&
+      // When supporting dynamic linking, non-kernels in a device image can be called
+      !supportDynamicLinking(TCArgs) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
