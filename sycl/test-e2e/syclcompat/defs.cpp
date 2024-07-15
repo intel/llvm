@@ -74,6 +74,6 @@ void test_version() {
 int main() {
   test_align();
   test_check_error();
-
+  test_version();
   return 0;
 }

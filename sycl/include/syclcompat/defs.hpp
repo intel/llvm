@@ -61,7 +61,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define SYCLCOMPAT_PATCH_VERSION 0
 
 #define SYCLCOMPAT_MAKE_VERSION(_major, _minor, _patch)                        \
-  ((1E5 * SYCLCOMPAT_MAJOR_VERSION) + (1E3 * SYCLCOMPAT_MINOR_VERSION) +       \
+  ((1E6 * SYCLCOMPAT_MAJOR_VERSION) + (1E3 * SYCLCOMPAT_MINOR_VERSION) +       \
        SYCLCOMPAT_PATCH_VERSION)
 
 #define SYCLCOMPAT_VERSION                                                     \
