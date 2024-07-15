@@ -913,9 +913,13 @@ public:
 
   bool operator!=(const stream &LHS) const;
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1108,6 +1112,8 @@ private:
   template <int Dimensions>
   friend const stream &operator<<(const stream &Out,
                                   const h_item<Dimensions> &RHS);
+
+  const property_list &getPropList() const;
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)

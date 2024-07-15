@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC SLM atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -37,8 +37,6 @@ template <class, int, template <class, int> class> class TestID;
 
 const char *to_string(LSCAtomicOp op) {
   switch (op) {
-  case LSCAtomicOp::predec:
-    return "lsc::predec";
   case LSCAtomicOp::add:
     return "lsc::add";
   case LSCAtomicOp::sub:
