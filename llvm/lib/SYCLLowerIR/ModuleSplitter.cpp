@@ -1313,7 +1313,11 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 
 bool canBeImportedFunction(const Function &F) {
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+      !( // SYCL_EXTERNAL property is not recorded for a declaration
+         // in a header file.  Thus SYCL IR that is a declaration
+         // will be considered as SYCL_EXTERNAL for the purposes of
+         // this function.
+          F.isDeclaration() || llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
   bool ReturnValue = true;
