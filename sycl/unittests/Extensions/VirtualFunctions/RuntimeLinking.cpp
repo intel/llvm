@@ -1,8 +1,10 @@
+#include "sycl/platform.hpp"
+#include "ur_mock_helpers.hpp"
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -133,8 +135,8 @@ static sycl::unittest::PiImageArray<15> ImgArray{Imgs};
 
 // Helper holder for all the data we want to capture from mocked APIs
 struct CapturesHolder {
-  unsigned NumOfPiProgramCreateCalls = 0;
-  unsigned NumOfPiProgramLinkCalls = 0;
+  unsigned NumOfUrProgramCreateCalls = 0;
+  unsigned NumOfUrProgramLinkCalls = 0;
   unsigned ProgramUsedToCreateKernel = 0;
   std::vector<unsigned> LinkedPrograms;
 
@@ -147,8 +149,8 @@ struct CapturesHolder {
   }
 
   void clear() {
-    NumOfPiProgramCreateCalls = 0;
-    NumOfPiProgramLinkCalls = 0;
+    NumOfUrProgramCreateCalls = 0;
+    NumOfUrProgramLinkCalls = 0;
     ProgramUsedToCreateKernel = 0;
     LinkedPrograms.clear();
   }
@@ -156,64 +158,59 @@ struct CapturesHolder {
 
 static CapturesHolder CapturedData;
 
-static pi_result redefined_piProgramCreate(pi_context, const void *il,
-                                           size_t length, pi_program *res) {
-  auto *Magic = reinterpret_cast<const unsigned char *>(il);
-  *res = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(*Magic);
-  ++CapturedData.NumOfPiProgramCreateCalls;
-  return PI_SUCCESS;
+static ur_result_t redefined_urProgramCreateWithIL(void* pParams) {
+  auto params = *static_cast<ur_program_create_with_il_params_t*>(pParams);
+
+  auto *Magic = reinterpret_cast<const unsigned char *>(*params.ppIL);
+  **params.pphProgram = mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
+  reinterpret_cast<mock::dummy_handle_t>(**params.pphProgram)
+      ->setDataAs<unsigned>(*Magic);
+  ++CapturedData.NumOfUrProgramCreateCalls;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result
-redefined_piProgramLink(pi_context context, pi_uint32 num_devices,
-                        const pi_device *device_list, const char *options,
-                        pi_uint32 num_input_programs,
-                        const pi_program *input_programs,
-                        void (*pfn_notify)(pi_program program, void *user_data),
-                        void *user_data, pi_program *ret_program) {
+static ur_result_t redefined_urProgramLinkExp(void *pParams) {
+  auto params = *static_cast<ur_program_link_exp_params_t *>(pParams);
   unsigned ResProgram = 1;
-  for (pi_uint32 I = 0; I < num_input_programs; ++I) {
-    auto Val = reinterpret_cast<DummyHandlePtrT>(input_programs[I])
+  for (uint32_t I = 0; I < *params.pcount; ++I) {
+    auto Val = reinterpret_cast<mock::dummy_handle_t>((*params.pphPrograms)[I])
                    ->getDataAs<unsigned>();
     ResProgram *= Val;
     CapturedData.LinkedPrograms.push_back(Val);
   }
 
-  ++CapturedData.NumOfPiProgramLinkCalls;
+  ++CapturedData.NumOfUrProgramLinkCalls;
 
-  *ret_program = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*ret_program)
+  **params.pphProgram =
+      mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
+  reinterpret_cast<mock::dummy_handle_t>(**params.pphProgram)
       ->setDataAs<unsigned>(ResProgram);
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefined_piKernelCreate(pi_program program,
-                                          const char *kernel_name,
-                                          pi_kernel *ret_kernel) {
+static ur_result_t redefined_urKernelCreate(void *pParams) {
+  auto params = *static_cast<ur_kernel_create_params_t *>(pParams);
   CapturedData.ProgramUsedToCreateKernel =
-      reinterpret_cast<DummyHandlePtrT>(program)->getDataAs<unsigned>();
-  *ret_kernel = createDummyHandle<pi_kernel>();
-  return PI_SUCCESS;
+      reinterpret_cast<mock::dummy_handle_t>(*params.phProgram)
+          ->getDataAs<unsigned>();
+  **params.pphKernel = mock::createDummyHandle<ur_kernel_handle_t>();
+  return UR_RESULT_SUCCESS;
 }
 
-static sycl::unittest::PiMock setupMock() {
-  sycl::unittest::PiMock Mock;
-
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
-      redefined_piProgramCreate);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
-      redefined_piProgramLink);
-  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
-      redefined_piKernelCreate);
-
-  return Mock;
+inline void setupMock() {
+  mock::getCallbacks().set_replace_callback("urProgramCreateWithIL",
+                                            &redefined_urProgramCreateWithIL);
+  mock::getCallbacks().set_replace_callback("urProgramLinkExp",
+                                            &redefined_urProgramLinkExp);
+  mock::getCallbacks().set_replace_callback("urKernelCreate",
+                                            &redefined_urKernelCreate);
 }
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
-  auto Mock = setupMock();
+  sycl::unittest::UrMock<> Mock;
+  setupMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedData.clear();
@@ -222,18 +219,19 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
   Q.single_task<VirtualFunctionsTest::KernelA>([=]() {});
   // When we submit this kernel, we expect that two programs were created (one
   // for a kernel and another providing virtual functions set for it).
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 2u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 2u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedData.LinkedProgramsContains({PROGRAM_A, PROGRAM_A0}));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel, PROGRAM_A * PROGRAM_A0);
 }
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
-  auto Mock = setupMock();
+  sycl::unittest::UrMock<> Mock;
+  setupMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedData.clear();
@@ -243,9 +241,9 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
   Q.single_task<VirtualFunctionsTest::KernelB>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for a kernel and another two providing virtual functions set for it).
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(
       CapturedData.LinkedProgramsContains({PROGRAM_B, PROGRAM_B0, PROGRAM_B1}));
   // And the linked program should be used to create a kernel.
@@ -254,9 +252,10 @@ TEST(VirtualFunctions, SingleKernelUsesSingleVFSetProvidedTwice) {
 }
 
 TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
-  auto Mock = setupMock();
+  sycl::unittest::UrMock<> Mock;
+  setupMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedData.clear();
@@ -266,9 +265,9 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
   Q.single_task<VirtualFunctionsTest::KernelC>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for a kernel and another two providing virtual functions set for it).
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(
       CapturedData.LinkedProgramsContains({PROGRAM_C, PROGRAM_C0, PROGRAM_C1}));
   // And the linked program should be used to create a kernel.
@@ -277,9 +276,10 @@ TEST(VirtualFunctions, SingleKernelUsesDifferentVFSets) {
 }
 
 TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
-  auto Mock = setupMock();
+  sycl::unittest::UrMock<> Mock;
+  setupMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedData.clear();
@@ -290,9 +290,9 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
   // When we submit this kernel, we expect that four programs were created (one
   // for KernelD  and another providing "set-d", as well as one for KernelE and
   // another providing "set-e").
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 4u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 4u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedData.LinkedProgramsContains(
       {PROGRAM_D, PROGRAM_D0, PROGRAM_E, PROGRAM_E0}));
   // And the linked program should be used to create a kernel.
@@ -301,9 +301,10 @@ TEST(VirtualFunctions, RecursiveSearchOfDependentDeviceImages) {
 }
 
 TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
-  auto Mock = setupMock();
+  sycl::unittest::UrMock<> Mock;
+  setupMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedData.clear();
@@ -312,9 +313,9 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   Q.single_task<VirtualFunctionsTest::KernelF>([=]() {});
   // When we submit this kernel, we expect that three programs were created (one
   // for KernelF, another providing "set-f" and one more for KernelG)
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(
       CapturedData.LinkedProgramsContains({PROGRAM_F, PROGRAM_F0, PROGRAM_F1}));
   // And the linked program should be used to create a kernel.
@@ -326,8 +327,8 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   // When we submit a second kernel, we expect that no new programs will be
   // created and we will simply use previously linked program for that kernel.
   Q.single_task<VirtualFunctionsTest::KernelG>([=]() {});
-  ASSERT_EQ(CapturedData.NumOfPiProgramCreateCalls, 0u);
-  ASSERT_EQ(CapturedData.NumOfPiProgramLinkCalls, 0u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramCreateCalls, 0u);
+  ASSERT_EQ(CapturedData.NumOfUrProgramLinkCalls, 0u);
   ASSERT_EQ(CapturedData.ProgramUsedToCreateKernel,
             PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
 }

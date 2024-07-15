@@ -11,13 +11,16 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace unittest {
+
+using namespace sycl::detail;
+
 /// Convinience wrapper around _pi_device_binary_property_struct.
 class PiProperty {
 public:

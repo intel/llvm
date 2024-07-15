@@ -12,33 +12,34 @@
 
 #include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 namespace {
 using namespace sycl;
 
 static int QueueRetainCalled = 0;
-pi_result redefinedQueueRetain(pi_queue Queue) {
+ur_result_t redefinedQueueRetain(void *) {
   ++QueueRetainCalled;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(PiInteropTest, CheckRetain) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   context Ctx{Plt.get_devices()[0]};
 
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.
-  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  mock::getCallbacks().set_before_callback("urQueueRetain",
+                                           &redefinedQueueRetain);
   queue Q{Ctx, default_selector()};
   EXPECT_TRUE(QueueRetainCalled == 0);
 
   cl_command_queue OCLQ = get_native<backend::opencl>(Q);
   EXPECT_TRUE(QueueRetainCalled == 1);
 
-  // The make_queue should not call to piQueueRetain. The
-  // piextCreateQueueWithNative handle should do the "retain" if needed.
+  // The make_queue should not call to urQueueRetain. The
+  // urQueueCreateWithNativeHandle should do the "retain" if needed.
   queue Q1 = make_queue<backend::opencl>(OCLQ, Ctx);
   EXPECT_TRUE(QueueRetainCalled == 1);
 }

@@ -10,7 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -68,8 +68,8 @@ public:
 
 // Only check events dependency in queue_impl::finalizeHandler
 TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
-  sycl::unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(

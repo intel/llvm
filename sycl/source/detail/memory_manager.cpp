@@ -1111,11 +1111,9 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
         "NULL pointer argument in 2D memory memset operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  // TODO: Implement this in terms of urEnqueueUSMFill2D? The old UR entry
-  // point for this was never implemented anywhere (pi2ur.hpp simply hit an
-  // abort if it was called).
-  throw exception(sycl::make_error_code(errc::invalid),
-                  "2D memset is not current supported by any backends.");
+  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
+                             {static_cast<unsigned char>(Value)}, DepEvents,
+                             OutEvent, nullptr);
 }
 
 static void memcpyToDeviceGlobalUSM(

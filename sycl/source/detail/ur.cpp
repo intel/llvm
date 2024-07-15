@@ -66,7 +66,8 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 namespace ur {
 bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins);
+static void initializePlugins(std::vector<PluginPtr> &Plugins,
+                              ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
 
@@ -80,24 +81,30 @@ void contextSetExtendedDeleter(const sycl::context &context,
 }
 
 // Initializes all available Plugins.
-std::vector<PluginPtr> &initializeUr() {
+std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
   std::call_once(PluginsInitDone, [&]() {
-    initializePlugins(GlobalHandler::instance().getPlugins());
+    initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
   });
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins) {
+static void initializePlugins(std::vector<PluginPtr> &Plugins,
+                              ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
 
-  ur_loader_config_handle_t config = nullptr;
-  CHECK_UR_SUCCESS(urLoaderConfigCreate(&config))
-  CHECK_UR_SUCCESS(
-      urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION"))
+  bool OwnLoaderConfig = false;
+  // If we weren't provided with a custom config handle create our own and
+  // enable full validation by default.
+  if(!LoaderConfig) {
+    CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
+    CHECK_UR_SUCCESS(
+        urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_FULL_VALIDATION"))
+    OwnLoaderConfig = true;
+  }
 
   auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
   if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
@@ -109,22 +116,37 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   }
 
   if (std::getenv("UR_LOG_TRACING")) {
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(config, "UR_LAYER_TRACING"));
+    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
   }
 
   CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(
-      config, codeLocationCallback, nullptr));
+      LoaderConfig, codeLocationCallback, nullptr));
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(config);
+    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      urLoaderConfigRelease(LoaderConfig);
+      std::cerr << "Failed to enable ASAN layer\n";
+      return;
+    }
+  }
+
+  urLoaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
+                                        nullptr);
+
+  if (ProgramManager::getInstance().kernelUsesAsan()) {
+    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      urLoaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
   ur_device_init_flags_t device_flags = 0;
-  CHECK_UR_SUCCESS(urLoaderInit(device_flags, config));
+  CHECK_UR_SUCCESS(urLoaderInit(device_flags, LoaderConfig));
+
+  if (OwnLoaderConfig) {
+    CHECK_UR_SUCCESS(urLoaderConfigRelease(LoaderConfig));
+  }
 
   uint32_t adapterCount = 0;
   CHECK_UR_SUCCESS(urAdapterGet(0, nullptr, &adapterCount));

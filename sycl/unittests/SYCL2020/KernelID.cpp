@@ -10,7 +10,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -109,8 +109,8 @@ TEST(KernelID, NoServiceKernelIds) {
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -134,8 +134,8 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 }
 
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -155,8 +155,8 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 }
 
 TEST(KernelID, KernelIDHasKernel) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -234,8 +234,8 @@ TEST(KernelID, KernelIDHasKernel) {
 }
 
 TEST(KernelID, HasKernelTemplated) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -253,8 +253,8 @@ TEST(KernelID, HasKernelTemplated) {
 }
 
 TEST(KernelID, GetKernelIDInvalidKernelName) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   try {
     sycl::get_kernel_id<class NotAKernel>();

@@ -14,7 +14,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -80,13 +80,13 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  std::string CompileOpts = "", LinkOpts = "";
+
+  PiImage Img(PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+              CompileOpts,                            // Compile options
+              LinkOpts,                               // Link options
+              std::move(Bin), std::move(Entries), std::move(PropSet));
 
   return Img;
 }
@@ -96,15 +96,15 @@ static sycl::unittest::PiImage EAM2Img = generateEAMTestKernel2Image();
 static sycl::unittest::PiImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::PiImageArray<1> EAM2ImgArray{&EAM2Img};
 
-// pi_program address is used as a key for ProgramManager::NativePrograms
-// storage. redefinedProgramLinkCommon makes pi_program address equal to 0x1.
+// ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
+// storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.
 // Make sure that size of Bin is different for device images used in these tests
 // and greater than 1.
-inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
-                                           pi_program *ret_program) {
-  static size_t PiProgramAddr = 2;
-  *ret_program = reinterpret_cast<pi_program>(PiProgramAddr++);
-  return PI_SUCCESS;
+inline ur_result_t redefinedProgramCreateEAM(void *pParams) {
+  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  static size_t UrProgramAddr = 2;
+  **params.pphProgram = reinterpret_cast<ur_program_handle_t>(UrProgramAddr++);
+  return UR_RESULT_SUCCESS;
 }
 
 class MockHandler : public sycl::handler {
@@ -163,7 +163,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  sycl::detail::pi::PiProgram Program = DeviceImageImpl->get_program_ref();
+  ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());
@@ -178,10 +178,10 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCreate>(
-      redefinedProgramCreateEAM);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                           &redefinedProgramCreateEAM);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};

@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/string.hpp>
 #include <ur_api.h>                           // for ur_result_t
+#include <ur_print.hpp>                       // to print ur_result_t
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...

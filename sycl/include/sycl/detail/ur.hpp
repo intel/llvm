@@ -260,7 +260,8 @@ int unloadOsLibrary(void *Library);
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
 // Performs UR one-time initialization.
-std::vector<PluginPtr> &initializeUr();
+std::vector<PluginPtr> &
+initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
