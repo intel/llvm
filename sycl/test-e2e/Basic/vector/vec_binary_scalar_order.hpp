@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 template <typename T>
 using rel_t = std::conditional_t<

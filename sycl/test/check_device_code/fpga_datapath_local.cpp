@@ -10,15 +10,10 @@ namespace intel = sycl::ext::intel::experimental; // for fpga_datapath
 
 // CHECK: [[RegisterINTEL:@.*]] = private unnamed_addr addrspace(1) constant [7 x i8] c"{5825}\00"
 
-int main() {
-  queue Q;
+SYCL_EXTERNAL void fpga_datapath_local() {
   int f = 5;
-
-  Q.single_task([=]() {
-    intel::fpga_datapath<int[10]> empty;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[RegisterINTEL]]
-    // CHECK-NOT: call void @llvm.memset
-    volatile int ReadVal = empty[f];
-  });
-  return 0;
+  intel::fpga_datapath<int[10]> empty;
+  // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[RegisterINTEL]]
+  // CHECK-NOT: call void @llvm.memset
+  volatile int ReadVal = empty[f];
 }

@@ -7,9 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Vector/IR/ScalableValueBoundsConstraintSet.h"
-
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-
 namespace mlir::vector {
 
 FailureOr<ConstantOrScalableBound::BoundSize>
@@ -59,20 +57,34 @@ ScalableValueBoundsConstraintSet::computeScalableBound(
   ScalableValueBoundsConstraintSet scalableCstr(
       value.getContext(), stopCondition ? stopCondition : defaultStopCondition,
       vscaleMin, vscaleMax);
-  int64_t pos = scalableCstr.populateConstraintsSet(value, dim);
+  int64_t pos = scalableCstr.insert(value, dim, /*isSymbol=*/false);
+  scalableCstr.processWorklist();
 
-  // Project out all variables apart from vscale.
-  // This should result in constraints in terms of vscale only.
+  // Check the resulting constraints set is valid.
+  if (scalableCstr.cstr.isEmpty()) {
+    return failure();
+  }
+
+  // Project out all columns apart from vscale and the starting point
+  // (value/dim). This should result in constraints in terms of vscale only.
   auto projectOutFn = [&](ValueDim p) {
-    return p.first != scalableCstr.getVscaleValue();
+    bool isStartingPoint =
+        p.first == value &&
+        p.second == dim.value_or(ValueBoundsConstraintSet::kIndexValue);
+    return p.first != scalableCstr.getVscaleValue() && !isStartingPoint;
   };
   scalableCstr.projectOut(projectOutFn);
+  // Also project out local variables (these are not tracked by the
+  // ValueBoundsConstraintSet).
+  for (unsigned i = 0, e = scalableCstr.cstr.getNumLocalVars(); i < e; ++i) {
+    scalableCstr.cstr.projectOut(scalableCstr.cstr.getNumDimAndSymbolVars());
+  }
 
   assert(scalableCstr.cstr.getNumDimAndSymbolVars() ==
              scalableCstr.positionToValueDim.size() &&
          "inconsistent mapping state");
 
-  // Check that the only symbols left are vscale.
+  // Check that the only columns left are vscale and the starting point.
   for (int64_t i = 0; i < scalableCstr.cstr.getNumDimAndSymbolVars(); ++i) {
     if (i == pos)
       continue;

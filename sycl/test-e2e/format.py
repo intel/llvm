@@ -171,7 +171,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(
-            ("%{build}", "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s")
+            (
+                "%{build}",
+                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
+            )
         )
         if platform.system() == "Windows":
             substitutions.append(

@@ -1,7 +1,12 @@
 // REQUIRES: level_zero
 // REQUIRES: aspect-ext_intel_device_id
+// UNSUPPORTED: gpu-intel-pvc-1T
 
 // RUN: %{build} -o %t.out
+
+// TODO: at this time PVC 1T systems are not correctly supporting CSLICE
+// affinity partitioning So the test is marked as UNSUPPORTED until that is
+// fixed.
 
 // TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.  Once it is supported, we'll test on both.
@@ -23,7 +28,7 @@
 // RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
 // RUN:  UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

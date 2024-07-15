@@ -13,6 +13,8 @@
 
 namespace sycl {
 inline namespace _V1 {
+class device;
+
 namespace detail::usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,

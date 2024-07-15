@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;

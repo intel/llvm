@@ -29,31 +29,10 @@ exception::exception(int EV, const std::error_category &ECat,
 exception::exception(int EV, const std::error_category &ECat)
     : exception({EV, ECat}, nullptr, "") {}
 
-exception::exception(context Ctx, std::error_code EC,
-                     const std::string &WhatArg)
-    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
-
-exception::exception(context Ctx, std::error_code EC, const char *WhatArg)
-    : exception(Ctx, EC, std::string(WhatArg)) {}
-
-exception::exception(context Ctx, std::error_code EC)
-    : exception(Ctx, EC, "") {}
-
-exception::exception(context Ctx, int EV, const std::error_category &ECat,
-                     const char *WhatArg)
-    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
-
-exception::exception(context Ctx, int EV, const std::error_category &ECat,
-                     const std::string &WhatArg)
-    : exception(Ctx, {EV, ECat}, WhatArg) {}
-
-exception::exception(context Ctx, int EV, const std::error_category &ECat)
-    : exception(Ctx, EV, ECat, "") {}
-
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
-    : MMsg(std::make_shared<std::string>(WhatArg)),
+    : MMsg(std::make_shared<detail::string>(WhatArg)),
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
@@ -77,8 +56,6 @@ context exception::get_context() const {
   return *MContext;
 }
 
-cl_int exception::get_cl_code() const { return MPIErr; }
-
 const std::error_category &sycl_category() noexcept {
   static const detail::SYCLCategory SYCLCategoryObj;
   return SYCLCategoryObj;
@@ -87,6 +64,31 @@ const std::error_category &sycl_category() noexcept {
 std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
+
+namespace detail {
+pi_int32 get_pi_error(const exception &e) { return e.MPIErr; }
+exception set_pi_error(exception &&e, pi_int32 pi_err) {
+  e.MPIErr = pi_err;
+  return std::move(e);
+}
+
+__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error) {
+  switch (error) {
+#define _PI_ERRC(NAME, VAL)                                                    \
+  case NAME:                                                                   \
+    return #NAME;
+#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
+  case NAME:                                                                   \
+    return MSG;
+#include <sycl/detail/pi_error.def>
+#undef _PI_ERRC
+#undef _PI_ERRC_WITH_MSG
+
+  default:
+    return "Unknown error code";
+  }
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

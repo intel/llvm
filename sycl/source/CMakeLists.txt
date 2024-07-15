@@ -141,12 +141,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   )
 
   if(SYCL_ENABLE_KERNEL_FUSION)
-    target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)
-    target_link_libraries(${LIB_OBJ_NAME} PRIVATE sycl-fusion)
-    if (BUILD_SHARED_LIBS)
-     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+    if(NOT DEFINED LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR)
+      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR variable: Must be set when SYCL fusion is enabled")
+    endif()
+    set(SYCL_FUSION_INCLUDE_DIRS 
+        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/common/include
+        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/jit-compiler/include)
+    add_dependencies(${LIB_NAME} sycl-fusion)
+    add_dependencies(${LIB_OBJ_NAME} sycl-fusion)
+    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-fusion)
-    endif (BUILD_SHARED_LIBS)
   endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)
@@ -211,12 +217,12 @@ set(SYCL_COMMON_SOURCES
     "detail/jit_compiler.cpp"
     "detail/jit_device_binaries.cpp"
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
+    "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"
-    "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
@@ -242,6 +248,7 @@ set(SYCL_COMMON_SOURCES
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
+    "enqueue_functions.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
@@ -250,12 +257,13 @@ set(SYCL_COMMON_SOURCES
     "interop_handle.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
+    "physical_mem.cpp"
     "platform.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
-    "esimd_emulator_device_interface.cpp"
+    "virtual_mem.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )

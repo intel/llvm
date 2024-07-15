@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 #include <typeinfo>
 
 using namespace sycl;

@@ -71,14 +71,18 @@ namespace ext::oneapi::experimental {
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
-// not available on host device and therefore their usage should be either
-// guarded using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor
-// of more portable solutions if needed
+// not available on host and therefore their usage should be either guarded
+// using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor of more
+// portable solutions if needed
 //
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
+#else
+  return __builtin_printf(__format, args...);
+#endif
 #else
   return ::printf(__format, args...);
 #endif // defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) ||

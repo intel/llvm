@@ -5,19 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/points.csv
 
 #include "kmeans.h"
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
 
 #include <cmath>
 #include <fstream>
-#include <iostream>
 #include <string.h>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-#include <vector>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

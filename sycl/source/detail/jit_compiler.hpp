@@ -11,6 +11,10 @@
 #include <detail/jit_device_binaries.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/feature_test.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <KernelFusion.h>
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
 
 #include <unordered_map>
 
@@ -37,13 +41,15 @@ public:
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
 
+  bool isAvailable() { return Available; }
+
   static jit_compiler &get_instance() {
     static jit_compiler instance{};
     return instance;
   }
 
 private:
-  jit_compiler() = default;
+  jit_compiler();
   ~jit_compiler() = default;
   jit_compiler(const jit_compiler &) = delete;
   jit_compiler(jit_compiler &&) = delete;
@@ -60,8 +66,21 @@ private:
   std::vector<uint8_t> encodeReqdWorkGroupSize(
       const ::jit_compiler::SYCLKernelAttribute &Attr) const;
 
+  // Indicate availability of the JIT compiler
+  bool Available;
+
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  // Handles to the entry points of the lazily loaded JIT library.
+  using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
+  using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
+  using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
+  FuseKernelsFuncT FuseKernelsHandle = nullptr;
+  ResetConfigFuncT ResetConfigHandle = nullptr;
+  AddToConfigFuncT AddToConfigHandle = nullptr;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
 };
 
 } // namespace detail

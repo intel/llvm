@@ -5,10 +5,11 @@
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -54,22 +55,19 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
-class ESIMDSelector : public device_selector {
-  // Require GPU device
-  virtual int operator()(const device &device) const {
-    if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
-      std::string filter_string(dev_filter);
-      if (filter_string.find("gpu") != std::string::npos)
-        return device.is_gpu() ? 1000 : -1;
-      std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
-                   "'*:gpu' and '"
-                << filter_string << "' does not contain such substrings.\n";
-      return -1;
-    }
-    // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
+int ESIMD_selector_v(const device &device) {
+  if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
+    std::string filter_string(dev_filter);
+    if (filter_string.find("gpu") != std::string::npos)
+      return device.is_gpu() ? 1000 : -1;
+    std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
+                 "'*:gpu' and  '"
+              << filter_string << "' does not contain such substrings.\n";
+    return -1;
   }
-};
+  // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
+  return device.is_gpu() ? 1000 : -1;
+}
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
@@ -96,7 +94,7 @@ template <bool use_func_directly> bool test() {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
 
-  queue q(ESIMDSelector{}, createExceptionHandler());
+  queue q(ESIMD_selector_v, createExceptionHandler());
 
   auto dev = q.get_device();
   std::cout << "Running with use_func_directly = " << use_func_directly
@@ -123,7 +121,7 @@ template <bool use_func_directly> bool test() {
         sub_group sg = ndi.get_sub_group();
         group<1> g = ndi.get_group();
         uint32_t i =
-            sg.get_group_linear_id() * VL + g.get_linear_id() * GroupSize;
+            sg.get_group_linear_id() * VL + g.get_group_linear_id() * GroupSize;
         uint32_t wi_id = i + sg.get_local_id();
         float res = 0;
 

@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <cstddef>                            // for size_t
+#include <memory>                             // for shared_ptr, hash, opera...
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/context.hpp>                   // for context
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
@@ -21,10 +23,7 @@
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/range.hpp>               // for range
-
-#include <cstddef> // for size_t
-#include <memory>  // for shared_ptr, hash, opera...
-#include <variant> // for hash
+#include <variant>                      // for hash
 
 namespace sycl {
 inline namespace _V1 {
@@ -102,20 +101,12 @@ public:
   /// Get a valid OpenCL kernel handle
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
-  /// cl_kernel will be returned. If this kernel is a host kernel,
-  /// an invalid_object_error exception will be thrown.
+  /// cl_kernel will be returned.
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
   cl_kernel get() const;
 #endif
-
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Get the context that this kernel is defined for.
   ///

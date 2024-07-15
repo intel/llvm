@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // Tests for AST of Intel FPGA max concurrency function attribute.
 #include "sycl.hpp"
@@ -28,7 +28,7 @@ queue q;
 // CHECK-NEXT: SYCLIntelMaxConcurrencyAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
-// CHECK-NEXT: TemplateArgument integral 5
+// CHECK-NEXT: TemplateArgument integral '5'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelMaxConcurrencyAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'

@@ -74,6 +74,10 @@ def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
   HelpText<"Sets the number of parallel jobs to use for device linking">;
 
+def override_image : Joined<["--"], "override-image=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
+  HelpText<"Uses the provided file as if it were the output of the device link step">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
@@ -131,35 +135,85 @@ def relocatable : Flag<["--", "-"], "relocatable">,
     HelpText<"Link device code to create a relocatable offloading application">;
 def r : Flag<["-"], "r">, Alias<relocatable>;
 
+def shared : Flag<["--", "-"], "shared">,
+    HelpText<"Link device code to create a shared library">;
+
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;
 def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;
 def wholearchive_flag : Joined<["/", "-", "/?", "-?"], "wholearchive">, Flags<[HelpHidden]>;
 
 // Options to specify SYCL device library files
-def sycl_device_lib_EQ : CommaJoined<["-"], "sycl-device-libraries=">,
+def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"A comma separated list of device libraries that are linked during the device link.">;
-def sycl_device_library_location_EQ : Joined<["-"],
+def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
+def sycl_nvptx_device_lib_EQ : CommaJoined<["--", "-"], "sycl-nvptx-device-libraries=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"A comma separated list of nvptx-specific device libraries that are linked during the device link.">;
 
 // Options for SYCL backends and linker options for shared libraries.
 def sycl_backend_compile_options_EQ :
-  Joined<["-"], "sycl-backend-compile-options">,
+  Joined<["--", "-"], "sycl-backend-compile-options">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that are passed to the backend of target device compiler">;
 def sycl_target_link_options_EQ :
-  Joined<["-"], "sycl-target-link-options">,
+  Joined<["--", "-"], "sycl-target-link-options">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that are passed to target linker during a linking of shared device code.">;
 
 // Special option to pass in sycl-post-link options
-def sycl_post_link_options_EQ : Joined<["-"], "sycl-post-link-options=">,
+def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control sycl-post-link step">;
 
+def sycl_module_split_mode_EQ :
+  Joined<["--", "-"], "sycl-module-split-mode=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Option that turns on split library with the given split mode">;
+
 // Special option to pass in llvm-spirv options
-def llvm_spirv_options_EQ : Joined<["-"], "llvm-spirv-options=">,
+def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+def sycl_is_windows_msvc_env : Flag<["--", "-"], "sycl-is-windows-msvc-env">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+
+// Extra SYCL options to help generate sycl-post-link options that also depend
+// on the target triple.
+def sycl_remove_unused_external_funcs : Flag<["--", "-"], "sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_remove_unused_external_funcs : Flag<["--", "-"], "no-sycl-remove-unused-external-funcs">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_device_code_split_esimd : Flag<["--", "-"], "sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_device_code_split_esimd : Flag<["--", "-"], "no-sycl-device-code-split-esimd">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
+  Flags<[WrapperOnlyOption, HelpHidden]>;
+
+// Special options to pass backend options required for AOT compilation
+def gpu_tool_arg_EQ :
+  Joined<["--", "-"], "gpu-tool-arg=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
+def cpu_tool_arg_EQ :
+  Joined<["--", "-"], "cpu-tool-arg=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
+
+// Hidden options to store backend compile/link options that are stored in
+// device images for SYCL offloading
+def sycl_backend_compile_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-compile-options-from-image=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Compile options that will be transmitted to the SYCL backend compiler">;
+def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-link-options-from-image=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Link options that will be transmitted to the SYCL backend compiler">;
+
+def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
+Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;

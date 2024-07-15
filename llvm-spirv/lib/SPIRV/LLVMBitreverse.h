@@ -37,6 +37,9 @@
 // from the C code in LLVMIntrinsicEmulation/bitreverse.c with a custom clang
 // that was modified to disable llvm.bitreverse.* intrinsic generation.
 //
+// A similar command was run on LLVMIntrinsicEmulation/small_bitreverse.c to
+// produce functions to reverse 2-bit and 4-bit types.
+//
 // Manual modification was done to avoid coercing vector types into scalar
 // types.  For example, the original LLVM IR:
 //
@@ -59,8 +62,70 @@
 //     ...
 //     ret <4 x i8> %or12
 //   }
+#define GEN_CONST1(BASE_TYPE, VAL) #VAL
+#define GEN_CONST2(BASE_TYPE, VAL)                                             \
+  "<" #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL ">"
+#define GEN_CONST3(BASE_TYPE, VAL)                                             \
+  "<" #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL ">"
+#define GEN_CONST4(BASE_TYPE, VAL)                                             \
+  "<" #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL ">"
+#define GEN_CONST8(BASE_TYPE, VAL)                                             \
+  "<" #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL ">"
+#define GEN_CONST16(BASE_TYPE, VAL)                                            \
+  "<" #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL "," #BASE_TYPE " " #VAL      \
+  "," #BASE_TYPE " " #VAL ">"
 
-static const char LLVMBitreverseScalari8[]{R"(
+// clang-format off
+#define MAKE_BITREVERSE_2BIT(SUFFIX,TYPE_STR,NUM_ELTS,BASE_TYPE)                     \
+static const char LLVMBitreverse ## SUFFIX[]{"                                     \n\
+define " TYPE_STR " @llvm_bitreverse_" #SUFFIX "(" TYPE_STR " %A) {                \n\
+entry:                                                                             \n\
+  %and  = shl         " TYPE_STR " %A, " GEN_CONST ## NUM_ELTS(BASE_TYPE,1) "      \n\
+  %shr4 = lshr        " TYPE_STR " %A, " GEN_CONST ## NUM_ELTS(BASE_TYPE,1) "      \n\
+  %or   = or disjoint " TYPE_STR " %and, %shr4                                     \n\
+  ret                 " TYPE_STR " %or                                             \n\
+}                                                                                  \n\
+"}
+
+MAKE_BITREVERSE_2BIT(i2,    "i2",         1, i2);
+MAKE_BITREVERSE_2BIT(v2i2,  "<2 x i2>",   2, i2);
+MAKE_BITREVERSE_2BIT(v3i2,  "<3 x i2>",   3, i2);
+MAKE_BITREVERSE_2BIT(v4i2,  "<4 x i2>",   4, i2);
+MAKE_BITREVERSE_2BIT(v8i2,  "<8 x i2>",   8, i2);
+MAKE_BITREVERSE_2BIT(v16i2, "<16 x i2>", 16, i2);
+
+#define MAKE_BITREVERSE_4BIT(SUFFIX,TYPE_STR,NUM_ELTS,BASE_TYPE)                     \
+static const char LLVMBitreverse ## SUFFIX[]{"                                     \n\
+define " TYPE_STR " @llvm_bitreverse_" #SUFFIX "(" TYPE_STR " %A) {                \n\
+entry:                                                                             \n\
+  %and  = shl         " TYPE_STR " %A,    " GEN_CONST ## NUM_ELTS(BASE_TYPE, 2) "  \n\
+  %shr  = lshr        " TYPE_STR " %A,    " GEN_CONST ## NUM_ELTS(BASE_TYPE, 2) "  \n\
+  %or   = or disjoint " TYPE_STR " %and, %shr                                      \n\
+  %and2 = shl         " TYPE_STR " %or,   " GEN_CONST ## NUM_ELTS(BASE_TYPE, 1) "  \n\
+  %shl3 = and         " TYPE_STR " %and2, " GEN_CONST ## NUM_ELTS(BASE_TYPE,-6) "  \n\
+  %shr4 = lshr        " TYPE_STR " %or,   " GEN_CONST ## NUM_ELTS(BASE_TYPE, 1) "  \n\
+  %and5 = and         " TYPE_STR " %shr4, " GEN_CONST ## NUM_ELTS(BASE_TYPE, 5) "  \n\
+  %or6  = or disjoint " TYPE_STR " %shl3, %and5                                    \n\
+  ret                 " TYPE_STR " %or6                                            \n\
+}                                                                                  \n\
+"}
+
+MAKE_BITREVERSE_4BIT(i4,    "i4",         1, i4);
+MAKE_BITREVERSE_4BIT(v2i4,  "<2 x i4>",   2, i4);
+MAKE_BITREVERSE_4BIT(v3i4,  "<3 x i4>",   3, i4);
+MAKE_BITREVERSE_4BIT(v4i4,  "<4 x i4>",   4, i4);
+MAKE_BITREVERSE_4BIT(v8i4,  "<8 x i4>",   8, i4);
+MAKE_BITREVERSE_4BIT(v16i4, "<16 x i4>", 16, i4);
+// clang-format on
+
+static const char LLVMBitreversei8[]{R"(
 define zeroext i8 @llvm_bitreverse_i8(i8 %A) {
 entry:
   %and = shl i8 %A, 4
@@ -80,7 +145,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseScalari16[]{R"(
+static const char LLVMBitreversei16[]{R"(
 define zeroext i16 @llvm_bitreverse_i16(i16 %A) {
 entry:
   %and = shl i16 %A, 8
@@ -105,7 +170,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseScalari32[]{R"(
+static const char LLVMBitreversei32[]{R"(
 define i32 @llvm_bitreverse_i32(i32 %A) {
 entry:
   %and = shl i32 %A, 16
@@ -135,7 +200,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseScalari64[]{R"(
+static const char LLVMBitreversei64[]{R"(
 define i64 @llvm_bitreverse_i64(i64 %A) {
 entry:
   %and = shl i64 %A, 32
@@ -170,7 +235,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV2i8[]{R"(
+static const char LLVMBitreversev2i8[]{R"(
 define <2 x i8> @llvm_bitreverse_v2i8(<2 x i8> %A) {
 entry:
   %shl = shl <2 x i8> %A, <i8 4, i8 4>
@@ -190,7 +255,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV2i16[]{R"(
+static const char LLVMBitreversev2i16[]{R"(
 define <2 x i16> @llvm_bitreverse_v2i16(<2 x i16> %A) {
 entry:
   %shl = shl <2 x i16> %A, <i16 8, i16 8>
@@ -215,7 +280,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV2i32[]{R"(
+static const char LLVMBitreversev2i32[]{R"(
 define <2 x i32> @llvm_bitreverse_v2i32(<2 x i32> %A) {
 entry:
   %shl = shl <2 x i32> %A, <i32 16, i32 16>
@@ -245,7 +310,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV2i64[]{R"(
+static const char LLVMBitreversev2i64[]{R"(
 define <2 x i64> @llvm_bitreverse_v2i64(<2 x i64> %A) {
 entry:
   %shl = shl <2 x i64> %A, <i64 32, i64 32>
@@ -280,7 +345,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV3i8[]{R"(
+static const char LLVMBitreversev3i8[]{R"(
 define <3 x i8> @llvm_bitreverse_v3i8(<3 x i8> %A) {
 entry:
   %shl = shl <3 x i8> %A, <i8 4, i8 4, i8 4>
@@ -300,7 +365,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV3i16[]{R"(
+static const char LLVMBitreversev3i16[]{R"(
 define <3 x i16> @llvm_bitreverse_v3i16(<3 x i16> %A) {
 entry:
   %shl = shl <3 x i16> %A, <i16 8, i16 8, i16 8>
@@ -325,7 +390,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV3i32[]{R"(
+static const char LLVMBitreversev3i32[]{R"(
 define <3 x i32> @llvm_bitreverse_v3i32(<3 x i32> %A) {
 entry:
   %shl = shl <3 x i32> %A, <i32 16, i32 16, i32 16>
@@ -355,7 +420,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV3i64[]{R"(
+static const char LLVMBitreversev3i64[]{R"(
 define <3 x i64> @llvm_bitreverse_v3i64(<3 x i64> %A) {
 entry:
   %shl = shl <3 x i64> %A, <i64 32, i64 32, i64 32>
@@ -390,7 +455,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV4i8[]{R"(
+static const char LLVMBitreversev4i8[]{R"(
 define <4 x i8> @llvm_bitreverse_v4i8(<4 x i8> %A) {
 entry:
   %shl = shl <4 x i8> %A, <i8 4, i8 4, i8 4, i8 4>
@@ -410,7 +475,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV4i16[]{R"(
+static const char LLVMBitreversev4i16[]{R"(
 define <4 x i16> @llvm_bitreverse_v4i16(<4 x i16> %A) {
 entry:
   %shl = shl <4 x i16> %A, <i16 8, i16 8, i16 8, i16 8>
@@ -435,7 +500,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV4i32[]{R"(
+static const char LLVMBitreversev4i32[]{R"(
 define <4 x i32> @llvm_bitreverse_v4i32(<4 x i32> %A) {
 entry:
   %shl = shl <4 x i32> %A, <i32 16, i32 16, i32 16, i32 16>
@@ -465,7 +530,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV4i64[]{R"(
+static const char LLVMBitreversev4i64[]{R"(
 define <4 x i64> @llvm_bitreverse_v4i64(<4 x i64> %A) {
 entry:
   %shl = shl <4 x i64> %A, <i64 32, i64 32, i64 32, i64 32>
@@ -500,7 +565,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV8i8[]{R"(
+static const char LLVMBitreversev8i8[]{R"(
 define <8 x i8> @llvm_bitreverse_v8i8(<8 x i8> %A) {
 entry:
   %shl = shl <8 x i8> %A, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
@@ -520,7 +585,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV8i16[]{R"(
+static const char LLVMBitreversev8i16[]{R"(
 define <8 x i16> @llvm_bitreverse_v8i16(<8 x i16> %A) {
 entry:
   %shl = shl <8 x i16> %A, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
@@ -545,7 +610,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV8i32[]{R"(
+static const char LLVMBitreversev8i32[]{R"(
 define <8 x i32> @llvm_bitreverse_v8i32(<8 x i32> %A) {
 entry:
   %shl = shl <8 x i32> %A, <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
@@ -575,7 +640,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV8i64[]{R"(
+static const char LLVMBitreversev8i64[]{R"(
 define <8 x i64> @llvm_bitreverse_v8i64(<8 x i64> %A) {
 entry:
   %shl = shl <8 x i64> %A, <i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32>
@@ -610,7 +675,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV16i8[]{R"(
+static const char LLVMBitreversev16i8[]{R"(
 define <16 x i8> @llvm_bitreverse_v16i8(<16 x i8> %A) {
 entry:
   %shl = shl <16 x i8> %A, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
@@ -630,7 +695,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV16i16[]{R"(
+static const char LLVMBitreversev16i16[]{R"(
 define <16 x i16> @llvm_bitreverse_v16i16(<16 x i16> %A) {
 entry:
   %shl = shl <16 x i16> %A, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
@@ -655,7 +720,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV16i32[]{R"(
+static const char LLVMBitreversev16i32[]{R"(
 define <16 x i32> @llvm_bitreverse_v16i32(<16 x i32> %A) {
 entry:
   %shl = shl <16 x i32> %A, <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
@@ -685,7 +750,7 @@ entry:
 }
 )"};
 
-static const char LLVMBitreverseV16i64[]{R"(
+static const char LLVMBitreversev16i64[]{R"(
 define <16 x i64> @llvm_bitreverse_v16i64(<16 x i64> %A) {
 entry:
   %shl = shl <16 x i64> %A, <i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32, i64 32>

@@ -12,8 +12,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/opencl.h>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 using namespace sycl;
 
@@ -45,10 +47,11 @@ int main() {
   assert(ocl_buffers.size() == 1);
 
   // Re-create SYCL objects from native OpenCL handles
-  auto PlatformInterop = opencl::make<platform>(ocl_platform);
-  auto DeviceInterop = opencl::make<device>(ocl_device);
-  auto ContextInterop = opencl::make<context>(ocl_context);
-  auto QueueInterop = opencl::make<queue>(ContextInterop, ocl_queue);
+  auto PlatformInterop = sycl::make_platform<backend::opencl>(ocl_platform);
+  auto DeviceInterop = sycl::make_device<backend::opencl>(ocl_device);
+  auto ContextInterop = sycl::make_context<backend::opencl>(ocl_context);
+  auto QueueInterop =
+      sycl::make_queue<backend::opencl>(ocl_queue, ContextInterop);
   auto BufferInterop =
       sycl::make_buffer<backend::opencl, int>(ocl_buffers[0], ContextInterop);
 

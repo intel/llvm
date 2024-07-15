@@ -12,7 +12,7 @@
 // clang++ -fsycl -o ndd.bin no_duplicate_devices.cpp
 
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

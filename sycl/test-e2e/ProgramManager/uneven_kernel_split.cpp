@@ -13,6 +13,8 @@
 // same for both targets. Checks validity of device image search.
 
 #include "inc.hpp"
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 void host_foo(sycl::queue &queue, int *buf) {
   queue.submit([&](sycl::handler &h) {
