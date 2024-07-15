@@ -28,6 +28,16 @@ struct DummyHandleT {
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
+
+  template <typename T> T getDataAs() {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data());
+  }
+
+  template <typename T> T setDataAs(T Val) {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data()) = Val;
+  }
 };
 
 using DummyHandlePtrT = DummyHandleT *;
@@ -608,7 +618,8 @@ inline pi_result mock_piextMemImageCopy(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+inline pi_result mock_piextMemImageGetInfo(pi_context context,
+                                           pi_image_mem_handle mem_handle,
                                            pi_image_info param_name,
                                            void *param_value,
                                            size_t *param_value_size_ret) {
@@ -1259,13 +1270,15 @@ inline pi_result mock_piextUSMFree(pi_context context, void *ptr) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
-                                            pi_int32 value, size_t count,
-                                            pi_uint32 num_events_in_waitlist,
-                                            const pi_event *events_waitlist,
-                                            pi_event *event) {
+inline pi_result mock_piextUSMEnqueueFill(pi_queue queue, void *ptr,
+                                          const void *pattern,
+                                          size_t patternSize, size_t count,
+                                          pi_uint32 num_events_in_waitlist,
+                                          const pi_event *events_waitlist,
+                                          pi_event *event) {
   if (event)
     *event = createDummyHandle<pi_event>();
+
   return PI_SUCCESS;
 }
 
@@ -1654,5 +1667,15 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 }
 
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
   return PI_SUCCESS;
 }

@@ -32,34 +32,7 @@
     }                                                                          \
   }
 
-#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::string err_str =                                                    \
-          str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
-                    err_str,                                                   \
-                code);                                                         \
-    }                                                                          \
-  }
-
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_PI_ERR_TO_EXC(X, EXC, STR)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
-
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(X, ERRC)
 
 namespace sycl {
 inline namespace _V1 {
@@ -151,10 +124,8 @@ public:
     return MPlugin;
   }
 
-  /// Checks return value from PI calls.
-  ///
-  /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = sycl::runtime_error>
+  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
+  template <sycl::errc errc = sycl::errc::runtime>
   void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
     char *message = nullptr;
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
@@ -168,34 +139,14 @@ public:
       if (pi_result == PI_SUCCESS)
         return;
     }
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception, message);
-  }
-
-  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
-  template <sycl::errc errc>
-  void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
-    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
-      char *message = nullptr;
-      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
-
-      // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        std::clog << message << std::endl;
-
-      // If it is a warning do not throw code
-      if (pi_result == PI_SUCCESS)
-        return;
-    }
-    __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
-  }
-
-  void reportPiError(sycl::detail::pi::PiResult pi_result,
-                     const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw sycl::runtime_error(std::string(context) +
-                                    " API failed with error: " +
-                                    sycl::detail::codeToString(pi_result),
-                                pi_result);
+      throw sycl::detail::set_pi_error(
+          sycl::exception(sycl::make_error_code(errc),
+                          __SYCL_PI_ERROR_REPORT +
+                              sycl::detail::codeToString(pi_result) +
+                              (message ? "\n" + std::string(message) + "\n"
+                                       : std::string{})),
+          pi_result);
     }
   }
 
@@ -204,8 +155,8 @@ public:
   /// Usage:
   /// \code{cpp}
   /// PiResult Err = Plugin->call<PiApiKind::pi>(Args);
-  /// Plugin->checkPiResult(Err); // Checks Result and throws a runtime_error
-  /// // exception.
+  /// Plugin->checkPiResult(Err); // Checks Result and throws an exception with
+  /// an errc::runtime error code.
   /// \endcode
   ///
   /// \sa plugin::checkPiResult

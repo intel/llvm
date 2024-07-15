@@ -8,6 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
+#include "clang/Basic/Cuda.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace clang;
@@ -32,8 +33,8 @@ public:
   ABIArgInfo classifyArgumentType(QualType Ty) const;
 
   void computeInfo(CGFunctionInfo &FI) const override;
-  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                    QualType Ty) const override;
+  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
+                   AggValueSlot Slot) const override;
   bool isUnsupportedType(QualType T) const;
   ABIArgInfo coerceToIntArrayWithLimit(QualType Ty, unsigned MaxSize) const;
 };
@@ -79,6 +80,9 @@ public:
   // resulting MDNode to the nvvm.annotations MDNode.
   static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
                               int Operand);
+
+  static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
+                              const std::vector<int> &Operands);
 
 private:
   static void emitBuiltinSurfTexDeviceCopy(CodeGenFunction &CGF, LValue Dst,
@@ -213,9 +217,31 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   FI.setEffectiveCallingConvention(getRuntimeCC());
 }
 
-Address NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                                QualType Ty) const {
+RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                               QualType Ty, AggValueSlot Slot) const {
   llvm_unreachable("NVPTX does not support varargs");
+}
+
+// Get current CudaArch and ignore any unknown values
+// Copied from CGOpenMPRuntimeGPU
+static CudaArch getCudaArch(CodeGenModule &CGM) {
+  if (!CGM.getTarget().hasFeature("ptx"))
+    return CudaArch::UNKNOWN;
+  for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
+    if (Feature.getValue()) {
+      CudaArch Arch = StringToCudaArch(Feature.getKey());
+      if (Arch != CudaArch::UNKNOWN)
+        return Arch;
+    }
+  }
+  return CudaArch::UNKNOWN;
+}
+
+static bool supportsGridConstant(CudaArch Arch) {
+  assert((Arch == CudaArch::UNKNOWN || IsNVIDIAGpuArch(Arch)) &&
+         "Unexpected architecture");
+  static_assert(CudaArch::UNKNOWN < CudaArch::SM_70);
+  return Arch >= CudaArch::SM_70;
 }
 
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
@@ -248,17 +274,33 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "kernel", 1);
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
+
+      if (M.getLangOpts().SYCLIsDevice &&
+          supportsGridConstant(getCudaArch(M))) {
+        // Add grid_constant annotations to all relevant kernel-function
+        // parameters. We can guarantee that in SYCL, all by-val kernel
+        // parameters are "grid_constant".
+        std::vector<int> GridConstantParamIdxs;
+        for (auto [Idx, Arg] : llvm::enumerate(F->args())) {
+          if (Arg.getType()->isPointerTy() && Arg.hasByValAttr()) {
+            // Note - the parameter indices are numbered from 1.
+            GridConstantParamIdxs.push_back(Idx + 1);
+          }
+        }
+        if (!GridConstantParamIdxs.empty())
+          addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
+      }
     }
     bool HasMaxWorkGroupSize = false;
     bool HasMinWorkGroupPerCU = false;
     if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      auto MaxThreads = (*MWGS->getZDimVal()).getExtValue() *
-                        (*MWGS->getYDimVal()).getExtValue() *
-                        (*MWGS->getXDimVal()).getExtValue();
-      if (MaxThreads > 0) {
-        addNVVMMetadata(F, "maxntidx", MaxThreads);
-        HasMaxWorkGroupSize = true;
-      }
+      HasMaxWorkGroupSize = true;
+      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
+      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
+      // fastest-moving dimension.
+      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
+      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
+      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
     }
 
     auto attrValue = [&](Expr *E) {
@@ -275,7 +317,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
             << MWGPCU << 0;
       } else {
         // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minnctapersm", attrValue(MWGPCU->getValue()));
+        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
         HasMinWorkGroupPerCU = true;
       }
     }
@@ -325,6 +367,28 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
       llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
       llvm::ConstantAsMetadata::get(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+  // Append metadata to nvvm.annotations
+  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+}
+
+void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
+                                             StringRef Name,
+                                             const std::vector<int> &Operands) {
+  llvm::Module *M = GV->getParent();
+  llvm::LLVMContext &Ctx = M->getContext();
+
+  // Get "nvvm.annotations" metadata node
+  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
+
+  llvm::SmallVector<llvm::Metadata *, 8> MDOps;
+  for (int Op : Operands) {
+    MDOps.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Op)));
+  }
+  auto *OpList = llvm::MDNode::get(Ctx, MDOps);
+
+  llvm::Metadata *MDVals[] = {llvm::ConstantAsMetadata::get(GV),
+                              llvm::MDString::get(Ctx, Name), OpList};
   // Append metadata to nvvm.annotations
   MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
 }

@@ -40,9 +40,8 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 #endif
 
 uint32_t PlatformUtil::getMaxClockFrequency() {
-  throw runtime_error(
-      "max_clock_frequency parameter is not supported for host device",
-      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "max_clock_frequency parameter is not supported on host");
   return 0;
 }
 

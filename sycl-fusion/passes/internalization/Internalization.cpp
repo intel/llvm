@@ -14,6 +14,7 @@
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/TypeSwitch.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/PassManagerImpl.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/Support/WithColor.h>
 #include <llvm/Transforms/Utils/Cloning.h>
