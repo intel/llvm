@@ -2169,7 +2169,7 @@ public:
   }
 
   bool handlePointerType(FieldDecl *, QualType) final {
-    PointerStack.back() = true;
+    PointerStack.back() = targetRequiresNewType(SemaSYCLRef.getASTContext());
     return true;
   }
 
@@ -2190,8 +2190,7 @@ public:
             SemaSYCLRef.getASTContext()));
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
-          targetRequiresNewType(SemaSYCLRef.getASTContext()))
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2227,8 +2226,7 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
-          targetRequiresNewType(SemaSYCLRef.getASTContext()))
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2265,8 +2263,7 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
-          targetRequiresNewType(SemaSYCLRef.getASTContext()))
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2300,8 +2297,7 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>() &&
-          targetRequiresNewType(SemaSYCLRef.getASTContext()))
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
         FD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
       PointerStack.back() = true;

@@ -10,7 +10,7 @@ public:
   sycl::accessor<char, 1, sycl::access::mode::read> AccField;
 };
 
-class wraping_acc {
+class wrapping_acc {
 public:
   with_acc acc;
   void operator()() const {
@@ -34,10 +34,10 @@ int main() {
   sycl::queue q;
 
   q.submit([&](sycl::handler &cgh) {
-    wraping_acc acc;
+    wrapping_acc acc;
     cgh.single_task(acc);
   });
-  // ALL: FunctionDecl {{.*}} _ZTS11wraping_acc 'void (__wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+  // ALL: FunctionDecl {{.*}} _ZTS12wrapping_acc 'void (__wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 
   q.submit([&](sycl::handler &cgh) {
     pointer_wrap ptr;
