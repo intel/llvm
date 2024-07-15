@@ -378,11 +378,12 @@ bool SemaSYCL::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
-    // Allow __builtin_assume_aligned and __builtin_printf to be called from
-    // within device code.
-    if (FD->getBuiltinID() &&
-        (FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned ||
-         FD->getBuiltinID() == Builtin::BI__builtin_printf))
+    // Allow __builtin_assume_aligned, printf and __builtin_printf to be called
+    // from within device code.
+    const auto BuiltinID = FD->getBuiltinID();
+    if (BuiltinID && (BuiltinID == Builtin::BI__builtin_assume_aligned ||
+                      BuiltinID == Builtin::BIprintf ||
+                      BuiltinID == Builtin::BI__builtin_printf))
       return true;
 
     const DeclContext *DC = FD->getDeclContext();
