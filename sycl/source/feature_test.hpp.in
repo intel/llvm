@@ -110,7 +110,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_PROD 1
 #define SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS 1
 #define SYCL_EXT_ONEAPI_RAW_KERNEL_ARG 1
-#define SYCL_EXT_ONEAPI_ENQUEUE_CUSTOM_OPERATION 1
+#define SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND 1
 
 #ifndef __has_include
 #define __has_include(x) 0
