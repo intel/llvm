@@ -832,8 +832,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     // We don't have any backend implementations that support enqueueing a fill
     // on non-buffer mem objects like this. The old UR function was a stub with
     // an abort.
-    throw runtime_error("Fill operation not supported for the given mem object",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Fill operation not supported for the given mem object");
   }
 }
 
@@ -1114,8 +1114,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
   // TODO: Implement this in terms of urEnqueueUSMFill2D? The old UR entry
   // point for this was never implemented anywhere (pi2ur.hpp simply hit an
   // abort if it was called).
-  throw runtime_error("2D memset is not current supported by any backends.",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(sycl::make_error_code(errc::invalid),
+                  "2D memset is not current supported by any backends.");
 }
 
 static void memcpyToDeviceGlobalUSM(
