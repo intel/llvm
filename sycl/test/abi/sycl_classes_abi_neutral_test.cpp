@@ -3,14 +3,14 @@
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
-// The purpose of this test is to check that classes in sycl namespace which are
+// The purpose of this test is to check that classes in sycl namespace that are
 // defined in SYCL headers don't have std::string and std::list data members to
-// avoid having dual-abi issues (see
+// avoid having the dual ABI issue (see
 // https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html). I.e. if
 // application is built with the old ABI and such data member is crossing ABI
 // boundary then it will result in issues as SYCL RT is using new ABI by
 // default. All such data members can potentially cross ABI boundaries and
-// that's why we need to be sure that we use only abi-neutral data members.
+// that's why we need to be sure that we use only ABI-neutral data members.
 
 // New exclusions are NOT ALLOWED to this file unless it is guaranteed that data
 // member is not crossing ABI boundary. All current exclusions are listed below.
