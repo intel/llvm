@@ -1034,7 +1034,7 @@ public:
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
+      (*m_Vector)[Idxs[I]] = Rhs[I];
     }
     return *this;
   }
