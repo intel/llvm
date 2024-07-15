@@ -46,7 +46,7 @@ A new aspect, ext\_intel\_device\_id, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_id.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_device\_id.
 
 ## Example Usage ##
 
@@ -83,7 +83,7 @@ A new aspect, ext\_intel\_device\_info\_uuid, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_info\_uuid.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_device\_info\_uuid.
 
 
 ## Example Usage ##
@@ -123,7 +123,7 @@ A new aspect, ext\_intel\_pci\_address, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_pci\_address.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_pci\_address.
 
 
 ## Example Usage ##
@@ -162,7 +162,7 @@ A new aspect, ext\_intel\_gpu\_eu\_simd\_width, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
 
 ## Example Usage ##
 
@@ -202,7 +202,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
 
 ## Example Usage ##
 
@@ -238,7 +238,7 @@ A new aspect, ext\_intel\_gpu\_slices, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_slices.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_slices.
 
 ## Example Usage ##
 
@@ -273,7 +273,7 @@ A new aspect, ext\_intel\_gpu\_subslices\_per\_slice, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_subslices\_per\_slice.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_subslices\_per\_slice.
 
 ## Example Usage ##
 
@@ -308,7 +308,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count\_per\_subslice, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice.
 
 ## Example Usage ##
 
@@ -341,7 +341,7 @@ A new aspect, ext\_intel\_gpu\_hw\_threads\_per\_eu, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu.
 
 ## Example Usage ##
 
@@ -377,7 +377,7 @@ A new aspect, ext\_intel\_max\_mem\_bandwidth, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
 
 
 ## Example Usage ##
@@ -415,7 +415,7 @@ A new aspect, ext\_intel\_free\_memory, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_free\_memory.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_free\_memory.
 
 
 ## Example Usage ##
@@ -452,7 +452,7 @@ A new aspect, ext\_intel\_memory\_clock\_rate, is added.
 
 ## Error Condition ##
 
-An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
 
 
 ## Example Usage ##
@@ -489,7 +489,7 @@ A new aspect, ext\_intel\_memory\_bus\_width, is added.
 
 ## Error Condition ##
 
-An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
+An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
 
 
 ## Example Usage ##
