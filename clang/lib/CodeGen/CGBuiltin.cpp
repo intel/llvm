@@ -2667,6 +2667,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_fma:
   case Builtin::BI__builtin_fmaf:
   case Builtin::BI__builtin_fmal:
+  case Builtin::BI__builtin_fmaf16:
   case Builtin::BIfma:
   case Builtin::BIfmaf:
   case Builtin::BIfmal: {

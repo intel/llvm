@@ -2598,6 +2598,8 @@ public:
 
   llvm::Type *ConvertTypeForMem(QualType T);
   llvm::Type *ConvertType(QualType T);
+  llvm::Type *convertTypeForLoadStore(QualType ASTTy,
+                                      llvm::Type *LLVMTy = nullptr);
   llvm::Type *ConvertType(const TypeDecl *T) {
     return ConvertType(getContext().getTypeDeclType(T));
   }

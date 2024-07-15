@@ -207,8 +207,11 @@ ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
 void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
-  for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+
+  for (auto &&[ArgumentsCount, I] : llvm::enumerate(FI.arguments()))
+    I.info = ArgumentsCount < FI.getNumRequiredArgs()
+                 ? classifyArgumentType(I.type)
+                 : ABIArgInfo::getDirect();
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -219,7 +222,10 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
 RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                                QualType Ty, AggValueSlot Slot) const {
-  llvm_unreachable("NVPTX does not support varargs");
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/false,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(1),
+                          /*AllowHigherAlign=*/true, Slot);
 }
 
 // Get current OffloadArch and ignore any unknown values
