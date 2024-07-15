@@ -42,6 +42,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
+#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
@@ -590,6 +591,58 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
   return Error::success();
 }
 
+static Error getDeviceLibsForLTO(SmallVector<OffloadFile> &DeviceLibs,
+                                 const ArgList &Args,
+                                 const llvm::Triple Triple) {
+  // TODO: Fix copy paste
+  SmallVector<std::string, 16> DeviceLibFiles;
+  if (Error Err = sycl::getSYCLDeviceLibs(DeviceLibFiles, Args))
+    return Err;
+
+  auto processFile = [&](StringRef File) {
+    auto BufferOrErr = MemoryBuffer::getFile(File);
+    if (!BufferOrErr)
+      return createFileError(File, BufferOrErr.getError());
+    auto Buffer = std::move(*BufferOrErr);
+    SmallVector<OffloadFile> Candidates;
+    if (Error Err =
+            extractOffloadBinaries(Buffer->getMemBufferRef(), Candidates))
+      return Err;
+    for (OffloadFile &OffF : Candidates)
+      if (llvm::Triple(OffF.getBinary()->getTriple()) == Triple)
+        DeviceLibs.emplace_back(std::move(OffF));
+    return Error(Error::success());
+  };
+
+  for (auto &File : DeviceLibFiles) {
+
+    if (Error Err = processFile(File))
+      return Err;
+  }
+
+  // For NVPTX backend we need to also link libclc and CUDA libdevice.
+  if (Triple.isNVPTX()) {
+    if (Arg *A = Args.getLastArg(OPT_sycl_nvptx_device_lib_EQ)) {
+      if (A->getValues().size() == 0)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "Number of device library files cannot be zero.");
+      for (StringRef Val : A->getValues()) {
+        SmallString<128> LibName(Val);
+        if (llvm::sys::fs::exists(LibName)) {
+          if (auto Err = processFile(LibName))
+            return Err;
+        } else
+          return createStringError(
+              inconvertibleErrorCode(),
+              std::string(LibName) +
+                  " SYCL device library file for NVPTX is not found.");
+      }
+    }
+  }
+  return Error::success();
+}
+
 /// This routine is used to convert SPIR-V input files into LLVM IR files.
 /// 'llvm-spirv -r' command is used for this purpose.
 /// If input is not a SPIR-V file, then the original file is returned.
@@ -623,6 +676,25 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
     return std::move(Err);
   return *TempFileOrErr;
+}
+
+static bool considerOnlyKernelsAsEntryPoints(const ArgList &Args,
+                                             const llvm::Triple Triple) {
+  const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+  bool SYCLNativeCPU = (HostTriple == Triple);
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  return (!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                        OPT_sycl_remove_unused_external_funcs, false) &&
+          !SYCLNativeCPU) &&
+         !Triple.isNVPTX() && !Triple.isAMDGPU();
+}
+
+bool isSYCLThinLTO(const ArgList &Args, const llvm::Triple Triple) {
+  // TODO: Support CUDA/HIP
+  return Triple.isSPIROrSPIRV() && Args.hasArg(OPT_sycl_thin_lto);
 }
 
 /// Add any sycl-post-link options that rely on a specific Triple in addition
@@ -661,10 +733,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
   // TODO: Try to extend this feature for non-Intel GPUs.
-  if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
-                     OPT_sycl_remove_unused_external_funcs, false) &&
-       !SYCLNativeCPU) &&
-      !Triple.isNVPTX() && !Triple.isAMDGPU())
+  if (considerOnlyKernelsAsEntryPoints(Args, Triple))
     PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
 
   if (!Triple.isAMDGCN())
@@ -677,7 +746,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   bool SplitEsimd =
       Args.hasFlag(OPT_sycl_device_code_split_esimd,
                    OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
-  if (!Args.hasArg(OPT_sycl_thin_lto))
+  if (!isSYCLThinLTO(Args, Triple))
     PostLinkArgs.push_back("-symbols");
   // Specialization constant info generation is mandatory -
   // add options unconditionally
@@ -881,20 +950,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
-/// Run LLVM to SPIR-V translation.
-/// Converts 'File' from LLVM bitcode to SPIR-V format using llvm-spirv tool.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// llvm-spirv tool.
-static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
-                                                     const ArgList &Args) {
-  Expected<std::string> LLVMToSPIRVPath =
-      findProgram("llvm-spirv", {getMainExecutable("llvm-spirv")});
-  if (!LLVMToSPIRVPath)
-    return LLVMToSPIRVPath.takeError();
-
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*LLVMToSPIRVPath);
+void computeLLVMToSPIRVTranslationToolArgs(const ArgList &Args,
+                                           SmallVector<StringRef, 8> &CmdArgs) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
   StringRef LLVMToSPIRVOptions;
@@ -902,6 +959,24 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
     LLVMToSPIRVOptions = A->getValue();
   LLVMToSPIRVOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                            /* KeepEmpty = */ false);
+}
+
+/// Run LLVM to SPIR-V translation.
+/// Converts 'File' from LLVM bitcode to SPIR-V format using llvm-spirv tool.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-spirv tool.
+
+static Expected<StringRef>
+runLLVMToSPIRVTranslation(StringRef File,
+                          SmallVectorImpl<StringRef> &&CmdArgs) {
+  Expected<std::string> LLVMToSPIRVPath =
+      findProgram("llvm-spirv", {getMainExecutable("llvm-spirv")});
+  if (!LLVMToSPIRVPath)
+    return LLVMToSPIRVPath.takeError();
+
+  CmdArgs.insert(CmdArgs.begin(), (*LLVMToSPIRVPath));
+
   CmdArgs.push_back("-o");
 
   // Create a new file to write the translated file to.
@@ -939,6 +1014,13 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   }
 
   return *TempFileOrErr;
+}
+
+static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
+                                                     const ArgList &Args) {
+  SmallVector<StringRef, 8> ToolArgs;
+  computeLLVMToSPIRVTranslationToolArgs(Args, ToolArgs);
+  return runLLVMToSPIRVTranslation(File, std::move(ToolArgs));
 }
 
 /// Adds all AOT backend options required for SYCL AOT compilation step to
@@ -1350,6 +1432,44 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   return *DeviceLinkedFile;
 }
 
+llvm::sycl::GlobalBinImageProps
+computeGlobalBinProps(const ArgList &Args, const llvm::Triple Triple) {
+  auto findParam = [](const SmallVectorImpl<StringRef> &Vec, StringRef Param) {
+    for (auto El : Vec)
+      if (Param == El)
+        return true;
+    return false;
+  };
+  SmallVector<StringRef, 8> CmdArgs;
+  getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
+  bool EmitKernelParamInfo = findParam(CmdArgs, "-emit-param-info");
+  bool EmitProgramMetadata = findParam(CmdArgs, "-emit-program-metadata");
+  bool EmitExportedSymbols = findParam(CmdArgs, "-emit-exported-symbols");
+  bool EmitImportedSymbols = findParam(CmdArgs, "-emit-imported-symbols");
+  // DeviceGlobals is not triple-based, so it will be present in Args.
+  bool DeviceGlobals = false;
+  if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
+    DeviceGlobals = StringRef(A->getValue()).contains("-device-globals");
+
+  return {EmitKernelParamInfo, EmitProgramMetadata, EmitExportedSymbols,
+          EmitImportedSymbols, DeviceGlobals};
+}
+
+Error validateThinLTOModule(BitcodeModule &M, const ArgList &Args) {
+  Expected<BitcodeLTOInfo> LTOInfo = M.getLTOInfo();
+  if (!LTOInfo || !(*LTOInfo).IsThinLTO)
+    return createStringError(
+        "All code must be compiled with -foffload-lto=thin");
+
+  // For O0 we don't run function importing so it defeats
+  // the whole point of thinLTO. Maybe we could lift this
+  // restriction by enabling only required passes for importing for O0.
+  if (Args.getLastArgValue(OPT_opt_level, "") == "O0")
+    return createStringError("O0 is not supported");
+
+  return Error::success();
+}
+
 } // namespace sycl
 
 namespace generic {
@@ -1566,6 +1686,8 @@ std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
 template <typename ModuleHook = function_ref<bool(size_t, const Module &)>>
 std::unique_ptr<lto::LTO> createLTO(
     const ArgList &Args, const std::vector<std::string> &Features,
+    SmallVectorImpl<OffloadFile> &BitcodeInputFiles,
+    std::vector<std::string> ModulesToCompile = {},
     ModuleHook Hook = [](size_t, const Module &) { return true; }) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   // We need to remove AMD's target-id from the processor if present.
@@ -1595,6 +1717,14 @@ std::unique_ptr<lto::LTO> createLTO(
   Conf.OptLevel = OptLevel[1] - '0';
   Conf.DefaultTriple = Triple.getTriple();
 
+  // We need to set up the backend to use thinLTO
+  // even if we don't actually use it, and there is no
+  // backend for the spir64 triple, so override it to
+  // the SPIR-V backlend.
+  // TODO: Remove once SYCL uses the SPIR-V backend.
+  if (sycl::isSYCLThinLTO(Args, Triple))
+    Conf.OverrideTriple = "spirv64-unknown-unknown";
+
   // TODO: Should we complain about combining --opt-level and -passes, as opt
   // does?  That might be too limiting in clang-linker-wrapper, so for now we
   // just warn in the help entry for -passes that the default<O?> corresponding
@@ -1611,11 +1741,21 @@ std::unique_ptr<lto::LTO> createLTO(
 
   Conf.PTO.LoopVectorization = Conf.OptLevel > 1;
   Conf.PTO.SLPVectorization = Conf.OptLevel > 1;
-
+  std::string TempName = (sys::path::filename(ExecutableName) + "." +
+                          Triple.getTriple() + "." + Arch)
+                             .str();
+  auto PreCodeGenSaveTemps = [=](size_t Task, const Module &M) {
+    std::string File =
+        !Task ? TempName + ".postopt.bc"
+              : TempName + "." + std::to_string(Task) + ".postopt.bc";
+    error_code EC;
+    raw_fd_ostream LinkedBitcode(File, EC, sys::fs::OF_None);
+    if (EC)
+      reportError(errorCodeToError(EC));
+    WriteBitcodeToFile(M, LinkedBitcode);
+    return true;
+  };
   if (SaveTemps) {
-    std::string TempName = (sys::path::filename(ExecutableName) + "." +
-                            Triple.getTriple() + "." + TargetID)
-                               .str();
     Conf.PostInternalizeModuleHook = [=](size_t Task, const Module &M) {
       std::string File =
           !Task ? TempName + ".postlink.bc"
@@ -1627,17 +1767,7 @@ std::unique_ptr<lto::LTO> createLTO(
       WriteBitcodeToFile(M, LinkedBitcode);
       return true;
     };
-    Conf.PreCodeGenModuleHook = [=](size_t Task, const Module &M) {
-      std::string File =
-          !Task ? TempName + ".postopt.bc"
-                : TempName + "." + std::to_string(Task) + ".postopt.bc";
-      error_code EC;
-      raw_fd_ostream LinkedBitcode(File, EC, sys::fs::OF_None);
-      if (EC)
-        reportError(errorCodeToError(EC));
-      WriteBitcodeToFile(M, LinkedBitcode);
-      return true;
-    };
+    Conf.PreCodeGenModuleHook = PreCodeGenSaveTemps;
   }
   Conf.PostOptModuleHook = Hook;
   Conf.CGFileType = (Triple.isNVPTX() || SaveTemps)
@@ -1646,6 +1776,97 @@ std::unique_ptr<lto::LTO> createLTO(
 
   // TODO: Handle remark files
   Conf.HasWholeProgramVisibility = Args.hasArg(OPT_whole_program);
+  if (sycl::isSYCLThinLTO(Args, Triple)) {
+    // Passing Args to each thinLTO thread causes crashes, so compute everything
+    // we can here.
+    const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+    bool OnlyKernelsAsEntryPoints =
+        sycl::considerOnlyKernelsAsEntryPoints(Args, Triple);
+    auto GlobalBinProps = sycl::computeGlobalBinProps(Args, Triple);
+    SmallVector<StringRef, 8> SPIRVArgs;
+    sycl::computeLLVMToSPIRVTranslationToolArgs(Args, SPIRVArgs);
+    Conf.PreCodeGenModuleHook = [=, &BitcodeInputFiles](unsigned Task,
+                                                        const Module &M) {
+      // This is the main part of SYCL LTO handling.
+      // Here we process the IR from each BC file, compute module
+      // properties and the module symbol table, convert to SPV (using the
+      // translator for now) and save required information for binary created
+      // inside the OffloadFile.
+
+      assert(Task != 0 && "Unexpected task");
+      auto &OffloadF = BitcodeInputFiles[Task - 1];
+      if (OffloadF.getBinary()->getOffloadKind() != OFK_SYCL) {
+        if (SaveTemps)
+          PreCodeGenSaveTemps(Task, M);
+        return true;
+      }
+
+      llvm::sycl::EntryPointSet EntryPoints;
+
+      for (const Function &F : M.functions()) {
+        if (llvm::module_split::isEntryPoint(F, OnlyKernelsAsEntryPoints))
+          EntryPoints.insert(const_cast<Function *>(&F));
+      }
+      // No entry points, don't proceed
+      if (EntryPoints.empty())
+        return false;
+
+      if (SaveTemps)
+        PreCodeGenSaveTemps(Task, M);
+
+      // TODO: Handle spec constants.
+
+      // TODO: Handle internalization of non-entry-points, we don't do it during
+      // early split anymore.
+      // One problem is that the modules are pased in as `const Module&`, and
+      // ideally we want to delete non-entry point functions, but const-casting
+      // and modifying the module seems from here seems wrong.
+
+      auto ModuleProps = llvm::sycl::computeModuleProperties(
+          M, EntryPoints, GlobalBinProps,
+          /*SpecConstsMet=*/false, /*SpecConstsMet=*/false);
+      std::string ModulePropsStr;
+      raw_string_ostream SCOut(ModulePropsStr);
+      ModuleProps.write(SCOut);
+      std::string ModuleSyms =
+          llvm::sycl::computeModuleSymbolTable(M, EntryPoints);
+      // This part is the hackiest part of this change. However, this code is
+      // run on multiple threads, so the data structures we can use are more
+      // limited. We can't use StringRef because we would need a StringSaver to
+      // keep the values around, but StringSaver is not thread safe.
+      OffloadF.getBinary()->addTmpString(ModulePropsStr);
+      OffloadF.getBinary()->addTmpString(ModuleSyms);
+      // TODO: Use SPIR-V backend instead of SPIR-V translator once the backend
+      // is mature.
+      auto IRFile = createOutputFile(sys::path::filename(ExecutableName) + "." +
+                                         std::to_string(Task) + ".to.spv",
+                                     "spv");
+      if (!IRFile)
+        reportError(IRFile.takeError());
+      error_code EC;
+      raw_fd_ostream LinkedBitcode(*IRFile, EC, sys::fs::OF_None);
+      if (EC)
+        reportError(errorCodeToError(EC));
+      WriteBitcodeToFile(M, LinkedBitcode);
+      LinkedBitcode.close();
+      // We need this copy to prevent data corruption of the arguments when
+      // calling llvm-spirv. Probably some multithreading thing, I didn't deeply
+      // investigate it yet.
+      SmallVector<StringRef, 8> SPIRVArgsCopy = SPIRVArgs;
+      auto SPVFile =
+          sycl::runLLVMToSPIRVTranslation(*IRFile, std::move(SPIRVArgsCopy));
+      if (!SPVFile)
+        reportError(SPVFile.takeError());
+      OffloadF.getBinary()->addTmpString((*SPVFile).str());
+      // Return false so the thinLTO backend doesn't continue to process this
+      // module. We already emitted SPIR-V ourselves, so we don't need to do
+      // anything else. Once the SPIR-V backend is ready, we can remove the
+      // manual SPIR-V translator call and return true here.
+      return false;
+    };
+    // Only compile user modules to SPV, not device libraries.
+    Conf.ThinLTOModulesToCompile = ModulesToCompile;
+  }
 
   return std::make_unique<lto::LTO>(std::move(Conf), Backend);
 }
@@ -1660,16 +1881,16 @@ bool isValidCIdentifier(StringRef S) {
 
 Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
                        SmallVectorImpl<StringRef> &OutputFiles,
+                       SmallVector<OffloadFile, 4> &BitcodeInputFiles,
                        const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("Link bitcode files");
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
-  // Early exit for SPIR targets
-  if (Triple.isSPIROrSPIRV())
+  // Early exit for non-thin-LTO SPIR targets
+  if (Triple.isSPIROrSPIRV() && !sycl::isSYCLThinLTO(Args, Triple))
     return Error::success();
 
-  SmallVector<OffloadFile, 4> BitcodeInputFiles;
   DenseSet<StringRef> StrongResolutions;
   DenseSet<StringRef> UsedInRegularObj;
   DenseSet<StringRef> UsedInSharedLib;
@@ -1732,6 +1953,17 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // LTO Module hook to output bitcode without running the backend.
   SmallVector<StringRef> BitcodeOutput;
+  std::vector<std::string> ModulesToCompile;
+  if (sycl::isSYCLThinLTO(Args, Triple)) {
+    for (const OffloadFile &BitcodeInput : BitcodeInputFiles) {
+      auto ModuleName = BitcodeInput.getBinary()->getFileName();
+      // TODO: This is pretty hacky, maybe we could check some module metadata
+      // or something.
+      if (ModuleName.find("libsycl-") == std::string::npos)
+        ModulesToCompile.push_back(ModuleName.str());
+    }
+  }
+
   auto OutputBitcode = [&](size_t, const Module &M) {
     auto TempFileOrErr = createOutputFile(sys::path::filename(ExecutableName) +
                                               "-jit-" + Triple.getTriple(),
@@ -1750,11 +1982,11 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // We assume visibility of the whole program if every input file was bitcode.
   auto Features = getTargetFeatures(BitcodeInputFiles);
-  auto LTOBackend = Args.hasArg(OPT_embed_bitcode) ||
-                            Args.hasArg(OPT_builtin_bitcode_EQ) ||
-                            Args.hasArg(OPT_clang_backend)
-                        ? createLTO(Args, Features, OutputBitcode)
-                        : createLTO(Args, Features);
+  auto LTOBackend =
+      Args.hasArg(OPT_embed_bitcode) || Args.hasArg(OPT_builtin_bitcode_EQ) ||
+              Args.hasArg(OPT_clang_backend)
+          ? createLTO(Args, Features, BitcodeInputFiles, {}, OutputBitcode)
+          : createLTO(Args, Features, BitcodeInputFiles, ModulesToCompile);
 
   // We need to resolve the symbols so the LTO backend knows which symbols need
   // to be kept or can be internalized. This is a simplified symbol resolution
@@ -1772,6 +2004,17 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
         llvm::lto::InputFile::create(Buffer);
     if (!BitcodeFileOrErr)
       return BitcodeFileOrErr.takeError();
+
+    if (sycl::isSYCLThinLTO(Args, Triple)) {
+      // Error if any module was not compiled with thinLTO. Other platforms
+      // can fall back to binary linking if thinLTO fails, but we don't have
+      // that for SPIR-V (besides spirv-link). In the future we may be able to
+      // fall back to normal SYCL processing and throw a warning instead of a
+      // fatal error.
+      if (auto Err = sycl::validateThinLTOModule(
+              (*BitcodeFileOrErr)->getSingleBitcodeModule(), Args))
+        return Err;
+    }
 
     // Save the input file and the buffer associated with its memory.
     const auto Symbols = (*BitcodeFileOrErr)->symbols();
@@ -2175,76 +2418,125 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     }
     if (HasSYCLOffloadKind) {
       SmallVector<StringRef> InputFiles;
-      // Write device inputs to an output file for the linker.
-      for (const OffloadFile &File : Input) {
-        auto FileNameOrErr = writeOffloadFile(File);
-        if (!FileNameOrErr)
-          return FileNameOrErr.takeError();
-        InputFiles.emplace_back(*FileNameOrErr);
+      SmallVector<OffloadFile, 4> BitcodeInputFiles;
+      StringRef TmpOutput;
+      llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      if (sycl::isSYCLThinLTO(Args, Triple)) {
+        // For thinLTO, we consider device libs as normal compiler input
+        // and add them to the files to be processed by the LTO backend.
+        // Later we set ModulesToCompile so that we don't
+        // actually emit code for them, we just link in their functions in
+        // modules that use them.
+        if (auto Err = sycl::getDeviceLibsForLTO(Input, LinkerArgs, Triple))
+          return Err;
+        if (auto Err = linkBitcodeFiles(Input, InputFiles, BitcodeInputFiles,
+                                        LinkerArgs))
+          return Err;
+      } else {
+        // Write device inputs to an output file for the linker.
+        for (const OffloadFile &File : Input) {
+          auto FileNameOrErr = writeOffloadFile(File);
+          if (!FileNameOrErr)
+            return FileNameOrErr.takeError();
+          InputFiles.emplace_back(*FileNameOrErr);
+        }
+        // Link the input device files using the device linker for SYCL
+        // offload.
+        auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
+        if (!TmpOutputOrErr)
+          return TmpOutputOrErr.takeError();
+        TmpOutput = *TmpOutputOrErr;
       }
-      // Link the input device files using the device linker for SYCL
-      // offload.
-      auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
-      if (!TmpOutputOrErr)
-        return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
-      InputFilesSYCL.emplace_back(*TmpOutputOrErr);
-      auto SplitModulesOrErr =
-          SYCLModuleSplitMode
-              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode)
-              : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
-      if (!SplitModulesOrErr)
-        return SplitModulesOrErr.takeError();
-
-      auto &SplitModules = *SplitModulesOrErr;
-      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
-          LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
-        // When compiling for Nvidia/AMD devices and the user requested the
-        // IR to be embedded in the application (via option), run the output
-        // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
-        // through the offload wrapper and link the resulting object to the
-        // application.
-        auto OutputFile =
-            sycl::runWrapperAndCompile(SplitModules, LinkerArgs, /* IsEmbeddedIR */ true);
-        if (!OutputFile)
-          return OutputFile.takeError();
-        WrappedOutput.push_back(*OutputFile);
-      }
-      for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-        SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
-        if (Arch.empty())
-          Arch = "native";
-        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
-        auto ClangOutputOrErr =
-            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
-        if (!ClangOutputOrErr)
-          return ClangOutputOrErr.takeError();
-        if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
-              clang::StringToOffloadArch(Arch)));
-          auto PtxasOutputOrErr =
-              nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
-          if (!PtxasOutputOrErr)
-            return PtxasOutputOrErr.takeError();
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
-          BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
-          auto BundledFileOrErr =
-              nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
-          if (!BundledFileOrErr)
-            return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
-        } else if (Triple.isAMDGCN()) {
-          BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
-          auto BundledFileOrErr =
-              amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
-          if (!BundledFileOrErr)
-            return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
-        } else {
-          SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+      std::vector<module_split::SplitModule> SplitModules;
+      if (sycl::isSYCLThinLTO(Args, Triple)) {
+        for (size_t FileIdx = 0; FileIdx < BitcodeInputFiles.size();
+             FileIdx++) {
+          // After we have run the LTO backend, extract the information computed
+          // in the backend (module props/symbol table/spv file path) and set it
+          // up to be used by SYCL image creation.
+          // TODO: Once SYCL image creation is reconsiled with the non-SYCL
+          // path, we can move all of the thinLTO handling to be more in-line
+          // with community code.
+          const OffloadFile &F = BitcodeInputFiles[FileIdx];
+          const auto &SYCLInfo = F.getBinary()->getTmpStrings();
+          if (SYCLInfo.size() != 3)
+            continue;
+          // The hardcoded vector indexes are very hacky,
+          // but I feel the most controversial part of this hcange is how we
+          // store the required information for later and it's likely to change
+          // based on feedback, so I didn't completely design that part yet.
+          StringRef CodegenPath = SYCLInfo[2];
+          assert(!CodegenPath.empty() && "Codegen failed");
+          const auto &Props = SYCLInfo[0];
+          auto MB = MemoryBuffer::getMemBuffer(Props);
+          auto PropSetOrErr = llvm::util::PropertySetRegistry::read(MB.get());
+          if (!PropSetOrErr)
+            return PropSetOrErr.takeError();
+          llvm::util::PropertySetRegistry Properties =
+              std::move(**PropSetOrErr);
+          const auto &Syms = SYCLInfo[1];
+          SplitModules.emplace_back(CodegenPath, std::move(Properties), Syms);
+        }
+        // We don't need the OffloadFiles anymore, so free them from memory.
+        BitcodeInputFiles.clear();
+      } else {
+        InputFilesSYCL.emplace_back(TmpOutput);
+        auto SplitModulesOrErr =
+            SYCLModuleSplitMode
+                ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
+                                            *SYCLModuleSplitMode)
+                : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
+        if (!SplitModulesOrErr)
+          return SplitModulesOrErr.takeError();
+        SplitModules = std::move(*SplitModulesOrErr);
+        if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
+            LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
+          // When compiling for Nvidia/AMD devices and the user requested the
+          // IR to be embedded in the application (via option), run the output
+          // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+          // through the offload wrapper and link the resulting object to the
+          // application.
+          auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs,
+                                                       /* IsEmbeddedIR */ true);
+          if (!OutputFile)
+            return OutputFile.takeError();
+          WrappedOutput.push_back(*OutputFile);
+        }
+        for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+          SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
+          StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+          if (Arch.empty())
+            Arch = "native";
+          SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
+          auto ClangOutputOrErr =
+              linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
+          if (!ClangOutputOrErr)
+            return ClangOutputOrErr.takeError();
+          if (Triple.isNVPTX()) {
+            auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
+                clang::StringToOffloadArch(Arch)));
+            auto PtxasOutputOrErr =
+                nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
+            if (!PtxasOutputOrErr)
+              return PtxasOutputOrErr.takeError();
+            BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
+            BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
+            auto BundledFileOrErr =
+                nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+            if (!BundledFileOrErr)
+              return BundledFileOrErr.takeError();
+            SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+          } else if (Triple.isAMDGCN()) {
+            BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
+            auto BundledFileOrErr =
+                amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
+            if (!BundledFileOrErr)
+              return BundledFileOrErr.takeError();
+            SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+          } else {
+            SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+          }
         }
       }
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -2263,7 +2555,9 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     if (HasNonSYCLOffloadKinds) {
       // First link and remove all the input files containing bitcode.
       SmallVector<StringRef> InputFiles;
-      if (Error Err = linkBitcodeFiles(Input, InputFiles, LinkerArgs))
+      SmallVector<OffloadFile, 4> BitcodeInputFiles;
+      if (Error Err = linkBitcodeFiles(Input, InputFiles, BitcodeInputFiles,
+                                       LinkerArgs))
         return Err;
 
       // Write any remaining device inputs to an output file for the linker.

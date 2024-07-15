@@ -117,32 +117,6 @@ bool isKernel(const Function &F) {
          F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
 }
 
-bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
-  // Skip declarations, if any: they should not be included into a vector of
-  // entry points groups or otherwise we will end up with incorrectly generated
-  // list of symbols.
-  if (F.isDeclaration())
-    return false;
-
-  // Kernels are always considered to be entry points
-  if (isKernel(F))
-    return true;
-
-  if (!EmitOnlyKernelsAsEntryPoints) {
-    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
-    // are also considered as entry points (except __spirv_* and __sycl_*
-    // functions)
-    return llvm::sycl::utils::isSYCLExternalFunction(&F) &&
-           !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
-           !isGenericBuiltin(F.getName());
-  }
-
-  // Even if we are emitting only kernels as entry points, virtual functions
-  // should still be treated as entry points, because they are going to be
-  // outlined into separate device images and linked in later.
-  return F.hasFnAttribute("indirectly-callable");
-}
-
 // Represents "dependency" or "use" graph of global objects (functions and
 // global variables) in a module. It is used during device code split to
 // understand which global variables and functions (other than entry points)
@@ -444,6 +418,32 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
+  // Skip declarations, if any: they should not be included into a vector of
+  // entry points groups or otherwise we will end up with incorrectly generated
+  // list of symbols.
+  if (F.isDeclaration())
+    return false;
+
+  // Kernels are always considered to be entry points
+  if (isKernel(F))
+    return true;
+
+  if (!EmitOnlyKernelsAsEntryPoints) {
+    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
+    // are also considered as entry points (except __spirv_* and __sycl_*
+    // functions)
+    return llvm::sycl::utils::isSYCLExternalFunction(&F) &&
+           !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
+           !isGenericBuiltin(F.getName());
+  }
+
+  // Even if we are emitting only kernels as entry points, virtual functions
+  // should still be treated as entry points, because they are going to be
+  // outlined into separate device images and linked in later.
+  return F.hasFnAttribute("indirectly-callable");
+}
 
 std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
   static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
