@@ -392,6 +392,18 @@ void test_get_device_id() {
   assert(id == 0);
 }
 
+void test_event_profiling() {
+  sycl::queue q = syclcompat::get_default_queue();
+
+  if (!q.get_device().has(sycl::aspect::queue_profiling)) {
+    std::cout << "Device does not have aspect::queue_profiling, skipping."
+              << std::endl;
+    return;
+  }
+
+  assert(!q.has_property<sycl::property::queue::enable_profiling>());
+}
+
 int main() {
   test_at_least_one_device();
   test_matches_id();
