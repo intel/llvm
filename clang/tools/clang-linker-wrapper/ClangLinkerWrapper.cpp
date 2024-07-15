@@ -545,6 +545,10 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   else
     PostLinkArgs.push_back("-spec-const=emulation");
 
+  // TODO: If we ever pass -ir-output-only based on the triple,
+  // make sure we don't pass -properties.
+  PostLinkArgs.push_back("-properties");
+
   // See if device code splitting is already requested. If not requested, then
   // set -split=auto for non-FPGA targets.
   bool NoSplit = true;

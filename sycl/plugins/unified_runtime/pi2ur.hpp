@@ -869,7 +869,7 @@ inline pi_result piextPlatformGetNativeHandle(pi_platform Platform,
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urPlatformGetNativeHandle(UrPlatform, &UrNativeHandle));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
 
   return PI_SUCCESS;
 }
@@ -887,8 +887,7 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
 
   ur_platform_handle_t UrPlatform{};
-  ur_native_handle_t UrNativeHandle =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeHandle = NativeHandle;
   ur_platform_native_properties_t UrProperties{};
   urPlatformCreateWithNativeHandle(UrNativeHandle, adapter, &UrProperties,
                                    &UrPlatform);
@@ -1375,7 +1374,7 @@ inline pi_result piextDeviceGetNativeHandle(pi_device Device,
 
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urDeviceGetNativeHandle(UrDevice, &UrNativeHandle));
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
   return PI_SUCCESS;
 }
 
@@ -1392,8 +1391,7 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
   (void)adapter;
 
-  ur_native_handle_t UrNativeDevice =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeDevice = NativeHandle;
   ur_platform_handle_t UrPlatform =
       reinterpret_cast<ur_platform_handle_t>(Platform);
   auto UrDevice = reinterpret_cast<ur_device_handle_t *>(Device);
@@ -1583,7 +1581,7 @@ inline pi_result piextContextGetNativeHandle(pi_context Context,
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urContextGetNativeHandle(UrContext, &UrNativeHandle));
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
   return PI_SUCCESS;
 }
 
@@ -1599,8 +1597,7 @@ inline pi_result piextContextCreateWithNativeHandle(
   }
   (void)adapter;
 
-  ur_native_handle_t NativeContext =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
       reinterpret_cast<const ur_device_handle_t *>(Devices);
   ur_context_handle_t *UrContext =
@@ -1777,8 +1774,7 @@ inline pi_result piextQueueCreateWithNativeHandle(
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_native_handle_t UrNativeHandle =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeHandle = NativeHandle;
   ur_queue_handle_t *UrQueue = reinterpret_cast<ur_queue_handle_t *>(Queue);
   ur_queue_native_properties_t UrNativeProperties{};
   UrNativeProperties.isNativeHandleOwned = OwnNativeHandle;
@@ -1827,7 +1823,7 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
   ur_native_handle_t UrNativeQueue{};
   HANDLE_ERRORS(urQueueGetNativeHandle(UrQueue, &UrNativeDesc, &UrNativeQueue));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeQueue);
+  *NativeHandle = UrNativeQueue;
 
   return PI_SUCCESS;
 }
@@ -2078,12 +2074,16 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
 
+  // If it fails, urProgramLinkExp will clear the pointer
+  ur_program_handle_t UrProgramForExp;
   auto urResult =
       urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
-                       UrInputPrograms, Options, UrProgram);
+                       UrInputPrograms, Options, &UrProgramForExp);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
                              Options, UrProgram);
+  } else {
+    *UrProgram = UrProgramForExp;
   }
   return ur2piResult(urResult);
 }
@@ -2335,8 +2335,7 @@ piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
-  ur_native_handle_t UrNativeKernel =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeKernel = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_program_handle_t UrProgram =
@@ -2416,7 +2415,7 @@ inline pi_result piextProgramGetNativeHandle(pi_program Program,
   ur_native_handle_t NativeProgram{};
   HANDLE_ERRORS(urProgramGetNativeHandle(UrProgram, &NativeProgram));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeProgram);
+  *NativeHandle = NativeProgram;
 
   return PI_SUCCESS;
 }
@@ -2429,8 +2428,7 @@ piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t NativeProgram =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t NativeProgram = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_program_handle_t *UrProgram =
@@ -2671,7 +2669,7 @@ inline pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   ur_native_handle_t NativeKernel{};
   HANDLE_ERRORS(urKernelGetNativeHandle(UrKernel, &NativeKernel));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeKernel);
+  *NativeHandle = NativeKernel;
 
   return PI_SUCCESS;
 }
@@ -3151,8 +3149,7 @@ inline pi_result piextMemImageCreateWithNativeHandle(
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t UrNativeMem =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeMem = NativeHandle;
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
@@ -3227,7 +3224,7 @@ inline pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
   ur_native_handle_t NativeMem{};
   HANDLE_ERRORS(urMemGetNativeHandle(UrMem, UrDev, &NativeMem));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
+  *NativeHandle = NativeMem;
 
   return PI_SUCCESS;
 }
@@ -3272,8 +3269,7 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t UrNativeMem =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeMem = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
@@ -4372,7 +4368,7 @@ inline pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   // as urEventCreate
   ur_event_native_properties_t Properties{};
   HANDLE_ERRORS(
-      urEventCreateWithNativeHandle(nullptr, UrContext, &Properties, UREvent));
+      urEventCreateWithNativeHandle(NULL, UrContext, &Properties, UREvent));
 
   return PI_SUCCESS;
 }
@@ -4386,8 +4382,7 @@ inline pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
-  ur_native_handle_t UrNativeKernel =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeKernel = NativeHandle;
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
@@ -5089,8 +5084,8 @@ inline pi_result piextMemImageAllocate(pi_context Context, pi_device Device,
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesImageAllocateExp(UrContext, UrDevice, &UrFormat,
                                                  &UrDesc, UrRetMem));
@@ -5109,14 +5104,14 @@ inline pi_result piextMemUnsampledImageCreate(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_exp_image_handle_t *UrRetHandle =
-      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+  ur_exp_image_native_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_native_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageCreateExp(
       UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrRetHandle));
@@ -5134,15 +5129,15 @@ inline pi_result piextMemSampledImageCreate(
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
   auto UrSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
-  ur_exp_image_handle_t *UrRetHandle =
-      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+  ur_exp_image_native_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_native_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesSampledImageCreateExp(
       UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrSampler,
@@ -5267,9 +5262,9 @@ inline pi_result piextMemMipmapGetLevel(pi_context Context, pi_device Device,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrMipMem = reinterpret_cast<ur_exp_image_mem_handle_t>(MipMem);
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  auto UrMipMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(MipMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesMipmapGetLevelExp(UrContext, UrDevice, UrMipMem,
                                                   Level, UrRetMem));
@@ -5285,7 +5280,7 @@ inline pi_result piextMemImageFree(pi_context Context, pi_device Device,
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrMemoryHandle =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
       urBindlessImagesImageFreeExp(UrContext, UrDevice, UrMemoryHandle));
@@ -5301,7 +5296,7 @@ inline pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrMemoryHandle =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
       urBindlessImagesMipmapFreeExp(UrContext, UrDevice, UrMemoryHandle));
@@ -5376,10 +5371,9 @@ inline pi_result piextMemUnsampledImageHandleDestroy(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageHandleDestroyExp(
-      UrContext, UrDevice, UrHandle));
+      UrContext, UrDevice, Handle));
 
   return PI_SUCCESS;
 }
@@ -5392,10 +5386,9 @@ inline pi_result piextMemSampledImageHandleDestroy(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
-  HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(
-      UrContext, UrDevice, UrHandle));
+  HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(UrContext,
+                                                             UrDevice, Handle));
 
   return PI_SUCCESS;
 }
@@ -5421,16 +5414,19 @@ static void pi2urImageInfoFlags(const pi_image_info PiFlags,
   }
 }
 
-inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+inline pi_result piextMemImageGetInfo(pi_context Context,
+                                      pi_image_mem_handle MemHandle,
                                       pi_image_info ParamName, void *ParamValue,
                                       size_t *ParamValueSizeRet) {
-  auto UrMemHandle = reinterpret_cast<ur_exp_image_mem_handle_t>(MemHandle);
+  auto UrMemHandle =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemHandle);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
 
   ur_image_info_t UrParamName{};
   pi2urImageInfoFlags(ParamName, &UrParamName);
 
-  HANDLE_ERRORS(urBindlessImagesImageGetInfoExp(UrMemHandle, UrParamName,
-                                                ParamValue, ParamValueSizeRet));
+  HANDLE_ERRORS(urBindlessImagesImageGetInfoExp(
+      UrContext, UrMemHandle, UrParamName, ParamValue, ParamValueSizeRet));
 
   if (ParamName == pi_image_info::PI_IMAGE_INFO_FORMAT && ParamValue) {
     pi_image_format PiFormat;
@@ -5558,8 +5554,8 @@ inline pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
   auto UrMemHandle = reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesMapExternalArrayExp(
       UrContext, UrDevice, &UrFormat, &UrDesc, UrMemHandle, UrRetMem));
