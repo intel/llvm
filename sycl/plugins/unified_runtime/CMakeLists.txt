@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cc2b874cfc0dbf2899fe8002f4822fe2d876629 (HEAD -> main, origin/main, origin/HEAD)
-  # Merge: 2f548cae 25c75c06
+  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
+  # Merge: 76c6bf9a 0cd10f63
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 12:36:28 2024 +0100
-  #     Merge pull request #1458 from RossBrunton/ross/linkerror
-  #     [UR] Improve handling of error cases in urProgramLink
-  set(UNIFIED_RUNTIME_TAG 25c75c06999dfae33415fbdb98f620e00bcf10f0)
+  # Date:   Thu Jul 11 15:12:38 2024 +0100
+  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
+  #     [DeviceSanitizer] Support detecting misaligned access error
+  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

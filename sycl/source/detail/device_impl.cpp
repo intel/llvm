@@ -699,9 +699,6 @@ bool device_impl::has(aspect Aspect) const {
 
     return SupportsCommandBuffers;
   }
-  case aspect::ext_intel_fpga_task_sequence: {
-    return is_accelerator();
-  }
   case aspect::ext_oneapi_private_alloca: {
     // Extension only supported on SPIR-V targets.
     backend be = getBackend();

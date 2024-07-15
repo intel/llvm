@@ -777,6 +777,8 @@ public:
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
           &Graph);
 
+  const property_list &getPropList() const { return MPropList; }
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.

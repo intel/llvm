@@ -14,9 +14,7 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
-#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -119,11 +117,7 @@ public:
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::string> MMsg;
-#else
-  std::shared_ptr<std::string> MMsg;
-#endif
   pi_int32 MPIErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
@@ -154,53 +148,6 @@ protected:
   // as-is using public ctors.
   friend __SYCL_EXPORT exception detail::set_pi_error(exception &&e,
                                                       pi_int32 pi_err);
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::runtime instead.") runtime_error
-    : public exception {
-public:
-  runtime_error() : exception(make_error_code(errc::runtime)) {}
-
-  runtime_error(const char *Msg, pi_int32 Err)
-      : runtime_error(std::string(Msg), Err) {}
-
-  runtime_error(const std::string &Msg, pi_int32 Err)
-      : exception(make_error_code(errc::runtime), Msg, Err) {}
-
-  runtime_error(std::error_code Ec, const std::string &Msg,
-                const pi_int32 PIErr)
-      : exception(Ec, Msg, PIErr) {}
-
-protected:
-  runtime_error(std::error_code Ec) : exception(Ec) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
-    : public runtime_error {
-public:
-  nd_range_error() : runtime_error(make_error_code(errc::nd_range)) {}
-
-  nd_range_error(const char *Msg, pi_int32 Err)
-      : nd_range_error(std::string(Msg), Err) {}
-
-  nd_range_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_parameter_error : public runtime_error {
-public:
-  invalid_parameter_error()
-      : runtime_error(make_error_code(errc::kernel_argument)) {}
-
-  invalid_parameter_error(const char *Msg, pi_int32 Err)
-      : invalid_parameter_error(std::string(Msg), Err) {}
-
-  invalid_parameter_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel_argument), Msg, Err) {}
 };
 
 } // namespace _V1
