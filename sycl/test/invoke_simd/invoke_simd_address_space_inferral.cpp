@@ -39,8 +39,6 @@ bool test() {
   queue q;
 
   auto dev = q.get_device();
-  std::cout << "Running with use_func_directly = " << " on "
-            << dev.get_info<sycl::info::device::name>() << "\n";
   float *A = malloc_shared<float>(Size, q);
 
   sycl::range<1> GlobalRange{Size};
@@ -58,7 +56,6 @@ bool test() {
             group<1> g = ndi.get_group();
             uint32_t i = sg.get_group_linear_id() * VL +
                          g.get_group_linear_id() * GroupSize;
-            uint32_t wi_id = i + sg.get_local_id();
 
             invoke_simd(sg, SIMD_CALLEE1, uniform{A},
                         uniform{LocalAcc.get_pointer().get()}, uniform{i});
