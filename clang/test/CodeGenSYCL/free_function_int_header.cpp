@@ -85,7 +85,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT: };
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piii as a free function kernel
-// CHECK-NEXT: void ff_2(int *, int, int);
+// CHECK-NEXT: void ff_2(int *ptr, int start, int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim1() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_2;
 // CHECK-NEXT: }
@@ -101,7 +101,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT: }
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piiii as a free function kernel
-// CHECK-NEXT: void ff_2(int *, int, int, int);
+// CHECK-NEXT: void ff_2(int *ptr, int start, int end, int value);
 // CHECK-NEXT: static constexpr auto __sycl_shim2() {
 // CHECK-NEXT:   return (void (*)(int *, int, int, int))ff_2;
 // CHECK-NEXT: }

@@ -6239,14 +6239,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ParmList += Param->getType().getCanonicalType().getAsString();
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    Policy.SuppressDefinition = true;
+    Policy.PolishForDeclaration = true;
     if (FTD) {
-      Policy.SuppressDefinition = true;
       FTD->print(O, Policy);
-      O << ";\n";
     } else {
-      O << "void " << K.SyclKernel->getIdentifier()->getName().data() << "("
-        << ParmList << ");\n";
+      K.SyclKernel->print(O, Policy);
     }
+    O << ";\n";
 
     // Generate a shim function that returns the address of the free function.
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
