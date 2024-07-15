@@ -410,7 +410,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       }
     }
 
-    // Remove the llvm.used array since it is not need anymore at this point.
+    // Remove the llvm.used array since it is not needed anymore at this point.
     removeSYCLKernelsConstRefArray(M);
 
     // Find any left over SYCL_EXTERNAL function that has no more uses
@@ -419,7 +419,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       if (Kernelset.count(&F) == 0 &&
           F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID) && F.use_empty() &&
           !F.getName().starts_with("__dpcpp_nativecpu")) {
-        // SYCL_EXTERNAL function end up in static array of function pointers,
+        // SYCL_EXTERNAL functions end up in static array of function pointers,
         // at this point we can remove them from the array and remove the
         // function if no other uses are left.
         RemovableFuncs.insert(&F);

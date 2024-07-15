@@ -172,22 +172,22 @@ DefineBitwiseGroupOp(int64_t, int64_t, i64)
 DefineBitwiseGroupOp(uint64_t, int64_t, i64)
 
 #define DefineLogicalGroupOp(Type, MuxType, mux_sfx)                          \
-  DefineGOp(Type, MuxType, LogicalOrKHR, logical_or_##mux_sfx)                        \
-  DefineGOp(Type, MuxType, LogicalXorKHR, logical_xor_##mux_sfx)                      \
+  DefineGOp(Type, MuxType, LogicalOrKHR, logical_or_##mux_sfx)                \
+  DefineGOp(Type, MuxType, LogicalXorKHR, logical_xor_##mux_sfx)              \
   DefineGOp(Type, MuxType, LogicalAndKHR, logical_and_##mux_sfx)
 
 DefineLogicalGroupOp(bool, bool, i1)
 
-#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                        \
-  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                    \
-      int32_t id, MuxType val, int64_t lidx, int64_t lidy, int64_t lidz);      \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,         \
-                                                          int32_t sg_lid);     \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,              \
-                                              IDType l) {                      \
-    if (__spv::Scope::Flag::Subgroup == g)                                     \
-      return __mux_sub_group_broadcast_##Sfx(v, l);                            \
-    return Type(); /*todo: add support for other flags as they are tested*/    \
+#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
+  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
+      int32_t id, MuxType val, int64_t lidx, int64_t lidy, int64_t lidz);     \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,        \
+                                                          int32_t sg_lid);    \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                              IDType l) {                     \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l);                           \
+    return Type(); /*todo: add support for other flags as they are tested*/   \
   }
 
 #define DefineBroadCast(Type, Sfx, MuxType)\
