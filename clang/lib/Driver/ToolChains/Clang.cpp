@@ -10709,8 +10709,7 @@ static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
                      false))
     return true;
 
-  // Enable when SYCL RT supports dynamic linking
-  //  return (TCArgs.hasArg(options::OPT_shared));
+  // TODO: Return true if -shared seen when SYCL RT supports dynamic linking
   return false;
 }
 
