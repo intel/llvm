@@ -70,8 +70,7 @@ struct KernelInfo<TestKernelACC> : public unittest::MockKernelInfoBase {
 
 static sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     const std::vector<sycl::aspect> &Aspects,
-                     const std::vector<int> &ReqdWGSize = {}) {
+                     const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
 
   UrPropertySet PropSet;
