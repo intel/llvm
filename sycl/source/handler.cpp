@@ -1507,16 +1507,31 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
                           "Queue operation cannot depend on discarded event.");
   }
 
-  /* If the event dependency has a graph, that means that the queue that created
-   * it was in recording mode. If the current queue is not recording, we need to
-   * set it to recording (implements the transitive queue recording feature).*/
-  auto GraphFromDep = EventImpl->getCommandGraph();
-  if (GraphFromDep && MQueue && !MQueue->getCommandGraph()) {
-    GraphFromDep->beginRecording(MQueue);
+  auto EventGraph = EventImpl->getCommandGraph();
+  if (EventGraph) {
+    if (EventGraph->getContext() != MQueue->get_context()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot submit to a queue with a dependency from a graph that is "
+          "associated with a different context.");
+      if (EventGraph->getDevice() != MQueue->get_device()) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Cannot submit to a queue with a dependency from a graph that is "
+            "associated with a different device.");
+      }
+    }
+
+    // If the event dependency has a graph, that means that the queue that
+    // created it was in recording mode. If the current queue is not recording,
+    // we need to set it to recording (implements the transitive queue recording
+    // feature).
+    if (MQueue && !MQueue->getCommandGraph()) {
+      EventGraph->beginRecording(MQueue);
+    }
   }
 
   if (auto Graph = getCommandGraph(); Graph) {
-    auto EventGraph = EventImpl->getCommandGraph();
     if (EventGraph == nullptr) {
       throw sycl::exception(
           make_error_code(errc::invalid),
