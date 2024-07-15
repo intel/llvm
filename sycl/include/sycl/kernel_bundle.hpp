@@ -75,7 +75,7 @@ private:
   std::shared_ptr<detail::kernel_id_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -110,7 +110,7 @@ protected:
   detail::DeviceImageImplPtr impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -141,7 +141,7 @@ private:
       : device_image_plain(std::move(Impl)) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -415,7 +415,7 @@ private:
       : kernel_bundle_plain(std::move(Impl)) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

@@ -180,7 +180,7 @@ private:
   std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <backend BackendName, class SyclObjectT>

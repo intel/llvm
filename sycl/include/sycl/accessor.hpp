@@ -551,7 +551,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -586,7 +586,7 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -844,7 +844,7 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2241,7 +2241,7 @@ protected:
   }
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2659,7 +2659,7 @@ protected:
                  access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

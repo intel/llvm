@@ -436,6 +436,7 @@ public:
                             const std::shared_ptr<queue_impl> &Self,
                             const detail::code_location &Loc,
                             const SubmitPostProcessF *PostProcess = nullptr) {
+
     submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
                 PostProcess);
   }

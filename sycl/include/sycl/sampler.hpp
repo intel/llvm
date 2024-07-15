@@ -121,7 +121,7 @@ private:
 #else
   std::shared_ptr<detail::sampler_impl> impl;
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
   template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
             sycl::access::target AccessTarget,
