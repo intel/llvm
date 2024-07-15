@@ -100,6 +100,7 @@ public:
     case DecorationMaxByteOffset:
       return VersionNumber::SPIRV_1_1;
     case DecorationUserSemantic:
+    case DecorationCounterBuffer:
       return VersionNumber::SPIRV_1_4;
 
     default:

@@ -21,6 +21,25 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+namespace detail {
+
+inline image_channel_order
+get_image_default_channel_order(unsigned int num_channels) {
+  switch (num_channels) {
+  case 1:
+    return image_channel_order::r;
+  case 2:
+    return image_channel_order::rg;
+  case 4:
+    return image_channel_order::rgba;
+  default:
+    assert(false && "Invalid channel number");
+    return static_cast<image_channel_order>(0);
+  }
+}
+
+} // namespace detail
+
 /// image type enum
 enum class image_type : unsigned int {
   standard = 0,
@@ -31,43 +50,43 @@ enum class image_type : unsigned int {
 
 /// A struct to describe the properties of an image.
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  image_channel_order channel_order;
-  image_channel_type channel_type;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  unsigned int num_channels{4};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
 
   image_descriptor() = default;
 
-  image_descriptor(range<1> dims, image_channel_order channel_order,
+  image_descriptor(range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1)
-      : width(dims[0]), height(0), depth(0), channel_order(channel_order),
+      : width(dims[0]), height(0), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
         array_size(array_size) {
     verify();
   }
 
-  image_descriptor(range<2> dims, image_channel_order channel_order,
+  image_descriptor(range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1)
-      : width(dims[0]), height(dims[1]), depth(0), channel_order(channel_order),
+      : width(dims[0]), height(dims[1]), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
         array_size(array_size) {
     verify();
   }
 
-  image_descriptor(range<3> dims, image_channel_order channel_order,
+  image_descriptor(range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
                    unsigned int num_levels = 1, unsigned int array_size = 1)
       : width(dims[0]), height(dims[1]), depth(dims[2]),
-        channel_order(channel_order), channel_type(channel_type), type(type),
+        num_channels(num_channels), channel_type(channel_type), type(type),
         num_levels(num_levels), array_size(array_size) {
     verify();
   };
@@ -93,14 +112,23 @@ struct image_descriptor {
 
     // This will generate the new descriptor with image_type standard
     // since individual mip levels are standard images
-    sycl::ext::oneapi::experimental::image_descriptor levelDesc(
-        {width, height, depth}, this->channel_order, this->channel_type);
+    image_descriptor levelDesc({width, height, depth}, this->num_channels,
+                               this->channel_type);
 
     levelDesc.verify();
     return levelDesc;
   }
 
   void verify() const {
+
+    if (this->num_channels != 1 && this->num_channels != 2 &&
+        this->num_channels != 4) {
+      // Images can only have 1, 2, or 4 channels.
+      throw sycl::exception(sycl::errc::invalid,
+                            "Images must have only 1, 2, or 4 channels! Use a "
+                            "valid number of channels instead.");
+    }
+
     switch (this->type) {
     case image_type::standard:
       if (this->array_size > 1) {

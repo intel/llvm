@@ -3,8 +3,10 @@
 
 // Tests the ext_oneapi_set_external_event extension member on in-order queues.
 
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+
 #include <iostream>
-#include <sycl.hpp>
 
 constexpr size_t N = 1024;
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 //
 // This test checks that the compiler issues an error on attempt to capture
 // "this" pointer by lambdas passed to the device code (directly and indirectly)

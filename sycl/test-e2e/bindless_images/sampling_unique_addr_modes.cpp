@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
@@ -46,8 +45,7 @@ int main() {
     namespace syclexp = sycl::ext::oneapi::experimental;
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height, depth},
-                                   sycl::image_channel_order::r,
+    syclexp::image_descriptor desc({width, height, depth}, 1,
                                    sycl::image_channel_type::fp32);
 
     sycl::addressing_mode addrModes[3];

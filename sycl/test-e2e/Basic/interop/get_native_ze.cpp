@@ -7,8 +7,8 @@
 
 #include <level_zero/ze_api.h>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
 
 constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
 

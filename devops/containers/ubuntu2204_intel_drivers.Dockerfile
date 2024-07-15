@@ -6,10 +6,8 @@ FROM $base_image:$base_tag
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG use_latest=true
-ARG use_igc_dev=false
 
-RUN apt update && apt install -yqq wget \
-    && if [ "$use_igc_dev" = "true" ]; then apt-get install -yqq libllvm14; fi
+RUN apt update && apt install -yqq wget
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
@@ -22,9 +20,6 @@ RUN --mount=type=secret,id=github_token \
       install_driver_opt=" --use-latest"; \
     else \
       install_driver_opt=" dependencies.json"; \
-      if [ "$use_igc_dev" = "true" ]; then \
-        install_driver_opt="$install_driver_opt --use-dev-igc"; \
-      fi; \
     fi && \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --all
 

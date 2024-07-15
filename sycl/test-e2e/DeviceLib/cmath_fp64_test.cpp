@@ -13,18 +13,20 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 64
+#define TEST_NUM 73
 
 double ref[TEST_NUM] = {
-    1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 2, 0,   0,   1,   0,   2, 0, 0,
-    0, 0, 0, 1, 0, 1, 2, 0, 1, 2, 5, 0, 0,   0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0,   0,   0,   0,   0};
+    100, 0.5, 1.0, 0, 0, -2, 1, 2, 1,   1,   1,   0,   1, 1, 0, 0, 0, 0, 0,
+    1,   1,   0.5, 0, 2, 0,  0, 1, 0,   2,   0,   0,   0, 0, 0, 1, 0, 1, 2,
+    0,   1,   2,   5, 0, 0,  0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0, 0,
+    0,   0,   0,   0, 0, 0,  0, 0, 0,   0,   0,   0,   0, 0, 0, 0};
 
 double refIptr = 1;
 
@@ -59,7 +61,16 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
         T minus_infinity = -INFINITY;
         double subnormal;
         *((uint64_t *)&subnormal) = 0xFFFFFFFFFFFFFULL;
+        res_access[i++] = sycl::exp10(2.0);
+        res_access[i++] = sycl::rsqrt(4.0);
+        res_access[i++] = std::trunc(1.3);
+        res_access[i++] = sycl::sinpi(0.0);
+        res_access[i++] = sycl::cospi(0.5);
+        res_access[i++] = std::copysign(2, -1);
+        res_access[i++] = std::fmin(2, 1);
+        res_access[i++] = std::fmax(2, 1);
         res_access[i++] = std::fabs(-1.0);
+        res_access[i++] = std::ceil(0.1);
         res_access[i++] = std::cos(0.0);
         res_access[i++] = std::sin(0.0);
         res_access[i++] = std::round(1.0);

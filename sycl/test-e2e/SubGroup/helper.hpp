@@ -9,7 +9,7 @@
 #include <cmath>
 #include <complex>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -163,25 +163,4 @@ void exit_if_not_equal_vec(vec<T, N> val, vec<T, N> ref, const char *name) {
 
     exit(1);
   }
-}
-
-bool core_sg_supported(const device &Device) {
-  auto Vec = Device.get_info<info::device::extensions>();
-  if (std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") != std::end(Vec))
-    return true;
-
-  if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") != std::end(Vec))
-    return true;
-
-  if (Device.get_backend() == sycl::backend::opencl) {
-    // Extract the numerical version from the version string, OpenCL version
-    // string have the format "OpenCL <major>.<minor> <vendor specific data>".
-    std::string ver = Device.get_info<info::device::version>().substr(7, 3);
-
-    // cl_khr_subgroups was core in OpenCL 2.1 and 2.2, but went back to
-    // optional in 3.0
-    return ver >= "2.1" && ver < "3.0";
-  }
-
-  return false;
 }

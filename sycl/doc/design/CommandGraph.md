@@ -282,6 +282,28 @@ requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
 
+## Optimizations
+### Interactions with Profiling
+
+Enabling profiling on a graph may disable optimizations from being performed on
+the graph if they are incompatible with profiling. For example, enabling
+profiling prevents the in-order optimization since the removal of events would
+prevent collecting profiling information.
+
+### In-Order Graph Partitions
+
+On finalization graph partitions are checked to see if they are in-order, i.e.
+the graph follows a single path where each node depends on the previous node. If
+so a hint is provided to the backend that it may create the command-buffers in
+an in-order fashion. Support for this is backend specific but it may provide
+benefits through the removal of the need for synchronization primitives between
+kernels.
+
+This optimization is only performed in this very limited case where it can be
+safely assumed to be more performant. It is not likely we'll try to allow
+in-order execution in more scenarios through a complicated (and imperfect)
+heuristic but rather expose this as a hint the user can provide.
+
 ## Backend Implementation
 
 Implementation of UR command-buffers for each of the supported SYCL 2020
@@ -416,6 +438,24 @@ Level Zero:
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
 
+#### Copy Engine
+
+For performance considerations, the Unified Runtime Level Zero adapter uses
+different Level Zero command-queues to submit compute kernels and memory
+operations when the device has a dedicated copy engine. To take advantage of the
+copy engine when available, the graph workload can also be split between memory
+operations and compute kernels. To achieve this, two graph workload
+command-lists live simultaneously in a command-buffer.
+
+When the command-buffer is finalized, memory operations (e.g. buffer copy,
+buffer fill, ...) are enqueued in the *copy* command-list while the other
+commands are enqueued in the compute command-list. On submission, if not empty,
+the *copy* command-list is sent to the main copy command-queue while the compute
+command-list is sent to the compute command-queue.
+
+Both are executed concurrently. Synchronization between the command-lists is
+handled by Level Zero events.
+
 ### CUDA
 
 The SYCL Graph CUDA backend relies on the
@@ -497,6 +537,8 @@ The types of commands which are unsupported, and lead to this exception are:
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
    `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
+  fill command.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
   fill command.
 * `handler::prefetch()`.
@@ -537,9 +579,18 @@ adapter where there is matching support for each function in the list.
 |  | clGetCommandBufferInfoKHR | No |
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
+| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Yes[1] |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
+
+[1] Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
+configuration of kernel commands requires an OpenCL implementation with the
+[cl_khr_command_buffer_mutable_dispatch](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer_mutable_dispatch)
+extension. The optional capabilities that are reported by this extension must
+include all of of `CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR`,
+`CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR`, `CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR`,
+`CL_MUTABLE_DISPATCH_ARGUMENTS_KHR`, and `CL_MUTABLE_DISPATCH_EXEC_INFO_KHR`.
 
 #### UR Command-Buffer Implementation
 

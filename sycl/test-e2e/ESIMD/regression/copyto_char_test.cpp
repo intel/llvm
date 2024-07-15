@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && gpu-intel-pvc
+// UNSUPPORTED: opencl && arch-intel_gpu_pvc
 
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //
@@ -11,8 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #include <iostream>
 #include <memory>

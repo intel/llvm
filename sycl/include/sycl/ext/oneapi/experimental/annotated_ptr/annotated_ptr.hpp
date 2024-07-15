@@ -17,6 +17,7 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/pointers.hpp>
 
 #include <cstddef>
 #include <string_view>
@@ -302,7 +303,7 @@ public:
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
   explicit annotated_ptr(T *Ptr,
-                         const property_list_t & = properties{}) noexcept
+                         const property_list_t & = property_list_t{}) noexcept
       : m_Ptr(Ptr) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic

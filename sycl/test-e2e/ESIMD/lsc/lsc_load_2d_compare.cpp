@@ -5,15 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The tests makes sure old and new load_2d API produce identical
 // results.
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using bf16 = sycl::ext::oneapi::bfloat16;
 using namespace sycl;

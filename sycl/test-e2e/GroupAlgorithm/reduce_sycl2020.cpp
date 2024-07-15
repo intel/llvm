@@ -8,7 +8,6 @@
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

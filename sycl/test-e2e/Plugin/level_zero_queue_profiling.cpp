@@ -21,7 +21,8 @@
 //
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 using namespace sycl;
 
 int foo(queue &q, int n) {

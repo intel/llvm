@@ -21,6 +21,19 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
+#include <sycl/detail/iostream_proxy.hpp>
+
+#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != PI_SUCCESS) {                                                  \
+      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+                << std::endl;                                                  \
+    }                                                                          \
+  }
+
+#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -111,10 +124,8 @@ public:
     return MPlugin;
   }
 
-  /// Checks return value from PI calls.
-  ///
-  /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = sycl::runtime_error>
+  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
+  template <sycl::errc errc = sycl::errc::runtime>
   void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
     char *message = nullptr;
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
@@ -128,34 +139,14 @@ public:
       if (pi_result == PI_SUCCESS)
         return;
     }
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception, message);
-  }
-
-  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
-  template <sycl::errc errc>
-  void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
-    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
-      char *message = nullptr;
-      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
-
-      // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        std::clog << message << std::endl;
-
-      // If it is a warning do not throw code
-      if (pi_result == PI_SUCCESS)
-        return;
-    }
-    __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
-  }
-
-  void reportPiError(sycl::detail::pi::PiResult pi_result,
-                     const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw sycl::runtime_error(std::string(context) +
-                                    " API failed with error: " +
-                                    sycl::detail::codeToString(pi_result),
-                                pi_result);
+      throw sycl::detail::set_pi_error(
+          sycl::exception(sycl::make_error_code(errc),
+                          __SYCL_PI_ERROR_REPORT +
+                              sycl::detail::codeToString(pi_result) +
+                              (message ? "\n" + std::string(message) + "\n"
+                                       : std::string{})),
+          pi_result);
     }
   }
 
@@ -164,8 +155,8 @@ public:
   /// Usage:
   /// \code{cpp}
   /// PiResult Err = Plugin->call<PiApiKind::pi>(Args);
-  /// Plugin->checkPiResult(Err); // Checks Result and throws a runtime_error
-  /// // exception.
+  /// Plugin->checkPiResult(Err); // Checks Result and throws an exception with
+  /// an errc::runtime error code.
   /// \endcode
   ///
   /// \sa plugin::checkPiResult
@@ -187,7 +178,9 @@ public:
       CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
       CorrelationIDAvailable = true;
     }
-    unsigned char *ArgsDataPtr = nullptr;
+    using PackCallArgumentsTy =
+        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
+    std::unique_ptr<PackCallArgumentsTy> ArgsDataPtr = nullptr;
     // If subscribers are listening to Pi debug call stream, only then prepare
     // the data for the notifications and emit notifications. Even though the
     // function emitFunctionWithArgsBeginTrace() checks for the trqace typoe
@@ -196,16 +189,14 @@ public:
     if (xptiCheckTraceEnabled(
             PiDebugCallStreamID,
             (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
-      using PackCallArgumentsTy = decltype(packCallArguments<PiApiOffset>(
-          std::forward<ArgsT>(Args)...));
-      auto ArgsData =
+      // TODO check if stream is observed when corresponding API is present.
+      ArgsDataPtr = std::make_unique<PackCallArgumentsTy>(
           xptiTraceEnabled()
               ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-              : PackCallArgumentsTy{};
-      // TODO check if stream is observed when corresponding API is present.
-      ArgsDataPtr = ArgsData.data();
+              : PackCallArgumentsTy{});
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr->data(),
+          *MPlugin);
       CorrelationIDWithArgsAvailable = true;
     }
 #endif
@@ -240,9 +231,9 @@ public:
       pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     }
     if (CorrelationIDWithArgsAvailable) {
-      pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                       static_cast<uint32_t>(PiApiOffset),
-                                       PIFnName, ArgsDataPtr, R, *MPlugin);
+      pi::emitFunctionWithArgsEndTrace(
+          CorrelationIDWithArgs, static_cast<uint32_t>(PiApiOffset), PIFnName,
+          ArgsDataPtr->data(), R, *MPlugin);
     }
 #endif
     return R;

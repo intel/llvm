@@ -41,8 +41,9 @@
 // Y  - 0 (not reachable, offset not updated in the result)
 // Z  - N2
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <cstring>
 #include <iostream>

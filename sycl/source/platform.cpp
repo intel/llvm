@@ -12,6 +12,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/image.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
@@ -37,13 +38,6 @@ cl_platform_id platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
   return impl->has_extension(ExtName.data());
-}
-
-bool platform::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost &&
-         "platform::is_host should not be called in implementation.");
-  return IsHost;
 }
 
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {
@@ -124,7 +118,8 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
 
     auto Composite = Dev.get_info<
         sycl::ext::oneapi::experimental::info::device::composite_device>();
-    if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
+    if (std::find(Composites.begin(), Composites.end(), Composite) ==
+        Composites.end())
       Composites.push_back(Composite);
   }
   for (const auto &Composite : Composites) {
