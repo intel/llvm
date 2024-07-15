@@ -85,9 +85,13 @@ align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
 }
 #endif
 
+template <typename T> void swap_tuples(T &first, T &second) {
+  std::swap(first, second);
+}
+
 // Swap tuples of references.
 template <template <typename...> class Tuple, typename... T>
-void swap(Tuple<T &...> &&first, Tuple<T &...> &&second) {
+void swap_tuples(Tuple<T &...> &&first, Tuple<T &...> &&second) {
   auto lhs = first;
   auto rhs = second;
   // Do std::swap for each element of the tuple.
@@ -240,7 +244,7 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
       // Handle intermediate items
       for (size_t idx = begin; idx < begin + (end - 1 - i); ++idx) {
         if (comp(first[idx + 1], first[idx])) {
-          detail::swap(first[idx], first[idx + 1]);
+          detail::swap_tuples(first[idx], first[idx + 1]);
         }
       }
     }
