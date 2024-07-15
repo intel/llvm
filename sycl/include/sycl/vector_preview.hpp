@@ -1418,7 +1418,7 @@ private:
   CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      return m_Vector->getValue(Idxs[Index]);
+      return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<CommonDataT>();
     return Op(m_LeftOperation.getValue(Index),
@@ -1441,7 +1441,7 @@ private:
     Operation<DataT> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      DataT Res = Op(m_Vector->getValue(Idxs[I]), Rhs.getValue(I));
+      DataT Res = Op((*m_Vector)[Idxs[I]], Rhs.getValue(I));
       (*m_Vector)[Idxs[I]] = Res;
     }
   }
