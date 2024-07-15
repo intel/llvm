@@ -16,7 +16,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -242,8 +242,6 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
-  const pi_program &get_program_ref() const noexcept { return MProgram; }
-
   const ur_program_handle_t &get_ur_program_ref() const noexcept {
     return MURProgram;
   }
@@ -288,7 +286,7 @@ public:
   }
 
   ur_native_handle_t getNative() const {
-    assert(MProgram);
+    assert(MURProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
@@ -396,7 +394,6 @@ private:
   std::vector<device> MDevices;
   bundle_state MState;
   // Native program handler which this device image represents
-  pi_program MProgram = nullptr;
   ur_program_handle_t MURProgram = nullptr;
 
   // List of kernel ids available in this image, elements should be sorted

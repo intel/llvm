@@ -8,24 +8,23 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <dlfcn.h>
 #include <string>
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail::pi {
+namespace detail::ur {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
   void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
-  if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
+  if (!so && detail::ur::trace()) {
     char *Error = dlerror();
-    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << LibraryPath
-              << ") failed with <" << (Error ? Error : "unknown error") << ">"
-              << std::endl;
+    std::cerr << "SYCL_UR_TRACE: dlopen(" << LibraryPath << ") failed with <"
+              << (Error ? Error : "unknown error") << ">" << std::endl;
   }
   return so;
 }
@@ -36,6 +35,6 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
-} // namespace detail::pi
+} // namespace detail::ur
 } // namespace _V1
 } // namespace sycl

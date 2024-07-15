@@ -14,8 +14,6 @@
 
 #include "usm_analyzer.hpp"
 
-#include <detail/plugin_printers.hpp>
-
 #include <iostream>
 #include <map>
 #include <mutex>

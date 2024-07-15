@@ -15,7 +15,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
@@ -111,19 +111,6 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by UR calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
-template <> struct sycl_to_pi<device> {
-  using type = pi_device;
-};
-template <> struct sycl_to_pi<platform> {
-  using type = pi_platform;
-};
-
 template <typename T> struct sycl_to_ur {
   using type = T;
 };
@@ -323,11 +310,10 @@ struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
     if (Dev->getBackend() == backend::ext_oneapi_cuda) {
-      auto Err =
-          Dev->getPlugin()->call_nocheck(urDeviceGetInfo,
-              Dev->getHandleRef(),
-              UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
-              sizeof(result), &result, nullptr);
+      auto Err = Dev->getPlugin()->call_nocheck(
+          urDeviceGetInfo, Dev->getHandleRef(),
+          UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
+          sizeof(result), &result, nullptr);
       if (Err != UR_RESULT_SUCCESS) {
         return false;
       }
@@ -1070,9 +1056,8 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
                            UrInfoCode<info::device::parent_device>::value,
                            sizeof(result), &result, nullptr);
     if (result == nullptr)
-      throw invalid_object_error(
-          "No parent for device because it is not a subdevice",
-          UR_RESULT_ERROR_INVALID_DEVICE);
+      throw exception(make_error_code(errc::invalid),
+                      "No parent for device because it is not a subdevice");
 
     const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
@@ -1295,9 +1280,9 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   if (std::is_same<Param,
                    sycl::_V1::ext::intel::info::device::free_memory>::value) {
     if (!Dev->has(aspect::ext_intel_free_memory))
-      throw invalid_object_error(
-          "The device does not have the ext_intel_free_memory aspect",
-          UR_RESULT_ERROR_INVALID_DEVICE);
+      throw exception(
+          make_error_code(errc::invalid),
+          "The device does not have the ext_intel_free_memory aspect");
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }

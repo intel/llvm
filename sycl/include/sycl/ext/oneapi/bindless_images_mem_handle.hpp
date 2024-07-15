@@ -15,7 +15,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 /// Opaque image memory handle type
 struct image_mem_handle {
-  using handle_type = ur_exp_image_mem_handle_t;
+  using handle_type = ur_exp_image_mem_native_handle_t;
   handle_type raw_handle;
 };
 } // namespace ext::oneapi::experimental

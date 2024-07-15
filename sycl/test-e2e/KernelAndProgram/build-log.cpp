@@ -21,8 +21,9 @@ void symbol_that_does_not_exist();
 void test() {
   sycl::queue Queue;
 
-  // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE".
+  // Submitting this kernel should result in an exception with error code
+  // `sycl::errc::build` and a message indicating
+  // "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE".
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -46,8 +47,7 @@ void test() {
 
     assert(e.code() == sycl::errc::build &&
            "Caught exception was not a compilation error");
-    assert(Msg.find("UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE") !=
-           std::string::npos);
+    assert(sycl::detail::get_ur_error(e) == UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE);
   } catch (...) {
     assert(false && "Caught exception was not a compilation error");
   }

@@ -1,4 +1,4 @@
-//==------------- pi_utils.hpp - Common UR utilities -----------------------==//
+//==------------- ur_utils.hpp - Common UR utilities -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <optional>
 

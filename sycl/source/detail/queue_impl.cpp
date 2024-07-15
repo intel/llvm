@@ -11,7 +11,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <cstring>
@@ -58,9 +58,8 @@ getUREvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getPlugin()->call(urQueueGetInfo, MUrQueues[0],
-                    UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-                    nullptr);
+  getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
+                    sizeof(result), &result, nullptr);
   return result;
 }
 
@@ -222,8 +221,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
   }
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
@@ -234,7 +233,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice,
+                             ur_usm_advice_flags_t Advice,
                              const std::vector<event> &DepEvents,
                              bool CallerNeedsEvent) {
   return submitMemOpHelper(

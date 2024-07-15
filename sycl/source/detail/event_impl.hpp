@@ -12,7 +12,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <atomic>
@@ -97,8 +97,8 @@ public:
   /// then the call to this member function will block until the requested
   /// info is available. If the queue which submitted the command group this
   /// event is associated with was not constructed with the
-  /// property::queue::enable_profiling property, an invalid_object_error SYCL
-  /// exception is thrown.
+  /// property::queue::enable_profiling property, a SYCL exception with
+  /// errc::invalid error code is thrown.
   ///
   /// \return depends on template parameter.
   template <typename Param> typename Param::return_type get_profiling_info();

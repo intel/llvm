@@ -10,7 +10,7 @@
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/xpti_registry.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -349,69 +349,61 @@ bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
                UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
           getDevices(Context), Desc.width))
-    throw invalid_parameter_error(
-        "For a 1D/2D image/image array, the width must be a Value >= 1 and "
-        "<= info::device::image2d_max_width",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 1D/2D image/image array, the width must be a Value "
+                    ">= 1 and <= info::device::image2d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_width>(
           getDevices(Context), Desc.width))
-    throw invalid_parameter_error(
-        "For a 3D image, the width must be a Value >= 1 and <= "
-        "info::device::image3d_max_width",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the width must be a Value >= 1 and <= "
+                    "info::device::image3d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image2d_max_height>(
           getDevices(Context), Desc.height))
-    throw invalid_parameter_error("For a 2D image or image array, the height "
-                                  "must be a Value >= 1 and <= "
-                                  "info::device::image2d_max_height",
-                                  UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 2D image or image array, the height must be a Value "
+                    ">= 1 and <= info::device::image2d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
           getDevices(Context), Desc.height))
-    throw invalid_parameter_error(
-        "For a 3D image, the heightmust be a Value >= 1 and <= "
-        "info::device::image3d_max_height",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the heightmust be a Value >= 1 and <= "
+                    "info::device::image3d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_depth>(
           getDevices(Context), Desc.depth))
-    throw invalid_parameter_error(
-        "For a 3D image, the depth must be a Value >= 1 and <= "
-        "info::device::image2d_max_depth",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 3D image, the depth must be a Value >= 1 and <= "
+                    "info::device::image2d_max_depth");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
           getDevices(Context), Desc.arraySize))
-    throw invalid_parameter_error(
-        "For a 1D and 2D image array, the array_size must be a "
-        "Value >= 1 and <= info::device::image_max_array_size.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "For a 1D and 2D image array, the array_size must be a "
+                    "Value >= 1 and <= info::device::image_max_array_size.");
 
   if ((nullptr == UserPtr) && (0 != Desc.rowPitch))
-    throw invalid_parameter_error(
-        "The row_pitch must be 0 if host_ptr is nullptr.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The row_pitch must be 0 if host_ptr is nullptr.");
 
   if ((nullptr == UserPtr) && (0 != Desc.slicePitch))
-    throw invalid_parameter_error(
-        "The slice_pitch must be 0 if host_ptr is nullptr.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The slice_pitch must be 0 if host_ptr is nullptr.");
 
   if (0 != Desc.numMipLevel)
-    throw invalid_parameter_error("The mip_levels must be 0.",
-                                  UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The mip_levels must be 0.");
 
   if (0 != Desc.numSamples)
-    throw invalid_parameter_error("The num_samples must be 0.",
-                                  UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "The num_samples must be 0.");
 
   return true;
 }
@@ -426,23 +418,23 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
                 UR_IMAGE_CHANNEL_TYPE_SNORM_INT8,
                 UR_IMAGE_CHANNEL_TYPE_SNORM_INT16,
                 UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT))
-    throw invalid_parameter_error(
+    throw exception(
+        make_error_code(errc::invalid),
         "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
         "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
-        "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+        "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.");
 
   if (checkAny(Format.channelType, UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
                UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
                UR_IMAGE_CHANNEL_TYPE_INT_101010) &&
       !checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_RGB,
                 UR_IMAGE_CHANNEL_ORDER_RGBX))
-    throw invalid_parameter_error(
+    throw exception(
+        make_error_code(errc::invalid),
         "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
         "CL_UNORM_INT_101010."
         "These channel types can only be used with CL_RGB or CL_RGBx channel "
-        "order.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+        "order.");
 
   if (checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_ARGB,
                UR_IMAGE_CHANNEL_ORDER_BGRA, UR_IMAGE_CHANNEL_ORDER_ABGR) &&
@@ -450,11 +442,11 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
                 UR_IMAGE_CHANNEL_TYPE_SNORM_INT8,
                 UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
                 UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
-    throw invalid_parameter_error(
+    throw exception(
+        make_error_code(errc::invalid),
         "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
         "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "
-        "or CL_UNSIGNED_INT8.",
-        UR_RESULT_ERROR_INVALID_VALUE);
+        "or CL_UNSIGNED_INT8.");
 
   return true;
 }

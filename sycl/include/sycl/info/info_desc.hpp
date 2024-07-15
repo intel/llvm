@@ -22,6 +22,10 @@
 
 #include <sycl/range.hpp>
 
+// This is used in trait .def files when there isn't a corresponding backend
+// query but we still need a value to instantiate the template.
+#define SYCL_TRAIT_HANDLED_IN_RT 0
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -33,7 +37,7 @@ enum class memory_order;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   struct Desc {                                                                \
     using return_type = ReturnT;                                               \
   };
@@ -51,7 +55,7 @@ namespace context {
 } // namespace context
 
 // A.3 Device information descriptors
-enum class device_type : pi_uint32 {
+enum class device_type : uint32_t {
   cpu = UR_DEVICE_TYPE_CPU,
   gpu = UR_DEVICE_TYPE_GPU,
   accelerator = UR_DEVICE_TYPE_FPGA,
@@ -123,7 +127,7 @@ ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
 
 enum class local_mem_type : int { none, local, global };
 
-enum class fp_config : pi_device_fp_config {
+enum class fp_config : uint32_t {
   denorm = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM,
   inf_nan = UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN,
   round_to_nearest = UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST,
@@ -155,12 +159,12 @@ struct atomic_fence_scope_capabilities;
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
 template <int Dimensions = 3> struct max_work_item_sizes;
-#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
+#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, UrCode)     \
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \
   };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
 
 #include <sycl/info/device_traits.def>
 } // namespace device
@@ -212,7 +216,7 @@ template <typename T, T param> struct compatibility_param_traits {};
 #undef __SYCL_PARAM_TRAITS_SPEC
 } // namespace info
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   namespace Namespace {                                                        \
   namespace info {                                                             \
   namespace DescType {                                                         \
@@ -224,7 +228,7 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*Namespace*/
 
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
-                                          PiCode)                              \
+                                          UUrode)                              \
   namespace Namespace {                                                        \
   namespace info {                                                             \
   namespace DescType {                                                         \

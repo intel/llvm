@@ -11,8 +11,8 @@
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/pi_utils.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 
 #include <sycl/detail/ur.hpp>
@@ -448,14 +448,13 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
       urMemBufferPartition, ur::cast<ur_mem_handle_t>(ParentMemObj),
       UR_MEM_FLAG_READ_WRITE, UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
-    throw invalid_object_error(
-        "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment",
-        UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::invalid),
+                  "Specified offset of the sub-buffer being constructed is not "
+                  "a multiple of the memory base address alignment"),
+        Error);
 
-  if (Error != UR_RESULT_SUCCESS) {
-    Plugin->reportUrError(Error, "allocateMemSubBuffer()");
-  }
+  Plugin->checkUrResult(Error);
 
   return NewMem;
 }
@@ -737,8 +736,8 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
-    throw runtime_error("Not supported configuration of memcpy requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "Not supported configuration of memcpy requested");
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -825,8 +824,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     }
     // The sycl::handler uses a parallel_for kernel in the case of unusable
     // Range or Offset, not CG:Fill. So we should not be here.
-    throw runtime_error("Not supported configuration of fill requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of fill requested");
   } else {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
@@ -845,8 +844,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          std::vector<ur_event_handle_t> DepEvents,
                          ur_event_handle_t &OutEvent) {
   if (!Queue) {
-    throw runtime_error("Not supported configuration of map requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of map requested");
   }
 
   ur_map_flags_t Flags = 0;
@@ -891,8 +890,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 
   // Execution on host is not supported here.
   if (!Queue) {
-    throw runtime_error("Not supported configuration of unmap requested",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of unmap requested");
   }
   // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
@@ -919,8 +918,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   }
 
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
@@ -947,20 +947,20 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   }
 
   if (!Mem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urEnqueueUSMFill, Queue->getHandleRef(), Mem, Pattern.size(),
-      Pattern.data(), Length, DepEvents.size(), DepEvents.data(), OutEvent);
+               Pattern.data(), Length, DepEvents.size(), DepEvents.data(),
+               OutEvent);
 }
 
-void MemoryManager::prefetch_usm(
-    void *Mem, QueueImplPtr Queue, size_t Length,
-    std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t *OutEvent,
-    const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                                 std::vector<ur_event_handle_t> DepEvents,
+                                 ur_event_handle_t *OutEvent,
+                                 const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM prefetch must be called with a valid device queue");
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
@@ -982,12 +982,12 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                OutEvent);
 }
 
-void MemoryManager::copy_2d_usm(
-    const void *SrcMem, size_t SrcPitch, QueueImplPtr Queue, void *DstMem,
-    size_t DstPitch, size_t Width, size_t Height,
-    std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t *OutEvent,
-    const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
+                                QueueImplPtr Queue, void *DstMem,
+                                size_t DstPitch, size_t Width, size_t Height,
+                                std::vector<ur_event_handle_t> DepEvents,
+                                ur_event_handle_t *OutEvent,
+                                const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM copy 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1058,12 +1058,12 @@ void MemoryManager::copy_2d_usm(
                            CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
-void MemoryManager::fill_2d_usm(
-    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<unsigned char> &Pattern,
-    std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t *OutEvent,
-    const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                                size_t Width, size_t Height,
+                                const std::vector<unsigned char> &Pattern,
+                                std::vector<ur_event_handle_t> DepEvents,
+                                ur_event_handle_t *OutEvent,
+                                const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM fill 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1087,11 +1087,12 @@ void MemoryManager::fill_2d_usm(
                DepEvents.data(), OutEvent);
 }
 
-void MemoryManager::memset_2d_usm(
-    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    char Value, std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t *OutEvent,
-    const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
+                                  size_t Pitch, size_t Width, size_t Height,
+                                  char Value,
+                                  std::vector<ur_event_handle_t> DepEvents,
+                                  ur_event_handle_t *OutEvent,
+                                  const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM memset 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1115,13 +1116,11 @@ void MemoryManager::memset_2d_usm(
                              OutEvent, nullptr);
 }
 
-static void
-memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
-                        DeviceGlobalMapEntry *DeviceGlobalEntry,
-                        size_t NumBytes, size_t Offset, const void *Src,
-                        const std::vector<ur_event_handle_t> &DepEvents,
-                        ur_event_handle_t *OutEvent,
-                        const detail::EventImplPtr &OutEventImpl) {
+static void memcpyToDeviceGlobalUSM(
+    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
+    size_t NumBytes, size_t Offset, const void *Src,
+    const std::vector<ur_event_handle_t> &DepEvents,
+    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
   assert(Queue &&
          "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
@@ -1219,11 +1218,12 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 
-static void memcpyToDeviceGlobalDirect(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, const void *Src,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent) {
+static void
+memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
+                           DeviceGlobalMapEntry *DeviceGlobalEntry,
+                           size_t NumBytes, size_t Offset, const void *Src,
+                           const std::vector<ur_event_handle_t> &DepEvents,
+                           ur_event_handle_t *OutEvent) {
   assert(
       Queue &&
       "Direct copy to device global must be called with a valid device queue");
@@ -1235,11 +1235,12 @@ static void memcpyToDeviceGlobalDirect(
                Offset, Src, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-static void memcpyFromDeviceGlobalDirect(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, void *Dest,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent) {
+static void
+memcpyFromDeviceGlobalDirect(QueueImplPtr Queue,
+                             DeviceGlobalMapEntry *DeviceGlobalEntry,
+                             size_t NumBytes, size_t Offset, void *Dest,
+                             const std::vector<ur_event_handle_t> &DepEvents,
+                             ur_event_handle_t *OutEvent) {
   assert(Queue && "Direct copy from device global must be called with a valid "
                   "device queue");
   ur_program_handle_t Program =
@@ -1516,8 +1517,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
   ur_result_t Result = Plugin->call_nocheck(
@@ -1534,14 +1535,14 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
-    ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem,
-    size_t Len, const std::vector<unsigned char> &Pattern,
+    ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem, size_t Len,
+    const std::vector<unsigned char> &Pattern,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
 
   if (!DstMem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem,
@@ -1582,8 +1583,8 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   }
   // The sycl::handler uses a parallel_for kernel in the case of unusable
   // Range or Offset, not CG:Fill. So we should not be here.
-  throw runtime_error("Not supported configuration of fill requested",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "Not supported configuration of fill requested");
 }
 
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(

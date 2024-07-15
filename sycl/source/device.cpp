@@ -24,8 +24,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw sycl::invalid_parameter_error("No device of forced type.",
-                                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "No device of forced type.");
   }
 }
 } // namespace detail
@@ -33,7 +33,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
-  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
@@ -136,9 +136,8 @@ device::get_info_impl<info::device::parent_device>() const {
   // have parents, but we don't want to return them. They must pretend to be
   // parentless root devices.
   if (impl->isRootDevice())
-    throw invalid_object_error(
-        "No parent for device because it is not a subdevice",
-        UR_RESULT_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::invalid),
+                    "No parent for device because it is not a subdevice");
   else
     return impl->template get_info<info::device::parent_device>();
 }

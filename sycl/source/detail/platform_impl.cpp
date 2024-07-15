@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/pi.hpp"
+#include "sycl/detail/ur.hpp"
 #include "sycl/info/info_desc.hpp"
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
@@ -16,6 +16,7 @@
 #include <detail/platform_info.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
@@ -85,9 +86,8 @@ static bool IsBannedPlatform(platform Platform) {
                                   name) != std::string::npos;
     const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
     const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) &&
-        IsMatchingOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: " << name
+    if (detail::ur::trace() && IsMatchingOCL) {
+      std::cout << "SYCL_UR_TRACE: " << name
                 << " OpenCL platform found but is not compatible." << std::endl;
     }
     return IsMatchingOCL;
@@ -135,7 +135,7 @@ std::vector<platform> platform_impl::get_platforms() {
   // There should be just one plugin serving each backend.
   // this is where piPluginInit currently ends up getting called,
   // and it's where LoaderInit and AdapterGet will happen
-  std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+  std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
   std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
   // Then check backend-specific plugins
@@ -461,7 +461,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     break;
   }
 
-  pi_uint32 NumDevices = 0;
+  uint32_t NumDevices = 0;
   MPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
                 0, // CP info::device_type::all
                 nullptr, &NumDevices);
@@ -473,7 +473,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const plugin reference.
-    std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+    std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
                            [&Platform = MUrPlatform](PluginPtr &Plugin) {
                              return Plugin->containsUrPlatform(Platform);

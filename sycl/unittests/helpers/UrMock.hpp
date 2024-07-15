@@ -476,7 +476,7 @@ public:
     urLoaderConfigCreate(&UrLoaderConfig);
     urLoaderConfigSetMockingEnabled(UrLoaderConfig, true);
 
-    sycl::detail::pi::initializeUr(UrLoaderConfig);
+    sycl::detail::ur::initializeUr(UrLoaderConfig);
     urLoaderConfigRelease(UrLoaderConfig);
   }
 

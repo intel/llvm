@@ -29,17 +29,19 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
   getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
                     sizeof(UrContext), &UrContext, nullptr);
   if (Context->getHandleRef() != UrContext)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_kernel",
-        UR_RESULT_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_kernel");
 
   // Enable USM indirect access for interoperability kernels.
   // Some UR Plugins (like OpenCL) require this call to enable USM
   // For others, UR will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm())
+  if (Context->getPlatformImpl()->supports_usm()) {
+    bool EnableAccess = true;
     getPlugin()->call(urKernelSetExecInfo, MURKernel,
                       UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                      sizeof(ur_bool_t), nullptr, &PI_TRUE);
+                      sizeof(ur_bool_t), nullptr, &EnableAccess);
+  }
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,

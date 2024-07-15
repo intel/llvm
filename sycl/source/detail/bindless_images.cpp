@@ -7,13 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/sampler.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/image_impl.hpp>
-#include <detail/plugin_printers.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <memory>
@@ -25,6 +24,7 @@ namespace ext::oneapi::experimental {
 void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
                          ur_image_format_t &urFormat, size_t pitch = 0) {
   urDesc = {};
+  urDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   urDesc.width = desc.width;
   urDesc.height = desc.height;
   urDesc.depth = desc.depth;
@@ -118,11 +118,10 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  auto urImageHandle =
-      reinterpret_cast<ur_exp_image_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesUnsampledImageHandleDestroyExp, C, Device, urImageHandle);
+      urBindlessImagesUnsampledImageHandleDestroyExp, C, Device,
+      imageHandle.raw_handle);
 }
 
 __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
@@ -141,11 +140,10 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  ur_exp_image_handle_t urImageHandle =
-      reinterpret_cast<ur_exp_image_handle_t>(imageHandle.raw_handle);
 
   Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesSampledImageHandleDestroyExp, C, Device, urImageHandle);
+      urBindlessImagesSampledImageHandleDestroyExp, C, Device,
+      imageHandle.raw_handle);
 }
 
 __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
@@ -176,7 +174,7 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   // Call impl.
   Plugin->call<sycl::errc::memory_allocation>(
       urBindlessImagesImageAllocateExp, C, Device, &urFormat, &urDesc,
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(&retHandle.raw_handle));
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(&retHandle.raw_handle));
 
   return retHandle;
 }
@@ -262,7 +260,7 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  if (memHandle.raw_handle != nullptr) {
+  if (memHandle.raw_handle != 0) {
     if (imageType == image_type::mipmap) {
       Plugin->call<sycl::errc::memory_allocation>(
           urBindlessImagesMipmapFreeExp, C, Device, memHandle.raw_handle);
@@ -357,12 +355,12 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   populate_ur_structs(desc, urDesc, urFormat);
 
   // Call impl.
-  ur_exp_image_handle_t urImageHandle;
+  ur_exp_image_mem_native_handle_t urImageHandle;
   Plugin->call<sycl::errc::runtime>(urBindlessImagesUnsampledImageCreateExp, C,
                                     Device, memHandle.raw_handle, &urFormat,
                                     &urDesc, &urImageHandle);
 
-  return unsampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
+  return unsampled_image_handle{urImageHandle};
 }
 
 __SYCL_EXPORT unsampled_image_handle
@@ -376,8 +374,8 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(memHandle.raw_handle, 0 /*pitch*/, sampler, desc,
-                      syclDevice, syclContext);
+  return create_image(reinterpret_cast<void*>(memHandle.raw_handle),
+                      0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
@@ -391,15 +389,16 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(imgMem.get_handle().raw_handle, 0 /*pitch*/, sampler,
-                      desc, syclDevice, syclContext);
+  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+                      0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::queue &syclQueue) {
-  return create_image(imgMem.get_handle().raw_handle, 0 /*pitch*/, sampler,
-                      desc, syclQueue.get_device(), syclQueue.get_context());
+  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+                      0 /*pitch*/, sampler, desc, syclQueue.get_device(),
+                      syclQueue.get_context());
 }
 
 inline ur_sampler_addressing_mode_t
@@ -492,13 +491,13 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_ur_structs(desc, urDesc, urFormat, pitch);
 
   // Call impl.
-  ur_exp_image_handle_t urImageHandle;
+  ur_exp_image_mem_native_handle_t urImageHandle;
   Plugin->call<sycl::errc::runtime>(
       urBindlessImagesSampledImageCreateExp, C, Device,
-      static_cast<ur_exp_image_mem_handle_t>(devPtr), &urFormat, &urDesc,
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(devPtr), &urFormat, &urDesc,
       urSampler, &urImageHandle);
 
-  return sampled_image_handle{reinterpret_cast<uint64_t>(urImageHandle)};
+  return sampled_image_handle{urImageHandle};
 }
 
 __SYCL_EXPORT sampled_image_handle
@@ -847,14 +846,17 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
   size_t Width = 0, Height = 0, Depth = 0;
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    CtxImpl->getHandleRef(),
                                     memHandle.raw_handle, UR_IMAGE_INFO_WIDTH,
                                     &Width, nullptr);
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    CtxImpl->getHandleRef(),
                                     memHandle.raw_handle, UR_IMAGE_INFO_HEIGHT,
                                     &Height, nullptr);
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    CtxImpl->getHandleRef(),
                                     memHandle.raw_handle, UR_IMAGE_INFO_DEPTH,
                                     &Depth, nullptr);
 
@@ -878,7 +880,7 @@ get_image_channel_type(const image_mem_handle memHandle,
 
   ur_image_format_t URFormat;
 
-  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp, CtxImpl->getHandleRef(),
                                     memHandle.raw_handle, UR_IMAGE_INFO_FORMAT,
                                     &URFormat, nullptr);
 
@@ -962,7 +964,7 @@ get_image_num_channels(const image_mem_handle memHandle,
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_image_format_t URFormat = {};
 
-  Plugin->call<sycl::errc::runtime>(urBindlessImagesImageGetInfoExp,
+  Plugin->call<sycl::errc::runtime>(urBindlessImagesImageGetInfoExp, CtxImpl->getHandleRef(),
                                     memHandle.raw_handle, UR_IMAGE_INFO_FORMAT,
                                     &URFormat, nullptr);
 

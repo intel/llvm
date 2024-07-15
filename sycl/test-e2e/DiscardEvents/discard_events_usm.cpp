@@ -3,7 +3,7 @@
 // On level_zero Q.fill uses piEnqueueKernelLaunch and not piextUSMEnqueueFill
 // due to https://github.com/intel/llvm/issues/13787
 //
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
 //
 // REQUIRES: aspect-usm_shared_allocations
 // The test checks that the last parameter is `nullptr` for all PI calls that
@@ -24,8 +24,7 @@
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
 // CHECK-L0: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK-OTHER ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK-SAME: .phEvent = nullptr
+// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
 // CHECK: ---> urEnqueueUSMMemcpy(
@@ -61,8 +60,7 @@
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
 // CHECK-L0: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK-OTHER ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK-SAME: .phEvent = nullptr
+// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
 // CHECK: ---> urEnqueueUSMMemcpy(

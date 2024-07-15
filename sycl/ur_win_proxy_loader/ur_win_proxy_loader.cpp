@@ -1,4 +1,4 @@
-//==------------ pi_win_proxy_loader.cpp - SYCL standard source file ------==//
+//==------------ ur_win_proxy_loader.cpp - SYCL standard source file ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,10 +14,10 @@
 // (static var destruction or DllMain() can both occur after)
 // The workaround is this proxy_loader. It is statically linked by the SYCL
 // library and thus is a real dependency and is not unloaded from memory until
-// after SYCL itself is unloaded. It calls LoadLibrary on all the PI Plugins
+// after SYCL itself is unloaded. It calls LoadLibrary on all the UR adapters
 // that SYCL will use during its initialization, which ensures that those plugin
 // DLLs are not unloaded until after.
-// Note that this property is not transitive. If any of the PI DLLs in turn
+// Note that this property is not transitive. If any of the UR DLLs in turn
 // dynamically load some other DLL during their lifecycle there is no guarantee
 // that the "grandchild" won't be unloaded early. They would need to employ a
 // similar approach.
@@ -39,7 +39,7 @@
 #include <map>
 #include <string>
 
-#include "pi_win_proxy_loader.hpp"
+#include "ur_win_proxy_loader.hpp"
 
 #ifdef _WIN32
 
@@ -83,22 +83,22 @@ std::wstring getCurrentDSODir() {
   return Path;
 }
 
-// these are cribbed from include/sycl/detail/pi.hpp
+// these are cribbed from include/sycl/detail/ur.hpp
 // a new plugin must be added to both places.
 #ifdef _MSC_VER
-#define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
-#define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
-#define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
-#define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
+#define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "ur_loader.dll"
+#define __SYCL_OPENCL_ADAPTER_NAME "ur_adapter_opencl.dll"
+#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "ur_adapter_level_zero.dll"
+#define __SYCL_CUDA_ADAPTER_NAME "ur_adapter_cuda.dll"
+#define __SYCL_HIP_ADAPTER_NAME "ur_adapter_hip.dll"
+#define __SYCL_NATIVE_CPU_ADAPTER_NAME "ur_adapter_native_cpu.dll"
 #else // llvm-mingw
-#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
-#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
-#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
-#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
-#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
-#define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
+#define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "libur_loader.dll"
+#define __SYCL_OPENCL_ADAPTER_NAME "libur_adapter_opencl.dll"
+#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "libur_adapter_level_zero.dll"
+#define __SYCL_CUDA_ADAPTER_NAME "libur_adapter_cuda.dll"
+#define __SYCL_HIP_ADAPTER_NAME "libur_adapter_hip.dll"
+#define __SYCL_NATIVE_CPU_ADAPTER_NAME "libur_adapter_native_cpu.dll"
 #endif
 
 // ------------------------------------
@@ -127,7 +127,7 @@ void preloadLibraries() {
     assert(false && "Failed to update DLL search path");
   }
 
-  // this path duplicates sycl/detail/pi.cpp:initializePlugins
+  // this path duplicates sycl/detail/ur.cpp:initializePlugins
   std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
   MapT &dllMap = getDllMap();
@@ -142,12 +142,12 @@ void preloadLibraries() {
     auto path = LibSYCLDir / pluginName;
     dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
   };
-  loadPlugin(__SYCL_OPENCL_PLUGIN_NAME);
-  loadPlugin(__SYCL_LEVEL_ZERO_PLUGIN_NAME);
-  loadPlugin(__SYCL_CUDA_PLUGIN_NAME);
-  loadPlugin(__SYCL_HIP_PLUGIN_NAME);
-  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME);
-  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME);
+  loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
+  loadPlugin(__SYCL_OPENCL_ADAPTER_NAME);
+  loadPlugin(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
+  loadPlugin(__SYCL_CUDA_ADAPTER_NAME);
+  loadPlugin(__SYCL_HIP_ADAPTER_NAME);
+  loadPlugin(__SYCL_NATIVE_CPU_ADAPTER_NAME);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
@@ -194,10 +194,6 @@ __declspec(dllexport) void *getPreloadedPlugin(
   return match->second;
 }
 
-__declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
-  return getPreloadedPlugin(std::filesystem::path(PluginPath));
-}
-
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
                     DWORD fdwReason,    // reason for calling function
                     LPVOID lpReserved)  // reserved
@@ -212,14 +208,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
   switch (fdwReason) {
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH pi_win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_ATTACH ur_win_proxy_loader.dll\n"
                 << std::endl;
 
     preloadLibraries();
     break;
   case DLL_PROCESS_DETACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_DETACH pi_win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_DETACH ur_win_proxy_loader.dll\n"
                 << std::endl;
     break;
   case DLL_THREAD_ATTACH:

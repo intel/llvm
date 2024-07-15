@@ -1,19 +1,19 @@
-project(pi_win_proxy_loader)
+project(ur_win_proxy_loader)
 set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc
                PROPERTY COMPILE_DEFINITIONS
-	       "RC_VERSION_FIELD_1=${SYCL_MAJOR_VERSION}"
+               "RC_VERSION_FIELD_1=${SYCL_MAJOR_VERSION}"
                "RC_VERSION_FIELD_2=${SYCL_MAJOR_VERSION}"
                "RC_VERSION_FIELD_3=${SYCL_PATCH_VERSION}"
                "RC_VERSION_FIELD_4=${SYCL_DEV_ABI_VERSION}"
                "RC_FILE_VERSION=\"${SYCL_VERSION_STRING}\""
-               "RC_INTERNAL_NAME=\"pi_win_proxy_loader\""
-               "RC_PRODUCT_NAME=\"pi_win_proxy_loader\""
+               "RC_INTERNAL_NAME=\"ur_win_proxy_loader\""
+               "RC_PRODUCT_NAME=\"ur_win_proxy_loader\""
                "RC_PRODUCT_VERSION=\"${SYCL_VERSION_STRING}\""
                "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Inc. All Rights Reserved\"")
 configure_file(../../llvm/resources/windows_version_resource.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
-add_library(pi_win_proxy_loader SHARED  pi_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
-install(TARGETS pi_win_proxy_loader
-        RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader
+add_library(ur_win_proxy_loader SHARED  ur_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
+install(TARGETS ur_win_proxy_loader
+  RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader
 )
 
 if (MSVC)
@@ -50,20 +50,18 @@ if (MSVC)
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "")
   set(CMAKE_CXX_FLAGS_DEBUG "")
 
-# Handle the debug version for the Microsoft compiler as a special case by
-# creating a debug version of the static library that uses the flags used by
-# the SYCL runtime
-  add_library(pi_win_proxy_loaderd SHARED pi_win_proxy_loader.cpp ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
-  target_compile_options(pi_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
-  target_compile_options(pi_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
-  target_link_libraries(pi_win_proxy_loaderd PRIVATE shlwapi)
-  target_link_libraries(pi_win_proxy_loader PRIVATE shlwapi)
+  # Handle the debug version for the Microsoft compiler as a special case by
+  # creating a debug version of the static library that uses the flags used by
+  # the SYCL runtime
+  add_library(ur_win_proxy_loaderd SHARED ur_win_proxy_loader.cpp ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
+  target_compile_options(ur_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
+  target_compile_options(ur_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
+  target_link_libraries(ur_win_proxy_loaderd PRIVATE shlwapi)
+  target_link_libraries(ur_win_proxy_loader PRIVATE shlwapi)
   # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs
   # from the current directory is only allowed if it is under a directory in the Safe load list.
-  target_link_options(pi_win_proxy_loaderd PRIVATE /DEPENDENTLOADFLAG:0x2000)
-  target_link_options(pi_win_proxy_loader PRIVATE /DEPENDENTLOADFLAG:0x2000)
-  install(TARGETS pi_win_proxy_loaderd
-          RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader)
+  target_link_options(ur_win_proxy_loaderd PRIVATE /DEPENDENTLOADFLAG:0x2000)
+  target_link_options(ur_win_proxy_loader PRIVATE /DEPENDENTLOADFLAG:0x2000)
+  install(TARGETS ur_win_proxy_loaderd
+    RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader)
 endif()
-
-

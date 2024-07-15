@@ -127,10 +127,10 @@ XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
 }
 
 XPTI_CALLBACK_API void urBeginEndCallback(uint16_t TraceType,
-                                           xpti::trace_event_data_t *,
-                                           xpti::trace_event_data_t *,
-                                           uint64_t /*Instance*/,
-                                           const void *UserData) {
+                                          xpti::trace_event_data_t *,
+                                          xpti::trace_event_data_t *,
+                                          uint64_t /*Instance*/,
+                                          const void *UserData) {
   auto [TID, PID, TS] = measure();
   auto *Name =
       static_cast<const xpti::function_with_args_t *>(UserData)->function_name;

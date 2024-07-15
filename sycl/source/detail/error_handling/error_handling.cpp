@@ -14,7 +14,7 @@
 
 #include <detail/plugin.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -36,10 +36,10 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
-      const PluginPtr &Plugin = DeviceImpl.getPlugin();
-      uint32_t NumRegisters = 0;
-      Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
-                   sizeof(NumRegisters), &NumRegisters, nullptr);
+    const PluginPtr &Plugin = DeviceImpl.getPlugin();
+    uint32_t NumRegisters = 0;
+    Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
+                 sizeof(NumRegisters), &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::
@@ -297,10 +297,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   // is not consistent with the required number of sub-groups for kernel in the
   // program source.
 
-  // Fallback
-  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  throw runtime_error(
-      "UR backend failed. UR backend returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range),
+                  "internal error: expected HasLocalSize");
 }
 
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
@@ -342,9 +340,7 @@ void handleInvalidValue(const device_impl &DeviceImpl,
   }
 
   // fallback
-  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
-  throw runtime_error(
-      "Native API failed. Native API returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range), "unknown internal error");
 }
 
 void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
@@ -360,7 +356,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
 
   case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::kernel_argument),
             "The kernel argument values have not been specified OR a kernel "
@@ -371,7 +367,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
 
   case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::feature_not_supported),
             "image object is specified as an argument value and the image "
@@ -379,7 +375,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
   case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(make_error_code(errc::invalid),
                         "a sub-buffer object is specified as the value for an "
                         "argument that is a buffer object and the offset "
@@ -389,7 +385,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
 
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::memory_allocation),
             "failure to allocate memory for data store associated with image "
@@ -397,7 +393,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
 
   case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
-    throw detail::set_pi_error(
+    throw detail::set_ur_error(
         sycl::exception(
             make_error_code(errc::invalid),
             "image object is specified as an argument value and the image "
@@ -420,8 +416,8 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
-    throw runtime_error(
-        "Native API failed. Native API returns: " + codeToString(Error), Error);
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::runtime), "UR error"), Error);
   }
 }
 

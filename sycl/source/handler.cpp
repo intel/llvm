@@ -22,7 +22,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -268,17 +268,14 @@ event handler::finalize() {
 #else
       auto EnqueueKernel = [&]() {
 #endif
-        // 'Result' for single point of return
-        ur_result_t Result = UR_RESULT_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
-        Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                  MKernel, MKernelName.c_str(), RawEvents,
-                                  NewEvent, nullptr, MImpl->MKernelCacheConfig,
-                                  MImpl->MKernelIsCooperative,
-                                  MImpl->MKernelUsesClusterLaunch);
+        enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                         MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+                         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+                         MImpl->MKernelUsesClusterLaunch);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -289,7 +286,6 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
-        return Result;
       };
 
       bool DiscardEvent = (MQueue->MDiscardEvents || !MImpl->MEventNeeded) &&
@@ -304,9 +300,7 @@ event handler::finalize() {
       }
 
       if (DiscardEvent) {
-        if (UR_RESULT_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              UR_RESULT_ERROR_INVALID_OPERATION);
+        EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
         MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
@@ -317,10 +311,8 @@ event handler::finalize() {
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
 
-        if (UR_RESULT_SUCCESS != EnqueueKernel())
-          throw runtime_error("Enqueue process failed.",
-                              UR_RESULT_ERROR_INVALID_OPERATION);
-        else if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
+        EnqueueKernel();
+        if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -484,7 +476,7 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CG::None:
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+    if (detail::ur::trace()) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
 
@@ -503,9 +495,8 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Internal Error. Command group cannot be constructed.");
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -776,8 +767,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::host_image:
     case access::target::host_task:
     case access::target::host_buffer: {
-      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
-                                          UR_RESULT_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Unsupported accessor target case.");
       break;
     }
     }
@@ -795,8 +786,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "Invalid kernel param kind");
     break;
   }
 }
@@ -954,7 +945,7 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MImpl->MAdvice = static_cast<pi_mem_advice>(Advice);
+  MImpl->MAdvice = static_cast<ur_usm_advice_flags_t>(Advice);
   setType(detail::CG::AdviseUSM);
 }
 
@@ -1013,9 +1004,10 @@ void handler::ext_oneapi_copy(
   Desc.verify();
 
   MSrcPtr = Src;
-  MDstPtr = Dest.raw_handle;
+  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1065,9 +1057,10 @@ void handler::ext_oneapi_copy(
   DestImgDesc.verify();
 
   MSrcPtr = Src;
-  MDstPtr = Dest.raw_handle;
+  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = DestImgDesc.width;
   UrDesc.height = DestImgDesc.height;
   UrDesc.depth = DestImgDesc.depth;
@@ -1115,10 +1108,11 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   Desc.verify();
 
-  MSrcPtr = Src.raw_handle;
+  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1166,10 +1160,11 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   ImageDesc.verify();
 
-  MSrcPtr = Src.raw_handle;
-  MDstPtr = Dest.raw_handle;
+  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = ImageDesc.width;
   UrDesc.height = ImageDesc.height;
   UrDesc.depth = ImageDesc.depth;
@@ -1218,10 +1213,11 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   SrcImgDesc.verify();
 
-  MSrcPtr = Src.raw_handle;
+  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = SrcImgDesc.width;
   UrDesc.height = SrcImgDesc.height;
   UrDesc.depth = SrcImgDesc.depth;
@@ -1273,6 +1269,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = Desc.width;
   UrDesc.height = Desc.height;
   UrDesc.depth = Desc.depth;
@@ -1328,6 +1325,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
   UrDesc.width = DeviceImgDesc.width;
   UrDesc.height = DeviceImgDesc.height;
   UrDesc.depth = DeviceImgDesc.depth;

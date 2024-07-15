@@ -957,6 +957,134 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int, unsigned int,
+                                                 unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u32(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2_relu(unsigned int, unsigned int,
+                                                 unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u32(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_s16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_s16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmax_s32(int, int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmin_s32(int, int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u32(unsigned int, unsigned int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u32(unsigned int, unsigned int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2_relu(unsigned int, unsigned int,
+                                               unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2_relu(unsigned int, unsigned int,
+                                               unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u32(unsigned int, unsigned int,
+                                        unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u32(unsigned int, unsigned int,
+                                        unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax_s16x2_relu(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax_s32_relu(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin_s16x2_relu(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin_s32_relu(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -1356,6 +1484,204 @@ unsigned int __imf_vsadu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vsadu4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vsadu4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_s16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmax_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
+                                       unsigned int z) {
+  return __devicelib_imf_viaddmax_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmax_s32(int x, int y, int z) {
+  return __devicelib_imf_viaddmax_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmax_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_viaddmax_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_u16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmax_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_u32(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_viaddmax_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_s16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmin_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_s16x2_relu(unsigned int x, unsigned int y,
+                                       unsigned int z) {
+  return __devicelib_imf_viaddmin_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmin_s32(int x, int y, int z) {
+  return __devicelib_imf_viaddmin_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmin_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_viaddmin_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_u16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmin_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_u32(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_viaddmin_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmax_s16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_s16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vibmax_s32(int x, int y, bool *pred) {
+  return __devicelib_imf_vibmax_s32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vibmin_s32(int x, int y, bool *pred) {
+  return __devicelib_imf_vibmin_s32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmax_u16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_u16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_u32(unsigned int x, unsigned int y, bool *pred) {
+  return __devicelib_imf_vibmax_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_u32(unsigned int x, unsigned int y, bool *pred) {
+  return __devicelib_imf_vibmin_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_s16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimax3_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_s16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimin3_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_s16x2_relu(unsigned int x, unsigned int y,
+                                     unsigned int z) {
+  return __devicelib_imf_vimax3_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_s16x2_relu(unsigned int x, unsigned int y,
+                                     unsigned int z) {
+  return __devicelib_imf_vimin3_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax3_s32(int x, int y, int z) {
+  return __devicelib_imf_vimax3_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin3_s32(int x, int y, int z) {
+  return __devicelib_imf_vimin3_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax3_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_vimax3_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin3_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_vimin3_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_u16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimax3_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimin3_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_vimax3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u32(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_vimin3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax_s16x2_relu(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vimax_s16x2_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax_s32_relu(int x, int y) {
+  return __devicelib_imf_vimax_s32_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin_s16x2_relu(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vimin_s16x2_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin_s32_relu(int x, int y) {
+  return __devicelib_imf_vimin_s32_relu(x, y);
 }
 
 // FP16 type cast functions

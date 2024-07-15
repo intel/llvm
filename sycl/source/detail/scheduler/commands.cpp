@@ -1,4 +1,3 @@
-//===----------- commands.cpp - SYCL commands -------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -2404,21 +2403,20 @@ static ur_result_t SetKernelParamsAndLaunch(
     launch_property_value_cluster_range.clusterDim[2] =
         NDRDesc.ClusterDimensions[2];
 
-    property_list.push_back(
-        {UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
-         launch_property_value_cluster_range});
+    property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+                             launch_property_value_cluster_range});
 
     if (IsCooperative) {
       ur_exp_launch_property_value_t launch_property_value_cooperative;
       launch_property_value_cooperative.cooperative = 1;
-      property_list.push_back(
-          {UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
-           launch_property_value_cooperative});
+      property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
+                               launch_property_value_cooperative});
     }
 
-    return Plugin->call_nocheck(urEnqueueKernelLaunchCustomExp,
-        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
+    return Plugin->call_nocheck(
+        urEnqueueKernelLaunchCustomExp, Queue->getHandleRef(), Kernel,
+        NDRDesc.Dims, &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
+        property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   }
@@ -2563,15 +2561,15 @@ ur_result_t enqueueImpCommandBufferKernel(
   return Res;
 }
 
-ur_result_t enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    ur_kernel_cache_config_t KernelCacheConfig,
-    const bool KernelIsCooperative, const bool KernelUsesClusterLaunch) {
+    ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
+    const bool KernelUsesClusterLaunch) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2678,8 +2676,6 @@ ur_result_t enqueueImpKernel(
     detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
@@ -2757,8 +2753,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   bool DiscardUrEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
-  ur_event_handle_t *Event =
-      DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
+  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
   ur_exp_command_buffer_sync_point_t OutSyncPoint;
   ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2885,8 +2880,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   default:
-    throw runtime_error("CG type not implemented for command buffers.",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "CG type not implemented for command buffers.");
   }
 }
 
@@ -3009,11 +3004,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         EventImpl = MEvent;
       }
     }
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch);
+
+    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
+                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch);
+
+    return UR_RESULT_SUCCESS;
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -3106,8 +3104,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
           if (getContext(HostTask->MQueue) ==
               getContext(AllocaCmd->getQueue())) {
-            auto MemArg =
-                reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
+            auto MemArg = reinterpret_cast<ur_mem_handle_t>(
+                AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
             ReqUrMem.emplace_back(MemArg);
 
@@ -3246,8 +3244,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
-        OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
+                 MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+                 OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3259,9 +3257,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
-    Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
-        OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
+    Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
+                 MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+                 OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
   }

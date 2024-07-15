@@ -176,7 +176,7 @@ std::vector<device> device_impl::create_sub_devices(
     const ur_device_partition_properties_t *Properties,
     size_t SubDevicesCount) const {
   std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
-  pi_uint32 ReturnedSubDevices = 0;
+  uint32_t ReturnedSubDevices = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, Properties,
                                     SubDevicesCount, SubDevices.data(),
@@ -297,7 +297,7 @@ std::vector<device> device_impl::create_sub_devices(
   Properties.PropCount = 1;
   Properties.pProperties = &Prop;
 
-  pi_uint32 SubDevicesCount = 0;
+  uint32_t SubDevicesCount = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, &Properties,
                                     0, nullptr, &SubDevicesCount);
@@ -322,7 +322,7 @@ std::vector<device> device_impl::create_sub_devices() const {
   Properties.pProperties = &Prop;
   Properties.PropCount = 1;
 
-  pi_uint32 SubDevicesCount = 0;
+  uint32_t SubDevicesCount = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call(urDevicePartition, MUrDevice, &Properties, 0, nullptr,
                &SubDevicesCount);
@@ -701,11 +701,12 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_oneapi_is_component: {
     typename sycl_to_ur<device>::type Result;
-    bool CallSuccessful = getPlugin()->call_nocheck(
-        urDeviceGetInfo, getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::composite_device>::value,
-        sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, getHandleRef(),
+            UrInfoCode<ext::oneapi::experimental::info::device::
+                           composite_device>::value,
+            sizeof(Result), &Result, nullptr) == UR_RESULT_SUCCESS;
 
     return CallSuccessful && Result != nullptr;
   }
@@ -737,9 +738,6 @@ bool device_impl::has(aspect Aspect) const {
 
     return SupportsCommandBuffers;
   }
-  case aspect::ext_intel_fpga_task_sequence: {
-    return is_accelerator();
-  }
   case aspect::ext_oneapi_private_alloca: {
     // Extension only supported on SPIR-V targets.
     backend be = getBackend();
@@ -758,8 +756,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_virtual_mem: {
     ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck(urDeviceGetInfo,
-            MUrDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -831,10 +829,10 @@ uint64_t device_impl::getCurrentDeviceTime() {
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't be
-      // calling it after ERROR_INVALID_OPERATION: there is no
+      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
+      // be calling it after ERROR_INVALID_OPERATION: there is no
       // adapter-specific error.
-      throw detail::set_pi_error(
+      throw detail::set_ur_error(
           sycl::exception(
               make_error_code(errc::feature_not_supported),
               "Device and/or backend does not support querying timestamp."),

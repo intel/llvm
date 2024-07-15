@@ -13,7 +13,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -74,23 +74,6 @@ public:
                bool OwnedByRuntime = true);
 
   ~context_impl();
-
-  /// Checks if this context_impl has a property of type propertyT.
-  ///
-  /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this context_impl.
-  ///
-  /// Throws invalid_object_error if this context_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
 
   /// Gets OpenCL interoperability context handle.
   ///
@@ -205,10 +188,6 @@ public:
     return MPlatform->getBackend();
   }
 
-  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
-  /// within this context. May return nullptr if no match discovered.
-  DeviceImplPtr findMatchingDeviceImpl(pi_device &DevicePI) const;
-
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
   DeviceImplPtr findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const;
@@ -262,6 +241,8 @@ public:
   bool isOwnedByRuntime() { return MOwnedByRuntime; };
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
+
+  const property_list &getPropList() const { return MPropList; }
 
 private:
   bool MOwnedByRuntime;

@@ -101,15 +101,15 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
     try {
       queue Q2{DefaultCtx, Subdevices[0]};
       EXPECT_NE(Q.get_backend(), backend::opencl);
-    } catch (sycl::invalid_object_error &e) {
+    } catch (sycl::exception &e) {
+      EXPECT_TRUE(e.code() == errc::invalid);
       EXPECT_EQ(Q.get_backend(), backend::opencl);
       EXPECT_EQ(
-          std::strcmp(
-              e.what(),
-              "Queue cannot be constructed with the given context and "
-              "device since the device is not a member of the context "
-              "(descendants of devices from the context are not "
-              "supported on OpenCL yet). 19 (UR_RESULT_ERROR_INVALID_DEVICE)"),
+          std::strcmp(e.what(),
+                      "Queue cannot be constructed with the given context and "
+                      "device since the device is not a member of the context "
+                      "(descendants of devices from the context are not "
+                      "supported on OpenCL yet)."),
           0);
     }
   }
@@ -124,7 +124,8 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
     try {
       queue Q2{DefaultCtx, Device};
       EXPECT_TRUE(false);
-    } catch (sycl::invalid_object_error &e) {
+    } catch (sycl::exception &e) {
+      EXPECT_TRUE(e.code() == errc::invalid);
       EXPECT_NE(
           std::strstr(e.what(),
                       "Queue cannot be constructed with the given context and "

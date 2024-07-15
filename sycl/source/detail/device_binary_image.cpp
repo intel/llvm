@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_binary_image.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <algorithm>
@@ -59,7 +58,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   return Out;
 }
 
-pi_uint32 DeviceBinaryProperty::asUint32() const {
+uint32_t DeviceBinaryProperty::asUint32() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
@@ -75,9 +74,13 @@ ByteArray DeviceBinaryProperty::asByteArray() const {
 }
 
 const char *DeviceBinaryProperty::asCString() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
+  assert((Prop->Type == PI_PROPERTY_TYPE_STRING ||
+          Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) &&
+         "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  return ur::cast<const char *>(Prop->ValAddr);
+  // Byte array stores its size in first 8 bytes
+  size_t Shift = Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
+  return ur::cast<const char *>(Prop->ValAddr) + Shift;
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
@@ -190,7 +193,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
 
   if (Format == PI_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
-    Format = pi::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
@@ -203,6 +206,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+  VirtualFunctions.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
   for (const auto &ProgMD : ProgramMetadata) {
     ProgramMetadataUR.emplace_back(mapPIMetadataToUR(ProgMD));
@@ -228,7 +232,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
-  Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
+  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
     Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;

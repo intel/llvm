@@ -11,7 +11,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -288,8 +288,6 @@ public:
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
-  std::string get_device_info_string(pi_device_info InfoCode) const;
-
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
 
   /// Get device architecture

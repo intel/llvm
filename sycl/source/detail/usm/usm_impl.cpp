@@ -11,7 +11,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/aligned_allocator.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
@@ -85,8 +85,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     ur_usm_alloc_location_desc_t UsmLocationDesc{};
     UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         Ctxt.get_platform().has_extension(
             "cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
@@ -156,8 +156,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
     // Buffer location is only supported on FPGA devices
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
           PropList
@@ -192,8 +192,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.flags &= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
     }
 
-    if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
-                                  buffer_location>() &&
+    if (PropList.has_property<
+            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
         DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
       UsmLocationDesc.location = static_cast<uint32_t>(
           PropList
@@ -559,9 +559,11 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   // UR_RESULT_ERROR_INVALID_VALUE means USM doesn't know about this ptr
   if (Err == UR_RESULT_ERROR_INVALID_VALUE)
     return alloc::unknown;
-  // otherwise UR_RESULT_SUCCESS is expected
+  // otherwise PI_SUCCESS is expected
   if (Err != UR_RESULT_SUCCESS) {
-    Plugin->reportUrError(Err, "get_pointer_type()");
+    throw detail::set_ur_error(
+        exception(make_error_code(errc::runtime), "get_pointer_type() failed"),
+        Err);
   }
 
   alloc ResultAlloc;
@@ -590,8 +592,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)
-    throw runtime_error("Ptr not a valid USM allocation!",
-                        UR_RESULT_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "Ptr not a valid USM allocation!");
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
 
@@ -599,8 +601,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
     auto Devs = CtxImpl->getDevices();
     if (Devs.size() == 0)
-      throw runtime_error("No devices in passed context!",
-                          UR_RESULT_ERROR_INVALID_VALUE);
+      throw exception(make_error_code(errc::invalid),
+                      "No devices in passed context!");
 
     // Just return the first device in the context
     return Devs[0];
@@ -621,8 +623,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
       PltImpl->getDeviceImpl(DeviceId);
   if (DevImpl)
     return detail::createSyclObjFromImpl<device>(DevImpl);
-  throw runtime_error("Cannot find device associated with USM allocation!",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "Cannot find device associated with USM allocation!");
 }
 
 // Device copy enhancement APIs, prepare_for and release_from USM.

@@ -9,7 +9,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <ur_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>
@@ -69,7 +69,7 @@ public:
   DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
-  pi_uint32 asUint32() const;
+  uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
 
@@ -223,6 +223,7 @@ public:
     return DeviceRequirements;
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
+  const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -246,6 +247,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
+  RTDeviceBinaryImage::PropertyRange VirtualFunctions;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 

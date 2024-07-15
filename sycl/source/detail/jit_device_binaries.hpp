@@ -10,7 +10,7 @@
 
 #include <cstring>
 #include <memory>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 namespace sycl {
 inline namespace _V1 {

@@ -29,7 +29,7 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// RUN: %clangxx -std=c++17 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %clangxx -std=c++17 -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_61 %}  %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -38,6 +38,10 @@
 template <typename T, size_t N> constexpr size_t array_size(T (&)[N]) {
   return N;
 }
+
+// TODO(syclcompat-lib-reviewers): Improve the tests to ensure that the
+// intrinsics are actually used and the implementation is not defaulting to the
+// library implementation in CUDA devices.
 
 template <typename T1, typename T2> struct TestCaseStorage {
   T1 a;

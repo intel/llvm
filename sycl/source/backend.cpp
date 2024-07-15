@@ -17,7 +17,7 @@
 #include <sycl/backend.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -32,38 +32,19 @@ namespace detail {
 static const PluginPtr &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return pi::getPlugin<backend::opencl>();
+    return ur::getPlugin<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return pi::getPlugin<backend::ext_oneapi_level_zero>();
+    return ur::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return pi::getPlugin<backend::ext_oneapi_cuda>();
+    return ur::getPlugin<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return pi::getPlugin<backend::ext_oneapi_hip>();
+    return ur::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::runtime),
         "getPlugin: Unsupported backend " +
             detail::codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
   }
-}
-
-backend convertBackend(pi_platform_backend PiBackend) {
-  switch (PiBackend) {
-  case PI_EXT_PLATFORM_BACKEND_UNKNOWN:
-    return backend::all; // No specific backend
-  case PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO:
-    return backend::ext_oneapi_level_zero;
-  case PI_EXT_PLATFORM_BACKEND_OPENCL:
-    return backend::opencl;
-  case PI_EXT_PLATFORM_BACKEND_CUDA:
-    return backend::ext_oneapi_cuda;
-  case PI_EXT_PLATFORM_BACKEND_HIP:
-    return backend::ext_oneapi_hip;
-  case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
-    return backend::ext_oneapi_native_cpu;
-  }
-  throw sycl::runtime_error{"convertBackend: Unsupported backend",
-                            UR_RESULT_ERROR_INVALID_OPERATION};
 }
 
 backend convertUrBackend(ur_platform_backend_t UrBackend) {
@@ -82,6 +63,8 @@ backend convertUrBackend(ur_platform_backend_t UrBackend) {
     // no idea what to do here
     return backend::all;
   }
+  throw exception(make_error_code(errc::runtime),
+                  "convertBackend: Unsupported backend");
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
@@ -123,7 +106,8 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
   Plugin->call(urContextCreateWithNativeHandle, NativeHandle,
-      DeviceHandles.size(), DeviceHandles.data(), &Properties, &UrContext);
+               DeviceHandles.size(), DeviceHandles.data(), &Properties,
+               &UrContext);
   // Construct the SYCL context from UR context.
   return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
       UrContext, Handler, Plugin, DeviceList, !KeepOwnership));

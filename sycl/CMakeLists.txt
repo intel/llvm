@@ -166,16 +166,18 @@ option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major rel
 
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_CUDA ON)
+  set(SYCL_BUILD_CUDA ON)
+  set(SYCL_EXT_ONEAPI_BACKEND_CUDA ON)
 endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_HIP ON)
+  set(SYCL_BUILD_HIP ON)
+  set(SYCL_EXT_ONEAPI_BACKEND_HIP ON)
 endif()
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_OPENCL ON)
+  set(SYCL_BUILD_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+  set(SYCL_BUILD_LEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_NATIVE_CPU ON)
@@ -367,7 +369,7 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain pi_win_proxy_loader)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
 
 # Enable new IN_LIST operator.
@@ -400,7 +402,7 @@ endif()
 add_subdirectory(tools)
 
 if (WIN32)
-  add_subdirectory(pi_win_proxy_loader)
+  add_subdirectory(ur_win_proxy_loader)
 endif()
 
 if(SYCL_INCLUDE_TESTS)
@@ -451,7 +453,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
 )
 
 if (WIN32)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_win_proxy_loader)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)
 endif()
 
 if (TARGET sycl-prof)

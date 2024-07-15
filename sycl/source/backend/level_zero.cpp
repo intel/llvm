@@ -19,7 +19,7 @@ using namespace sycl::detail;
 
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
+  const auto &Plugin = ur::getPlugin<backend::ext_oneapi_level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create UR device first.
   ur_device_handle_t UrDevice;
@@ -29,7 +29,6 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   return detail::createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
 }
-
 
 } // namespace ext::oneapi::level_zero::detail
 } // namespace _V1

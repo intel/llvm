@@ -66,7 +66,6 @@ enum class backend_errc : unsigned int {};
 
 // Convert from UR backend to SYCL backend enum
 backend convertUrBackend(ur_platform_backend_t UrBackend);
-backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
 
 template <backend Backend> class backend_traits {
@@ -212,9 +211,8 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
   }
   // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
-  // TODO(pi2ur): Reimplement this when the switch to uintptr_t is done
-  return 0; // (backend_return_t<backend::ext_oneapi_cuda,
-            // device>)(Obj.getNative());
+  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
+      Obj.getNative());
 }
 
 #ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
@@ -339,8 +337,9 @@ make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
     const async_handler &Handler = {}) {
-  return detail::make_context(detail::ur::cast<ur_native_handle_t>(BackendObject),
-                              Handler, Backend, false /* KeepOwnership */);
+  return detail::make_context(
+      detail::ur::cast<ur_native_handle_t>(BackendObject), Handler, Backend,
+      false /* KeepOwnership */);
 }
 
 template <backend Backend>

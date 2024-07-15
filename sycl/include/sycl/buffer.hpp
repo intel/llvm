@@ -67,7 +67,7 @@ class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx,
+make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
@@ -130,9 +130,13 @@ protected:
                                const void *Type, uint32_t Dim,
                                uint32_t ElemType, size_t Range[3]);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 
@@ -147,6 +151,8 @@ protected:
   void handleRelease() const;
 
   std::shared_ptr<detail::buffer_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 } // namespace detail
@@ -438,17 +444,14 @@ public:
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
-      throw sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Cannot create sub buffer from sub buffer.");
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw sycl::invalid_object_error(
-          "Requested sub-buffer size exceeds the size of the parent buffer",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested sub-buffer size exceeds the size of the parent buffer");
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
-      throw sycl::invalid_object_error(
-          "Requested sub-buffer region is not contiguous",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested sub-buffer region is not contiguous");
   }
 
   buffer(const buffer &rhs,
@@ -540,9 +543,8 @@ public:
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::invalid_object_error(
-          "Requested accessor would exceed the bounds of the buffer",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
@@ -563,9 +565,8 @@ public:
                                                        detail::code_location::
                                                            current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::invalid_object_error(
-          "Requested accessor would exceed the bounds of the buffer",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
@@ -660,11 +661,11 @@ public:
              std::remove_const_t<ReinterpretT>>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
-      throw sycl::invalid_object_error(
+      throw sycl::exception(
+          make_error_code(errc::invalid),
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
-          "represented by the type and range of this SYCL buffer",
-          UR_RESULT_ERROR_INVALID_VALUE);
+          "represented by the type and range of this SYCL buffer");
 
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -693,10 +694,9 @@ public:
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
-      throw sycl::invalid_object_error(
-          "Total byte size of buffer is not evenly divisible by the size of "
-          "the reinterpreted type",
-          UR_RESULT_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Total byte size of buffer is not evenly divisible "
+                            "by the size of the reinterpreted type");
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
@@ -731,7 +731,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, const event &,
+  detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
@@ -746,7 +746,7 @@ private:
 
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  buffer(pi_native_handle MemObject, const context &SyclContext,
+  buffer(ur_native_handle_t MemObject, const context &SyclContext,
          bool OwnNativeHandle, const event &AvailableEvent,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(MemObject, SyclContext,
@@ -849,14 +849,14 @@ template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
     -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
-buffer(Container &, const property_list & = {})
-    -> buffer<typename Container::value_type, 1>;
+buffer(Container &,
+       const property_list & = {}) -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
        const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
-buffer(const T *, const range<dimensions> &, const property_list & = {})
-    -> buffer<T, dimensions>;
+buffer(const T *, const range<dimensions> &,
+       const property_list & = {}) -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace _V1

@@ -8,13 +8,12 @@
 
 #pragma once
 #include <detail/config.hpp>
-#include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <ur_api.h>
 
@@ -34,34 +33,7 @@
     }                                                                          \
   }
 
-#define __SYCL_REPORT_UR_ERR_TO_EXC(expr, exc, str)                            \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != UR_RESULT_SUCCESS) {                                           \
-      std::string err_str =                                                    \
-          str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_UR_ERROR_REPORT + sycl::detail::codeToString(code) +    \
-                    err_str,                                                   \
-                code);                                                         \
-    }                                                                          \
-  }
-
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != UR_RESULT_SUCCESS) {                                           \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_UR_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_UR_ERR_TO_EXC(X, EXC, STR)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_UR_ERR_TO_STREAM(X)
-
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(X, ERRC)
 
 namespace sycl {
 inline namespace _V1 {
@@ -88,36 +60,13 @@ public:
 
   ~plugin() = default;
 
-  /// Checks return value from UR calls.
-  ///
-  /// \throw Exception if ur_result_t is not a UR_RESULT_SUCCESS.
-  template <typename Exception = sycl::runtime_error>
-  void checkUrResult(ur_result_t result) const {
+  /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
+  template <sycl::errc errc = sycl::errc::runtime>
+  void checkUrResult(ur_result_t ur_result) const {
     const char *message = nullptr;
-
-    if (result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-      int32_t error;
-      result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &error);
-
-      // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
-        std::clog << message << std::endl;
-      }
-
-      // If it is a warning do not throw code
-      if (result == UR_RESULT_SUCCESS) {
-        return;
-      }
-    }
-    __SYCL_CHECK_OCL_CODE_THROW(result, Exception, message);
-  }
-
-  /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT__SUCCESS
-  template <sycl::errc errc> void checkUrResult(ur_result_t result) const {
-    if (result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-      int32_t error;
-      const char *message = nullptr;
-      result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &error);
+    if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      int32_t adapter_error = 0;
+      ur_result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &adapter_error);
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
@@ -125,19 +74,18 @@ public:
       }
 
       // If it is a warning do not throw code
-      if (result == UR_RESULT_SUCCESS) {
+      if (ur_result == UR_RESULT_SUCCESS) {
         return;
       }
     }
-    __SYCL_CHECK_CODE_THROW_VIA_ERRC(result, errc);
-  }
-
-  void reportUrError(ur_result_t ur_result, const char *context) const {
     if (ur_result != UR_RESULT_SUCCESS) {
-      throw sycl::runtime_error(std::string(context) +
-                                    " API failed with error: " +
-                                    sycl::detail::codeToString(ur_result),
-                                ur_result);
+      throw sycl::detail::set_ur_error(
+          sycl::exception(sycl::make_error_code(errc),
+                          __SYCL_UR_ERROR_REPORT +
+                              sycl::detail::codeToString(ur_result) +
+                              (message ? "\n" + std::string(message) + "\n"
+                                       : std::string{})),
+          ur_result);
     }
   }
 
