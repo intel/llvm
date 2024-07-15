@@ -1508,7 +1508,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   }
 
   auto EventGraph = EventImpl->getCommandGraph();
-  if (EventGraph) {
+  if (MQueue && EventGraph) {
     if (EventGraph->getContext() != MQueue->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -1526,7 +1526,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     // created it was in recording mode. If the current queue is not recording,
     // we need to set it to recording (implements the transitive queue recording
     // feature).
-    if (MQueue && !MQueue->getCommandGraph()) {
+    if (!MQueue->getCommandGraph()) {
       EventGraph->beginRecording(MQueue);
     }
   }
