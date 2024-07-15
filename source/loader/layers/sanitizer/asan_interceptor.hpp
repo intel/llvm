@@ -164,7 +164,7 @@ struct DeviceGlobalInfo {
 
 class SanitizerInterceptor {
   public:
-    explicit SanitizerInterceptor();
+    explicit SanitizerInterceptor(logger::Logger &logger);
 
     ~SanitizerInterceptor();
 
@@ -261,6 +261,7 @@ class SanitizerInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
+    logger::Logger &logger;
 };
 
 } // namespace ur_sanitizer_layer
