@@ -103,6 +103,16 @@ defined as:
 4. oneAPI release is delivered.
 5. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat-major.minor.0`.
 
+### Deprecation Process/Breaking Changes
+
+As outlined above, SYCLcompat may sometimes make API breaking changes, indicated
+with a `major` version bump. Advanced notice (at least one major oneAPI release)
+will be provided via a deprecation warning on the relevant APIs, indicating to
+the user which alternative API should be used instead.
+
+Note that SYCLcompat is currently in pre-release, and until version `1.0.0` we
+do not consider our API to be stable, and may change it with shorter notice.
+
 ### Changelog
 
 Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](https://github.com/intel/llvm/blob/sycl/sycl/ReleaseNotes.md).
