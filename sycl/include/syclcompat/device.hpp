@@ -546,13 +546,10 @@ Use 64 bits as memory_bus_width default value."
     // create new default queue
     // calls create_queue_impl since we already have a locked m_mutex
 
-    if (in_order) {
-      _saved_queue = _default_queue = create_queue_impl(
-          print_on_async_exceptions, sycl::property::queue::in_order());
-    } else {
-      _saved_queue = _default_queue =
-          create_queue_impl(print_on_async_exceptions);
-    }
+    _saved_queue = _default_queue =
+        in_order ? create_queue_impl(print_on_async_exceptions,
+                                     sycl::property::queue::in_order())
+                 : create_queue_impl(print_on_async_exceptions);
   }
 
   void set_default_queue(const sycl::queue &q) {
@@ -579,11 +576,9 @@ Use 64 bits as memory_bus_width default value."
   queue_ptr create_queue(bool print_on_async_exceptions = false,
                          bool in_order = true) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (in_order) {
-      return create_queue_impl(print_on_async_exceptions,
-                               sycl::property::queue::in_order());
-    }
-    return create_queue_impl(print_on_async_exceptions);
+    return in_order ? create_queue_impl(print_on_async_exceptions,
+                                        sycl::property::queue::in_order())
+                    : create_queue_impl(print_on_async_exceptions);
   }
   void destroy_queue(queue_ptr &queue) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -655,9 +650,9 @@ Use 64 bits as memory_bus_width default value."
 private:
   /// Caller should only be done from functions where the resource \p m_mutex
   /// has been acquired.
-  template <typename... Properties>
+  template <typename... PropertiesT>
   queue_ptr create_queue_impl(bool print_on_async_exceptions = false,
-                              Properties... properties) {
+                              PropertiesT... properties) {
     sycl::property_list prop = sycl::property_list(
 #ifdef SYCLCOMPAT_PROFILING_ENABLED
         sycl::property::queue::enable_profiling(),
