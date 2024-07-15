@@ -57,9 +57,9 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // point introduced for the now deleted ESIMD plugin. All calls to this entry
   // point returned a similar error code to INVALID_OPERATION and would have
   // resulted in a similar throw to this one
-  throw runtime_error(
-      "This operation is not supported by any existing backends.",
-      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(
+      make_error_code(errc::runtime),
+      "This operation is not supported by any existing backends.");
   return nullptr;
 }
 
@@ -230,8 +230,7 @@ template <backend BE> const PluginPtr &getPlugin() {
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      UR_RESULT_ERROR_INVALID_OPERATION);
+  throw exception(errc::runtime, "pi::getPlugin couldn't find plugin");
 }
 
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();

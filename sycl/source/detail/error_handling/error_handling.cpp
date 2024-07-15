@@ -51,7 +51,8 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     if (HasExceededAvailableRegisters) {
       std::string message(
           "Exceeded the number of registers available on the hardware.\n");
-      throw sycl::nd_range_error(
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::nd_range),
           // Additional information which can be helpful to the user.
           message.append(
               "\tThe number registers per work-group cannot exceed " +
@@ -61,8 +62,7 @@ void handleOutOfResources(const device_impl &DeviceImpl,
               std::to_string(NumRegisters) +
               " registers per work-item for a total of " +
               std::to_string(TotalNumberOfWIs) +
-              " work-items per work-group.\n"),
-          UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+              " work-items per work-group.\n"));
     }
   }
   // Fallback

@@ -832,8 +832,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     // We don't have any backend implementations that support enqueueing a fill
     // on non-buffer mem objects like this. The old UR function was a stub with
     // an abort.
-    throw runtime_error("Fill operation not supported for the given mem object",
-                        UR_RESULT_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Fill operation not supported for the given mem object");
   }
 }
 
