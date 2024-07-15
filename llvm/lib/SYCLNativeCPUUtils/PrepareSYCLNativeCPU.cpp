@@ -16,7 +16,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/PassManager.h"
@@ -40,13 +39,11 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
-#include <cstddef>
 #include <utility>
 #include <vector>
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/attributes.h"
-#include "compiler/utils/builtin_info.h"
 #include "compiler/utils/metadata.h"
 #endif
 
@@ -269,45 +266,6 @@ static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
 
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
-// TODO: taken from sycl-post-link. It should be possible to move this function
-// to a common helper header.
-static bool removeSYCLKernelsConstRefArray(Module &M) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.used");
-
-  if (!GV) {
-    return false;
-  }
-  assert(GV->user_empty() && "Unexpected llvm.used users");
-  Constant *Initializer = GV->getInitializer();
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer and all operands of it.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
-    IOperands.push_back(cast<Constant>(*It));
-  assert(llvm::isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.used global");
-  Initializer->destroyConstant();
-  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->stripPointerCasts();
-    auto *F = dyn_cast<Function>(Op);
-    if (llvm::isSafeToDestroyConstant(*It)) {
-      (*It)->destroyConstant();
-    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
-               !F->use_empty()) {
-      // The element in "llvm.used" array has other users. That is Ok for
-      // specialization constants, but is wrong for kernels.
-      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
-    }
-
-    // Remove unused kernel declarations to avoid LLVM IR check fails.
-    if (F && F->isDeclaration() && F->use_empty())
-      F->eraseFromParent();
-  }
-  return true;
-}
-
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
@@ -426,9 +384,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         }
       }
     }
-
-    // Remove the llvm.used array since it is not needed anymore at this point.
-    removeSYCLKernelsConstRefArray(M);
 
     // Find any left over SYCL_EXTERNAL function that has no more uses
     std::set<Function *> Kernelset(OldKernels.begin(), OldKernels.end());
