@@ -45,6 +45,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tensor_map.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
