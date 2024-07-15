@@ -1,6 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: cuda, cuda_dev_kit
 //
-// RUN: %{build} -o %t.out -lcuda
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 //
 // Test for buffer use in a context with multiple devices (all found
