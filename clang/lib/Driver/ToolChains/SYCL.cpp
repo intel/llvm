@@ -220,8 +220,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   // Currently, all SYCL device libraries will be linked by default. Linkage
   // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
-      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
-      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
+      {"libc", true},          {"libm-fp32", true},     {"libm-fp64", true},
+      {"libimf-fp32", true},   {"libimf-fp64", true},   {"libimf-bf16", true},
       {"libm-bfloat16", true}, {"libgsort-fp32", true}, {"internal", true}};
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {

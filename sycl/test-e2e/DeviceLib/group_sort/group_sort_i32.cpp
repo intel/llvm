@@ -12,9 +12,9 @@
 //
 // UNSUPPORTED: cuda || hip
 
+#include <cassert>
 #include <cmath>
 #include <cstddef>
-#include <cassert>
 #include <iostream>
 #include <sycl.hpp>
 using namespace sycl;
@@ -43,8 +43,8 @@ __devicelib_default_work_group_joint_sort_descending_p1i32_u32_p3i8(
 constexpr static size_t NUM = 19;
 int main() {
   queue q;
-  int32_t a[NUM] = {-1, 11,  1,  9,  3, 100, 34, 8,  1000,
-                   77, 293, 23, 36, 2, 111, 91, 88, -2, 525};
+  int32_t a[NUM] = {-1,  11, 1,  9, 3,   100, 34, 8,  1000, 77,
+                    293, 23, 36, 2, 111, 91,  88, -2, 525};
   int32_t b[NUM] = {
       0,
   };
