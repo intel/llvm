@@ -156,9 +156,7 @@ bool FusionPipeline::runMaterializerPasses(
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  // Base the pipeline on O3 opt level.
-  ModulePassManager MPM =
-      PB.buildPerModuleDefaultPipeline(OptimizationLevel::O3);
+  ModulePassManager MPM;
   // Register inserter and materializer passes.
   {
     FunctionPassManager FPM;
