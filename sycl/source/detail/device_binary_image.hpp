@@ -63,10 +63,10 @@ private:
   std::size_t Size;
 };
 
-// C++ wrapper over the _pi_device_binary_property_struct structure.
+// C++ wrapper over the _ur_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
-  DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
+  DeviceBinaryProperty(const _ur_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
   uint32_t asUint32() const;
@@ -76,7 +76,7 @@ public:
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
                                   const DeviceBinaryProperty &P);
-  const _pi_device_binary_property_struct *Prop;
+  const _ur_device_binary_property_struct *Prop;
 };
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
@@ -88,19 +88,19 @@ public:
   // Implements the standard C++ STL input iterator interface.
   class PropertyRange {
   public:
-    using ValTy = std::remove_pointer<pi_device_binary_property>::type;
+    using ValTy = std::remove_pointer<ur_device_binary_property>::type;
 
     class ConstIterator {
-      pi_device_binary_property Cur;
+      ur_device_binary_property Cur;
 
     public:
       using iterator_category = std::input_iterator_tag;
       using value_type = ValTy;
       using difference_type = ptrdiff_t;
-      using pointer = const pi_device_binary_property;
-      using reference = pi_device_binary_property;
+      using pointer = const ur_device_binary_property;
+      using reference = ur_device_binary_property;
 
-      ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
+      ConstIterator(ur_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;
         return *this;
@@ -125,18 +125,18 @@ public:
     // Searches for a property set with given name and constructs a
     // PropertyRange spanning all its elements. If property set is not found,
     // the range will span zero elements.
-    PropertyRange(pi_device_binary Bin, const char *PropSetName)
+    PropertyRange(ur_device_binary Bin, const char *PropSetName)
         : PropertyRange() {
       init(Bin, PropSetName);
     };
-    void init(pi_device_binary Bin, const char *PropSetName);
-    pi_device_binary_property Begin;
-    pi_device_binary_property End;
+    void init(ur_device_binary Bin, const char *PropSetName);
+    ur_device_binary_property Begin;
+    ur_device_binary_property End;
   };
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(ur_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -148,10 +148,10 @@ public:
   virtual ~RTDeviceBinaryImage() {}
 
   bool supportsSpecConstants() const {
-    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
+    return getFormat() == UR_DEVICE_BINARY_TYPE_SPIRV;
   }
 
-  const pi_device_binary_struct &getRawData() const { return *get(); }
+  const ur_device_binary_struct &getRawData() const { return *get(); }
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
@@ -172,13 +172,13 @@ public:
   }
 
   /// Returns the format of the binary image
-  pi_device_binary_type getFormat() const {
+  ur_device_binary_type getFormat() const {
     assert(Bin && "binary image data not set");
     return Format;
   }
 
   /// Returns a single property from SYCL_MISC_PROP category.
-  pi_device_binary_property getProperty(const char *PropName) const;
+  ur_device_binary_property getProperty(const char *PropName) const;
 
   /// Gets the iterator range over specialization constants in this binary
   /// image. For each property pointed to by an iterator within the
@@ -231,12 +231,12 @@ public:
   }
 
 protected:
-  void init(pi_device_binary Bin);
-  pi_device_binary get() const { return Bin; }
+  void init(ur_device_binary Bin);
+  ur_device_binary get() const { return Bin; }
 
-  pi_device_binary Bin;
+  ur_device_binary Bin;
 
-  pi_device_binary_type Format = PI_DEVICE_BINARY_TYPE_NONE;
+  ur_device_binary_type Format = UR_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;

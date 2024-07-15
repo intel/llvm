@@ -12,7 +12,7 @@
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -38,18 +38,18 @@ struct KernelInfo<MultipleDevsCacheTestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::UrImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({"MultipleDevsCacheTestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -59,8 +59,8 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::UrImage Img = generateDefaultImage();
+static sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 static ur_result_t redefinedDeviceGetAfter(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);

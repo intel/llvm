@@ -12,7 +12,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -37,23 +37,23 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateImageWithSpecConsts() {
+static sycl::unittest::UrImage generateImageWithSpecConsts() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
-  PiProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
+  UrProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  UrProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
   addSpecConstants({SC1, SC2}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({"SpecializationConstant_TestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -63,8 +63,8 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::UrImage Img = generateImageWithSpecConsts();
+static sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::unittest::UrMock<> Mock;

@@ -1,4 +1,4 @@
-//==------------- PiImage.hpp --- PI mock image unit testing library -------==//
+//==------------- UrImage.hpp --- UR mock image unit testing library -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,31 +21,31 @@ namespace unittest {
 
 using namespace sycl::detail;
 
-/// Convinience wrapper around _pi_device_binary_property_struct.
-class PiProperty {
+/// Convinience wrapper around _ur_device_binary_property_struct.
+class UrProperty {
 public:
-  using NativeType = _pi_device_binary_property_struct;
+  using NativeType = _ur_device_binary_property_struct;
 
-  /// Constructs a PI property.
+  /// Constructs a UR property.
   ///
   /// \param Name is a property name.
   /// \param Data is a vector of raw property value bytes.
-  /// \param Type is one of pi_property_type values.
-  PiProperty(const std::string &Name, std::vector<char> Data, uint32_t Type)
+  /// \param Type is one of ur_property_type values.
+  UrProperty(const std::string &Name, std::vector<char> Data, uint32_t Type)
       : MName(Name), MData(std::move(Data)), MType(Type) {
     updateNativeType();
   }
 
   NativeType convertToNativeType() const { return MNative; }
 
-  PiProperty(const PiProperty &Src) {
+  UrProperty(const UrProperty &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MType = Src.MType;
     updateNativeType();
   }
 
-  PiProperty &operator=(const PiProperty &Src) {
+  UrProperty &operator=(const UrProperty &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MType = Src.MType;
@@ -55,7 +55,7 @@ public:
 
 private:
   void updateNativeType() {
-    if (MType == PI_PROPERTY_TYPE_UINT32) {
+    if (MType == UR_PROPERTY_TYPE_UINT32) {
       MNative = NativeType{const_cast<char *>(MName.c_str()), nullptr, MType,
                            *((uint32_t *)MData.data())};
     } else {
@@ -70,23 +70,23 @@ private:
   NativeType MNative;
 };
 
-/// Convinience wrapper for _pi_offload_entry_struct.
-class PiOffloadEntry {
+/// Convinience wrapper for _ur_offload_entry_struct.
+class UrOffloadEntry {
 public:
-  using NativeType = _pi_offload_entry_struct;
+  using NativeType = _ur_offload_entry_struct;
 
-  PiOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
+  UrOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
   }
 
-  PiOffloadEntry(const PiOffloadEntry &Src) {
+  UrOffloadEntry(const UrOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
     updateNativeType();
   }
-  PiOffloadEntry &operator=(const PiOffloadEntry &Src) {
+  UrOffloadEntry &operator=(const UrOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
@@ -110,17 +110,17 @@ private:
 };
 
 /// Generic array of PI entries.
-template <typename T> class PiArray {
+template <typename T> class UrArray {
 public:
-  explicit PiArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
+  explicit UrArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
     updateEntries();
   }
 
-  PiArray(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
+  UrArray(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
     updateEntries();
   }
 
-  PiArray() = default;
+  UrArray() = default;
 
   void push_back(const T &Entry) {
     MMockEntries.push_back(Entry);
@@ -161,15 +161,15 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <typename T> PiArray(std::vector<T>) -> PiArray<T>;
+template <typename T> UrArray(std::vector<T>) -> UrArray<T>;
 
-template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
+template <typename T> UrArray(std::initializer_list<T>) -> UrArray<T>;
 #endif // __cpp_deduction_guides
 
-/// Convenience wrapper for pi_device_binary_property_set.
-class PiPropertySet {
+/// Convenience wrapper for ur_device_binary_property_set.
+class UrPropertySet {
 public:
-  PiPropertySet() {
+  UrPropertySet() {
     // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
     // systems that causes incorrect RT installation directory detection, which
     // prevents proper loading of fallback libraries. See intel/llvm#6945
@@ -186,30 +186,30 @@ public:
     // Name doesn't matter here, it is not used by RT
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
-    PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
-           PiArray{DeviceLibReqMask});
+    UrProperty DeviceLibReqMask("", Data, UR_PROPERTY_TYPE_UINT32);
+    insert(__SYCL_UR_PROPERTY_SET_DEVICELIB_REQ_MASK,
+           UrArray{DeviceLibReqMask});
   }
 
   /// Adds a new array of properties to the set.
   ///
   /// \param Name is a property array name. See pi.h for list of known names.
   /// \param Props is an array of property values.
-  void insert(const std::string &Name, PiArray<PiProperty> Props) {
+  void insert(const std::string &Name, UrArray<UrProperty> Props) {
     MNames.push_back(Name);
     MMockProperties.push_back(std::move(Props));
-    MProperties.push_back(_pi_device_binary_property_set_struct{
+    MProperties.push_back(_ur_device_binary_property_set_struct{
         MNames.back().data(), MMockProperties.back().begin(),
         MMockProperties.back().end()});
   }
 
-  _pi_device_binary_property_set_struct *begin() {
+  _ur_device_binary_property_set_struct *begin() {
     if (MProperties.empty())
       return nullptr;
     return &*MProperties.begin();
   }
 
-  _pi_device_binary_property_set_struct *end() {
+  _ur_device_binary_property_set_struct *end() {
     if (MProperties.empty())
       return nullptr;
     return &*MProperties.rbegin() + 1;
@@ -217,20 +217,20 @@ public:
 
 private:
   std::vector<std::string> MNames;
-  std::vector<PiArray<PiProperty>> MMockProperties;
-  std::vector<_pi_device_binary_property_set_struct> MProperties;
+  std::vector<UrArray<UrProperty>> MMockProperties;
+  std::vector<_ur_device_binary_property_set_struct> MProperties;
 };
 
 /// Convenience wrapper around PI internal structures, that manages PI binary
 /// image data lifecycle.
-class PiImage {
+class UrImage {
 public:
   /// Constructs an arbitrary device image.
-  PiImage(uint16_t Version, uint8_t Kind, uint8_t Format,
+  UrImage(uint16_t Version, uint8_t Kind, uint8_t Format,
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
+          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -238,17 +238,17 @@ public:
         MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
-  PiImage(uint8_t Format, const std::string &DeviceTargetSpec,
+  UrImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
-          PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : PiImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+      : UrImage(UR_DEVICE_BINARY_VERSION, UR_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
                 Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
 
-  pi_device_binary_struct convertToNativeType() {
-    return pi_device_binary_struct{
+  ur_device_binary_struct convertToNativeType() {
+    return ur_device_binary_struct{
         MVersion,
         MKind,
         MFormat,
@@ -276,22 +276,22 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  PiArray<PiOffloadEntry> MOffloadEntries;
-  PiPropertySet MPropertySet;
+  UrArray<UrOffloadEntry> MOffloadEntries;
+  UrPropertySet MPropertySet;
 };
 
-/// Convenience wrapper around pi_device_binaries_struct, that manages mock
+/// Convenience wrapper around ur_device_binaries_struct, that manages mock
 /// device images' lifecycle.
-template <size_t __NumberOfImages> class PiImageArray {
+template <size_t __NumberOfImages> class UrImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  PiImageArray(PiImage *Imgs) {
+  UrImageArray(UrImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
-    MAllBinaries = pi_device_binaries_struct{
-        PI_DEVICE_BINARIES_VERSION,
+    MAllBinaries = ur_device_binaries_struct{
+        UR_DEVICE_BINARIES_VERSION,
         NumberOfImages,
         MNativeImages,
         nullptr, // not used, put here for compatibility with OpenMP
@@ -301,11 +301,11 @@ public:
     __sycl_register_lib(&MAllBinaries);
   }
 
-  ~PiImageArray() { __sycl_unregister_lib(&MAllBinaries); }
+  ~UrImageArray() { __sycl_unregister_lib(&MAllBinaries); }
 
 private:
-  pi_device_binary_struct MNativeImages[NumberOfImages];
-  pi_device_binaries_struct MAllBinaries;
+  ur_device_binary_struct MNativeImages[NumberOfImages];
+  ur_device_binaries_struct MAllBinaries;
 };
 
 template <typename Func, uint32_t Idx = 0, typename... Ts>
@@ -333,7 +333,7 @@ template <typename Func, uint32_t Idx = 0, typename... Ts>
 /// \param Offsets is a list of offsets inside composite spec constant.
 /// \param DefaultValues is a tuple of default values for composite spec const.
 template <typename... T>
-inline PiProperty makeSpecConstant(std::vector<char> &ValData,
+inline UrProperty makeSpecConstant(std::vector<char> &ValData,
                                    const std::string &Name,
                                    std::initializer_list<uint32_t> IDs,
                                    std::initializer_list<uint32_t> Offsets,
@@ -385,53 +385,53 @@ inline PiProperty makeSpecConstant(std::vector<char> &ValData,
 
   iterate_tuple(FillData, DefaultValues);
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  UrProperty Prop{Name, DescData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
 
 /// Utility function to mark kernel as the one using assert
 inline void setKernelUsesAssert(const std::vector<std::string> &Names,
-                                PiPropertySet &Set) {
-  PiArray<PiProperty> Value;
+                                UrPropertySet &Set) {
+  UrArray<UrProperty> Value;
   for (const std::string &N : Names)
-    Value.push_back({N, {0, 0, 0, 0}, PI_PROPERTY_TYPE_UINT32});
-  Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
+    Value.push_back({N, {0, 0, 0, 0}, UR_PROPERTY_TYPE_UINT32});
+  Set.insert(__SYCL_UR_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
 }
 
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
-inline void addSpecConstants(PiArray<PiProperty> SpecConstants,
-                             std::vector<char> ValData, PiPropertySet &Props) {
-  Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
+inline void addSpecConstants(UrArray<UrProperty> SpecConstants,
+                             std::vector<char> ValData, UrPropertySet &Props) {
+  Props.insert(__SYCL_UR_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
-  PiProperty Prop{"all", std::move(ValData), PI_PROPERTY_TYPE_BYTE_ARRAY};
+  UrProperty Prop{"all", std::move(ValData), UR_PROPERTY_TYPE_BYTE_ARRAY};
 
-  PiArray<PiProperty> DefaultValues{std::move(Prop)};
+  UrArray<UrProperty> DefaultValues{std::move(Prop)};
 
-  Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
+  Props.insert(__SYCL_UR_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
                std::move(DefaultValues));
 }
 
 /// Utility function to add ESIMD kernel flag to property set.
-inline void addESIMDFlag(PiPropertySet &Props) {
+inline void addESIMDFlag(UrPropertySet &Props) {
   std::vector<char> ValData(sizeof(uint32_t));
   ValData[0] = 1;
-  PiProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
+  UrProperty Prop{"isEsimdImage", ValData, UR_PROPERTY_TYPE_UINT32};
 
-  PiArray<PiProperty> Value{std::move(Prop)};
+  UrArray<UrProperty> Value{std::move(Prop)};
 
-  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
+  Props.insert(__SYCL_UR_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline PiArray<PiOffloadEntry>
+inline UrArray<UrOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  PiArray<PiOffloadEntry> Entries;
+  UrArray<UrOffloadEntry> Entries;
 
   for (const auto &Name : KernelNames) {
-    PiOffloadEntry E{Name, {}, 0};
+    UrOffloadEntry E{Name, {}, 0};
     Entries.push_back(std::move(E));
   }
   return Entries;
@@ -442,7 +442,7 @@ makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
 /// \param Name is a property name.
 /// \param NumArgs is a total number of arguments of a kernel.
 /// \param ElimArgMask is a bit mask of eliminated kernel arguments IDs.
-inline PiProperty
+inline UrProperty
 makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
                        const std::vector<unsigned char> &ElimArgMask) {
   const size_t BYTES_FOR_SIZE = 8;
@@ -454,7 +454,7 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   std::uninitialized_copy(ElimArgMask.begin(), ElimArgMask.end(),
                           DescData.data() + BYTES_FOR_SIZE);
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  UrProperty Prop{Name, DescData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -465,7 +465,7 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
 /// \param TypeSize is the size of the underlying type in the device global.
 /// \param DeviceImageScoped is whether the device global was device image scope
 /// decorated.
-inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
+inline UrProperty makeDeviceGlobalInfo(const std::string &Name,
                                        const uint32_t TypeSize,
                                        const std::uint32_t DeviceImageScoped) {
   constexpr size_t BYTES_FOR_SIZE = 8;
@@ -477,7 +477,7 @@ inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
   std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
               &DeviceImageScoped, sizeof(DeviceImageScoped));
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  UrProperty Prop{Name, DescData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -487,7 +487,7 @@ inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
 /// \param Name is the name of the hostpipe name.
 /// \param TypeSize is the size of the underlying type in the hostpipe.
 /// decorated.
-inline PiProperty makeHostPipeInfo(const std::string &Name,
+inline UrProperty makeHostPipeInfo(const std::string &Name,
                                    const uint32_t TypeSize) {
   constexpr size_t BYTES_FOR_SIZE = 8;
   const std::uint64_t BytesForArgs = sizeof(std::uint32_t);
@@ -496,13 +496,13 @@ inline PiProperty makeHostPipeInfo(const std::string &Name,
   std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
   std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  UrProperty Prop{Name, DescData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
 
 /// Utility function to add aspects to property set.
-inline PiProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
+inline UrProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   const size_t BYTES_FOR_SIZE = 8;
   std::vector<char> ValData(BYTES_FOR_SIZE +
                             Aspects.size() * sizeof(sycl::aspect));
@@ -512,10 +512,10 @@ inline PiProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
   std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
                           ValData.data() + BYTES_FOR_SIZE);
-  return {"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  return {"aspects", ValData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 }
 
-inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
+inline UrProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
   const size_t BYTES_FOR_SIZE = 8;
   std::vector<char> ValData(BYTES_FOR_SIZE + ReqdWGSize.size() * sizeof(int));
   uint64_t ValDataSize = ValData.size();
@@ -525,17 +525,17 @@ inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
   std::uninitialized_copy(ReqdWGSizePtr,
                           ReqdWGSizePtr + ReqdWGSize.size() * sizeof(int),
                           ValData.data() + BYTES_FOR_SIZE);
-  return {"reqd_work_group_size", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  return {"reqd_work_group_size", ValData, UR_PROPERTY_TYPE_BYTE_ARRAY};
 }
 
 inline void
-addDeviceRequirementsProps(PiPropertySet &Props,
+addDeviceRequirementsProps(UrPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
                            const std::vector<int> &ReqdWGSize = {}) {
-  PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
+  UrArray<UrProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
-  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+  Props.insert(__SYCL_UR_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                std::move(Value));
 }
 

@@ -1,7 +1,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -68,20 +68,21 @@ struct KernelInfo<TestKernelACC> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
+static sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
+                     const std::vector<sycl::aspect> &Aspects,
+                     const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
   addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -91,7 +92,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[7] = {
+static sycl::unittest::UrImage Imgs[7] = {
     // Images for validating checks based on max_work_group_size + aspects
     generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu},
                          {32}), // 32 <= 256 (OK)
@@ -110,7 +111,7 @@ static sycl::unittest::PiImage Imgs[7] = {
     generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu}),
     generateDefaultImage({"TestKernelACC"}, {sycl::aspect::accelerator})};
 
-static sycl::unittest::PiImageArray<7> ImgArray{Imgs};
+static sycl::unittest::UrImageArray<7> ImgArray{Imgs};
 
 static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);

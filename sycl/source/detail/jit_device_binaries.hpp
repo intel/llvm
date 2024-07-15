@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// Representation of _pi_offload_entry for creation of JIT device binaries at
+/// Representation of _ur_offload_entry for creation of JIT device binaries at
 /// runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class OffloadEntryContainer {
@@ -31,7 +31,7 @@ public:
   OffloadEntryContainer(const OffloadEntryContainer &) = delete;
   OffloadEntryContainer &operator=(const OffloadEntryContainer &) = delete;
 
-  _pi_offload_entry_struct getPIOffloadEntry();
+  _ur_offload_entry_struct getPIOffloadEntry();
 
 private:
   std::unique_ptr<char[]> KernelName;
@@ -42,7 +42,7 @@ private:
   int32_t EntryReserved;
 };
 
-/// Representation of _pi_device_binary_property_struct for creation of JIT
+/// Representation of _ur_device_binary_property_struct for creation of JIT
 /// device binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class PropertyContainer {
@@ -50,7 +50,7 @@ class PropertyContainer {
 public:
   PropertyContainer(const std::string &Name, void *Data, size_t Size,
                     uint32_t Type);
-  // Set a PI_PROPERTY_TYPE_UINT32 property
+  // Set a UR_PROPERTY_TYPE_UINT32 property
   PropertyContainer(const std::string &Name, uint32_t Data);
 
   PropertyContainer(PropertyContainer &&) = default;
@@ -60,7 +60,7 @@ public:
   PropertyContainer(const PropertyContainer &) = delete;
   PropertyContainer &operator=(const PropertyContainer &) = delete;
 
-  _pi_device_binary_property_struct getPIProperty();
+  _ur_device_binary_property_struct getPIProperty();
 
 private:
   std::unique_ptr<char[]> PropName;
@@ -69,7 +69,7 @@ private:
   uint32_t PropType;
 };
 
-/// Representation of _pi_device_binary_property_set_struct for creation of JIT
+/// Representation of _ur_device_binary_property_set_struct for creation of JIT
 /// device binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class PropertySetContainer {
@@ -85,16 +85,16 @@ public:
 
   void addProperty(PropertyContainer &&Prop);
 
-  _pi_device_binary_property_set_struct getPIPropertySet();
+  _ur_device_binary_property_set_struct getPIPropertySet();
 
 private:
   std::unique_ptr<char[]> SetName;
   bool Fused = true;
   std::vector<PropertyContainer> Properties;
-  std::vector<_pi_device_binary_property_struct> PIProperties;
+  std::vector<_ur_device_binary_property_struct> PIProperties;
 };
 
-/// Representation of pi_device_binary_struct for creation of JIT device
+/// Representation of ur_device_binary_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinaryContainer {
@@ -111,20 +111,20 @@ public:
 
   void addProperty(PropertySetContainer &&Cont);
 
-  pi_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
+  ur_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
                                             size_t BinarySize,
                                             const char *TargetSpec,
-                                            pi_device_binary_type Format);
+                                            ur_device_binary_type Format);
 
 private:
   bool Fused = true;
   std::vector<OffloadEntryContainer> OffloadEntries;
-  std::vector<_pi_offload_entry_struct> PIOffloadEntries;
+  std::vector<_ur_offload_entry_struct> PIOffloadEntries;
   std::vector<PropertySetContainer> PropertySets;
-  std::vector<_pi_device_binary_property_set_struct> PIPropertySets;
+  std::vector<_ur_device_binary_property_set_struct> PIPropertySets;
 };
 
-/// Representation of pi_device_binaries_struct for creation of JIT device
+/// Representation of ur_device_binaries_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinariesCollection {
@@ -141,15 +141,15 @@ public:
 
   void addDeviceBinary(DeviceBinaryContainer &&Cont,
                        const unsigned char *BinaryStart, size_t BinarySize,
-                       const char *TargetSpec, pi_device_binary_type Format);
-  pi_device_binaries getPIDeviceStruct();
+                       const char *TargetSpec, ur_device_binary_type Format);
+  ur_device_binaries getPIDeviceStruct();
 
 private:
   bool Fused = true;
-  std::unique_ptr<pi_device_binaries_struct> PIStruct;
+  std::unique_ptr<ur_device_binaries_struct> PIStruct;
 
   std::vector<DeviceBinaryContainer> Binaries;
-  std::vector<pi_device_binary_struct> PIBinaries;
+  std::vector<ur_device_binary_struct> PIBinaries;
 };
 
 } // namespace detail

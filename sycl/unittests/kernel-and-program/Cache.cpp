@@ -15,7 +15,7 @@
 #include "detail/kernel_program_cache.hpp"
 #include "sycl/detail/ur.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -55,22 +55,22 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::UrImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  UrProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -80,8 +80,8 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::UrImage Img = generateDefaultImage();
+static sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 struct TestCtx {
   ur_context_handle_t context;

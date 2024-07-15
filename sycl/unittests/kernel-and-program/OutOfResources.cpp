@@ -12,7 +12,7 @@
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -41,17 +41,17 @@ struct KernelInfo<OutOfResourcesKernel2> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage makeImage(const char *kname) {
+static sycl::unittest::UrImage makeImage(const char *kname) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({kname});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({kname});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -61,10 +61,10 @@ static sycl::unittest::PiImage makeImage(const char *kname) {
   return Img;
 }
 
-static sycl::unittest::PiImage Img[2] = {makeImage("OutOfResourcesKernel1"),
+static sycl::unittest::UrImage Img[2] = {makeImage("OutOfResourcesKernel1"),
                                          makeImage("OutOfResourcesKernel2")};
 
-static sycl::unittest::PiImageArray<2> ImgArray{Img};
+static sycl::unittest::UrImageArray<2> ImgArray{Img};
 
 static int nProgramCreate = 0;
 static volatile bool outOfResourcesToggle = false;
@@ -168,8 +168,8 @@ TEST(OutOfHostMemoryTest, urProgramCreate) {
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
   // Now, we make the next piProgramCreate call fail with
-  // PI_ERROR_OUT_OF_HOST_MEMORY. The caching mechanism should catch this,
-  // clear the cache, and retry the piProgramCreate.
+  // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. The caching mechanism should catch
+  // this, clear the cache, and retry the piProgramCreate.
   outOfHostMemoryToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfHostMemoryToggle);
@@ -181,8 +181,8 @@ TEST(OutOfHostMemoryTest, urProgramCreate) {
   }
 
   // The next piProgramCreate call will fail with
-  // PI_ERROR_OUT_OF_HOST_MEMORY. But OutOfResourcesKernel2 is in
-  // the cache, so we expect no new piProgramCreate calls.
+  // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. But OutOfResourcesKernel2 is in the
+  // cache, so we expect no new urProgramCreateWithIL calls.
   outOfHostMemoryToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_TRUE(outOfHostMemoryToggle);

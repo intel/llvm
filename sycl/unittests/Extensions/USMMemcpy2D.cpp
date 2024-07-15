@@ -11,7 +11,7 @@
 #include <detail/queue_impl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -125,19 +125,19 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateMemopsImage() {
+static sycl::unittest::UrImage generateMemopsImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(
       {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
        USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -148,8 +148,8 @@ static sycl::unittest::PiImage generateMemopsImage() {
 }
 
 namespace {
-sycl::unittest::PiImage Imgs[] = {generateMemopsImage()};
-sycl::unittest::PiImageArray<1> ImgArray{Imgs};
+sycl::unittest::UrImage Imgs[] = {generateMemopsImage()};
+sycl::unittest::UrImageArray<1> ImgArray{Imgs};
 
 ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;
 

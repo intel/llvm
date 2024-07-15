@@ -12,7 +12,7 @@
 #endif
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -71,17 +71,17 @@ static void setupCommonMockAPIs(sycl::unittest::UrMock<> &Mock) {
                                            &redefinedProgramBuild);
 }
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::UrImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "-compile-img",                         // Compile options
               "-link-img",                            // Link options
               std::move(Bin),
@@ -91,8 +91,8 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray<1> ImgArray{&Img};
+sycl::unittest::UrImage Img = generateDefaultImage();
+sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::unittest::UrMock<> Mock;

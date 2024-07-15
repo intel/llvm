@@ -13,7 +13,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -43,25 +43,25 @@ struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateEAMTestKernelImage() {
+static sycl::unittest::UrImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
 
   // Eliminated arguments are 1st and 3rd.
   std::vector<unsigned char> KernelEAM{0b00000101};
-  PiProperty EAMKernelPOI = makeKernelParamOptInfo(
+  UrProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernelName, EAMTestKernelNumArgs, KernelEAM);
-  PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  UrArray<UrProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
+  UrPropertySet PropSet;
+  PropSet.insert(__SYCL_UR_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
                  std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -71,19 +71,19 @@ static sycl::unittest::PiImage generateEAMTestKernelImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage generateEAMTestKernel2Image() {
+static sycl::unittest::UrImage generateEAMTestKernel2Image() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
   std::string CompileOpts = "", LinkOpts = "";
 
-  PiImage Img(PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  UrImage Img(UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               CompileOpts,                            // Compile options
               LinkOpts,                               // Link options
               std::move(Bin), std::move(Entries), std::move(PropSet));
@@ -91,10 +91,10 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
   return Img;
 }
 
-static sycl::unittest::PiImage EAMImg = generateEAMTestKernelImage();
-static sycl::unittest::PiImage EAM2Img = generateEAMTestKernel2Image();
-static sycl::unittest::PiImageArray<1> EAMImgArray{&EAMImg};
-static sycl::unittest::PiImageArray<1> EAM2ImgArray{&EAM2Img};
+static sycl::unittest::UrImage EAMImg = generateEAMTestKernelImage();
+static sycl::unittest::UrImage EAM2Img = generateEAMTestKernel2Image();
+static sycl::unittest::UrImageArray<1> EAMImgArray{&EAMImg};
+static sycl::unittest::UrImageArray<1> EAM2ImgArray{&EAM2Img};
 
 // ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
 // storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.

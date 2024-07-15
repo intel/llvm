@@ -9,8 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiImage.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <detail/event_impl.hpp>

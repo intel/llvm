@@ -11,7 +11,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -50,20 +50,20 @@ template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
 namespace {
 
 std::set<const void *> TrackedImages;
-sycl::unittest::PiImage
+sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     pi_device_binary_type BinaryType,
+                     ur_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  UrPropertySet PropSet;
 
   static unsigned char NImage = 0;
   std::vector<unsigned char> Bin{NImage++};
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{BinaryType, // Format
+  UrImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
@@ -84,25 +84,25 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 5: input, KernelE
 // Image 6: exe, KernelE
 // Image 7: exe. KernelE
-sycl::unittest::PiImage Imgs[] = {
-    generateDefaultImage({"KernelA", "KernelB"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelA"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelC"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelC"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA),
-    generateDefaultImage({"KernelD"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
+sycl::unittest::UrImage Imgs[] = {
+    generateDefaultImage({"KernelA", "KernelB"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelA"}, UR_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelC"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelC"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA),
+    generateDefaultImage({"KernelD"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 
-sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
+sycl::unittest::UrImageArray<std::size(Imgs)> ImgArray{Imgs};
 std::vector<unsigned char> UsedImageIndices;
 
 void redefinedUrProgramCreateCommon(const void *bin) {
@@ -142,7 +142,7 @@ ur_result_t redefinedDeviceSelectBinary(void *pParams) {
   EXPECT_EQ(*params.pNumBinaries, 1U);
   // Treat image 3 as incompatible with one of the devices.
   //
-  // FIXME: this is expecting pi_device_binary so it can do stuff with the
+  // FIXME: this is expecting ur_device_binary so it can do stuff with the
   // actual binary, not just the metadata.. not sure how we're going to support
   // this
   std::string BinarySpec = (*params.ppBinaries)[0].pDeviceTargetSpec;
