@@ -11,7 +11,6 @@
 //      call to ext_oneapi_set_external_event.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 

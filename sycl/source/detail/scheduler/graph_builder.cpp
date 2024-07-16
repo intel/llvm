@@ -906,7 +906,7 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
 }
 
 static bool isInteropHostTask(ExecCGCommand *Cmd) {
-  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CGType::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -1017,7 +1017,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     } else {
       std::string s;
       std::stringstream ss(s);
-      if (NewCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+      if (NewCmd->getCG().getType() == CGType::Kernel) {
         ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
               "non-cooperative device kernels.";
       } else {
@@ -1333,7 +1333,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   ExecCGCommand *ConnectCmd = nullptr;
 
   try {
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
+    std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
         /* Args = */ {},
@@ -1341,7 +1341,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
             /* SharedPtrStorage = */ {}, /* Requirements = */ {},
             /* DepEvents = */ {DepEvent}),
-        CG::CodeplayHostTask,
+        CGType::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(std::move(ConnectCG), nullptr,
                                    /*EventNeeded=*/true);
