@@ -90,6 +90,9 @@ int main() {
     if (plt.has(aspect::ext_oneapi_virtual_functions)) {
       std::cout << "  ext_oneapi_virtual_functions" << std::endl;
     }
+    if (plt.has(aspect::ext_codeplay_cuda_tensor_map)) {
+      std::cout << "  ext_codeplay_cuda_tensor_map" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;

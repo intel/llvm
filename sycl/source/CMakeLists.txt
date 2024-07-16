@@ -285,6 +285,7 @@ set(SYCL_COMMON_SOURCES
     "detail/scheduler/graph_builder.cpp"
     "detail/spec_constant_impl.cpp"
     "detail/sycl_mem_obj_t.cpp"
+    "detail/cuda_tensor_map.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/ur.cpp"
     "detail/util.cpp"

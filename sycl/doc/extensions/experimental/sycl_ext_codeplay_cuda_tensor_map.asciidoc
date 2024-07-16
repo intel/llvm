@@ -1,0 +1,367 @@
+= sycl_ext_codeplay_cuda_tensor_map
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:cuda-guide-using-tma: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#using-tma-to-transfer-multi-dimensional-arrays
+:cuda-guide-async-copies: https://docs.nvidia.com/cuda/cuda-c-programming-guide/#asynchronous-data-copies-using-tensor-memory-access-tma
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) Codeplay Software Limited.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in {dpcpp}, but they are not finalized
+and may change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in
+this specification.*
+
+[NOTE]
+====
+This extension is currently implemented in {dpcpp} only for NVIDIA GPU devices
+with Compute Capability of 9.0 or above and only when using the CUDA backend.
+
+====
+
+== Introduction
+
+This document describes an extension that adds interfaces enabling OneAPI
+implementers access to CUDA's Tensor Map Access (TMA) APIs from within SYCL
+kernels. These interfaces provide utilities to enable accelerated copies of
+multidimensional arrays of various types. There is no novelty here; only the
+plumbing needed to access accelerated features.
+
+== Specification
+
+=== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_CODEPLAY_CUDA_TENSOR_MAP` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension
+|===
+
+=== Overview
+
+Certain libraries shipped with OneAPI may need access to proprietary accelerator
+extensions to enable good performance via use of driver-provided features that
+are beyond the reach of the compiler or language model. One such extension is
+CUDA's link:{cuda-guide-async-copies}[Tensor Memory Access] interface which
+enables accelerated copies of multidimensional arrays. This is *not* a feature
+that can be implemented in the compiler directly. This is because the parameters
+for the tensor copy adhere to an unusual ABI and the context type used for
+initializing such operations requires a call to the driver from the host. The
+initialized data can then *only* be acted upon within the device context. Thus:
+gaining access to accelerated "tensor" copies within SYCL requires interfaces
+that emulates this pattern in such a way it's possible to gain access to the
+user data from within kernels.
+
+[NOTE]
+====
+These interfaces are for initializing asynchronous *multidimensional* array
+copies only. One dimensional array copies should be preferably performed using
+standard sycl memcpy features.
+
+====
+
+==== Interface
+
+`sycl_ext_codeplay_cuda_tensor_map` defines two classes and a number of
+enumerations for initializing the CUDA TMA context objects
+
+classes:
+
+- `tiled_encode_map`
+- `im2col_encode_map`
+
+enumerations
+
+- `datatype`
+- `interleave`
+- `swizzle`
+- `l2_promote`
+- `oob_fill`
+
+They are analogous to their CUDA namesakes. The size, alignment and layout of
+the structs are unspecified.
+
+Each class has a single constructor whose parameters control the tensor copy
+operation implied by the class name.
+
+
+The `tiled_encode_map` class is used to initialize CUDA state used for tiled
+copies of multidimensional arrays
+Its arguments are analogous to its CUDA namesake
+link:{cuda-guide-using-tma}[c.f. CUDA programming guide]
+
+  tiled_encode_map(queue &q, void *addr, datatype type, uint32_t rank,
+                   const uint64_t global_dims[/*rank*/],
+                   const uint64_t global_strides[/*rank - 1*/],
+                   const uint32_t box_dims[/*rank*/],
+                   const uint32_t element_strides[/*rank*/],
+                   interleave interleave, swizzle swizzle, l2_promote promote,
+                   oob_fill oob_fill);
+
+The `im2col_encode_map` class is used to initialize CUDA state used for
+asynchronous copies with a re-encoding of blocks to columns.
+Its arguments are analagous to its CUDA namesake
+link:{cuda-guide-using-tma}[c.f CUDA programming guide]
+
+When passed to a kernel by value, either of these class objects can then have
+their address taken and passed as the second operand of the
+`cp.async.bulk.tensor` family of PTX instructions via inline assembly.
+No other operation is supported.
+
+These objects can be constructed in host code only. It is undefined to attempt
+to construct them in a kernel. Using the address of copied objects for the
+CUDA tensor operations is undefined.
+
+==== Sample Header for host code only
+
+[source, c++]
+----
+namespace sycl::ext::codeplay::experimental::cuda {
+  enum datatype : int {
+    type_uint8,
+    type_uint16,
+    type_uint32,
+    type_int32,
+    type_uint64,
+    type_int64,
+    type_float16,
+    type_float32,
+    type_float64,
+    type_bfloat16,
+    type_float32_ftz,
+    type_tfloat32,
+    type_tfloat32_ftz,
+  };
+  enum interleave : int {
+    interleave_none,
+    interleave_16,
+    interleave_32,
+  };
+  enum swizzle : int {
+    swizzle_none,
+    swizzle_32,
+    swizzle_64,
+    swizzle_128,
+  };
+  enum l2_promote : int {
+    promote_none,
+    promote_l2_64,
+    promote_l2_128,
+    promote_l2_256,
+  };
+  enum oob_fill : int {
+    oob_fill_none,
+    oob_fill_nan_request_zero_fma,
+  };
+struct tiled_encode_map {
+  tiled_encode_map(queue &q, void *addr, datatype type, uint32_t rank,
+                   const uint64_t global_dims[/*rank*/],
+                   const uint64_t global_strides[/*rank - 1*/],
+                   const uint32_t box_dims[/*rank*/],
+                   const uint32_t element_strides[/*rank*/],
+                   interleave interleave, swizzle swizzle, l2_promote promote,
+                   oob_fill oob_fill);
+private:
+// Implementation defined members must be private
+};
+
+struct im2col_encode_map {
+  enum datatype : int {
+    type_uint8,
+    type_uint16,
+    type_uint32,
+    type_int32,
+    type_uint64,
+    type_int64,
+    type_float16,
+    type_float32,
+    type_float64,
+    type_bfloat16,
+    type_float32_ftz,
+    type_tfloat32,
+    type_tfloat32_ftz,
+  };
+  enum interleave : int {
+    interleave_none,
+    interleave_16,
+    interleave_32,
+  };
+  enum swizzle : int {
+    swizzle_none,
+    swizzle_32,
+    swizzle_64,
+    swizzle_128,
+  };
+  enum l2_promote : int {
+    promote_none,
+    promote_l2_64,
+    promote_l2_128,
+    promote_l2_256,
+  };
+  enum oob_fill : int {
+    oob_fill_none,
+    oob_fill_nan_request_zero_fma,
+  };
+// Implementation defined members must be private
+  im2col_encode_map(queue &q, datatype type, uint32_t rank, void *addr,
+                    const uint64_t gmem_dims[/*rank*/],
+                    const uint64_t gmem_strides[/*rank - 1*/],
+                    const int32_t pixel_box_lower_corner[/*rank*/],
+                    const int32_t pixel_box_upper_corner[/*rank*/],
+                    uint32_t channels_per_pixel, uint32_t pixels_per_col,
+                    const uint32_t element_strides[/*rank*/],
+                    interleave interleave, swizzle swizzle, l2_promote promote,
+                    oob_fill oob_fill);
+};
+}
+----
+
+==== Sample Header for device code only
+
+[source, c++]
+----
+namespace sycl::ext::codeplay::experimental::cuda {
+class tiled_encode_map {
+public:
+  // Get access to the TMA descriptor for use as an operand to the
+  // cp.async.bulk.tensor family of PTX instructions
+  uintptr_t get_native_descriptor();
+};
+class im2col_encode_map {
+  // Get access to the TMA descriptor for use as an operand to the
+  // cp.async.bulk.tensor family of PTX instructions
+ uintptr_t get_native_descriptor();
+};
+}
+----
+
+== Examples
+
+[source, c++]
+----
+#include <cstdint>
+#include <cassert>
+
+#include <sycl/sycl.hpp>
+#include <sycl/ext/codeplay/experimental/cuda_tensor_map.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
+
+using namespace sycl;
+using namespace sycl::ext::codeplay::experimental::cuda;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+#define rank 2
+
+#define WIDTH (256)
+#define HEIGHT (8)
+int main() {
+  device cuda_dev{
+    [](const sycl::device &dev) {
+      return dev.get_backend() == sycl::backend::ext_oneapi_cuda ? 1 : -1;
+    }
+  };
+  bool has_aspect = cuda_dev.has(aspect::ext_codeplay_cuda_tensor_map);
+  assert(has_aspect);
+  queue q{cuda_dev};
+  auto *mem = sycl::malloc_device<int32_t>(WIDTH * HEIGHT, q);
+
+  uint64_t global_dims[rank] = {WIDTH, HEIGHT};
+  uint64_t global_strides[rank - 1] = {WIDTH};
+  uint32_t box_dims[rank] = {WIDTH / 2, HEIGHT / 2};
+  uint32_t element_strides[rank] = {1, 1};
+
+  tiled_encode_map tile(
+    q,
+    static_cast<void *>(mem),
+    tiled_encode_map::datatype::type_int32,
+    rank,
+    global_dims,
+    global_strides,
+    box_dims,
+    element_strides,
+    tiled_encode_map::interleave::interleave_none,
+    tiled_encode_map::swizzle::swizzle_none,
+    tiled_encode_map::l2_promote::promote_none,
+    tiled_encode_map::oob_fill::oob_fill_none
+  );
+
+  q.submit([&](handler &Cgh) {
+    sycl_ext::work_group_scratch_size static_size{WIDTH * HEIGHT * sizeof (int32_t)};
+    sycl_ext::properties properties{static_size};
+    cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
+                                [=](nd_item<1> Item) {
+        sycl_ext::work_group_static<int64_t> barrier_mem;
+        auto smem_ptr = reinterpret_cast<uintptr_t>(sycl_ext::static_address_cast<
+                      sycl::access::address_space::local_space>(sycl_ext::get_work_group_scratch_memory()).get_decorated());
+        auto bar_ptr = reinterpret_cast<uintptr_t>(sycl_ext::static_address_cast<
+                      sycl::access::address_space::local_space>(&barrier_mem).get_decorated())
+        (void)tile;
+        (void)shmem;
+#ifdef __SYCL_DEVICE_ONLY__
+  uint32_t smem_int_bar = 0;
+  int32_t tc0 = 0;
+  int32_t tc1 = 0;
+  asm volatile (
+    "cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"
+    " [%[smem_int_ptr]], [%[tma_descriptor], {%[tc0], %[tc1]}], [%[bar_ptr]];"
+    :
+    : [smem_int_ptr] "r" (smem_ptr),
+      [tma_descriptor] "l" (tile.get_native_descriptor()),
+      [bar_ptr] "r" (bar_ptr),
+      [tc0] "r" (tc0),
+      [tc1] "r" (tc1)
+    : "memory"
+  );
+#endif
+    });
+    // Do stuff with shared memory now...
+  }).wait();
+}
+----

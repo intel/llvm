@@ -7,6 +7,12 @@
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
+??4im2col_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAAAEAU0123456@$$QEAU0123456@@Z
+??4im2col_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAAAEAU0123456@AEBU0123456@@Z
+??0im2col_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAA@AEAVqueue@56@W4datatype@__tensor_copy_descriptor@detail@123456@IPEAXQEB_K3QEBH4IIQEBIW4interleave@9detail@123456@W4swizzle@9detail@123456@W4l2_promote@9detail@123456@W4oob_fill@9detail@123456@@Z
+??4tiled_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAAAEAU0123456@AEBU0123456@@Z
+??4tiled_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAAAEAU0123456@$$QEAU0123456@@Z
+??0tiled_encode_map@cuda@experimental@codeplay@ext@_V1@sycl@@QEAA@AEAVqueue@56@PEAXW4datatype@__tensor_copy_descriptor@detail@123456@IQEB_K3QEBI4W4interleave@9detail@123456@W4swizzle@9detail@123456@W4l2_promote@9detail@123456@W4oob_fill@9detail@123456@@Z
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@experimental@intel@ext@_V1@sycl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@7@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@7@@Z
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@experimental@intel@ext@_V1@sycl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@7@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@7@@Z
 ??$create_sub_devices@$0BAIG@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@_K@Z

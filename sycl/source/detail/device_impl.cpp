@@ -473,6 +473,21 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
     return isAssertFailSupported();
+  case aspect::ext_codeplay_cuda_tensor_map: {
+    using arch = sycl::ext::oneapi::experimental::architecture;
+    const arch supported_archs[] = {
+        arch::nvidia_gpu_sm_90,
+        arch::nvidia_gpu_sm_90a,
+    };
+    try {
+      return std::any_of(
+          std::begin(supported_archs), std::end(supported_archs),
+          [this](const arch a) { return this->extOneapiArchitectureIs(a); });
+    } catch (const sycl::exception &) {
+      return false;
+    }
+    return false;
+  }
   case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
     bool call_successful =
