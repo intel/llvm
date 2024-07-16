@@ -219,7 +219,7 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
+    /* no-op */;
 
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel
     Check_RTTI_Restriction::A *a;

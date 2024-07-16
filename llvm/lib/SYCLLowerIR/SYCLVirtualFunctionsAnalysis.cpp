@@ -41,6 +41,7 @@ void checkKernelImpl(const Function *F, CallGraphTy &CG,
   CallGraphTy::iterator It = CG.find(F);
   if (It == CG.end()) {
     // It could be that the function itself is a leaf and doesn't call anything
+    Stack.pop_back();
     return;
   }
 
@@ -90,7 +91,6 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Build call graph for each of them
   for (size_t I = 0; I < WorkList.size(); ++I) {
     const Function *F = WorkList[I];
-    llvm::outs() << "Analyzing function " << F->getName() << "\n";
     for (const Instruction &I : instructions(F)) {
       const auto *CI = dyn_cast<CallInst>(&I);
       if (!CI)
@@ -103,10 +103,8 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
         WorkList.insert(CF);
         ToAdd = true;
-        llvm::outs() << "\tfound direct call to " << CF->getName() << "\n";
       } else if (CI->isIndirectCall() && CI->hasFnAttr("virtual-call")) {
         ToAdd = true;
-        llvm::outs() << "\tfound virtual call\n";
       }
 
       if (ToAdd)
@@ -116,7 +114,6 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   // Emit a diagnostic if a kernel performs virtual function calls
   for (const auto *K : Kernels) {
-    llvm::outs() << "analyzing kernel " << K->getName() << "\n";
     checkKernel(K, CallGraph);
   }
 
