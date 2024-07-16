@@ -126,6 +126,14 @@ public:
     check_variadic_args(ts...);
   }
 
+  template <int Dim, typename... Ts>
+  launch_policy(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
+                Ts... ts)
+      : launch_policy(ts...) {
+    _range = {global_range, local_range};
+    check_variadic_args(ts...);
+  }
+
   template <typename... Ts>
   launch_policy(dim3 global_range, Ts... ts) : launch_policy(ts...) {
     _range = Range{global_range};
@@ -155,6 +163,12 @@ private:
 template <typename Range, typename... Ts>
 launch_policy(Range, Ts...) -> launch_policy<
     Range, detail::properties_or_empty<kernel_properties, Ts...>,
+    detail::properties_or_empty<launch_properties, Ts...>,
+    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
+
+template <int Dim, typename... Ts>
+launch_policy(sycl::range<Dim>, sycl::range<Dim>, Ts...) -> launch_policy<
+    sycl::nd_range<Dim>, detail::properties_or_empty<kernel_properties, Ts...>,
     detail::properties_or_empty<launch_properties, Ts...>,
     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
