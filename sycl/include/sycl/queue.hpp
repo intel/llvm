@@ -438,6 +438,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     wait_proxy(CodeLoc);
   }
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///

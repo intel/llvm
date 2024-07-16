@@ -384,9 +384,8 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     finalizeHandler(Handler, Event);
 
     (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-  } else {
+  } else
     finalizeHandler(Handler, Event);
-  }
 
   addEvent(Event);
 
