@@ -186,3 +186,11 @@
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
 // NVPTX_DEF_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
+
+/// Verify device library passing for nvptx
+// RUN: %clangxx -### -std=c++11 --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN:          --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
+// RUN:          -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
+// RUN: | FileCheck -check-prefix=NVPTX_LIBS %s
+// NVPTX_LIBS: clang-linker-wrapper{{.*}} "--sycl-nvptx-device-libraries={{.*}}libspirv{{.*}},{{.*}}libdevice{{.*}}"

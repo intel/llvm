@@ -11063,6 +11063,69 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     C.addCommand(std::move(Cmd));
 }
 
+// Determing the device libraries to be used during a SYCL based Cuda device
+// link.  These are passed along to the clang-linker-wrapper for consumption.
+SmallVector<std::string, 4> getCudaDeviceLibraries(const Compilation &C) {
+  std::string LibSpirvFile;
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  const llvm::opt::ArgList &Args = C.getArgs();
+  SmallVector<std::string, 4> CudaDeviceLibs;
+  if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
+    auto ProvidedPath =
+        Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
+    if (llvm::sys::fs::exists(ProvidedPath))
+      LibSpirvFile = ProvidedPath;
+  } else {
+    SmallVector<StringRef, 8> LibraryPaths;
+
+    // Expected path w/out install.
+    SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+    llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+    LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+    // Expected path w/ install.
+    SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+    llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+    LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+    // Select remangled libclc variant
+    std::string LibSpirvTargetName =
+        (HostTC->getTriple().isOSWindows())
+            ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
+            : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
+
+    for (StringRef LibraryPath : LibraryPaths) {
+      SmallString<128> LibSpirvTargetFile(LibraryPath);
+      llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+      if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+          Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+        LibSpirvFile = std::string(LibSpirvTargetFile.str());
+        break;
+      }
+    }
+  }
+
+  if (!LibSpirvFile.empty())
+    CudaDeviceLibs.push_back(LibSpirvFile);
+
+  auto TCRange = C.getOffloadToolChains(Action::OFK_SYCL);
+  for (auto &I : llvm::make_range(TCRange.first, TCRange.second)) {
+    const ToolChain *TC = I.second;
+    if (TC->getTriple().isNVPTX()) {
+      CudaInstallationDetector CudaInstallation(C.getDriver(),
+                                                HostTC->getTriple(), Args);
+      // BoundArch for nvptx cannot be determined appropriately when performing
+      // the query via the linker wrapper due to not being in the specific
+      // Cuda toolchain.  Populate with a dummy value.
+      StringRef BoundArch = CudaArchToString(CudaArch::CudaDefault);
+      std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(BoundArch);
+      if (!LibDeviceFile.empty())
+        CudaDeviceLibs.push_back(LibDeviceFile);
+    }
+  }
+  return CudaDeviceLibs;
+}
+
 void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output,
                                  const InputInfoList &Inputs,
@@ -11295,6 +11358,19 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!LinkOptString.empty())
         CmdArgs.push_back(
             Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+    }
+    // Add Cuda specific device libraries.
+    SmallVector<std::string, 4> CudaDeviceLibs = getCudaDeviceLibraries(C);
+    if (!CudaDeviceLibs.empty()) {
+      SmallString<256> LibList;
+      for (const auto &AddLib : CudaDeviceLibs) {
+        if (LibList.size() > 0)
+          LibList += ",";
+        LibList += AddLib;
+      }
+      if (!LibList.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString("--sycl-nvptx-device-libraries=" + LibList));
     }
   }
 
