@@ -46,7 +46,8 @@ A new aspect, ext\_intel\_device\_id, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_device\_id.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error
+code if the device does not have `aspect::ext_intel_device_id`.
 
 ## Example Usage ##
 
