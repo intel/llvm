@@ -485,12 +485,7 @@ void DiagnosticInfoAspectsMismatch::print(DiagnosticPrinter &DP) const {
 }
 
 void llvm::diagnoseSYCLIllegalVirtualFunctionCall(
-    const Function *F, const SmallVector<const Function *> &CallChain) {
-  unsigned LocCookie = 0;
-  if (MDNode *MD = F->getMetadata("srcloc"))
-    LocCookie =
-        mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
-
+    const SmallVector<const Function *> &CallChain) {
   llvm::SmallVector<std::pair<StringRef, unsigned>, 8> LoweredCallChain;
   for (const Function *Callee : CallChain) {
     unsigned CalleeLocCookie = 0;
@@ -501,12 +496,12 @@ void llvm::diagnoseSYCLIllegalVirtualFunctionCall(
         std::make_pair(Callee->getName(), CalleeLocCookie));
   }
 
-  DiagnosticInfoIllegalVirtualCall D(F->getName(), LocCookie, LoweredCallChain);
-  F->getContext().diagnose(D);
+  DiagnosticInfoIllegalVirtualCall D(LoweredCallChain);
+  CallChain.front()->getContext().diagnose(D);
 }
 
 void DiagnosticInfoIllegalVirtualCall::print(DiagnosticPrinter &DP) const {
-  DP << getFunctionName()
+  DP << CallChain.front().first
      << " performs virtual function call, but a kernel that is called from is "
         "not submitted with \"calls_indirectly\" property";
 }

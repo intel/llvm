@@ -31,8 +31,8 @@ namespace {
 
 using CallGraphTy = DenseMap<const Function *, SmallPtrSet<Value *, 8>>;
 
-void emitDiagnostic(SmallVector<const Function *> &Stack) {
-  diagnoseSYCLIllegalVirtualFunctionCall(Stack.back(), Stack);
+void emitDiagnostic(const SmallVector<const Function *> &Stack) {
+  diagnoseSYCLIllegalVirtualFunctionCall(Stack);
 }
 
 void checkKernelImpl(const Function *F, CallGraphTy &CG,

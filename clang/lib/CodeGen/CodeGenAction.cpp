@@ -808,14 +808,18 @@ void BackendConsumer::AspectMismatchDiagHandler(
 
 void BackendConsumer::SYCLIllegalVirtualCallDiagHandler(
     const llvm::DiagnosticInfoIllegalVirtualCall &D) {
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain =
+      D.getCallChain();
+  auto &KI = CallChain.front();
 
-  SourceLocation LocCookie =
-      SourceLocation::getFromRawEncoding(D.getLocCookie());
+  SourceLocation LocCookie = SourceLocation::getFromRawEncoding(KI.second);
   assert(LocCookie.isValid() &&
          "Invalid location for caller in aspect mismatch diagnostic");
   Diags.Report(LocCookie, diag::err_sycl_illegal_virtual_call)
-      << llvm::demangle(D.getFunctionName().str());
-  for (const std::pair<StringRef, unsigned> &CalleeInfo : D.getCallChain()) {
+      << llvm::demangle(KI.first.str());
+
+  for (size_t I = 1; I < CallChain.size(); ++I) {
+    auto &CalleeInfo = CallChain[I];
     LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
     assert(LocCookie.isValid() &&
            "Invalid location for callee in aspect mismatch diagnostic");
