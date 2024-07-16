@@ -69,7 +69,11 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     std::call_once(
         InitFlag,
         [](ur_result_t &Result) {
-          UR_CHECK_ERROR(cuInit(0));
+          CUresult InitResult = cuInit(0);
+          if (InitResult == CUDA_ERROR_NO_DEVICE) {
+            return; // No devices found which is not an error so exit early.
+          }
+          UR_CHECK_ERROR(InitResult);
           int NumDevices = 0;
           UR_CHECK_ERROR(cuDeviceGetCount(&NumDevices));
           try {
