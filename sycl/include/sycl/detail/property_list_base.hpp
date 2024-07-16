@@ -18,7 +18,7 @@
 #include <type_traits>    // for enable_if_t
 #include <utility>        // for move
 #include <vector>         // for vector
-#include <unordered_set>  // for unordered_set
+#include <map>            // for multi_map
 
 namespace sycl {
 inline namespace _V1 {
@@ -132,22 +132,17 @@ protected:
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
-  
-  template <typename ... Ts>
-  void buildAllowList(std::unordered_set<int>& AllowListWithData, std::unordered_set<int>& AllowListNoData) const
-  {
-    ((std::is_base_of_v<PropertyWithDataBase, Ts> ? AllowListWithData : AllowListNoData).insert(Ts::getKind()), ...);
-  }
 
-  bool checkAllowList(const std::unordered_set<int>& AllowListWithData, const std::unordered_set<int>& AllowListNoData) const
-  {
+  void convertPropertiesToKinds(std::multimap<int, bool>& PropKinds) const{
     for (size_t it = 0; it < MDataLessProps.size(); it++)
     {
-      if (MDataLessProps[it] && (AllowListNoData.find(it) == AllowListNoData.end()))
-        return false;
+      if (MDataLessProps[it])
+        PropKinds.insert(std::pair{ int(it), false});
     }
-    return std::all_of(MPropsWithData.cbegin(), MPropsWithData.cend(), [&AllowListWithData](const std::shared_ptr<PropertyWithDataBase>& Item){ return AllowListWithData.find(Item->getKind()) != AllowListWithData.end(); });
+    for (auto & Prop: MPropsWithData)
+      PropKinds.insert(std::pair{Prop->getKind(), true});
   }
+
 };
 } // namespace detail
 } // namespace _V1

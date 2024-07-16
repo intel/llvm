@@ -46,15 +46,18 @@ TEST(BufferProps, SetAndQueryMatch) {
    EXPECT_FALSE(buf.has_property<sycl::property::image::use_host_ptr>());
 }
 
-#define EXPECT_THROW_WITH_MESSAGE(stmt, etype, whatstring) EXPECT_THROW( \
-        try { \
-            stmt; \
-        } catch (const etype& ex) { \
-            EXPECT_EQ(std::string(ex.what()), whatstring); \
-            throw; \
-        } \
-    , etype)
-
 TEST(BufferProps, SetUnsupportedParam) {
-    sycl::buffer<int, 1> buf{1, {sycl::property::image::use_host_ptr{}}};
+    try
+    {
+        sycl::buffer<int, 1> buf{1, {sycl::property::image::use_host_ptr{}}};
+    }
+    catch(sycl::exception& e)
+    {
+        EXPECT_EQ(e.code(), sycl::errc::invalid);
+        EXPECT_STREQ(e.what(), "The property list contains property unsupported for the current object");
+        return;
+    }
+
+
+    FAIL() << "Test must exit in exception handler. Exception is not thrown.";
 }

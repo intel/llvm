@@ -65,6 +65,7 @@ enum PropWithDataKind {
   AccPropBufferLocation = 5,
   QueueComputeIndex = 6,
   GraphNodeDependencies = 7,
+  LastKnownPropWithDataKind = 7,
   PropWithDataKindSize = 8
 };
 

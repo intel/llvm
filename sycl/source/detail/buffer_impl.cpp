@@ -98,13 +98,6 @@ buffer_impl::getNativeVector(backend BackendName) const {
   return Handles;
 }
 
-void buffer_impl::checkPropsAndThrow(const property_list& Props)
-{
-  if (!Props.checkAllowList<property::buffer::use_host_ptr, property::buffer::use_mutex, property::buffer::context_bound>())
-    throw sycl::exception(make_error_code(errc::invalid),
-                              "The property list contains property unsupported for the current object");
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

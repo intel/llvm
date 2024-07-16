@@ -65,13 +65,7 @@ public:
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
-  template <typename... Props>
-  bool checkAllowList() const {
-      // Separated sets is needed since properties with data and properties without data have overlapping IDs.
-      std::unordered_set<int> AllowedPropsWithData, AllowedPropsNoData;
-      buildAllowList<Props...>(AllowedPropsWithData, AllowedPropsNoData);
-      return detail::PropertyListBase::checkAllowList(AllowedPropsWithData, AllowedPropsNoData);
-    }
+  using PropertyListBase::convertPropertiesToKinds;
 
 private:
   property_list(
@@ -81,6 +75,33 @@ private:
 
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
+};
+
+template <typename PropType, typename SYCLObjectType>
+bool checkProperty(int PropertyID, bool PropertyWithData)
+{
+  if (PropertyID == PropType::getKind() && (PropertyWithData? std::is_base_of_v<detail::PropertyWithDataBase, PropType> : std::is_base_of_v<detail::DataLessPropertyBase, PropType>))
+    return sycl::is_property_of<PropType, SYCLObjectType>::value;
+  return false;
+}
+
+template<typename... Types>
+struct PropertiesList{
+    constexpr static size_t PropsCount = sizeof...(Types);
+    //static_assert(PropsCount == (sycl::detail::LastKnownDataLessPropKind + sycl::detail::LastKnownPropWithDataKind) && "Property type list size mismatch with property kinds");
+    template <typename SYCLObject>
+    static bool checkProperties(const sycl::property_list& Props)
+    {
+        size_t CorrectPropertiesCount = 0;
+        std::multimap<int, bool> PropKinds;
+        Props.convertPropertiesToKinds(PropKinds);
+        for (const auto& RTProperty : PropKinds)
+        {
+            CorrectPropertiesCount += (checkProperty<Types, SYCLObject>(RTProperty.first, RTProperty.second) + ... + 0);
+        }
+
+        return CorrectPropertiesCount == PropKinds.size();
+    }
 };
 
 } // namespace _V1

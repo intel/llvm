@@ -5,6 +5,9 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 
+
+#include <sycl/properties/all_properties.hpp>
+
 #include <memory>
 
 namespace sycl {
