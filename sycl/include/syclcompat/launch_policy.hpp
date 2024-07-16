@@ -201,8 +201,7 @@ struct KernelFunctor {
   auto get(sycl_exp::properties_tag) { return _kernel_properties; }
 
   __syclcompat_inline__ void
-  operator()(syclcompat::detail::range_to_item_t<Range> it) const {
-    (void)it;
+  operator()(syclcompat::detail::range_to_item_t<Range>) const {
     if constexpr (HasLocalMem) {
       char *local_mem_ptr = static_cast<char *>(
           _local_acc.template get_multi_ptr<sycl::access::decorated::no>());

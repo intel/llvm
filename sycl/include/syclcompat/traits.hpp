@@ -176,8 +176,7 @@ struct property_getter_helper<true, PropertyContainerConcrete, Tuple> {
 
 template <typename PropertyContainerConcrete, typename Tuple>
 struct property_getter_helper<false, PropertyContainerConcrete, Tuple> {
-  PropertyContainerConcrete operator()(Tuple tuple) {
-    (void)tuple;
+  PropertyContainerConcrete operator()(Tuple) {
     return {};
   }
 };

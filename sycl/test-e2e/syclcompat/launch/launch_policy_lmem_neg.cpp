@@ -24,16 +24,11 @@
 
 // RUN: not %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out 2>&1 | FileCheck -vv %s
 
-#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
-#include "syclcompat/device.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/group_barrier.hpp>
 
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
-
-#include "syclcompat/launch_policy.hpp"
 
 // Dummy kernels for testing
 inline void int_kernel(int a){};
