@@ -76,6 +76,7 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 int test_variadic_config_ctor() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
+  // nd_range and kernel_properties
   {
     compat_exp::launch_policy my_config(
         sycl::nd_range<1>{{32}, {32}},
@@ -84,6 +85,20 @@ int test_variadic_config_ctor() {
         std::is_same_v<decltype(my_config),
                        compat_exp::launch_policy<
                            sycl::nd_range<1>,
+                           decltype(sycl::ext::oneapi::experimental::properties{
+                               sycl_exp::sub_group_size<32>}),
+                           empty_properties_t, false>>);
+  }
+
+  // range,range and kernel_properties
+  {
+    compat_exp::launch_policy my_config(
+        sycl::range<3>{1, 1, 32}, sycl::range<3>{1, 1, 32},
+        compat_exp::kernel_properties{sycl_exp::sub_group_size<32>});
+    static_assert(
+        std::is_same_v<decltype(my_config),
+                       compat_exp::launch_policy<
+                           sycl::nd_range<3>,
                            decltype(sycl::ext::oneapi::experimental::properties{
                                sycl_exp::sub_group_size<32>}),
                            empty_properties_t, false>>);
@@ -100,7 +115,7 @@ int test_variadic_config_ctor() {
                                       empty_properties_t, false>>);
   }
 
-  // Dummy launch properties
+  // Empty launch properties
   {
     compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
                                         compat_exp::launch_properties{});
@@ -133,7 +148,6 @@ int test_variadic_config_ctor() {
                                       empty_properties_t, true>>);
   }
 
-  // TODO: more combos here
   return 0;
 }
 
