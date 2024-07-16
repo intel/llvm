@@ -16,6 +16,7 @@ set(LLVM_LINK_COMPONENTS
   CodeGen
   LTO
   FrontendOffloading
+  SYCLLowerIR
   )
 
 set(LLVM_TARGET_DEFINITIONS LinkerWrapperOpts.td)
