@@ -76,8 +76,6 @@ ModulePass *llvm::createSYCLLowerInvokeSimdPass() {
 namespace {
 // TODO support lambda and functor overloads
 
-ValueMap<const Value *, SmallDenseMap<uint32_t, uint32_t>> ArgAddrSpaceMap;
-
 using ValueSetImpl = SmallPtrSetImpl<Value *>;
 using ValueSet = SmallPtrSet<Value *, 4>;
 using ConstValueSetImpl = SmallPtrSetImpl<const Value *>;
@@ -262,7 +260,7 @@ void markFunctionAsESIMD(Function *F) {
   }
 }
 
-void AdjustAddressSpace(Function *F, uint32_t ArgNo, uint32_t ArgAddrSpace) {
+void adjustAddressSpace(Function *F, uint32_t ArgNo, uint32_t ArgAddrSpace) {
   Argument *Arg = F->getArg(ArgNo);
   for (User *ArgUse : Arg->users()) {
     Instruction *Instr = dyn_cast<Instruction>(ArgUse);
@@ -277,22 +275,18 @@ void AdjustAddressSpace(Function *F, uint32_t ArgNo, uint32_t ArgAddrSpace) {
     const CallInst *CI = dyn_cast<CallInst>(ArgUse);
     if (CI) {
       Function *Callee = CI->getCalledFunction();
-      if (Callee) {
-        if (Callee->isDeclaration())
-          continue;
-      }
+      if (!Callee || Callee->isDeclaration())
+        continue;
 
       for (uint32_t i = 0; i < CI->getNumOperands(); ++i) {
         if (CI->getOperand(i) == Arg) {
-          AdjustAddressSpace(Callee, i, ArgAddrSpace);
+          adjustAddressSpace(Callee, i, ArgAddrSpace);
         }
       }
     } else {
       for (unsigned int i = 0; i < ArgUse->getNumOperands(); ++i) {
         if (ArgUse->getOperand(i) == Arg) {
-          const Type *Ty = ArgUse->getOperand(i)->getType();
-
-          PointerType *NPT = PointerType::get(Ty->getContext(), ArgAddrSpace);
+          PointerType *NPT = PointerType::get(Arg->getContext(), ArgAddrSpace);
 
           auto *NewInstr = new AddrSpaceCastInst(ArgUse->getOperand(i), NPT);
           NewInstr->insertBefore(Instr);
@@ -366,12 +360,21 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   }
 
   if (!SimdF->isDeclaration()) {
-    const SmallDenseMap<uint32_t, uint32_t> &ArgMap = ArgAddrSpaceMap[SimdF];
-    for (const auto &MapEntry : ArgMap) {
-      uint32_t ArgNo = MapEntry.first;
-      uint32_t ArgAddrSpace = MapEntry.second;
+    // The real arguments for invoke_simd callee start at index 2.
+    for (uint32_t i = 2; i < InvokeSimd->arg_size(); ++i) {
+      const Value *Arg = InvokeSimd->getArgOperand(i);
+      if (Arg->getType()->isPointerTy()) {
+        uint32_t AddressSpace = Arg->getType()->getPointerAddressSpace();
+        if (AddressSpace == 4) {
+          const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
+          if (!ASC)
+            continue;
 
-      AdjustAddressSpace(SimdF, ArgNo, ArgAddrSpace);
+          AddressSpace =
+              ASC->getOperand(0)->getType()->getPointerAddressSpace();
+        }
+        adjustAddressSpace(SimdF, i - 2, AddressSpace);
+      }
     }
   }
 
@@ -490,27 +493,6 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
       // a call can be the only use of the invoke_simd built-in
       CallInst *CI = cast<CallInst>(Usr);
       ISCalls.insert(CI);
-    }
-  }
-  for (const CallInst *CI : ISCalls) {
-    SmallDenseMap<uint32_t, uint32_t> ArgumentMap;
-    for (uint32_t i = 2; i < CI->arg_size(); ++i) {
-      const Value *Arg = CI->getArgOperand(i);
-      if (Arg->getType()->isPointerTy()) {
-        uint32_t AddressSpace = Arg->getType()->getPointerAddressSpace();
-        if (AddressSpace == 4) {
-          const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
-          if (!ASC)
-            continue;
-
-          AddressSpace =
-              ASC->getOperand(0)->getType()->getPointerAddressSpace();
-        }
-        ArgumentMap[i - 2] = AddressSpace;
-      }
-    }
-    if (!ArgumentMap.empty()) {
-      ArgAddrSpaceMap[CI->getArgOperand(1)] = ArgumentMap;
     }
   }
 

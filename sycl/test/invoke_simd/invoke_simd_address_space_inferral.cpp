@@ -50,17 +50,20 @@ bool test() {
   try {
     auto e = q.submit([&](handler &cgh) {
       local_accessor<float, 1> LocalAcc(Size, cgh);
-      cgh.parallel_for(
-          Range, [=](nd_item<1> item) [[intel::reqd_sub_group_size(VL)]] {
-            sycl::group<1> g = item.get_group();
-            sycl::sub_group sg = item.get_sub_group();
+      cgh.parallel_for(Range, [=](nd_item<1> item) [[intel::reqd_sub_group_size(
+                                  VL)]] {
+        sycl::group<1> g = item.get_group();
+        sycl::sub_group sg = item.get_sub_group();
 
-            unsigned int i = g.get_group_id() * g.get_local_range() +
-                             sg.get_group_id() * sg.get_max_local_range();
+        unsigned int i = g.get_group_id() * g.get_local_range() +
+                         sg.get_group_id() * sg.get_max_local_range();
 
-            invoke_simd(sg, SIMD_CALLEE1, uniform{A},
-                        uniform{LocalAcc.get_pointer().get()}, uniform{i});
-          });
+        invoke_simd(
+            sg, SIMD_CALLEE1, uniform{A},
+            uniform{LocalAcc.template get_multi_ptr<access::decorated::yes>()
+                        .get()},
+            uniform{i});
+      });
     });
     e.wait();
   } catch (sycl::exception const &e) {
