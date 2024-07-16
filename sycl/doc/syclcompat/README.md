@@ -17,15 +17,9 @@ themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
 
-## Important Disclaimer
-
-SYCLcompat state is experimental. Its functionalities have been implemented but
-are not assured to remain consistent in the future. The API is subject to
-potential disruptions with new updates, so exercise caution when using it.
-
 ## Notice
 
-Copyright © 2023-2023 Codeplay Software Limited. All rights reserved.
+Copyright © 2023-2024 Codeplay Software Limited. All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
 The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
@@ -116,6 +110,10 @@ do not consider our API to be stable, and may change it with shorter notice.
 ### Changelog
 
 Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](https://github.com/intel/llvm/blob/sycl/sycl/ReleaseNotes.md).
+
+### Experimental Namespace
+
+SYCLcompat provides some new experimental features in the `syclcompat::experimental` namespace. This serves as a testing ground for new features which are expected to migrate to `syclcompat::` in time, but the developers do not guarantee either API stability or continued existence of these features; they may be modified or removed without notice. When features are migrated from `syclcompat::experimental` to `syclcompat::`, this will be treated as a `minor` version bump.
 
 ## Features
 
