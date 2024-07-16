@@ -119,7 +119,7 @@ class vec : public detail::vec_arith<DataT, NumElements> {
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
                 "or 16 are supported");
-  static_assert(sizeof(bool) == sizeof(int8_t), "bool size is not 1 byte");
+  static_assert(sizeof(bool) == sizeof(uint8_t), "bool size is not 1 byte");
 
   // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
   // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
@@ -135,10 +135,11 @@ class vec : public detail::vec_arith<DataT, NumElements> {
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
       std::byte, /*->*/ std::uint8_t, //
 #endif
-      bool, /*->*/ std::int8_t,                             //
+      bool, /*->*/ std::uint8_t,                            //
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
       sycl::ext::oneapi::bfloat16,
       /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
+      char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
       DataT, /*->*/ DataT                                 //
       >::type;
 
@@ -405,8 +406,8 @@ private:
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
                                 std::byte, /*->*/ std::uint8_t, //
 #endif
-                                bool, /*->*/ std::int8_t, //
-                                T, /*->*/ T               //
+                                bool, /*->*/ std::uint8_t, //
+                                T, /*->*/ T                //
                                 >::type;
 
   // getValue should be able to operate on different underlying
@@ -489,9 +490,9 @@ public:
           !std::is_same_v<convertT, bool>;
 
       if constexpr (canUseNativeVectorConvert) {
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(
-            detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                                OpenCLVecR>(NativeVector));
+        auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                                OpenCLVecR>(NativeVector);
+        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
       } else
 #endif // __SYCL_DEVICE_ONLY__
       {

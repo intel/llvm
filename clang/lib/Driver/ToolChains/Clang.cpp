@@ -5509,13 +5509,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
     if (SYCLStdArg) {
-      // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.
-      // TODO: remove support at next approprate major release.
-      StringRef StdValue(SYCLStdArg->getValue());
-      if (StdValue == "1.2.1" || StdValue == "121" ||
-          StdValue == "sycl-1.2.1" || StdValue == "2017")
-        D.Diag(diag::warn_drv_deprecated_argument_option_release)
-            << StdValue << SYCLStdArg->getSpelling();
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
@@ -5623,10 +5616,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
-      if (IsSYCLNativeCPU) {
-        CmdArgs.push_back("-D");
-        CmdArgs.push_back("__SYCL_NATIVE_CPU__");
-      }
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic
@@ -10557,7 +10546,6 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_argument_interfaces"
       ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
       ",+SPV_INTEL_fpga_latency_control"
-      ",+SPV_INTEL_task_sequence"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
@@ -10750,11 +10738,6 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
-
-  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
-  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
-  if (!IsUsingLTO || LTOMode != LTOK_Thin)
-    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10769,11 +10752,18 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                            llvm::Triple Triple,
                                            bool SpecConstsSupported,
                                            types::ID OutputType) {
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
   if (OutputType == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
+  } else if (!IsUsingLTO || LTOMode != LTOK_Thin) {
+    // Only create a properties file if we are not
+    // only outputting IR.
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
   }
   if (SpecConstsSupported)
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});

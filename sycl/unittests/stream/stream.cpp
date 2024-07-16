@@ -49,8 +49,9 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       // Try to create stream with invalid workItemBufferSize parameter.
       sycl::stream InvalidStream{256, std::numeric_limits<size_t>::max(), CGH};
       FAIL() << "No exception was thrown.";
-    } catch (const sycl::invalid_parameter_error &) {
-      // Expected exception
+    } catch (const sycl::exception &e) {
+      if (e.code() != sycl::errc::invalid)
+        FAIL() << "Unexpected exception was thrown.";
     } catch (...) {
       FAIL() << "Unexpected exception was thrown.";
     }
