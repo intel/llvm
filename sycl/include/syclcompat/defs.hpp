@@ -55,7 +55,6 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define SYCLCOMPAT_EXPORT
 #endif
 
-// TODO: enumerate past versions?
 #define SYCLCOMPAT_MAJOR_VERSION 0
 #define SYCLCOMPAT_MINOR_VERSION 1
 #define SYCLCOMPAT_PATCH_VERSION 0
