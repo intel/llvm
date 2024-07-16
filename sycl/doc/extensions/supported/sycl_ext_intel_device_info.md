@@ -46,8 +46,7 @@ A new aspect, ext\_intel\_device\_id, will be added.
 
 ## Error Condition ##
 
-Throws a synchronous `exception` with the `errc::feature_not_supported` error
-code if the device does not have `aspect::ext_intel_device_id`.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_id`.
 
 ## Example Usage ##
 
@@ -84,7 +83,7 @@ A new aspect, ext\_intel\_device\_info\_uuid, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_device\_info\_uuid.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_info_uuid`.
 
 
 ## Example Usage ##
@@ -124,7 +123,7 @@ A new aspect, ext\_intel\_pci\_address, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_pci\_address.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_pci_address`.
 
 
 ## Example Usage ##
@@ -163,7 +162,7 @@ A new aspect, ext\_intel\_gpu\_eu\_simd\_width, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_simd_width`.
 
 ## Example Usage ##
 
@@ -203,7 +202,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_count`.
 
 ## Example Usage ##
 
@@ -239,7 +238,7 @@ A new aspect, ext\_intel\_gpu\_slices, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_slices.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_slices`.
 
 ## Example Usage ##
 
@@ -274,7 +273,7 @@ A new aspect, ext\_intel\_gpu\_subslices\_per\_slice, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_subslices\_per\_slice.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_subslices_per_slice`.
 
 ## Example Usage ##
 
@@ -309,7 +308,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count\_per\_subslice, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_count_per_subslice`.
 
 ## Example Usage ##
 
@@ -342,7 +341,7 @@ A new aspect, ext\_intel\_gpu\_hw\_threads\_per\_eu, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_hw_threads_per_eu`.
 
 ## Example Usage ##
 
@@ -378,7 +377,7 @@ A new aspect, ext\_intel\_max\_mem\_bandwidth, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_max_mem_bandwidth`.
 
 
 ## Example Usage ##
@@ -416,7 +415,7 @@ A new aspect, ext\_intel\_free\_memory, will be added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_free\_memory.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_free_memory`.
 
 
 ## Example Usage ##
@@ -453,7 +452,7 @@ A new aspect, ext\_intel\_memory\_clock\_rate, is added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_memory_clock_rate`.
 
 
 ## Example Usage ##
@@ -490,7 +489,7 @@ A new aspect, ext\_intel\_memory\_bus\_width, is added.
 
 ## Error Condition ##
 
-An exception with a feature not supported error code will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_memory_bus_width`.
 
 
 ## Example Usage ##
