@@ -56,7 +56,7 @@ protected:
     std::vector<detail::Command *> ToEnqueue;
 
     // Emulating processing of command group function
-    MockHandlerCustomFinalize MockCGH(QueueDevImpl, false,
+    MockHandlerCustomFinalize MockCGH(QueueDevImpl,
                                       /*CallerNeedsEvent=*/true);
 
     for (auto EventImpl : Events)

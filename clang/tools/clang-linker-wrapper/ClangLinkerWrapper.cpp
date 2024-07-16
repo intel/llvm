@@ -15,6 +15,7 @@
 //===---------------------------------------------------------------------===//
 
 #include "clang/Basic/Version.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -37,6 +38,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -53,6 +55,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -96,6 +99,8 @@ static codegen::RegisterCodeGenFlags CodeGenFlags;
 
 /// Global flag to indicate that the LTO pipeline threw an error.
 static std::atomic<bool> LTOError;
+
+static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
@@ -255,9 +260,8 @@ Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args) {
 
   if (!DryRun)
     if (sys::ExecuteAndWait(ExecutablePath, Args))
-      return createStringError(inconvertibleErrorCode(),
-                               "'" + sys::path::filename(ExecutablePath) + "'" +
-                                   " failed");
+      return createStringError(
+          "'%s' failed", sys::path::filename(ExecutablePath).str().c_str());
   return Error::success();
 }
 
@@ -290,7 +294,6 @@ Error relocateOffloadSection(const ArgList &Args, StringRef Output) {
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
   if (Triple.isOSWindows())
     return createStringError(
-        inconvertibleErrorCode(),
         "Relocatable linking is not supported on COFF targets");
 
   Expected<std::string> ObjcopyPath =
@@ -303,8 +306,7 @@ Error relocateOffloadSection(const ArgList &Args, StringRef Output) {
   auto BufferOrErr = DryRun ? MemoryBuffer::getMemBuffer("")
                             : MemoryBuffer::getFileOrSTDIN(Output);
   if (!BufferOrErr)
-    return createStringError(inconvertibleErrorCode(), "Failed to open %s",
-                             Output.str().c_str());
+    return createStringError("Failed to open %s", Output.str().c_str());
   std::string Suffix = "_" + getHash((*BufferOrErr)->getBuffer());
 
   SmallVector<StringRef> ObjcopyArgs = {
@@ -546,6 +548,10 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   else
     PostLinkArgs.push_back("-spec-const=emulation");
 
+  // TODO: If we ever pass -ir-output-only based on the triple,
+  // make sure we don't pass -properties.
+  PostLinkArgs.push_back("-properties");
+
   // See if device code splitting is already requested. If not requested, then
   // set -split=auto for non-FPGA targets.
   bool NoSplit = true;
@@ -599,8 +605,8 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
-static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
-                                           const ArgList &Args) {
+static Expected<std::vector<module_split::SplitModule>>
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -627,79 +633,85 @@ static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
     CmdArgs.push_back(File);
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
     return std::move(Err);
-  return *TempFileOrErr;
+
+  if (DryRun) {
+    // In DryRun we need a dummy entry in order to continue the whole pipeline.
+    auto ImageFileOrErr = createOutputFile(
+        sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
+    if (!ImageFileOrErr)
+      return ImageFileOrErr.takeError();
+
+    std::vector Modules = {module_split::SplitModule(
+        *ImageFileOrErr, util::PropertySetRegistry(), "")};
+    return Modules;
+  }
+
+  return llvm::module_split::parseSplitModulesFromFile(*TempFileOrErr);
 }
 
-// This table is used to manage the output table populated by sycl-post-link.
-struct Table {
-  struct SYCLTableEntry {
-    std::string IRFile;
-    std::string PropFile;
-    std::string SymFile;
-  };
+/// Invokes SYCL Split library for SYCL offloading.
+///
+/// \param InputFiles the list of input LLVM IR files.
+/// \param Args Encompasses all arguments for linking and wrapping device code.
+///  It will be parsed to generate options required to be passed to SYCL split
+///  library.
+/// \param Mode The splitting mode.
+/// \returns The vector of split modules.
+static Expected<std::vector<module_split::SplitModule>>
+runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                    module_split::IRSplitMode Mode) {
+  std::vector<module_split::SplitModule> SplitModules;
+  if (DryRun) {
+    auto OutputFileOrErr = createOutputFile(
+        sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
+    if (!OutputFileOrErr)
+      return OutputFileOrErr.takeError();
 
-  SmallVector<SYCLTableEntry, 16> Entries;
-
-  SmallVector<std::string, 16> getListOfIRFiles(void) {
-    SmallVector<std::string, 16> Files;
-    for (auto &Entry : Entries) {
-      Files.push_back(Entry.IRFile);
-    }
-    return Files;
+    StringRef OutputFilePath = *OutputFileOrErr;
+    auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
+    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
+                      InputFilesStr, OutputFilePath);
+    SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry(), "");
+    return SplitModules;
   }
 
-  Expected<StringRef> writeSYCLTableToFile(void) {
-    // Create a new file.
-    auto TempFileOrErr =
-        createOutputFile(sys::path::filename(ExecutableName), "table");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    std::error_code EC;
-    raw_fd_ostream TableFile(*TempFileOrErr, EC, sys::fs::OF_None);
-    if (EC)
-      reportError(errorCodeToError(EC));
-    TableFile << "[Code|Properties|Symbols]\n";
-    for (auto &Entry : Entries) {
-      TableFile << Entry.IRFile << "|";
-      TableFile << Entry.PropFile << "|";
-      TableFile << Entry.SymFile << "\n";
-    }
-    return *TempFileOrErr;
+  llvm::module_split::ModuleSplitterSettings Settings;
+  Settings.Mode = Mode;
+  Settings.OutputPrefix = "";
+
+  for (StringRef InputFile : InputFiles) {
+    SMDiagnostic Err;
+    LLVMContext C;
+    std::unique_ptr<Module> M = parseIRFile(InputFile, Err, C);
+    if (!M)
+      return createStringError(inconvertibleErrorCode(), Err.getMessage());
+
+    auto SplitModulesOrErr =
+        module_split::splitSYCLModule(std::move(M), Settings);
+    if (!SplitModulesOrErr)
+      return SplitModulesOrErr.takeError();
+
+    auto &NewSplitModules = *SplitModulesOrErr;
+    SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
+                        NewSplitModules.end());
   }
 
-  Error populateSYCLTable(StringRef EntriesFile) {
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MBOrErr =
-        llvm::MemoryBuffer::getFileOrSTDIN(EntriesFile);
-    if (std::error_code EC = MBOrErr.getError())
-      return createFileError(EntriesFile, EC);
-    int LineNumber = -1;
-    for (line_iterator LI(**MBOrErr); !LI.is_at_eof(); ++LI) {
-      // Skip first line
-      StringRef Line = *LI;
-      if (LineNumber == -1) {
-        if (Line != "[Code|Properties|Symbols]")
-          return createStringError(inconvertibleErrorCode(),
-                                   "Invalid SYCL Table file.");
-        LineNumber++;
-        continue;
-      }
-      if (Line.empty())
-        return createStringError(inconvertibleErrorCode(),
-                                 "Invalid SYCL Table file.");
-      auto [FirstWord, Rem1] = Line.split("|");
-      SYCLTableEntry Entry;
-      Entry.IRFile = FirstWord.str();
-      if (Rem1.empty())
-        return createStringError(inconvertibleErrorCode(),
-                                 "Invalid SYCL Table file.");
-      auto [SecondWord, ThirdWord] = Rem1.split("|");
-      Entry.PropFile = SecondWord.str();
-      Entry.SymFile = ThirdWord.str();
-      Entries.push_back(Entry);
+  if (Verbose) {
+    auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
+    std::string SplitOutputFilesStr;
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+      if (I > 0)
+        SplitOutputFilesStr += ',';
+
+      SplitOutputFilesStr += SplitModules[I].ModuleFilePath;
     }
-    return Error::success();
+
+    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
+                      InputFilesStr, SplitOutputFilesStr);
   }
-};
+
+  return SplitModules;
+}
 
 /// Add any llvm-spirv option that relies on a specific Triple in addition
 /// to user supplied options.
@@ -921,80 +933,13 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
                            "Unsupported SYCL Triple and Arch");
 }
 
-Expected<std::string> readTextFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
-                                       /*RequiresNullTerminator */ true);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::string(MB->getBufferStart(), MB->getBufferEnd());
-}
-
-Expected<std::unique_ptr<util::PropertySetRegistry>>
-readPropertyRegistryFromFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return util::PropertySetRegistry::read(&*MB);
-}
-
-// The table format is the following:
-// [Code|Properties|Symbols]
-// a_0.bin|a_0.prop|a_0.sym
-// .
-// a_n.bin|a_n.prop|a_n.sym
-//
-// .bin extension might be a bc, spv or other native extension.
-Expected<SmallVector<offloading::SYCLImage>>
-readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
-  auto TableOrErr = util::SimpleTable::read(TableFile);
-  if (!TableOrErr)
-    return TableOrErr.takeError();
-
-  std::unique_ptr<util::SimpleTable> Table = std::move(*TableOrErr);
-  int CodeIndex = Table->getColumnId("Code");
-  int PropertiesIndex = Table->getColumnId("Properties");
-  int SymbolsIndex = Table->getColumnId("Symbols");
-  if (CodeIndex == -1 || PropertiesIndex == -1 || SymbolsIndex == -1)
-    return createStringError(
-        inconvertibleErrorCode(),
-        "expected columns in the table: Code, Properties and Symbols");
-
-  SmallVector<offloading::SYCLImage> Images;
-  for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImagePath = row.getCell("Code");
-    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
-    if (!ImageOrErr)
-      return createFileError(ImagePath, ImageOrErr.getError());
-
-    auto PropertiesOrErr =
-        readPropertyRegistryFromFile(row.getCell("Properties"));
-    if (!PropertiesOrErr)
-      return PropertiesOrErr.takeError();
-
-    auto SymbolsOrErr = readTextFile(row.getCell("Symbols"));
-    if (!SymbolsOrErr)
-      return SymbolsOrErr.takeError();
-
-    offloading::SYCLImage Image;
-    Image.Image = std::move(*ImageOrErr);
-    Image.PropertyRegistry = std::move(**PropertiesOrErr);
-    Image.Entries = std::move(*SymbolsOrErr);
-    Images.push_back(std::move(Image));
-  }
-
-  return std::move(Images);
-}
-
 /// Reads device images from the given \p InputFile and wraps them
 /// in one LLVM IR Module as a constant data.
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
-Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
-                                             const ArgList &Args) {
+Expected<StringRef>
+wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
+                         const ArgList &Args) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -1002,30 +947,38 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
 
   StringRef OutputFilePath = *OutputFileOrErr;
   if (Verbose || DryRun) {
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile,
+    std::string InputFiles;
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+      InputFiles += SplitModules[I].ModuleFilePath;
+      if (I + 1 < E)
+        InputFiles += ',';
+    }
+
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
                       OutputFilePath);
     if (DryRun)
       return OutputFilePath;
   }
 
-  auto ImagesOrErr = readSYCLImagesFromTable(InputFile, Args);
-  if (!ImagesOrErr)
-    return ImagesOrErr.takeError();
-
-  auto &Images = *ImagesOrErr;
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
+  SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for
   // spir64-unknown-unknown.
   // TODO: Fix SYCL runtime to accept both triple
   llvm::Triple T(Target);
   StringRef A(T.getArchName());
-  for (offloading::SYCLImage &Image : Images)
-    Image.Target = A;
+  for (auto &SI : SplitModules) {
+    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
+    if (!MBOrDesc)
+      return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
+
+    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, A);
+  }
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);
@@ -1057,7 +1010,7 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
-    errs() << M;
+    errs() << "Wrapped Module\n" << M;
 
   // TODO: Once "llc tool->runCompile" migration is finished we need to remove
   // this scope and use community flow.
@@ -1103,9 +1056,10 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 }
 
 // Run wrapping library and llc
-static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
-                                                const ArgList &Args) {
-  auto OutputFile = sycl::wrapSYCLBinariesFromFile(InputFile, Args);
+static Expected<StringRef>
+runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
+                     const ArgList &Args) {
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
@@ -1337,8 +1291,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 
         file_magic Magic;
         if (auto EC = identify_magic(Arg->getValue(), Magic))
-          return createStringError(inconvertibleErrorCode(),
-                                   "Failed to open %s", Arg->getValue());
+          return createStringError("Failed to open %s", Arg->getValue());
         if (Magic != file_magic::archive &&
             Magic != file_magic::elf_shared_object)
           continue;
@@ -1441,9 +1394,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   default:
-    return createStringError(inconvertibleErrorCode(),
-                             Triple.getArchName() +
-                                 " linking is not supported");
+    return createStringError(Triple.getArchName() +
+                             " linking is not supported");
   }
 }
 
@@ -1758,15 +1710,13 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     return Err;
 
   if (LTOError)
-    return createStringError(inconvertibleErrorCode(),
-                             "Errors encountered inside the LTO pipeline.");
+    return createStringError("Errors encountered inside the LTO pipeline.");
 
   // If we are embedding bitcode we only need the intermediate output.
   bool SingleOutput = Files.size() == 1;
   if (Args.hasArg(OPT_embed_bitcode)) {
     if (BitcodeOutput.size() != 1 || !SingleOutput)
-      return createStringError(inconvertibleErrorCode(),
-                               "Cannot embed bitcode with multiple files.");
+      return createStringError("Cannot embed bitcode with multiple files.");
     OutputFiles.push_back(Args.MakeArgString(BitcodeOutput.front()));
     return Error::success();
   }
@@ -1789,7 +1739,7 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   std::string Msg;
   const Target *T = TargetRegistry::lookupTarget(M.getTargetTriple(), Msg);
   if (!T)
-    return createStringError(inconvertibleErrorCode(), Msg);
+    return createStringError(Msg);
 
   auto Options =
       codegen::InitTargetOptionsFromCodeGenFlags(Triple(M.getTargetTriple()));
@@ -1819,8 +1769,7 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
   if (TM->addPassesToEmitFile(CodeGenPasses, *OS, nullptr,
                               CodeGenFileType::ObjectFile))
-    return createStringError(inconvertibleErrorCode(),
-                             "Failed to execute host backend");
+    return createStringError("Failed to execute host backend");
   CodeGenPasses.run(M);
 
   return *TempFileOrErr;
@@ -1865,9 +1814,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
       return std::move(Err);
     break;
   default:
-    return createStringError(inconvertibleErrorCode(),
-                             getOffloadKindName(Kind) +
-                                 " wrapping is not supported");
+    return createStringError(getOffloadKindName(Kind) +
+                             " wrapping is not supported");
   }
 
   if (Args.hasArg(OPT_print_wrapped_module))
@@ -1962,9 +1910,8 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
   case OFK_HIP:
     return bundleHIP(Images, Args);
   default:
-    return createStringError(inconvertibleErrorCode(),
-                             getOffloadKindName(Kind) +
-                                 " bundling is not supported");
+    return createStringError(getOffloadKindName(Kind) +
+                             " bundling is not supported");
   }
 }
 
@@ -2014,7 +1961,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
 
 Error handleOverrideImages(
     const InputArgList &Args,
-    DenseMap<OffloadKind, SmallVector<OffloadingImage>> &Images) {
+    MapVector<OffloadKind, SmallVector<OffloadingImage, 0>> &Images) {
   for (StringRef Arg : Args.getAllArgValues(OPT_override_image)) {
     OffloadKind Kind = getOffloadKind(Arg.split("=").first);
     StringRef Filename = Arg.split("=").second;
@@ -2053,7 +2000,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   llvm::TimeTraceScope TimeScope("Handle all device input");
 
   std::mutex ImageMtx;
-  DenseMap<OffloadKind, SmallVector<OffloadingImage>> Images;
+  MapVector<OffloadKind, SmallVector<OffloadingImage, 0>> Images;
   // Create a binary image of each offloading image and embed it into a new
   // object file.
   SmallVector<StringRef> WrappedOutput;
@@ -2073,7 +2020,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     StringSaver Saver(Alloc);
     auto BaseArgs =
         Tbl.parseArgs(Argc, Argv, OPT_INVALID, Saver, [](StringRef Err) {
-          reportError(createStringError(inconvertibleErrorCode(), Err));
+          reportError(createStringError(Err));
         });
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
     DenseSet<OffloadKind> ActiveOffloadKinds;
@@ -2103,30 +2050,25 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
-      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFilesSYCL, LinkerArgs);
-      if (!SYCLPostLinkFile)
-        return SYCLPostLinkFile.takeError();
-      sycl::Table LiveSYCLTable;
-      if (Error Err = LiveSYCLTable.populateSYCLTable(*SYCLPostLinkFile))
-        return std::move(Err);
-      auto PostLinkedFiles = LiveSYCLTable.getListOfIRFiles();
-      if (DryRun)
-        PostLinkedFiles.push_back("dummy");
-      for (unsigned I = 0; I < PostLinkedFiles.size(); ++I) {
-        SmallVector<StringRef> Files;
-        Files.emplace_back(PostLinkedFiles[I]);
+      auto SplitModulesOrErr =
+          SYCLModuleSplitMode
+              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
+                                          *SYCLModuleSplitMode)
+              : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
+      if (!SplitModulesOrErr)
+        return SplitModulesOrErr.takeError();
+
+      auto &SplitModules = *SplitModulesOrErr;
+      for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+        SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
         auto LinkedFileFinalOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
         if (!LinkedFileFinalOrErr)
           return LinkedFileFinalOrErr.takeError();
-        if (!DryRun)
-          LiveSYCLTable.Entries[I].IRFile = *LinkedFileFinalOrErr;
+        SplitModules[I].ModuleFilePath = *LinkedFileFinalOrErr;
       }
-      auto WrapperInput = LiveSYCLTable.writeSYCLTableToFile();
-      if (!WrapperInput)
-        return WrapperInput.takeError();
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-      auto OutputFile = sycl::runWrapperAndCompile(*WrapperInput, LinkerArgs);
+      auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
       if (!OutputFile)
         return OutputFile.takeError();
 
@@ -2429,9 +2371,8 @@ getDeviceInput(const ArgList &Args) {
             : std::string(Arg->getValue());
 
     if (!Filename && Arg->getOption().matches(OPT_library))
-      reportError(createStringError(inconvertibleErrorCode(),
-                                    "unable to find library -l%s",
-                                    Arg->getValue()));
+      reportError(
+          createStringError("unable to find library -l%s", Arg->getValue()));
 
     if (!Filename || !sys::fs::exists(*Filename) ||
         sys::fs::is_directory(*Filename))
@@ -2458,7 +2399,7 @@ getDeviceInput(const ArgList &Args) {
   }
 
   // Link all standard input files and update the list of symbols.
-  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile>> InputFiles;
+  MapVector<OffloadFile::TargetID, SmallVector<OffloadFile, 0>> InputFiles;
   DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
   for (OffloadFile &Binary : ObjectFilesToExtract) {
     if (!Binary.getBinary())
@@ -2563,7 +2504,7 @@ int main(int Argc, char **Argv) {
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
   auto Args = Tbl.parseArgs(Argc, Argv, OPT_INVALID, Saver, [&](StringRef Err) {
-    reportError(createStringError(inconvertibleErrorCode(), Err));
+    reportError(createStringError(Err));
   });
 
   if (Args.hasArg(OPT_help) || Args.hasArg(OPT_help_hidden)) {
@@ -2608,9 +2549,9 @@ int main(int Argc, char **Argv) {
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {
     unsigned Threads = 0;
     if (!llvm::to_integer(Arg->getValue(), Threads) || Threads == 0)
-      reportError(createStringError(
-          inconvertibleErrorCode(), "%s: expected a positive integer, got '%s'",
-          Arg->getSpelling().data(), Arg->getValue()));
+      reportError(createStringError("%s: expected a positive integer, got '%s'",
+                                    Arg->getSpelling().data(),
+                                    Arg->getValue()));
     parallel::strategy = hardware_concurrency(Threads);
   }
 
@@ -2619,6 +2560,16 @@ int main(int Argc, char **Argv) {
     Args.getLastArgValue(OPT_wrapper_time_trace_granularity, "500")
         .getAsInteger(10, Granularity);
     timeTraceProfilerInitialize(Granularity, Argv[0]);
+  }
+
+  if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
+    StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
+    SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
+    if (!SYCLModuleSplitMode)
+      reportError(createStringError(
+          inconvertibleErrorCode(),
+          formatv("sycl-module-split-mode value isn't recognized: {0}",
+                  StrMode)));
   }
 
   {

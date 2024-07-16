@@ -15,7 +15,6 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sampler_impl.hpp>
@@ -304,7 +303,8 @@ bool Command::isFusable() const {
   }
   const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
   return (CG.getType() == CG::CGTYPE::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
+         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -2371,7 +2371,7 @@ static pi_result SetKernelParamsAndLaunch(
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative) {
+    bool IsCooperative, bool KernelUsesClusterLaunch) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const PluginPtr &Plugin = Queue->getPlugin();
 
@@ -2409,6 +2409,35 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  if (KernelUsesClusterLaunch) {
+    std::vector<pi_launch_property> property_list;
+
+    pi_launch_property_value launch_property_value_cluster_range;
+    launch_property_value_cluster_range.cluster_dims[0] =
+        NDRDesc.ClusterDimensions[0];
+    launch_property_value_cluster_range.cluster_dims[1] =
+        NDRDesc.ClusterDimensions[1];
+    launch_property_value_cluster_range.cluster_dims[2] =
+        NDRDesc.ClusterDimensions[2];
+
+    property_list.push_back(
+        {pi_launch_property_id::PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION,
+         launch_property_value_cluster_range});
+
+    if (IsCooperative) {
+      pi_launch_property_value launch_property_value_cooperative;
+      launch_property_value_cooperative.cooperative = 1;
+      property_list.push_back(
+          {pi_launch_property_id::PI_LAUNCH_PROPERTY_COOPERATIVE,
+           launch_property_value_cooperative});
+    }
+
+    return Plugin->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
+        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
+        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+  }
   pi_result Error =
       [&](auto... Args) {
         if (IsCooperative) {
@@ -2553,7 +2582,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   return Res;
 }
 
-pi_int32 enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -2562,7 +2591,7 @@ pi_int32 enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    const bool KernelIsCooperative) {
+    const bool KernelIsCooperative, const bool KernelUsesClusterLaunch) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2651,10 +2680,10 @@ pi_int32 enqueueImpKernel(
           sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc,
-                                     KernelIsCooperative);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+        KernelIsCooperative, KernelUsesClusterLaunch);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2669,8 +2698,6 @@ pi_int32 enqueueImpKernel(
     detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
   }
-
-  return PI_SUCCESS;
 }
 
 pi_int32
@@ -2855,7 +2882,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
-        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+        Fill->getLength(), Fill->getPattern(), std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
@@ -2879,8 +2906,8 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   default:
-    throw runtime_error("CG type not implemented for command buffers.",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "CG type not implemented for command buffers.");
   }
 }
 
@@ -3004,10 +3031,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
     }
 
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
+    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
+                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch);
+
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -3020,7 +3050,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event,
+                            Fill->getPattern(), std::move(RawEvents), Event,
                             MEvent);
 
     return PI_SUCCESS;

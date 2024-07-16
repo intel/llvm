@@ -489,9 +489,9 @@ public:
           !std::is_same_v<convertT, bool>;
 
       if constexpr (canUseNativeVectorConvert) {
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(
-            detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                                OpenCLVecR>(NativeVector));
+        auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                                OpenCLVecR>(NativeVector);
+        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
       } else
 #endif // __SYCL_DEVICE_ONLY__
       {
@@ -1365,7 +1365,7 @@ public:
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
     vec_t Tmp;
-    Tmp.template load(offset, ptr);
+    Tmp.load(offset, ptr);
     *this = Tmp;
   }
 
