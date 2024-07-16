@@ -34,6 +34,7 @@
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
 
+#include "../common.hpp"
 #include "launch_fixt.hpp"
 
 namespace compat_exp = syclcompat::experimental;
@@ -55,6 +56,14 @@ inline void dynamic_local_mem_empty_kernel(char *a){};
 
 template <typename T>
 inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem){};
+
+template <typename T> void write_mem_kernel(T *data, int num_elements) {
+  const int id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
+  if (id < num_elements) {
+    data[id] = static_cast<T>(id);
+  }
+};
 
 template <typename T>
 void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
@@ -154,20 +163,13 @@ int test_variadic_config_ctor() {
 int test_basic_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  // TODO: ensure we have a combo of, launch_property, kernel_property,
-  // runtime_value, param/paramless
-  // local memory usage, reducer??
-
-  // A runtime kernel property for the
-
   sycl_intel_exp::cache_config my_cache_config{
       sycl_intel_exp::large_slm}; // constructed at runtime
 
   compat_exp::kernel_properties my_k_props{
       sycl_exp::sub_group_size<32>, sycl_exp::use_root_sync, my_cache_config};
 
-  compat_exp::launch_properties my_l_props{
-      sycl_exp::use_root_sync}; // TODO: this isn't a launch property!
+  compat_exp::launch_properties my_l_props{};
 
   compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}}, my_k_props,
                                       my_l_props);
@@ -250,7 +252,7 @@ int test_dim3_launch_policy() {
       std::is_same_v<decltype(my_dim3_config)::RangeT, sycl::range<3>>);
 
   compat_exp::launch_policy my_dim3_dim3_config(syclcompat::dim3{32},
-                                               syclcompat::dim3{32});
+                                                syclcompat::dim3{32});
 
   static_assert(
       std::is_same_v<decltype(my_dim3_dim3_config)::RangeT, sycl::nd_range<3>>);
@@ -270,12 +272,14 @@ int test_dim3_lmem_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   compat_exp::launch_policy my_dim3_dim3_config(syclcompat::dim3{32},
-                                               syclcompat::dim3{32}, compat_exp::local_mem_size{0});
+                                                syclcompat::dim3{32},
+                                                compat_exp::local_mem_size{0});
 
   static_assert(
       std::is_same_v<decltype(my_dim3_dim3_config)::RangeT, sycl::nd_range<3>>);
 
-  compat_exp::launch<dynamic_local_mem_empty_kernel>(my_dim3_dim3_config).wait();
+  compat_exp::launch<dynamic_local_mem_empty_kernel>(my_dim3_dim3_config)
+      .wait();
   std::cout << "Launched 1 succesfully" << std::endl;
 
   return 0;
@@ -293,8 +297,26 @@ int test_dim3_props_launch() {
   return 0;
 }
 
+template <typename T> int test_write_mem() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  LaunchTestWithArgs<T> ltt;
+  if (ltt.skip_) // Unsupported aspect
+    return 0;
+
+  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32});
+
+  const int memsize = 1024;
+  T *d_a = (T *)syclcompat::malloc(memsize);
+  compat_exp::launch<write_mem_kernel<T>>(my_dim3_config, d_a,
+                                              memsize / sizeof(T))
+      .wait();
+
+  syclcompat::free(d_a);
+  return 0;
+}
+
 int main() {
-  // TODO: check return values!
   test_variadic_config_ctor();
   test_basic_launch();
   test_range_launch();
@@ -302,4 +324,5 @@ int main() {
   test_dim3_launch_policy();
   test_dim3_lmem_launch();
   test_dim3_props_launch();
+  INSTANTIATE_ALL_TYPES(value_type_list, test_write_mem);
 }
