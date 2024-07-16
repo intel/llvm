@@ -1494,6 +1494,7 @@ public:
     Args.push_back(ObjcopyPath);
     std::string Option("--add-section=.note.openmp=" + NotesTmpFileName);
     Args.push_back(Option);
+    Args.push_back("--no-verify-note-sections");
     Args.push_back(OriginalFileName);
     Args.push_back(ELFTmpFileName);
     bool ExecutionFailed = false;
