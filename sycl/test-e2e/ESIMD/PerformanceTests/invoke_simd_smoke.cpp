@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu-intel-dg2 && level_zero
 // UNSUPPORTED: windows
 
 // RUN: mkdir -p %t.dir && %{build} -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.dir/exec.out

@@ -495,7 +495,6 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
       ISCalls.insert(CI);
     }
   }
-
   for (CallInst *CI : ISCalls) {
     Modified |= processInvokeSimdCall(CI, ClonedHelpers);
   }
