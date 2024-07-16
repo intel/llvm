@@ -3257,7 +3257,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     MemoryManager::copy_image_bindless(
         MQueue, Copy->getSrc(), Copy->getDst(), Copy->getSrcDesc(),
-        Copy->getDestDesc(), Copy->getSrcFormat(), Copy->getDestFormat(),
+        Copy->getDstDesc(), Copy->getSrcFormat(), Copy->getDstFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
         Copy->getCopyExtent(), std::move(RawEvents), Event);
     return PI_SUCCESS;

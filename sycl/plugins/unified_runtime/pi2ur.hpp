@@ -5323,7 +5323,7 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
 
 inline pi_result piextMemImageCopy(
     pi_queue Queue, void *DstPtr, void *SrcPtr,
-    const pi_image_desc *SrcImageDesc, const pi_image_desc *DestImageDesc,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DstImageDesc,
     const pi_image_format *SrcImageFormat,
     const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,
     pi_image_offset SrcOffset, pi_image_offset DstOffset,
@@ -5333,13 +5333,13 @@ inline pi_result piextMemImageCopy(
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
-  ur_image_format_t UrFormatSrc{};
-  ur_image_desc_t UrDescSrc{};
-  pi2urImageDesc(SrcImageFormat, SrcImageDesc, &UrFormatSrc, &UrDescSrc);
+  ur_image_format_t UrSrcFormat{};
+  ur_image_desc_t UrSrcDesc{};
+  pi2urImageDesc(SrcImageFormat, SrcImageDesc, &UrSrcFormat, &UrSrcDesc);
 
-  ur_image_format_t UrFormatDest{};
-  ur_image_desc_t UrDescDest{};
-  pi2urImageDesc(DestImageFormat, DestImageDesc, &UrFormatDest, &UrDescDest);
+  ur_image_format_t UrDstFormat{};
+  ur_image_desc_t UrDstDesc{};
+  pi2urImageDesc(DestImageFormat, DstImageDesc, &UrDstFormat, &UrDstDesc);
 
   ur_exp_image_copy_flags_t UrFlags;
   pi2urImageCopyFlags(Flags, &UrFlags);
@@ -5361,8 +5361,8 @@ inline pi_result piextMemImageCopy(
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesImageCopyExp(
-      UrQueue, SrcPtr, DstPtr, &UrDescSrc, &UrDescDest, &UrFormatSrc,
-      &UrFormatDest, &UrCopyRegion, UrFlags, NumEventsInWaitList,
+      UrQueue, SrcPtr, DstPtr, &UrSrcDesc, &UrDstDesc, &UrSrcFormat,
+      &UrDstFormat, &UrCopyRegion, UrFlags, NumEventsInWaitList,
       UrEventWaitList, UREvent));
 
   return PI_SUCCESS;

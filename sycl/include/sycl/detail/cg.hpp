@@ -527,11 +527,11 @@ public:
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
   sycl::detail::pi::PiMemImageDesc getSrcDesc() const { return MSrcImageDesc; }
-  sycl::detail::pi::PiMemImageDesc getDestDesc() const { return MDstImageDesc; }
+  sycl::detail::pi::PiMemImageDesc getDstDesc() const { return MDstImageDesc; }
   sycl::detail::pi::PiMemImageFormat getSrcFormat() const {
     return MSrcImageFormat;
   }
-  sycl::detail::pi::PiMemImageFormat getDestFormat() const {
+  sycl::detail::pi::PiMemImageFormat getDstFormat() const {
     return MDstImageFormat;
   }
   sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
