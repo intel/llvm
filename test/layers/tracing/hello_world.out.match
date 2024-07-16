@@ -18,6 +18,6 @@ function_with_args_begin(8) - urDeviceGetInfo(unimplemented);
 function_with_args_end(8) - urDeviceGetInfo(...) -> ur_result_t(0);
 function_with_args_begin(9) - urDeviceGetInfo(unimplemented);
 function_with_args_end(9) - urDeviceGetInfo(...) -> ur_result_t(0);
-Found a Null Device gpu.
+Found a Mock Device gpu.
 function_with_args_begin(10) - urAdapterRelease(unimplemented);
 function_with_args_end(10) - urAdapterRelease(...) -> ur_result_t(0);

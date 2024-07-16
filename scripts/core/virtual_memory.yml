@@ -292,7 +292,7 @@ name: Retain
 params:
     - type: $x_physical_mem_handle_t
       name: hPhysicalMem
-      desc: "[in] handle of the physical memory object to retain."
+      desc: "[in][retain] handle of the physical memory object to retain."
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -302,4 +302,4 @@ name: Release
 params:
     - type: $x_physical_mem_handle_t
       name: hPhysicalMem
-      desc: "[in] handle of the physical memory object to release."
+      desc: "[in][release] handle of the physical memory object to release."

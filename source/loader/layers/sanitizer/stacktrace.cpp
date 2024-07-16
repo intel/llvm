@@ -25,7 +25,7 @@ bool Contains(const std::string &s, const char *p) {
 
 void StackTrace::print() const {
     if (!stack.size()) {
-        context.logger.always("  failed to acquire backtrace");
+        getContext()->logger.always("  failed to acquire backtrace");
     }
 
     unsigned index = 0;
@@ -37,10 +37,10 @@ void StackTrace::print() const {
             Contains(BI, "libur_loader.so")) {
             continue;
         }
-        context.logger.always("  #{} {}", index, BI);
+        getContext()->logger.always("  #{} {}", index, BI);
         ++index;
     }
-    context.logger.always("");
+    getContext()->logger.always("");
 }
 
 } // namespace ur_sanitizer_layer

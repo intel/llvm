@@ -165,7 +165,7 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   if (pPropValue && CheckPropSize != propSize) {
     return UR_RESULT_ERROR_INVALID_SIZE;
   }
-  CL_RETURN_ON_FAILURE(Err);
+  UR_RETURN_ON_FAILURE(Err);
   if (pPropSizeRet) {
     *pPropSizeRet = CheckPropSize;
   }
@@ -199,8 +199,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t hNativeSampler, ur_context_handle_t,
     const ur_sampler_native_properties_t *pProperties,
     ur_sampler_handle_t *phSampler) {
-  *phSampler = reinterpret_cast<ur_sampler_handle_t>(
-      cl_adapter::cast<cl_sampler>(hNativeSampler));
+  *phSampler = reinterpret_cast<ur_sampler_handle_t>(hNativeSampler);
   if (!pProperties || !pProperties->isNativeHandleOwned) {
     return urSamplerRetain(*phSampler);
   }

@@ -36,6 +36,8 @@ from templates import helper as th
         ${x}::details::printPtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
         ${x}::details::printPtr(os, ${caller.body()});
+    %elif th.type_traits.is_native_handle(itype):
+        ${x}::details::printPtr(os, reinterpret_cast<void*>(${caller.body()}));
     %elif th.type_traits.is_handle(itype):
         ${x}::details::printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
@@ -113,7 +115,7 @@ namespace ${x}::details {
 template <typename T> struct is_handle : std::false_type {};
 %for spec in specs:
 %for obj in spec['objects']:
-%if re.match(r"handle", obj['type']):
+%if th.type_traits.is_handle(th.make_type_name(n, tags, obj)) and not th.type_traits.is_native_handle(th.make_type_name(n, tags, obj)):
 template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_type {};
 %endif
 %endfor

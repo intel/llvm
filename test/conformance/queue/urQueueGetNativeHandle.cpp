@@ -8,14 +8,14 @@ using urQueueGetNativeHandleTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetNativeHandleTest);
 
 TEST_P(urQueueGetNativeHandleTest, Success) {
-    ur_native_handle_t native_handle = nullptr;
+    ur_native_handle_t native_handle = 0;
     if (auto error = urQueueGetNativeHandle(queue, nullptr, &native_handle)) {
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
     }
 }
 
 TEST_P(urQueueGetNativeHandleTest, InvalidNullHandleQueue) {
-    ur_native_handle_t native_handle = nullptr;
+    ur_native_handle_t native_handle = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urQueueGetNativeHandle(nullptr, nullptr, &native_handle));
 }
@@ -27,7 +27,7 @@ TEST_P(urQueueGetNativeHandleTest, InvalidNullPointerNativeHandle) {
 
 TEST_P(urQueueGetNativeHandleTest, InOrderQueueSameNativeHandle) {
     ur_queue_handle_t in_order_queue;
-    ur_native_handle_t native_handle1 = nullptr, native_handle2 = nullptr;
+    ur_native_handle_t native_handle1 = 0, native_handle2 = 0;
     ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &in_order_queue));
     if (auto error =
             urQueueGetNativeHandle(in_order_queue, nullptr, &native_handle1)) {

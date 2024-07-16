@@ -39,8 +39,6 @@ struct is_handle<ur_kernel_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_queue_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_native_handle_t> : std::true_type {};
-template <>
 struct is_handle<ur_sampler_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_mem_handle_t> : std::true_type {};
@@ -49,13 +47,11 @@ struct is_handle<ur_physical_mem_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_usm_pool_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_exp_image_handle_t> : std::true_type {};
-template <>
-struct is_handle<ur_exp_image_mem_handle_t> : std::true_type {};
-template <>
 struct is_handle<ur_exp_interop_mem_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_win32_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
@@ -942,6 +938,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP:
         os << "UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP";
         break;
+    case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED:
+        os << "UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1541,8 +1540,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
         os << "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
         break;
-    case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-        os << "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+    case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        os << "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
         break;
     case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
         os << "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
@@ -2523,6 +2522,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_COMPOSITE_DEVICE:
         os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
+        break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+        os << "UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT";
         break;
     case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4005,6 +4007,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         ur::details::printPtr(os,
                               *tptr);
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
 
         os << ")";
     } break;
@@ -7855,9 +7869,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         printPtr(os, tptr);
     } break;
     case UR_KERNEL_INFO_NUM_ARGS: {
-        const size_t *tptr = (const size_t *)ptr;
-        if (sizeof(size_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
@@ -10267,6 +10281,25 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_loader_config_set_mocking_enabled_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_loader_config_set_mocking_enabled_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
+
+    os << ", ";
+    os << ".enable = ";
+
+    os << *(params->penable);
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_platform_get_params_t type
 /// @returns
 ///     std::ostream &
@@ -10376,8 +10409,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativePlatform = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativePlatform));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativePlatform)));
 
     os << ", ";
     os << ".hAdapter = ";
@@ -10573,8 +10606,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeContext = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeContext));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeContext)));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10783,8 +10816,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeEvent = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeEvent));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeEvent)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11377,8 +11410,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeProgram = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeProgram));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeProgram)));
 
     os << ", ";
     os << ".hContext = ";
@@ -11597,8 +11630,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeKernel = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeKernel));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeKernel)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12046,8 +12079,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeQueue = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeQueue));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeQueue)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12220,8 +12253,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeSampler = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeSampler));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeSampler)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12424,8 +12457,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -12456,8 +12489,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeMem)));
 
     os << ", ";
     os << ".hContext = ";
@@ -14631,8 +14664,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImage = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImage));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImage)));
 
     return os;
 }
@@ -14657,8 +14690,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImage = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImage));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImage)));
 
     return os;
 }
@@ -14721,8 +14754,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     return os;
 }
@@ -14747,8 +14780,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -14791,8 +14824,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -14914,10 +14947,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_image_get_info_exp_params_t *params) {
 
-    os << ".hImageMem = ";
+    os << ".hContext = ";
 
     ur::details::printPtr(os,
-                          *(params->phImageMem));
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hImageMem = ";
+
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".propName = ";
@@ -14959,8 +14998,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hImageMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phImageMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phImageMem)));
 
     os << ", ";
     os << ".mipmapLevel = ";
@@ -14996,8 +15035,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hMem = ";
 
-    ur::details::printPtr(os,
-                          *(params->phMem));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phMem)));
 
     return os;
 }
@@ -17206,8 +17245,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeDevice = ";
 
-    ur::details::printPtr(os,
-                          *(params->phNativeDevice));
+    ur::details::printPtr(os, reinterpret_cast<void *>(
+                                  *(params->phNativeDevice)));
 
     os << ", ";
     os << ".hPlatform = ";
@@ -17314,6 +17353,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK: {
         os << (const struct ur_loader_config_set_code_location_callback_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED: {
+        os << (const struct ur_loader_config_set_mocking_enabled_params_t *)params;
     } break;
     case UR_FUNCTION_PLATFORM_GET: {
         os << (const struct ur_platform_get_params_t *)params;

@@ -145,8 +145,8 @@ static auto getUrResultString = [](ur_result_t Result) {
     return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
   case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
     return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
-  case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    return "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+    return "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
   case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
     return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
   case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
@@ -446,6 +446,22 @@ const bool ExposeCSliceInAffinityPartitioning = [] {
 // TODO: make it into a ur_device_handle_t class member
 const std::pair<int, int>
 getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
+
+class ZeDriverVersionStringExtension {
+  // Pointer to function for Intel Driver Version String
+  ze_result_t (*zeIntelGetDriverVersionStringPointer)(
+      ze_driver_handle_t hDriver, char *, size_t *) = nullptr;
+
+public:
+  // Whether platform supports Intel Driver Version String.
+  bool Supported;
+
+  ZeDriverVersionStringExtension() : Supported{false} {}
+
+  void setZeDriverVersionString(ur_platform_handle_t_ *Platform);
+  void getDriverVersionString(ze_driver_handle_t DriverHandle,
+                              char *pDriverVersion, size_t *pVersionSize);
+};
 
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM

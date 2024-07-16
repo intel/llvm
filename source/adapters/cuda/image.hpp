@@ -31,4 +31,4 @@ ur_result_t urTextureCreate(ur_context_handle_t hContext,
                             ur_sampler_desc_t SamplerDesc,
                             const ur_image_desc_t *pImageDesc,
                             CUDA_RESOURCE_DESC ResourceDesc,
-                            ur_exp_image_handle_t *phRetImage);
+                            ur_exp_image_native_handle_t *phRetImage);

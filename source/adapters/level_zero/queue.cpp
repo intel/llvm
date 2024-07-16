@@ -365,14 +365,10 @@ ur_result_t ur_queue_handle_legacy_t_::queueGetInfo(
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Queue->RefCount.load()});
   case UR_QUEUE_INFO_FLAGS:
-    die("UR_QUEUE_INFO_FLAGS in urQueueGetInfo not implemented\n");
-    break;
+    return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
-    die("UR_QUEUE_INFO_SIZE in urQueueGetInfo not implemented\n");
-    break;
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
-    die("UR_QUEUE_INFO_DEVICE_DEFAULT in urQueueGetInfo not implemented\n");
-    break;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
     if (Queue->isInOrderQueue()) {
@@ -606,8 +602,14 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
-    if ((--Queue->RefCountExternal) != 0)
+    if ((--Queue->RefCountExternal) != 0) {
+      // When an External Reference exists one still needs to decrement the
+      // internal reference count. When the External Reference count == 0, then
+      // cleanup of the queue begins and the final decrement of the internal
+      // reference count is completed.
+      Queue->RefCount.decrementAndTest();
       return UR_RESULT_SUCCESS;
+    }
 
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
@@ -665,6 +667,7 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
           struct l0_command_list_cache_info ListInfo;
           ListInfo.ZeQueueDesc = it->second.ZeQueueDesc;
           ListInfo.InOrderList = it->second.IsInOrderList;
+          ListInfo.IsImmediate = it->second.IsImmediate;
           ZeCommandListCache.push_back({it->first, ListInfo});
         } else {
           // A non-reusable comamnd list that came from a make_queue call is
@@ -745,7 +748,8 @@ void ur_queue_handle_legacy_t_::ur_queue_group_t::setImmCmdList(
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
               ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
-                                     queue->useCompletionBatching(), false)})
+                                     queue->useCompletionBatching(), false,
+                                     false, true)})
           .first);
 }
 
@@ -1548,8 +1552,7 @@ ur_result_t ur_queue_handle_legacy_t_::active_barriers::clear() {
 
 void ur_queue_handle_legacy_t_::clearEndTimeRecordings() {
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxValue =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   for (auto Entry : EndTimeRecordings) {
     auto &Event = Entry.first;
@@ -2080,6 +2083,7 @@ ur_result_t ur_queue_handle_legacy_t_::resetCommandList(
     struct l0_command_list_cache_info ListInfo;
     ListInfo.ZeQueueDesc = CommandList->second.ZeQueueDesc;
     ListInfo.InOrderList = CommandList->second.IsInOrderList;
+    ListInfo.IsImmediate = CommandList->second.IsImmediate;
     ZeCommandListCache.push_back({CommandList->first, ListInfo});
   }
 
@@ -2430,9 +2434,9 @@ ur_queue_handle_legacy_t_::ur_queue_group_t::getImmCmdList() {
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
-              ur_command_list_info_t(nullptr, true, false, nullptr,
-                                     ZeCommandQueueDesc,
-                                     Queue->useCompletionBatching())})
+              ur_command_list_info_t(
+                  nullptr, true, false, nullptr, ZeCommandQueueDesc,
+                  Queue->useCompletionBatching(), true, false, true)})
           .first;
 
   return ImmCmdLists[Index];

@@ -9,7 +9,7 @@ using urPlatformCreateWithNativeHandleTest = uur::platform::urPlatformTest;
 
 TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
     for (auto platform : platforms) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urPlatformGetNativeHandle(platform, &native_handle));
@@ -32,7 +32,7 @@ TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
 
 TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
     for (auto platform : platforms) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urPlatformGetNativeHandle(platform, &native_handle));
@@ -57,7 +57,7 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 
 TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
     for (auto platform : platforms) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urPlatformGetNativeHandle(platform, &native_handle));
@@ -82,7 +82,7 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 
 TEST_F(urPlatformCreateWithNativeHandleTest, InvalidNullPointerPlatform) {
     for (auto platform : platforms) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                          urPlatformCreateWithNativeHandle(

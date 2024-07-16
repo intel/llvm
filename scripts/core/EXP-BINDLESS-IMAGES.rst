@@ -148,8 +148,8 @@ Enums
 Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_exp_sampler_mip_properties_t
-* ${x}_exp_image_handle_t
-* ${x}_exp_image_mem_handle_t
+* ${x}_exp_image_native_handle_t
+* ${x}_exp_image_mem_native_handle_t
 * ${x}_exp_interop_mem_handle_t
 * ${x}_exp_interop_semaphore_handle_t
 * ${x}_exp_interop_mem_desc_t

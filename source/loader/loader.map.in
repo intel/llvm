@@ -142,6 +142,7 @@
 		urLoaderConfigRelease;
 		urLoaderConfigRetain;
 		urLoaderConfigSetCodeLocationCallback;
+		urLoaderConfigSetMockingEnabled;
 		urLoaderInit;
 		urLoaderTearDown;
 		urMemBufferCreate;
@@ -361,6 +362,7 @@
 		urPrintLoaderConfigReleaseParams;
 		urPrintLoaderConfigRetainParams;
 		urPrintLoaderConfigSetCodeLocationCallbackParams;
+		urPrintLoaderConfigSetMockingEnabledParams;
 		urPrintLoaderInitParams;
 		urPrintLoaderTearDownParams;
 		urPrintMapFlags;
