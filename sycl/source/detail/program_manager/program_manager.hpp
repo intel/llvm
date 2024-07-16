@@ -377,7 +377,7 @@ private:
   // lifetime matches program manager's one.
   // NOTE: keys in the map can be invalid (reference count went to zero and
   // the underlying program disposed of), so the map can't be used in any way
-  // other than binary image lookup with known live PiProgram as the key.
+  // other than binary image lookup with known live UrProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
   std::unordered_map<ur_program_handle_t, const RTDeviceBinaryImage *>
       NativePrograms;

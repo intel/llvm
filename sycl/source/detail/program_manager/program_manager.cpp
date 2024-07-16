@@ -203,8 +203,6 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   if (Format == UR_DEVICE_BINARY_TYPE_NONE)
     Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
-  // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
-  // assert(Format != UR_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw sycl::exception(
@@ -614,7 +612,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-// When caching is enabled, the returned PiProgram will already have
+// When caching is enabled, the returned UrProgram will already have
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
@@ -676,7 +674,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     ProgramPtr ProgramManaged(
         NativePrg,
-        urProgramRelease); // Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
+        urProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
@@ -786,7 +784,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   return ResProgram;
 }
 
-// When caching is enabled, the returned PiProgram and PiKernel will
+// When caching is enabled, the returned UrProgram and UrKernel will
 // already have their ref count incremented.
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
            ur_program_handle_t>
@@ -1748,7 +1746,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 
   const ur_device_handle_t &URDeviceHandle = DeviceImpl->getHandleRef();
 
-  // Call piextDeviceSelectBinary with only one image to check if an image is
+  // Call urDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
   uint32_t SuitableImageID = std::numeric_limits<uint32_t>::max();
@@ -2314,7 +2312,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   std::shared_ptr<device_image_impl> DeviceImageImpl =
       getSyclObjImpl(DeviceImage);
 
-  // Duplicates are not expected here, otherwise piProgramLink should fail
+  // Duplicates are not expected here, otherwise urProgramLink should fail
   KernelIDs->insert(KernelIDs->end(),
                     DeviceImageImpl->get_kernel_ids_ptr()->begin(),
                     DeviceImageImpl->get_kernel_ids_ptr()->end());
@@ -2419,7 +2417,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         InputImpl->get_bin_image_ref()->supportsSpecConstants())
       setSpecializationConstants(InputImpl, NativePrg, Plugin);
 
-    // TODO(pi2ur): Get adapter's DDI function table?
     ProgramPtr ProgramManaged(NativePrg, urProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
@@ -2520,7 +2517,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }
 
-// When caching is enabled, the returned PiKernel will already have
+// When caching is enabled, the returned UrKernel will already have
 // its ref count incremented.
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,

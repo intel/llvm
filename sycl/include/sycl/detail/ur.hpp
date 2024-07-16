@@ -104,7 +104,7 @@ static const uint8_t UR_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
 
 /// Extension to denote native support of assert feature by an arbitrary device
-/// piDeviceGetInfo call should return this extension when the device supports
+/// urDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
 #define UR_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
@@ -139,7 +139,7 @@ static const uint8_t UR_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
 #define __SYCL_UR_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 
-/// Program metadata tags recognized by the PI backends. For kernels the tag
+/// Program metadata tags recognized by the UR backends. For kernels the tag
 /// must appear after the kernel name.
 #define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
@@ -252,7 +252,7 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 void *loadOsLibrary(const std::string &Library);
 
 // Function to unload a shared library
-// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+// Implementation is OS dependent (see posix-ur.cpp and windows-ur.cpp)
 int unloadOsLibrary(void *Library);
 
 // Function to get Address of a symbol defined in the shared

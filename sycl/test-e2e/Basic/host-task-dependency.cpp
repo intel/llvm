@@ -210,6 +210,6 @@ int main() {
 // CHECK:Second buffer [  8] = 8
 // CHECK:Second buffer [  9] = 9
 
-// TODO need to check for piEventsWait as "wait on dependencies of host task".
-// At the same time this piEventsWait may occur anywhere after
-// piEnqueueMemBufferMap ("prepare for host task").
+// TODO need to check for urEventWait as "wait on dependencies of host task".
+// At the same time this urEventWait may occur anywhere after
+// urEnqueueMemBufferMap ("prepare for host task").

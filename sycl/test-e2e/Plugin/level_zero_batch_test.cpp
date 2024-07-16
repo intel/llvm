@@ -88,45 +88,45 @@
 // and then the test will print Test Passed 8 times, once for each kernel
 // validation check.
 // Pattern starts first set of kernel executions.
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -134,7 +134,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -144,45 +144,45 @@
 // CKB9:  ZE ---> zeCommandListClose(
 // CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 2nd set of kernel executions
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -190,7 +190,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -200,45 +200,45 @@
 // CKB9:  ZE ---> zeCommandListClose(
 // CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 3rd set of kernel executions
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -246,7 +246,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> urQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(

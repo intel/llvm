@@ -173,8 +173,8 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info
-// about each pi_program. However, the result of the linkage of these kernels
-// isn't stored in ProgramManager.NativePrograms.
+// about each UR program handle. However, the result of the linkage of these
+// kernels isn't stored in ProgramManager.NativePrograms.
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {

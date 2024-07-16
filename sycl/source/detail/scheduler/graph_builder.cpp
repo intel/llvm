@@ -345,7 +345,6 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 Command *Scheduler::GraphBuilder::insertMemoryMove(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-  // TODO(pi2ur) debug this
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)

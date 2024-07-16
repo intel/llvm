@@ -417,7 +417,7 @@ public:
     ur_program_handle_t UrProgram = nullptr;
     Plugin->call(urProgramCreateWithIL, ContextImpl->getHandleRef(),
                  spirv.data(), spirv.size(), nullptr, &UrProgram);
-    // program created by piProgramCreate is implicitly retained.
+    // program created by urProgramCreateWithIL is implicitly retained.
 
     auto Res =
         Plugin->call_nocheck(urProgramBuildExp, UrProgram, DeviceVec.size(),

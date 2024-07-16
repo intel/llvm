@@ -125,7 +125,7 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
       sycl::detail::getSyclObjImpl(Ctx), subDev1,
       sycl::detail::KernelInfo<TestKernel<>>::getName());
-  // This call should re-use built binary from the cache. If piProgramBuild is
+  // This call should re-use built binary from the cache. If urProgramBuild is
   // called again, the test will fail as second call of redefinedProgramBuild
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
       sycl::detail::getSyclObjImpl(Ctx), subDev2,

@@ -63,7 +63,7 @@ public:
   /// The constructed context_impl will use the AsyncHandler parameter to
   /// handle exceptions.
   ///
-  /// \param PiContext is an instance of a valid plug-in context handle.
+  /// \param UrContext is an instance of a valid plug-in context handle.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param Plugin is the reference to the underlying Plugin that this
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
@@ -134,8 +134,8 @@ public:
   /// programs come from the SYCL runtime. They are identified by the
   /// corresponding extension:
   ///
-  ///  cl_intel_devicelib_assert -> #<pi_program with assert functions>
-  ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
+  ///  cl_intel_devicelib_assert -> #<ur program with assert functions>
+  ///  cl_intel_devicelib_complex -> #<ur program with complex functions>
   ///  etc.
   ///
   /// See `doc/design/DeviceLibExtensions.rst' for

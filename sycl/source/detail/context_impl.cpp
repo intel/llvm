@@ -12,7 +12,6 @@
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>

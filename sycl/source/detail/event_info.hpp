@@ -40,7 +40,7 @@ typename Param::return_type get_event_info(ur_event_handle_t Event,
   Plugin->call(urEventGetInfo, Event, UrInfoCode<Param>::value, sizeof(Result),
                &Result, nullptr);
 
-  // If the status is PI_EVENT_QUEUED We need to change it since QUEUE is
+  // If the status is UR_EVENT_STATUS_QUEUED We need to change it since QUEUE is
   // not a valid status in sycl.
   if constexpr (std::is_same<Param,
                              info::event::command_execution_status>::value) {

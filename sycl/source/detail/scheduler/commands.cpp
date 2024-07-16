@@ -253,7 +253,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
 // solution for the issue that barrier with wait list could not
-// handle empty pi event handles when kernel is enqueued on host task
+// handle empty ur event handles when kernel is enqueued on host task
 // completion.
 std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
@@ -277,7 +277,7 @@ std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
                                                    BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
+    // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
@@ -479,7 +479,7 @@ public:
 #endif
 
     try {
-      // If we enqueue blocked users - pi level could throw exception that
+      // If we enqueue blocked users - ur level could throw exception that
       // should be treated as async now.
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
     } catch (...) {
@@ -515,7 +515,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
       // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
-      // three events (E1, E2, E3). Now, if piEventsWait is called for all
+      // three events (E1, E2, E3). Now, if urEventWait is called for all
       // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
       // these events refer to different contexts.
       std::map<context_impl *, std::vector<EventImplPtr>>
@@ -641,7 +641,7 @@ void Command::emitEdgeEventForCommandDependence(
 
 /// Creates an edge when the dependency is due to an event.
 /// @param Cmd The command object of the source of the edge
-/// @param PiEventAddr The address that defines the edge dependency, which in
+/// @param UrEventAddr The address that defines the edge dependency, which in
 /// this case is an event
 void Command::emitEdgeEventForEventDependence(Command *Cmd,
                                               ur_event_handle_t &UrEventAddr) {
@@ -750,8 +750,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   const ContextImplPtr &WorkerContext = getWorkerContext();
 
   // 1. Non-host events can be ignored if they are not fully initialized.
-  // 2. Some types of commands do not produce PI events after they are
-  // enqueued (e.g. alloca). Note that we can't check the pi event to make that
+  // 2. Some types of commands do not produce UR events after they are
+  // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
@@ -858,7 +858,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
   // submission code location set. So we set it manually to properly trace
-  // failures if pi level report any.
+  // failures if ur level report any.
   std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
   if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
     AsyncCodeLocationPtr.reset(
@@ -2308,7 +2308,6 @@ void SetArgBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_sampler: {
-    // TODO(pi2ur):
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_sampler_handle_t Sampler =
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
@@ -2611,7 +2610,7 @@ void enqueueImpKernel(
     // Non-cacheable kernels use mutexes from kernel_impls.
     // TODO this can still result in a race condition if multiple SYCL
     // kernels are created with the same native handle. To address this,
-    // we need to either store and use a pi_native_handle -> mutex map or
+    // we need to either store and use a ur_native_handle_t -> mutex map or
     // reuse and return existing SYCL kernels from make_native to avoid
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();

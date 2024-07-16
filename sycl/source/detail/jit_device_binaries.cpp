@@ -133,7 +133,7 @@ ur_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
   PIStruct->Version = UR_DEVICE_BINARIES_VERSION;
   PIStruct->NumDeviceBinaries = PIBinaries.size();
   PIStruct->DeviceBinaries = PIBinaries.data();
-  // According to documentation in pi.h, the HostEntries are not used and
+  // According to documentation in ur.hpp, the HostEntries are not used and
   // can therefore be null.
   PIStruct->HostEntriesBegin = nullptr;
   PIStruct->HostEntriesEnd = nullptr;

@@ -170,7 +170,7 @@ int main() {
         sycl::link({KernelBundleObject1, KernelBundleObject2},
                    KernelBundleObject1.get_devices());
     // CHECK:---> urProgramLink{{.*}} -> UR_RESULT_SUCCESS;
-    // PI tracing doesn't allow checking for all input programs so far.
+    // UR tracing doesn't allow checking for all input programs so far.
 
     assert(KernelBundleExecutable.has_kernel(Kernel1ID));
     assert(KernelBundleExecutable.has_kernel(Kernel2ID));

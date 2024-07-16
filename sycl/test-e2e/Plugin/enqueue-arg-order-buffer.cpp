@@ -220,8 +220,8 @@ void testcopyD2HBuffer() {
 }
 
 void testcopyH2DBuffer() {
-  // copy between two queues triggers a piEnqueueMemBufferMap followed by
-  // copyH2D, followed by a copyD2H, followed by a piEnqueueMemUnmap
+  // copy between two queues triggers a urEnqueueMemBufferMap followed by
+  // copyH2D, followed by a copyD2H, followed by a urEnqueueMemUnmap
   // Here we only care about checking copyH2D
 
   std::cout << "start copyH2D-buffer" << std::endl;

@@ -782,7 +782,7 @@ private:
       MNodes;
 };
 
-// Enqueues a given kernel to a PiExtCommandBuffer
+// Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,

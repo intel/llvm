@@ -55,9 +55,9 @@ void event_impl::waitInternal(bool *Success) {
   if (!MIsHostEvent && MEvent) {
     // Wait for the native event
     ur_result_t Err = getPlugin()->call_nocheck(urEventWait, 1, &MEvent);
-    // TODO drop the PI_ERROR_UKNOWN from here once the UR counterpart to
-    // PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST is added:
-    // https://github.com/oneapi-src/unified-runtime/issues/1459
+    // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
+    // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
+    // closed).
     if (Success != nullptr &&
         (Err == UR_RESULT_ERROR_UNKNOWN ||
          Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
@@ -380,11 +380,11 @@ event_impl::get_info<info::event::command_execution_status>() {
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MIsHostEvent) {
-    // Command is enqueued and PiEvent is ready
+    // Command is enqueued and UrEvent is ready
     if (MEvent)
       return get_event_info<info::event::command_execution_status>(
           this->getHandleRef(), this->getPlugin());
-    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
   }
@@ -499,7 +499,7 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   QueueImplPtr Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
-  // implicitly flushed by piQueueRelease.
+  // implicitly flushed by urQueueRelease.
   if (!Queue) {
     MIsFlushed = true;
     return;

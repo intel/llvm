@@ -20,10 +20,10 @@
 // with little difference from non-mock classes' usage.
 //
 // The following unit testing scenarios are thereby simplified:
-// 1) testing the DPC++ RT management of specific PI return codes;
+// 1) testing the DPC++ RT management of specific UR return codes;
 // 2) coverage of corner-cases related to specific data outputs
 //    from underlying runtimes;
-// 3) testing the order of PI API calls;
+// 3) testing the order of UR API calls;
 // ..., etc.
 //
 //===----------------------------------------------------------------------===//

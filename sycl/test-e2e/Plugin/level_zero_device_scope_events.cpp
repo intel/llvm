@@ -11,7 +11,7 @@
 //
 // clang-format off
 // MODE1-LABEL: Submitted all kernels
-// MODE1: ---> urEventsWait(
+// MODE1: ---> urEventWait
 // MODE1: ze_event_pool_desc_t flags set to: 1
 // MODE1: ZE ---> zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent)
 // MODE1: ZE ---> zeCommandListAppendWaitOnEvents(CommandList->first, 1, &ZeEvent)

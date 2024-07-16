@@ -151,20 +151,18 @@ public:
   bool has(aspect Aspect) const;
 
   /// Queries the device_impl cache to return a shared_ptr for the
-  /// device_impl corresponding to the PiDevice.
+  /// device_impl corresponding to the UrDevice.
   ///
-  /// \param PiDevice is the PiDevice whose impl is requested
+  /// \param UrDevice is the UrDevice whose impl is requested
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  // std::shared_ptr<device_impl>
-  // getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
   std::shared_ptr<device_impl> getDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
-  /// for the device_impl corresponding to the PiDevice or add
+  /// for the device_impl corresponding to the UrDevice or add
   /// a new entry to the cache
   ///
-  /// \param PiDevice is the PiDevice whose impl is requested
+  /// \param UrDevice is the UrDevice whose impl is requested
   ///
   /// \param PlatormImpl is the Platform for that Device
   ///

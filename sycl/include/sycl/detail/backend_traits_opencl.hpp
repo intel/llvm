@@ -19,7 +19,7 @@
 #include <sycl/context.hpp>               // for context
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
 #include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
-#include <sycl/detail/ur.hpp>             // for assertion, PiDevice, PiPro...
+#include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
 #include <sycl/handler.hpp>               // for buffer

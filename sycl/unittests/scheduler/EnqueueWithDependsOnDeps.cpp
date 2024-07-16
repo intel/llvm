@@ -106,10 +106,10 @@ protected:
     std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
     VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
 
-    // One piEventsWait call:
+    // One urEventWait call:
     // kernel2 waits for kernel 1 by sending event list to enqueue launch call
     // (depending on queue property). Cmd3Event.wait() waits for kernel2 via
-    // piEventsWait.
+    // urEventWait.
     ASSERT_EQ(PassedNumEvents.size(), 1u);
     auto [EventCount, EventArr] = PassedNumEvents[0];
     ASSERT_EQ(EventCount, 1u);

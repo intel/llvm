@@ -190,7 +190,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
     Q.update_host(Acc);
     Q.wait();
 
-    // No PI functions expected.
+    // No UR functions expected.
   }
 
   // Queue.fill<T>(accessor Dest, T src)

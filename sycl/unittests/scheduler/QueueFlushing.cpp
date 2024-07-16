@@ -244,7 +244,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     testEventStatusCheck(&CmdC, QueueImplB, MockReq, UR_EVENT_STATUS_COMPLETE);
   }
 
-  // Check that nullptr pi_events are handled correctly.
+  // Check that nullptr UR event handles are handled correctly.
   {
     resetTestCtx();
     detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,

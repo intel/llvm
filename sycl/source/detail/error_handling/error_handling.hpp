@@ -16,7 +16,7 @@ inline namespace _V1 {
 namespace detail {
 
 namespace enqueue_kernel_launch {
-/// Analyzes error code and arguments of piEnqueueKernelLaunch to emit
+/// Analyzes error code and arguments of urEnqueueKernelLaunch to emit
 /// user-friendly exception describing the problem.
 ///
 /// This function is expected to be called only for non-success error codes,
@@ -29,7 +29,7 @@ void handleErrorOrWarning(ur_result_t, const device_impl &, ur_kernel_handle_t,
 } // namespace enqueue_kernel_launch
 
 namespace kernel_get_group_info {
-/// Analyzes error code of piKernelGetGroupInfo.
+/// Analyzes error code of urKernelGetGroupInfo.
 void handleErrorOrWarning(ur_result_t, ur_kernel_group_info_t,
                           const PluginPtr &);
 } // namespace kernel_get_group_info

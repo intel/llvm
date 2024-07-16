@@ -13,8 +13,8 @@ struct TestContext {
   // SYCL RT has number of checks that all devices and contexts are consistent
   // between kernel, kernel_bundle and other objects.
   //
-  // To ensure that those checks pass, we intercept some PI calls to extract
-  // the exact PI handles of device and context used in queue creation to later
+  // To ensure that those checks pass, we intercept some UR calls to extract
+  // the exact UR handles of device and context used in queue creation to later
   // return them when program/context/kernel info is requested.
   ur_device_handle_t deviceHandle;
   ur_context_handle_t contextHandle;

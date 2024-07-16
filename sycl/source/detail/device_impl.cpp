@@ -61,7 +61,7 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
   if (!InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
-    // piextDeviceFromNative.
+    // urDeviceCreateWithNativeHandle.
     Plugin->call(urDeviceRetain, MUrDevice);
   }
 
@@ -818,13 +818,13 @@ uint64_t device_impl::getCurrentDeviceTime() {
     // We have to remember base host timestamp right after UR call and it is
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
-    // and piGetDeviceAndHostTimer calls may take significant amount of time,
+    // and urDeviceGetGlobalTimestamps calls may take significant amount of time,
     // for example on the first call to getPlugin plugins may need to be
     // initialized. If we use timestamp from the beginning of the function then
     // the difference between host timestamps of the current
     // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect
     // because it will include execution time of the code before we get device
-    // timestamp from piGetDeviceAndHostTimer.
+    // timestamp from urDeviceGetGlobalTimestamps.
     HostTime =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();

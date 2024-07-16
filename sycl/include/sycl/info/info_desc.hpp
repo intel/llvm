@@ -35,7 +35,7 @@ class kernel_id;
 enum class memory_scope;
 enum class memory_order;
 
-// TODO: stop using OpenCL directly, use PI.
+// TODO: stop using OpenCL directly, use UR.
 namespace info {
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   struct Desc {                                                                \

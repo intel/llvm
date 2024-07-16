@@ -52,7 +52,7 @@ ur_result_t redefinedUSMEnqueueMemFillAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
+// Check that zero-length USM memset/memcpy use urEnqueueEventsWait.
 TEST(USM, NoOpPreservesDependencyChain) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();

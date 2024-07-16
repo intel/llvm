@@ -64,9 +64,9 @@ int main() {
   // submission depending on whether spec const value was set or not. a. In the
   // case when we select image where specialization constants are replaced with
   // default value - specialization constant buffer is not created and we set
-  // nullptr in piextKernelSetArgMemObj (4th parameter) b. In the case when we
+  // nullptr in urKernelSetArgMemObj (4th parameter) b. In the case when we
   // select regular image - specialization constant buffer is created and we set
-  // a real pointer in piextKernelSetArgMemObj.
+  // a real pointer in urKernelSetArgMemObj.
 
   // CHECK-DEFAULT: Submission 0
   // CHECK-DEFAULT: ---> urKernelSetArgMemObj(
@@ -151,7 +151,7 @@ int main() {
   // In this we don't set specialization constant value for bundle, so default
   // value is used and SYCL RT selects image where values are replaced with
   // default, that's why nullptr is set as 4th parameter of
-  // piextKernelSetArgMemObj.
+  // urKernelSetArgMemObj.
   // CHECK-DEFAULT: Kernel bundle
   // CHECK-DEFAULT: ---> urKernelSetArgMemObj(
   // CHECK-DEFAULT-SAME: .phArgValue = {{(0x)?[0-9,a-f,A-F]+}}

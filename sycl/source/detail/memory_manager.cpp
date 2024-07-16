@@ -138,7 +138,7 @@ void memBufferCreateHelper(const PluginPtr &Plugin, ur_context_handle_t Ctx,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
 #endif
-  // We only want to instrument piMemBufferCreate
+  // We only want to instrument urMemBufferCreate
   {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID =
@@ -184,7 +184,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
-  // We only want to instrument piMemRelease
+  // We only want to instrument urMemRelease
   {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
@@ -204,7 +204,7 @@ void memBufferMapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
   uint64_t CorrID = 0;
   uintptr_t MemObjID = (uintptr_t)(Buffer);
 #endif
-  // We only want to instrument piEnqueueMemBufferMap
+  // We only want to instrument urEnqueueMemBufferMap
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
@@ -226,7 +226,7 @@ void memUnmapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
   uintptr_t MemObjID = (uintptr_t)(Mem);
   uintptr_t Ptr = (uintptr_t)(MappedPtr);
 #endif
-  // We only want to instrument piEnqueueMemUnmap
+  // We only want to instrument urEnqueueMemUnmap
   {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);

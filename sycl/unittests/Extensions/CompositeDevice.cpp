@@ -12,7 +12,7 @@ const auto COMPOSITE_DEVICE_0 = reinterpret_cast<ur_device_handle_t>(1u);
 const auto COMPONENT_DEVICE_A = reinterpret_cast<ur_device_handle_t>(2u);
 const auto COMPONENT_DEVICE_B = reinterpret_cast<ur_device_handle_t>(3u);
 
-// We do not report COMPONENT_DEVICE_D through mocked piDevicesGet to emulate
+// We do not report COMPONENT_DEVICE_D through mocked urDeviceGet to emulate
 // that it is not available to ensure that COMPOSITE_DEVICE_1 is not returned
 // through platform::ext_oneapi_get_composite_devices and
 // sycl:ext::oneapi::experimental::get_composite_devices APIs

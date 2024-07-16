@@ -11,7 +11,7 @@
 // This tests the level zero plugin's kernel batching code.  It specifically
 // tests that the current batch is submitted when an Event execution status
 // request is made.  This test uses explicit SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4
-// to make sure that the batching is submitted when the piEventGetInfo is
+// to make sure that the batching is submitted when the urEventGetInfo is
 // done, rather than some other dynamic batching criteria.
 //
 // CHECK: ---> urEnqueueKernelLaunch

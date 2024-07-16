@@ -42,7 +42,7 @@ namespace detail {
 /// The plugin class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
-/// \ingroup sycl_pi
+/// \ingroup sycl_ur
 class plugin {
 public:
   plugin() = delete;
@@ -147,9 +147,6 @@ public:
   void release() {
     call(urAdapterRelease, MAdapter);
     this->adapterReleased = true;
-    // This is where urAdapterRelease happens - only gets called in sycl RT
-    // right next to piTeardown
-    // return sycl::detail::pi::unloadPlugin(MLibraryHandle);
   }
 
   // Return the index of a UR platform.
@@ -206,15 +203,15 @@ private:
   ur_adapter_handle_t MAdapter;
   backend MBackend;
   std::shared_ptr<std::mutex> TracingMutex;
-  // Mutex to guard PiPlatforms and LastDeviceIds.
+  // Mutex to guard UrPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.
   std::shared_ptr<std::mutex> MPluginMutex;
-  // vector of PiPlatforms that belong to this plugin
+  // vector of UrPlatforms that belong to this plugin
   std::once_flag PlatformsPopulated;
   std::vector<ur_platform_handle_t> UrPlatforms;
   // represents the unique ids of the last device of each platform
-  // index of this vector corresponds to the index in PiPlatforms vector.
+  // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
 }; // class plugin
 

@@ -1594,7 +1594,6 @@ bool handler::supportsUSMFill2D() {
   return true;
 }
 
-// TODO(pi2ur): This is what pi2ur does, check this makes sense
 bool handler::supportsUSMMemset2D() {
   for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
        {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {

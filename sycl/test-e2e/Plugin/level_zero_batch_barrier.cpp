@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
   // continue the batch
   event barrier = q.ext_oneapi_submit_barrier();
-  // CHECK: ---> piEnqueueEventsWaitWithBarrier
+  // CHECK: ---> urEnqueueEventsWaitWithBarrier
   // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
 
   submit_kernel(q);

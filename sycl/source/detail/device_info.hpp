@@ -156,7 +156,7 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
     Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
                            UrInfoCode<Param>::value, sizeof(result), &result,
                            nullptr);
-    // TODO: Change PiDevice to device_impl.
+    // TODO: Change UrDevice to device_impl.
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
     return createSyclObjFromImpl<platform>(
@@ -234,7 +234,7 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 };
 
 // Specialization for queue_profiling. In addition to ur_queue level profiling,
-// piGetDeviceAndHostTimer is not supported, command_submit, command_start,
+// urDeviceGetGlobalTimestamps is not supported, command_submit, command_start,
 // command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
@@ -279,7 +279,6 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    // TODO(pi2ur): Work around cuda/hip adapters reporting the wrong size
     size_t result;
     Dev->getPlugin()->call(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -294,7 +293,6 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    // TODO(pi2ur): Work around cuda/hip adapters reporting the wrong size
     size_t result;
     Dev->getPlugin()->call(
         urDeviceGetInfo, Dev->getHandleRef(),

@@ -8,7 +8,7 @@
 
 // Since Prefetch is only a memory hint that doesn't
 // impact results but only performances, we verify
-// that a node is correctly added by checking PI function calls
+// that a node is correctly added by checking UR function calls
 
 // CHECK: urCommandBufferAppendUSMPrefetchExp(
 // CHECK-SAME: .hCommandBuffer = 0x[[#%x,COMMAND_BUFFER:]]

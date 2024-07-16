@@ -1,4 +1,4 @@
-//==--------------------- piInteropRetain.cpp -- check proper retain calls -==//
+//==--------------------- InteropRetain.cpp -- check proper retain calls ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,8 +28,8 @@ TEST(PiInteropTest, CheckRetain) {
   sycl::platform Plt = sycl::platform();
   context Ctx{Plt.get_devices()[0]};
 
-  // The queue construction should not call to piQueueRetain. Instead
-  // piQueueCreate should return the "retained" queue.
+  // The queue construction should not call to urQueueRetain. Instead
+  // urQueueCreate should return the "retained" queue.
   mock::getCallbacks().set_before_callback("urQueueRetain",
                                            &redefinedQueueRetain);
   queue Q{Ctx, default_selector()};

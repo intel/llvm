@@ -20,7 +20,7 @@ void testFill_Buffer1D() {
     std::cout << "start testFill_Buffer1D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
       auto acc1D = buffer_1D.get_access<sycl::access::mode::write>(cgh);
-      // should stage piEnqueueMemBufferFill
+      // should stage urEnqueueMemBufferFill
       cgh.fill(acc1D, float{1});
     });
     q.wait();
@@ -29,7 +29,7 @@ void testFill_Buffer1D() {
     q.submit([&](sycl::handler &cgh) {
       auto acc1DOffset =
           buffer_1D.get_access<sycl::access::mode::write>(cgh, {4}, {2});
-      // despite being offset, should stage piEnqueueMemBufferFill
+      // despite being offset, should stage urEnqueueMemBufferFill
       cgh.fill(acc1DOffset, float{2});
     });
     q.wait();
@@ -50,7 +50,7 @@ void testFill_Buffer2D() {
     std::cout << "start testFill_Buffer2D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
       auto acc2D = buffer_2D.get_access<sycl::access::mode::write>(cgh);
-      // should stage piEnqueueMemBufferFill
+      // should stage urEnqueueMemBufferFill
       cgh.fill(acc2D, float{3});
     });
     q.wait();
@@ -60,7 +60,7 @@ void testFill_Buffer2D() {
       auto acc2D =
           buffer_2D.get_access<sycl::access::mode::write>(cgh, {8, 12}, {2, 2});
       // "ranged accessor" will have to be handled by custom kernel:
-      // piEnqueueKernelLaunch
+      // urEnqueueKernelLaunch
       cgh.fill(acc2D, float{4});
     });
     q.wait();

@@ -133,8 +133,6 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which plugin.
   // There should be just one plugin serving each backend.
-  // this is where piPluginInit currently ends up getting called,
-  // and it's where LoaderInit and AdapterGet will happen
   std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
   std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
@@ -213,7 +211,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     MPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
                   sizeof(ur_device_type_t), &UrDevType, nullptr);
-    // Assumption here is that there is 1-to-1 mapping between PiDevType and
+    // Assumption here is that there is 1-to-1 mapping between UrDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = info::device_type::all;
     switch (UrDevType) {
@@ -486,19 +484,19 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     return Res;
   }
 
-  std::vector<ur_device_handle_t> PiDevices(NumDevices);
+  std::vector<ur_device_handle_t> UrDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   MPlugin->call(urDeviceGet, MUrPlatform,
                 UrDeviceType, // CP info::device_type::all
-                NumDevices, PiDevices.data(), nullptr);
+                NumDevices, UrDevices.data(), nullptr);
 
-  // Some elements of PiDevices vector might be filtered out, so make a copy of
+  // Some elements of UrDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
-  std::vector<ur_device_handle_t> PiDevicesToCleanUp = PiDevices;
+  std::vector<ur_device_handle_t> UrDevicesToCleanUp = UrDevices;
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(PiDevices, MUrPlatform, MPlugin);
+    applyAllowList(UrDevices, MUrPlatform, MPlugin);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -506,14 +504,14 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<int> PlatformDeviceIndices;
   if (OdsTargetList) {
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
-        PiDevices, OdsTargetList);
+        UrDevices, OdsTargetList);
   }
 
-  // The next step is to inflate the filtered PIDevices into SYCL Device
+  // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MUrPlatform, MPlugin);
   std::transform(
-      PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
+      UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
@@ -521,7 +519,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
-  for (ur_device_handle_t &UrDev : PiDevicesToCleanUp)
+  for (ur_device_handle_t &UrDev : UrDevicesToCleanUp)
     MPlugin->call(urDeviceRelease, UrDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.

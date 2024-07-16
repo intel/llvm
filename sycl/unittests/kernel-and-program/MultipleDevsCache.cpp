@@ -160,7 +160,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     // Because of emulating 2 devices program is retained for each one in
     // build(). It is also depends on number of device images. This test has one
     // image, but other tests can create other images. Additional variable is
-    // added to control count of piProgramRetain calls
+    // added to control count of urProgramRetain calls
     auto BundleImpl = getSyclObjImpl(Bundle);
 
     // Bundle should only contain a single image, specifically the one with
@@ -184,8 +184,8 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
   // The kernel creating is called in handler::single_task().
   // kernel_bundle::get_kernel() creates a kernel and shares it with created
   // programs. Also the kernel is retained in kernel_bundle::get_kernel(). A
-  // kernel is removed from cache if piKernelRelease was called for it, so it
+  // kernel is removed from cache if urKernelRelease was called for it, so it
   // will not be removed twice for the other programs. As a result we must
-  // expect 3 piKernelRelease calls.
+  // expect 3 urKernelRelease calls.
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }

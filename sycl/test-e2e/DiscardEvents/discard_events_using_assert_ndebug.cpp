@@ -3,7 +3,7 @@
 // RUN: env SYCL_UR_TRACE=1 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is `nullptr` for
-// piEnqueueKernelLaunch.
+// urEnqueueKernelLaunch.
 //
 // CHECK: ---> urEnqueueKernelLaunch(
 // CHECK-SAME: .phEvent = nullptr

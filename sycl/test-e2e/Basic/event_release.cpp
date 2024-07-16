@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
-// The test checks that pi_events are released without queue destruction
+// The test checks that UR event handles are released without queue destruction
 // or call to queue::wait, when the corresponding commands are cleaned up.
 
 using namespace sycl;

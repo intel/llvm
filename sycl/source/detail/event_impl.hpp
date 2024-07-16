@@ -148,8 +148,8 @@ public:
 
   /// Associate event with the context.
   ///
-  /// Provided PiContext inside ContextImplPtr must be associated
-  /// with the PiEvent object stored in this class
+  /// Provided UrContext inside ContextImplPtr must be associated
+  /// with the UrEvent object stored in this class
   ///
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
@@ -378,12 +378,12 @@ protected:
   bool MEventFromSubmittedExecCommandBuffer = false;
 
   // If this event represents a submission to a
-  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
   ur_exp_command_buffer_sync_point_t MSyncPoint;
 
   // If this event represents a submission to a
-  // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
+  // ur_exp_command_buffer_command_handle_t the command-buffer command
   // (if any) associated with that submission is stored here.
   ur_exp_command_buffer_command_handle_t MCommandBufferCommand = nullptr;
 
@@ -397,13 +397,13 @@ protected:
   // when needed.
   void initContextIfNeeded();
   // Event class represents 3 different kinds of operations:
-  // | type  | has PI event | MContext | MIsHostTask | MIsDefaultConstructed |
+  // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |
   // | host  | false        | nullptr  | true        | false                 |
   // |default|   *          |    *     | false       | true                  |
   // Default constructed event is created with empty ctor in host code, MContext
   // is lazily initialized with default device context on first context query.
-  // MEvent is lazily created in first pi handle query.
+  // MEvent is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
 };

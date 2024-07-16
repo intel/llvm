@@ -31,12 +31,12 @@ using ContextImplPtr = std::shared_ptr<context_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
-  /// Constructs a SYCL kernel instance from a PiKernel
+  /// Constructs a SYCL kernel instance from a UrKernel
   ///
   /// This constructor is used for plug-in interoperability. It always marks
   /// kernel as being created from source.
   ///
-  /// \param Kernel is a valid PiKernel instance
+  /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
@@ -44,9 +44,9 @@ public:
               const KernelArgMask *ArgMask = nullptr);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
-  /// kernel_bundle and / PiKernel.
+  /// kernel_bundle and / UrKernel.
   ///
-  /// \param Kernel is a valid PiKernel instance
+  /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
@@ -57,7 +57,7 @@ public:
 
   // This section means the object is non-movable and non-copyable
   // There is no need of move and copy constructors in kernel_impl.
-  // If they need to be added, piKernelRetain method for MKernel
+  // If they need to be added, urKernelRetain method for MKernel
   // should be present.
   kernel_impl(const kernel_impl &) = delete;
   kernel_impl(kernel_impl &&) = delete;
@@ -118,7 +118,7 @@ public:
 
   /// Get a constant reference to a raw kernel object.
   ///
-  /// \return a constant reference to a valid PiKernel instance with raw
+  /// \return a constant reference to a valid UrKernel instance with raw
   /// kernel object.
   const ur_kernel_handle_t &getHandleRef() const { return MURKernel; }
 

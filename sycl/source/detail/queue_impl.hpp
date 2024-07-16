@@ -22,7 +22,6 @@
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/assert_happened.hpp>
-#include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
@@ -122,7 +121,7 @@ public:
                               "discard_events and enable_profiling.");
       // fallback profiling support. See MFallbackProfiling
       if (MDevice->has(aspect::queue_profiling)) {
-        // When piGetDeviceAndHostTimer is not supported, compute the
+        // When urDeviceGetGlobalTimestamps is not supported, compute the
         // profiling time OpenCL version < 2.1 case
         if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
@@ -290,7 +289,7 @@ public:
 
   /// Constructs a SYCL queue from plugin interoperability handle.
   ///
-  /// \param PiQueue is a raw UR queue handle.
+  /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
@@ -767,13 +766,13 @@ public:
                           std::unique_lock<std::mutex> &QueueLock);
 
   // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // Approach that tracks almost all tasks to provide barrier sync for both ur
   // tasks and host tasks is applicable for out of order queues only. No-op
   // for in order ones.
   void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
 
   // Called on host task completion that could block some kernels from enqueue.
-  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // Approach that tracks almost all tasks to provide barrier sync for both ur
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);

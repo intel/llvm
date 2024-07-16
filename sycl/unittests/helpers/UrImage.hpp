@@ -109,7 +109,7 @@ private:
   NativeType MNative;
 };
 
-/// Generic array of PI entries.
+/// Generic array of UR entries.
 template <typename T> class UrArray {
 public:
   explicit UrArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
@@ -193,7 +193,7 @@ public:
 
   /// Adds a new array of properties to the set.
   ///
-  /// \param Name is a property array name. See pi.h for list of known names.
+  /// \param Name is a property array name. See ur.hpp for list of known names.
   /// \param Props is an array of property values.
   void insert(const std::string &Name, UrArray<UrProperty> Props) {
     MNames.push_back(Name);
@@ -221,7 +221,7 @@ private:
   std::vector<_ur_device_binary_property_set_struct> MProperties;
 };
 
-/// Convenience wrapper around PI internal structures, that manages PI binary
+/// Convenience wrapper around UR internal structures, that manages UR binary
 /// image data lifecycle.
 class UrImage {
 public:

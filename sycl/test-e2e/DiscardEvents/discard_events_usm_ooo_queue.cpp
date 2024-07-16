@@ -6,10 +6,10 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
 //
 // REQUIRES: aspect-usm_shared_allocations
-// The test checks that the last parameter is not `nullptr` for all PI calls
+// The test checks that the last parameter is not `nullptr` for all UR calls
 // that should discard events.
 // {{0|0000000000000000}} is required for various output on Linux and Windows.
-// NOTE: piextUSMEnqueuePrefetch and piextUSMEnqueueMemAdvise in the CUDA and
+// NOTE: urEnqueueUSMPrefetch and urEnqueueUSMAdvise in the CUDA and
 //       HIP backends may return a warning result on Windows with error-code
 //       66 (UR_RESULT_ERROR_ADAPTER_SPECIFIC) if USM managed memory is not
 //       supported or if unsupported advice flags are used for the latter API.

@@ -301,11 +301,11 @@ void queue_impl::addEvent(const event &Event) {
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
-    // unable to call piQueueFinish during wait.
+    // unable to call urQueueFinish during wait.
     if (MEmulateOOO)
       addSharedEvent(Event);
   }
-  // As long as the queue supports piQueueFinish we only need to store events
+  // As long as the queue supports urQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
   else if (MEmulateOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
@@ -456,7 +456,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
-      // Track only if we won't be able to handle it with piQueueFinish.
+      // Track only if we won't be able to handle it with urQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
       return discard_or_return(ResEvent);
@@ -595,13 +595,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // multiple in-order queues as a result of that), wait for each event
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
-  // then handle the rest with piQueueFinish.
+  // then handle the rest with urQueueFinish.
   const bool SupportsPiFinish = !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock()) {
-      // A nullptr UR event indicates that piQueueFinish will not cover it,
+      // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
       if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);

@@ -121,7 +121,7 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
 
-  // Depending on global caches state, piDeviceRetain is called either once or
+  // Depending on global caches state, urDeviceRetain is called either once or
   // twice, so there'll be 6 or 7 calls.
   ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";

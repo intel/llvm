@@ -99,8 +99,6 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   };
 #include <sycl/info/kernel_device_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
-// Need a static_cast here since piDeviceGetInfo can also accept
-// pi_usm_capability_query values.
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <> struct UrInfoCode<info::DescType::Desc> {                        \
     static constexpr ur_device_info_t value =                                  \

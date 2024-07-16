@@ -559,7 +559,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   // UR_RESULT_ERROR_INVALID_VALUE means USM doesn't know about this ptr
   if (Err == UR_RESULT_ERROR_INVALID_VALUE)
     return alloc::unknown;
-  // otherwise PI_SUCCESS is expected
+  // otherwise UR_RESULT_SUCCESS is expected
   if (Err != UR_RESULT_SUCCESS) {
     throw detail::set_ur_error(
         exception(make_error_code(errc::runtime), "get_pointer_type() failed"),

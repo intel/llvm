@@ -190,7 +190,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   // team needs to advise on the right place, until then we piggy-back on the
   // initialization of the UR layer.
 
-  // Initialize the global events just once, in the case pi::initialize() is
+  // Initialize the global events just once, in the case ur::initialize() is
   // called multiple times
   XPTIInitDone = true;
   // Registers a new stream for 'sycl' and any plugin that wants to listen to

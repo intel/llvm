@@ -99,13 +99,13 @@ TEST(OutOfResourcesTest, urProgramCreate) {
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
-  // Cache is empty, so one piProgramCreate call.
+  // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class OutOfResourcesKernel1>([] {});
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
-  // Now, we make the next piProgramCreate call fail with
+  // Now, we make the next urProgramCreateWithIL call fail with
   // UR_RESULT_ERROR_OUT_OF_RESOURCES. The caching mechanism should catch this,
-  // clear the cache, and retry the piProgramCreate.
+  // clear the cache, and retry the urProgramCreateWithIL.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfResourcesToggle);
@@ -116,9 +116,9 @@ TEST(OutOfResourcesTest, urProgramCreate) {
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
-  // The next piProgramCreate call will fail with
+  // The next urProgramCreateWithIL call will fail with
   // UR_RESULT_ERROR_OUT_OF_RESOURCES. But OutOfResourcesKernel2 is in
-  // the cache, so we expect no new piProgramCreate calls.
+  // the cache, so we expect no new urProgramCreateWithIL calls.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_TRUE(outOfResourcesToggle);
@@ -137,7 +137,7 @@ TEST(OutOfResourcesTest, urProgramCreate) {
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
-  // OutOfResourceKenel2 will not, so one more piProgramCreate.
+  // OutOfResourceKenel2 will not, so one more urProgramCreateWithIL.
   // Toggle is not set, so this should succeed.
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
@@ -163,13 +163,13 @@ TEST(OutOfHostMemoryTest, urProgramCreate) {
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
-  // Cache is empty, so one piProgramCreate call.
+  // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class OutOfResourcesKernel1>([] {});
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
-  // Now, we make the next piProgramCreate call fail with
+  // Now, we make the next urProgramCreateWithIL call fail with
   // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. The caching mechanism should catch
-  // this, clear the cache, and retry the piProgramCreate.
+  // this, clear the cache, and retry the urProgramCreateWithIL.
   outOfHostMemoryToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfHostMemoryToggle);
@@ -180,7 +180,7 @@ TEST(OutOfHostMemoryTest, urProgramCreate) {
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
-  // The next piProgramCreate call will fail with
+  // The next urProgramCreateWithIL call will fail with
   // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. But OutOfResourcesKernel2 is in the
   // cache, so we expect no new urProgramCreateWithIL calls.
   outOfHostMemoryToggle = true;
@@ -201,7 +201,7 @@ TEST(OutOfHostMemoryTest, urProgramCreate) {
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
-  // OutOfResourceKenel2 will not, so one more piProgramCreate.
+  // OutOfResourceKenel2 will not, so one more urProgramCreateWithIL.
   // Toggle is not set, so this should succeed.
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
