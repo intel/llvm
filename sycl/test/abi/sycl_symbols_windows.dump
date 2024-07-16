@@ -3863,8 +3863,10 @@
 ?ext_oneapi_signal_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
+?ext_oneapi_supports_cl_c_feature@device@_V1@sycl@@AEAA_NVstring_view@detail@23@@Z
 ?ext_oneapi_supports_cl_c_feature@device@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_supports_cl_c_version@device@_V1@sycl@@QEBA_NAEBUcl_version@experimental@oneapi@ext@23@@Z
+?ext_oneapi_supports_cl_extension@device@_V1@sycl@@AEBA_NVstring_view@detail@23@PEAUcl_version@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_supports_cl_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAUcl_version@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_wait_external_semaphore@handler@_V1@sycl@@QEAAXUinterop_semaphore_handle@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_wait_external_semaphore@handler@_V1@sycl@@QEAAXUinterop_semaphore_handle@experimental@oneapi@ext@23@_K@Z
