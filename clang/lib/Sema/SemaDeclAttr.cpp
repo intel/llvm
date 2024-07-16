@@ -156,8 +156,8 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Diagnose SYCL 2017 spellings in later SYCL modes.
-  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+  // Diagnose SYCL 2020 spellings in later SYCL modes.
+  if (LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
     // name in the sycl namespace as of SYCL 2020.
     if (A.hasScope() && A.getScopeName()->isStr("cl")) {
@@ -181,14 +181,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
           << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
       return;
     }
-  }
-
-  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
-  // extension.
-  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
-      A.getScopeName()->isStr("sycl")) {
-    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
-    return;
   }
 }
 
@@ -4378,18 +4370,12 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // This attribute is deprecated without replacement in SYCL 2020 mode.
+  // Given attribute is deprecated without replacement in SYCL 2020 mode.
   // Ignore the attribute in SYCL 2020.
-  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+  if (S.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020) {
     S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
     return;
   }
-
-  // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
-  // 2017 mode, we want to warn about using the newer name in the older
-  // standard as a compatibility extension.
-  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && AL.hasScope())
-    S.Diag(AL.getLoc(), diag::ext_sycl_2020_attr_spelling) << AL;
 
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
