@@ -38,9 +38,9 @@ ValidateUSMResult ValidateUSMPointer(ur_context_handle_t Context,
                                      ur_device_handle_t Device, uptr Ptr) {
     assert(Ptr != 0 && "Don't validate nullptr here");
 
-    auto AllocInfoItOp = context.interceptor->findAllocInfoByAddress(Ptr);
+    auto AllocInfoItOp = getContext()->interceptor->findAllocInfoByAddress(Ptr);
     if (!AllocInfoItOp) {
-        auto DI = context.interceptor->getDeviceInfo(Device);
+        auto DI = getContext()->interceptor->getDeviceInfo(Device);
         bool IsSupportSharedSystemUSM = DI->IsSupportSharedSystemUSM;
         if (IsSupportSharedSystemUSM) {
             // maybe it's host pointer
