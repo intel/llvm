@@ -208,10 +208,10 @@ template <typename T, int N, typename V> struct VecStorage {
 template <typename T, int N> struct VecStorageImpl {
   static constexpr size_t Num = (N == 3) ? 4 : N;
   static constexpr size_t Sz = Num * sizeof(T);
-  using DataType =
-      typename std::conditional<Sz <= 64, T __attribute__((ext_vector_type(N))),
-                                std::array<T, Num>>::type;
-  using VectorDataType = T __attribute__((ext_vector_type(N)));
+  using VectorDataType =
+      detail::ConvertToOpenCLType_t<T> __attribute__((ext_vector_type(N)));
+  using DataType = typename std::conditional<Sz <= 64, VectorDataType,
+                                             std::array<T, Num>>::type;
 };
 #else  // __SYCL_DEVICE_ONLY__
 template <typename T, int N> struct VecStorageImpl {
@@ -230,15 +230,15 @@ template <> struct VecStorage<bool, 1, void> {
 // Multiple element bool
 template <int N>
 struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
-  using DataType =
-      typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
-                                                std::int32_t, std::int64_t>,
-                              N>::DataType;
+  using DataType = typename VecStorageImpl<
+      select_apply_cl_t<bool, std::uint8_t, std::uint16_t, std::uint32_t,
+                        std::uint64_t>,
+      N>::DataType;
 #ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType =
-      typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
-                                                std::int32_t, std::int64_t>,
-                              N>::VectorDataType;
+  using VectorDataType = typename VecStorageImpl<
+      select_apply_cl_t<bool, std::uint8_t, std::uint16_t, std::uint32_t,
+                        std::uint64_t>,
+      N>::VectorDataType;
 #endif // __SYCL_DEVICE_ONLY__
 };
 
@@ -256,7 +256,7 @@ template <> struct VecStorage<std::byte, 1, void> {
 // Single element signed integers
 template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
-  using DataType = T;
+  using DataType = detail::ConvertToOpenCLType_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = DataType;
 #endif // __SYCL_DEVICE_ONLY__
@@ -265,7 +265,7 @@ struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
 // Single element unsigned integers
 template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
-  using DataType = T;
+  using DataType = detail::ConvertToOpenCLType_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = DataType;
 #endif // __SYCL_DEVICE_ONLY__
@@ -278,7 +278,7 @@ struct VecStorage<
     typename std::enable_if_t<!is_half_or_bf16_v<T> && is_sgenfloat_v<T>>> {
   using DataType = T;
 #ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = DataType;
+  using VectorDataType = T;
 #endif // __SYCL_DEVICE_ONLY__
 };
 // Multiple elements signed/unsigned integers and floating-point (except
