@@ -35,29 +35,26 @@ void emitDiagnostic(const SmallVector<const Function *> &Stack) {
   diagnoseSYCLIllegalVirtualFunctionCall(Stack);
 }
 
-void checkKernelImpl(const Function *F, CallGraphTy &CG,
+void checkKernelImpl(const Function *F, const CallGraphTy &CG,
                      SmallVector<const Function *> &Stack) {
   Stack.push_back(F);
-  CallGraphTy::iterator It = CG.find(F);
-  if (It == CG.end()) {
-    // It could be that the function itself is a leaf and doesn't call anything
-    Stack.pop_back();
-    return;
-  }
-
-  SmallPtrSet<Value *, 8> &Callees = It->getSecond();
-  for (const Value *V : Callees) {
-    auto *Callee = dyn_cast<Function>(V);
-    if (Callee)
-      checkKernelImpl(Callee, CG, Stack);
-    else
-      emitDiagnostic(Stack);
+  CallGraphTy::const_iterator It = CG.find(F);
+  // It could be that the function itself is a leaf and doesn't call anything
+  if (It != CG.end()) {
+    const SmallPtrSet<Value *, 8> &Callees = It->getSecond();
+    for (const Value *V : Callees) {
+      auto *Callee = dyn_cast<Function>(V);
+      if (Callee)
+        checkKernelImpl(Callee, CG, Stack);
+      else
+        emitDiagnostic(Stack);
+    }
   }
 
   Stack.pop_back();
 }
 
-void checkKernel(const Function *F, CallGraphTy &CG) {
+void checkKernel(const Function *F, const CallGraphTy &CG) {
   SmallVector<const Function *> CallStack;
   checkKernelImpl(F, CG, CallStack);
 }
@@ -66,7 +63,6 @@ void checkKernel(const Function *F, CallGraphTy &CG) {
 
 PreservedAnalyses
 SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
-
   CallGraphTy CallGraph;
   SmallVector<const Function *> Kernels;
   SetVector<const Function *> WorkList;
@@ -116,16 +112,6 @@ SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (const auto *K : Kernels) {
     checkKernel(K, CallGraph);
   }
-
-  // build call graph that starts from SYCL kernels
-  //   in form of Function -> Value map to be able to handle both direct and
-  //   indirect calls
-  // analyze each call graph separately
-  //   if a kernel is annotated with calls_indirectly property, we do nothing.
-  //   We can even omit such kernel from call graph if a kernel is not annotated
-  //   with calls_indirectly property, we analyze it call graph to see if there
-  //   are any virtual function calls performed by it and emit an error for each
-  //   case we found (including call chain)
 
   return PreservedAnalyses::all();
 }
