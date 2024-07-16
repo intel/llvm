@@ -551,7 +551,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

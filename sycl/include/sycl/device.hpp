@@ -347,10 +347,6 @@ private:
   friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
-
-  template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   template <backend BackendName, class SyclObjectT>
