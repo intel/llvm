@@ -204,7 +204,7 @@ struct KernelFunctor {
   operator()(syclcompat::detail::range_to_item_t<Range>) const {
     if constexpr (HasLocalMem) {
       char *local_mem_ptr = static_cast<char *>(
-          _local_acc.template get_multi_ptr<sycl::access::decorated::no>());
+          _local_acc.template get_multi_ptr<sycl::access::decorated::no>().get());
       std::apply(
           [lmem_ptr = local_mem_ptr](auto &&...args) { F(args..., lmem_ptr); },
           _argument_tuple);
