@@ -188,10 +188,9 @@ class AdapterRegistry {
         adaptersLoadPaths.clear();
 
         std::vector<fs::path> loadPaths;
-        auto adapterNamePathOpt = getAdapterNameAsPath(mockAdapterName);
+        auto adapterNamePath = fs::path{mockAdapterName};
         auto loaderLibPathOpt = getLoaderLibPath();
-        if (adapterNamePathOpt.has_value() && loaderLibPathOpt.has_value()) {
-            const auto &adapterNamePath = adapterNamePathOpt.value();
+        if (loaderLibPathOpt.has_value()) {
             const auto &loaderLibPath = loaderLibPathOpt.value();
             loadPaths.emplace_back(loaderLibPath / adapterNamePath);
         }
