@@ -93,18 +93,8 @@ class SwizzleOp;
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t) const {
-    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
-      return DataT{0.0f};
-    else
-      return (DataT)0;
-  }
-  DataT operator()(DataT, DataT) {
-    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
-      return DataT{0.0f};
-    else
-      return (DataT)0;
-  }
+  DataT getValue(size_t) const { return (DataT)0; }
+  DataT operator()(DataT, DataT) { return (DataT)0; }
 };
 
 } // namespace detail
@@ -866,14 +856,21 @@ public:
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
-  SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
-    operatorHelper<OP>(vec_t(Rhs));                                            \
-    return *this;                                                              \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const DataT & Rhs) {               \
+    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
+    return Lhs;                                                                \
   }                                                                            \
   template <typename RhsOperation>                                             \
-  SwizzleOp &operator OPASSIGN(const RhsOperation & Rhs) {                     \
-    operatorHelper<OP>(Rhs);                                                   \
-    return *this;                                                              \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const RhsOperation & Rhs) {        \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }                                                                            \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const vec_t & Rhs) {               \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
   }
 
   __SYCL_OPASSIGN(+=, std::plus)
@@ -892,13 +889,13 @@ public:
 #error "Undefine __SYCL_UOP macro"
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  SwizzleOp &operator UOP() {                                                  \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
-    return *this;                                                              \
+  friend const SwizzleOp &operator UOP(const SwizzleOp & sv) {                 \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
+    return sv;                                                                 \
   }                                                                            \
-  vec_t operator UOP(int) {                                                    \
-    vec_t Ret = *this;                                                         \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
+  friend vec_t operator UOP(const SwizzleOp &sv, int) {                        \
+    vec_t Ret = sv;                                                            \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
     return Ret;                                                                \
   }
 
@@ -1439,7 +1436,7 @@ private:
   }
 
   template <template <typename> class Operation, typename RhsOperation>
-  void operatorHelper(const RhsOperation &Rhs) {
+  void operatorHelper(const RhsOperation &Rhs) const {
     Operation<DataT> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
