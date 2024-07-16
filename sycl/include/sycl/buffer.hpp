@@ -445,14 +445,13 @@ public:
 
     if (b.is_sub_buffer())
       throw sycl::exception(make_error_code(errc::invalid),
-                            "Cannot create sub buffer from sub buffer.");
+          "Cannot create sub buffer from sub buffer.");
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw sycl::exception(
-          make_error_code(errc::invalid),
+      throw sycl::exception(make_error_code(errc::invalid),
           "Requested sub-buffer size exceeds the size of the parent buffer");
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
       throw sycl::exception(make_error_code(errc::invalid),
-                            "Requested sub-buffer region is not contiguous");
+          "Requested sub-buffer region is not contiguous");
   }
 
   buffer(const buffer &rhs,
@@ -544,8 +543,7 @@ public:
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::exception(
-          make_error_code(errc::invalid),
+      throw sycl::exception(make_error_code(errc::invalid),
           "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
@@ -567,8 +565,7 @@ public:
                                                        detail::code_location::
                                                            current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw sycl::exception(
-          make_error_code(errc::invalid),
+      throw sycl::exception(make_error_code(errc::invalid),
           "Requested accessor would exceed the bounds of the buffer");
 
     return accessor<T, dimensions, mode, access::target::host_buffer,
@@ -726,8 +723,7 @@ protected:
 
 private:
   template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,

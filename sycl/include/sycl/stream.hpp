@@ -927,8 +927,7 @@ private:
 #else
   std::shared_ptr<detail::stream_impl> impl;
   template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
   // NOTE: Some members are required for reconstructing the stream, but are not

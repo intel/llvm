@@ -551,7 +551,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -586,8 +586,7 @@ public:
 
 protected:
   template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -834,7 +833,7 @@ public:
             /*AccessMode=*/getAdjustedMode({}),
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
             /*IsPlaceH=*/false,
-            /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}) {};
+            /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
   template <typename, int, access_mode> friend class host_accessor;
 
@@ -845,8 +844,7 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
   template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1945,7 +1943,7 @@ private:
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
       throw sycl::exception(make_error_code(errc::invalid),
-                            "accessor cannot be both read_only and no_init");
+          "accessor cannot be both read_only and no_init");
     }
   }
 
@@ -2047,9 +2045,9 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
-accessor(buffer<DataT, Dimensions, AllocatorT>,
-         handler &) -> accessor<DataT, Dimensions, access::mode::read_write,
-                                target::device, access::placeholder::false_t>;
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &)
+    -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
+                access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
@@ -2238,8 +2236,7 @@ protected:
   }
 
   template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2266,10 +2263,10 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
-  local_accessor_base(
-      handler &, const property_list &propList,
-      const detail::code_location CodeLoc = detail::code_location::current())
+        template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
+        local_accessor_base(handler &, const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2301,11 +2298,12 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
-  local_accessor_base(
-      range<Dimensions> AllocationSize, handler &,
-      const property_list &propList,
-      const detail::code_location CodeLoc = detail::code_location::current())
+        template <int Dims = Dimensions,
+                  typename = std::enable_if_t<(Dims > 0)>>
+        local_accessor_base(range<Dimensions> AllocationSize, handler &,
+                            const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
@@ -2656,7 +2654,7 @@ protected:
                  access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
-  friend decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl)& getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2880,27 +2878,27 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>)
     -> host_accessor<DataT, Dimensions, access::mode::read_write>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>,
-              Type1) -> host_accessor<DataT, Dimensions,
-                                      detail::deduceAccessMode<Type1, Type1>()>;
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
+    -> host_accessor<DataT, Dimensions,
+                     detail::deduceAccessMode<Type1, Type1>()>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1,
-              Type2) -> host_accessor<DataT, Dimensions,
-                                      detail::deduceAccessMode<Type1, Type2>()>;
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
+    -> host_accessor<DataT, Dimensions,
+                     detail::deduceAccessMode<Type1, Type2>()>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2,
-              Type3) -> host_accessor<DataT, Dimensions,
-                                      detail::deduceAccessMode<Type2, Type3>()>;
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
+    -> host_accessor<DataT, Dimensions,
+                     detail::deduceAccessMode<Type2, Type3>()>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3,
-              Type4) -> host_accessor<DataT, Dimensions,
-                                      detail::deduceAccessMode<Type3, Type4>()>;
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
+    -> host_accessor<DataT, Dimensions,
+                     detail::deduceAccessMode<Type3, Type4>()>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename Type5>
