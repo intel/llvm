@@ -143,7 +143,7 @@ public:
   template <typename... Ts>
   launch_policy(dim3 global_range, dim3 local_range, Ts... ts)
       : launch_policy(ts...) {
-    _range = Range{global_range, local_range};
+    _range = Range{global_range * local_range, local_range};
     check_variadic_args(ts...);
   }
 
