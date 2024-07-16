@@ -1317,7 +1317,7 @@ bool canBeImportedFunction(const Function &F) {
   // will be considered as SYCL_EXTERNAL for the purposes of
   // this function.
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      !(F.isDeclaration() || llvm::sycl::utils::isSYCLExternalFunction(&F)))
+      (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
   bool ReturnValue = true;
