@@ -97,7 +97,6 @@ buffer_impl::getNativeVector(backend BackendName) const {
   addInteropObject(Handles);
   return Handles;
 }
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
