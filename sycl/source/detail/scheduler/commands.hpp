@@ -18,10 +18,10 @@
 #include <vector>
 
 #include <detail/accessor_impl.hpp>
+#include <detail/cg.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
-#include <sycl/detail/cg.hpp>
 
 namespace sycl {
 inline namespace _V1 {

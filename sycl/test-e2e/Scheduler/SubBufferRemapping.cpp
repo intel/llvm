@@ -15,7 +15,6 @@
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 int main(int argc, const char **argv) {
 

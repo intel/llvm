@@ -97,7 +97,7 @@ EventImplPtr Scheduler::addCG(
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
-  const CG::CGTYPE Type = CommandGroup->getType();
+  const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
@@ -109,12 +109,12 @@ EventImplPtr Scheduler::addCG(
 
     Command *NewCmd = nullptr;
     switch (Type) {
-    case CG::UpdateHost:
+    case CGType::UpdateHost:
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       NewEvent = NewCmd->getEvent();
       break;
-    case CG::CodeplayHostTask: {
+    case CGType::CodeplayHostTask: {
       auto Result = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
                                         AuxiliaryCmds, EventNeeded);
       NewCmd = Result.NewCmd;

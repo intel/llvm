@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/cg.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>

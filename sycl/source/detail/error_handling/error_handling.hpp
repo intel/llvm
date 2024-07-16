@@ -8,8 +8,9 @@
 
 #pragma once
 
+#include <detail/cg.hpp>
 #include <detail/device_impl.hpp>
-#include <sycl/detail/cg.hpp>
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {

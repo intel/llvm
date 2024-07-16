@@ -364,15 +364,15 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CG::CGTYPE Type = Handler.getType();
+  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
-  if (Type == CG::Kernel)
+  if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
   if (PostProcess) {
-    bool IsKernel = Type == CG::Kernel;
+    bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)

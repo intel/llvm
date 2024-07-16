@@ -8,7 +8,6 @@
 
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 #include <gtest/gtest.h>
 
