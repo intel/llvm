@@ -29,6 +29,7 @@
 
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/id_query.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
@@ -54,11 +55,11 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
   const int id =
-      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
+      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_global_linear_id();
   if (id < num_elements) {
     typed_local_mem[id] = static_cast<T>(id);
   }
-  sycl::group_barrier(sycl::ext::oneapi::this_work_item::get_work_group<1>());
+  syclcompat::wg_barrier();
   if (id < num_elements) {
     data[id] = typed_local_mem[num_elements - id - 1];
   }
@@ -154,6 +155,7 @@ template <typename T> void test_arg_launch() {
   compat_exp::launch<dynamic_local_mem_typed_kernel<T>>(
       launch_policy{ltt.grid_, ltt.thread_, local_mem_size{ltt.memsize_}}, d_a);
 
+  syclcompat::wait();
   syclcompat::free(d_a);
 }
 
@@ -179,6 +181,7 @@ template <typename T> void test_arg_launch_q() {
       launch_policy{ltt.grid_, ltt.thread_, local_mem_size{ltt.memsize_}},
       ltt.in_order_q_, d_a);
 
+  syclcompat::wait(ltt.in_order_q_);
   syclcompat::free(d_a, ltt.in_order_q_);
 }
 
