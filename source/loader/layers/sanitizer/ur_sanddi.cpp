@@ -1290,18 +1290,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
     ///< mapping operation. If null then argument value is considered null.
 ) {
-    auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
+    auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
 
     if (nullptr == pfnSetArgPointer) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug(
+    getContext()->logger.debug(
         "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
         pArgValue);
 
     {
-        auto KI = context.interceptor->getKernelInfo(hKernel);
+        auto KI = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
     }

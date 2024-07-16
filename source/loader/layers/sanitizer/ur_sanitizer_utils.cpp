@@ -136,7 +136,7 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
 
 ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
     ur_device_handle_t ParentDevice{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
         &ParentDevice, nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getParentDevice() failed");
@@ -146,7 +146,7 @@ ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
 bool GetDeviceUSMCapability(ur_device_handle_t Device,
                             ur_device_info_t USMInfo) {
     ur_device_usm_access_capability_flags_t Flag;
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
         Device, USMInfo, sizeof(Flag), &Flag, nullptr);
     return (bool)Flag;
 }
