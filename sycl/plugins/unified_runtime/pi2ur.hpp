@@ -5325,7 +5325,7 @@ inline pi_result piextMemImageCopy(
     pi_queue Queue, void *DstPtr, void *SrcPtr,
     const pi_image_desc *SrcImageDesc, const pi_image_desc *DstImageDesc,
     const pi_image_format *SrcImageFormat,
-    const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,
+    const pi_image_format *DstImageFormat, const pi_image_copy_flags Flags,
     pi_image_offset SrcOffset, pi_image_offset DstOffset,
     pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
@@ -5339,7 +5339,7 @@ inline pi_result piextMemImageCopy(
 
   ur_image_format_t UrDstFormat{};
   ur_image_desc_t UrDstDesc{};
-  pi2urImageDesc(DestImageFormat, DstImageDesc, &UrDstFormat, &UrDstDesc);
+  pi2urImageDesc(DstImageFormat, DstImageDesc, &UrDstFormat, &UrDstDesc);
 
   ur_exp_image_copy_flags_t UrFlags;
   pi2urImageCopyFlags(Flags, &UrFlags);
