@@ -143,7 +143,6 @@ struct work_group_size_hint_key {
   using value_t = property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...>;
 }; // work_group_size_hint_key
 
-// Corresponds to max_work_group_size
 struct max_work_group_size_key {
   template <size_t... Dims>
   using value_t = property_value<max_work_group_size_key, std::integral_constant<size_t, Dims>...>;
@@ -242,10 +241,18 @@ specified size. The number of template arguments in the `Dims` parameter pack
 must match the dimensionality of the work-group used to invoke the kernel. The
 order of the template arguments matches the constructor of the `range` class.
 
+If the kernel is submitted with an `nd_range` that exceeds the size specified
+by the property, the implementation must throw a synchronous exception with the
+`errc::nd_range` error code.
+
 |`max_linear_work_group_size`
 |The `max_linear_work_group_size` property provides a promise to the compiler
 that the kernel will never be launched with a work-group for which the return
 value of `group::get_local_linear_range()` exceeds the specified amount.
+
+If the kernel is submitted with an `nd_range` that exceeds the size specified
+by the property, the implementation must throw a synchronous exception with the
+`errc::nd_range` error code.
 
 |`sub_group_size`
 |The `sub_group_size` property adds the requirement that the kernel must be

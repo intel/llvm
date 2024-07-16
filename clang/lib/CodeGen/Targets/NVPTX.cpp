@@ -346,11 +346,10 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
     if (auto Attr = F->getFnAttribute("sycl-max-linear-work-group-size");
         Attr.isValid()) {
       size_t Value = 0;
-      bool Error = Attr.getValueAsString().getAsInteger(10, Value);
+      [[maybe_unused]] bool Error = Attr.getValueAsString().getAsInteger(10, Value);
       assert(!Error && "The attribute's value is not a number");
-      if (llvm::isUInt<31>(Value)) {
+      if (llvm::isUInt<31>(Value))
         addNVVMMetadata(F, "maxntidx", Value);
-      }
     }
 
     if (const auto *RWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
