@@ -114,7 +114,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
     const char *Options          ///< [in][optional] pointer to build options
                                  ///< null-terminated string.
 ) {
-  return urProgramBuildExp(Program, 1, Context->Devices.data(), Options);
+  return urProgramBuildExp(Program, Context->Devices.size(),
+                           Context->Devices.data(), Options);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
@@ -283,8 +284,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of program object created.
 ) {
-  return urProgramLinkExp(Context, Count, Context->Devices.data(), 1, Programs,
-                          Options, Program);
+  return urProgramLinkExp(Context, Context->Devices.size(),
+                          Context->Devices.data(), Count, Programs, Options,
+                          Program);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -300,6 +302,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   for (uint32_t i = 0; i < numDevices; i++) {
     UR_ASSERT(hContext->isValidDevice(phDevices[i]),
               UR_RESULT_ERROR_INVALID_DEVICE);
@@ -445,11 +450,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
       // because the ZeBuildLog tells which symbols are unresolved.
       if (ZeResult == ZE_RESULT_SUCCESS) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-          UrResult =
-              UR_RESULT_ERROR_UNKNOWN; // TODO:
-                                       // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
-        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        if (ZeResult != ZE_RESULT_SUCCESS) {
           return ze2urResult(ZeResult);
         }
       }
@@ -570,7 +571,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     // exists
     ClResult.pop_back();
     if (is_in_separated_string(ClResult, ';', std::string(FunctionName)))
-      return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+      return UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE;
 
     return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   }

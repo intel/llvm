@@ -28,7 +28,7 @@ function(set_tracing_test_props target_name collector_name)
         "XPTI_TRACE_ENABLE=1"
         "XPTI_FRAMEWORK_DISPATCHER=$<TARGET_FILE:xptifw>"
         "XPTI_SUBSCRIBERS=$<TARGET_FILE:${collector_name}>"
-        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
+        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\""
         "UR_ENABLE_LAYERS=UR_LAYER_TRACING")
 endfunction()
 
@@ -54,7 +54,7 @@ add_test(NAME example-logged-hello-world
 set_tests_properties(example-logged-hello-world PROPERTIES LABELS "tracing")
 set_property(TEST example-logged-hello-world PROPERTY ENVIRONMENT
     "UR_LOG_TRACING=level:info\;output:stdout"
-    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
+    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\""
     "UR_ENABLE_LAYERS=UR_LAYER_TRACING")
 
 function(add_tracing_test name)

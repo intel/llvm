@@ -66,23 +66,32 @@ TEST_P(urKernelGetInfoTest, InvalidEnumeration) {
 }
 
 TEST_P(urKernelGetInfoTest, InvalidSizeZero) {
-    size_t n_args = 0;
-    ASSERT_EQ_RESULT(
-        urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, &n_args, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+    size_t query_size = 0;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
+                                   &query_size));
+    std::vector<char> query_data(query_size);
+    ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0,
+                                     query_data.data(), nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urKernelGetInfoTest, InvalidSizeSmall) {
-    size_t n_args = 0;
+    size_t query_size = 0;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
+                                   &query_size));
+    std::vector<char> query_data(query_size);
     ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
-                                     sizeof(n_args) - 1, &n_args, nullptr),
+                                     query_data.size() - 1, query_data.data(),
+                                     nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullPointerPropValue) {
-    size_t n_args = 0;
+    size_t query_size = 0;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
+                                   &query_size));
     ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
-                                     sizeof(n_args), nullptr, nullptr),
+                                     query_size, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 

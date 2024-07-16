@@ -80,7 +80,7 @@ params:
     - type: "$x_context_handle_t"
       name: hContext
       desc: |
-            [in] handle of the context to get a reference of.
+            [in][retain] handle of the context to get a reference of.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported context info"
@@ -129,7 +129,7 @@ params:
     - type: "$x_context_handle_t"
       name: hContext
       desc: |
-            [in] handle of the context to release.
+            [in][release] handle of the context to release.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about context"

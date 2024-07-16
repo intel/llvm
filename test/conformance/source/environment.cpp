@@ -65,7 +65,8 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
 
     ur_loader_config_handle_t config;
     if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
+        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
+            UR_RESULT_SUCCESS) {
             urLoaderConfigRelease(config);
             error = "Failed to enable validation layer";
             return;

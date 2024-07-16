@@ -25,7 +25,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_handle_t hImage) {
+    [[maybe_unused]] ur_exp_image_native_handle_t hImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -33,7 +33,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_handle_t hImage) {
+    [[maybe_unused]] ur_exp_image_native_handle_t hImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -42,35 +42,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_exp_image_mem_handle_t *phImageMem) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem,
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_exp_image_handle_t *phImage) {
+    [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem,
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_sampler_handle_t hSampler,
-    [[maybe_unused]] ur_exp_image_handle_t *phImage) {
+    [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -91,7 +91,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem,
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] ur_image_info_t propName,
     [[maybe_unused]] void *pPropValue, [[maybe_unused]] size_t *pPropSizeRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -100,16 +101,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem,
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] uint32_t mipmapLevel,
-    [[maybe_unused]] ur_exp_image_mem_handle_t *phImageMem) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesMipmapFreeExp([[maybe_unused]] ur_context_handle_t hContext,
-                              [[maybe_unused]] ur_device_handle_t hDevice,
-                              [[maybe_unused]] ur_exp_image_mem_handle_t hMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -128,7 +129,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_exp_interop_mem_handle_t hInteropMem,
-    [[maybe_unused]] ur_exp_image_mem_handle_t *phImageMem) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

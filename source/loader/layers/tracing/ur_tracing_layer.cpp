@@ -14,21 +14,51 @@
 #include "ur_util.hpp"
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#include <atomic>
 #include <optional>
 #include <sstream>
 
 namespace ur_tracing_layer {
-context_t context;
+context_t *getContext() { return context_t::get_direct(); }
 
 constexpr auto CALL_STREAM_NAME = "ur";
 constexpr auto STREAM_VER_MAJOR = UR_MAJOR_VERSION(UR_API_VERSION_CURRENT);
 constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 
+// UR loader can be inited and teardown'ed multiple times in a single process.
+// Unfortunately this doesn't match the semantics of XPTI, which can be initialized
+// and finalized exactly once. To workaround this, XPTI is globally initialized on
+// first use and finalized in the destructor.
+class XptiContext {
+    XptiContext() {
+        xptiFrameworkInitialize();
+        inited = true;
+    }
+
+    ~XptiContext() {
+        xptiFrameworkFinalize();
+        inited = false;
+    }
+
+    // Accessing this after destruction is technically UB, but if we get there,
+    // it means something is calling UR after it has been destroyed at program
+    // exit.
+    std::atomic_bool inited;
+
+  public:
+    static bool running() {
+        static XptiContext context;
+        return context.inited;
+    }
+};
+
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
-    xptiFrameworkInitialize();
+    if (!XptiContext::running()) {
+        return;
+    }
 
     call_stream_id = xptiRegisterStream(CALL_STREAM_NAME);
     std::ostringstream streamv;
@@ -37,16 +67,22 @@ context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
                    streamv.str().data());
 }
 
-bool context_t::isAvailable() const { return true; }
-
 void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                        void *args, ur_result_t *resultp, uint64_t instance) {
+    if (!XptiContext::running()) {
+        return;
+    }
+
     xpti::function_with_args_t payload{id, name, args, resultp, nullptr};
     xptiNotifySubscribers(call_stream_id, trace_type, nullptr, activeEvent,
                           instance, &payload);
 }
 
 uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
+    if (!XptiContext::running()) {
+        return 0;
+    }
+
     if (auto loc = codelocData.get_codeloc()) {
         xpti::payload_t payload =
             xpti::payload_t(loc->functionName, loc->sourceFile, loc->lineNumber,
@@ -65,14 +101,20 @@ uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
 
 void context_t::notify_end(uint32_t id, const char *name, void *args,
                            ur_result_t *resultp, uint64_t instance) {
+    if (!XptiContext::running()) {
+        return;
+    }
+
     notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id, name,
            args, resultp, instance);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {
-    xptiFinalize(CALL_STREAM_NAME);
+    if (!XptiContext::running()) {
+        return;
+    }
 
-    xptiFrameworkFinalize();
+    xptiFinalize(CALL_STREAM_NAME);
 }
 } // namespace ur_tracing_layer

@@ -218,14 +218,14 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
 """
     generates c/c++ files from the specification documents
 """
-def _mako_null_adapter_cpp(path, namespace, tags, version, specs, meta):
-    dstpath = os.path.join(path, "null")
+def _mako_mock_adapter_cpp(path, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, "mock")
     os.makedirs(dstpath, exist_ok=True)
 
-    template = "nullddi.cpp.mako"
+    template = "mockddi.cpp.mako"
     fin = os.path.join(templates_dir, template)
 
-    name = "%s_nullddi"%(namespace)
+    name = "%s_mockddi"%(namespace)
     filename = "%s.cpp"%(name)
     fout = os.path.join(dstpath, filename)
 
@@ -388,7 +388,7 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
     os.makedirs(dstpath, exist_ok=True)
 
     loc = 0
-    loc += _mako_null_adapter_cpp(dstpath, namespace, tags, version, specs, meta)
+    loc += _mako_mock_adapter_cpp(dstpath, namespace, tags, version, specs, meta)
     loc += _mako_linker_scripts(
         dstpath, "adapter", "map", namespace, tags, version, specs, meta
     )

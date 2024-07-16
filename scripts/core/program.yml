@@ -223,6 +223,7 @@ analogue:
 details:
     - "The application may call this function from simultaneous threads."
     - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+    - "If a non-success code is returned and `phProgram` is not `nullptr`, it will contain an unspecified program or `nullptr`. Implementations may use the build log of this program (accessible via $xProgramGetBuildInfo) to provide an error log for the linking failure."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -262,7 +263,7 @@ details:
 params:
     - type: $x_program_handle_t
       name: hProgram
-      desc: "[in] handle for the Program to retain"
+      desc: "[in][retain] handle for the Program to retain"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Release Program."
@@ -279,7 +280,7 @@ details:
 params:
     - type: $x_program_handle_t
       name: hProgram
-      desc: "[in] handle for the Program to release"
+      desc: "[in][release] handle for the Program to release"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves a device function pointer to a user-defined function."
@@ -291,7 +292,7 @@ analogue:
     - "**clGetDeviceFunctionPointerINTEL**"
 details:
     - "Retrieves a pointer to the functions with the given name and defined in the given program."
-    - "$X_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function can not be obtained."
+    - "$X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the function can not be obtained."
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
 params:
@@ -313,6 +314,11 @@ params:
       name: ppFunctionPointer
       desc: |
             [out] Returns the pointer to the function if it is found in the program.
+returns:
+    - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
+        - "If `pFunctionName` couldn't be found in `hProgram`."
+    - $X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        - "If `pFunctionName` could be located, but its address couldn't be retrieved."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves a pointer to a device global variable."

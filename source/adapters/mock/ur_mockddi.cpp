@@ -1,15 +1,16 @@
 /*
  *
- * Copyright (C) 2019-2022 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_nullddi.cpp
+ * @file ur_mockddi.cpp
  *
  */
-#include "ur_null.hpp"
+#include "ur_mock.hpp"
+#include "ur_mock_helpers.hpp"
 
 namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,16 +30,40 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAdapterGet = d_context.urDdiTable.Global.pfnAdapterGet;
-    if (nullptr != pfnAdapterGet) {
-        result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
-    } else {
-        // generic implementation
-        for (size_t i = 0; (nullptr != phAdapters) && (i < NumEntries); ++i) {
-            phAdapters[i] =
-                reinterpret_cast<ur_adapter_handle_t>(d_context.get());
+    ur_adapter_get_params_t params = {&NumEntries, &phAdapters, &pNumAdapters};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urAdapterGet"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urAdapterGet"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        if (pNumAdapters) {
+            *pNumAdapters = 1;
+        }
+        if (phAdapters) {
+            *phAdapters = d_context.adapter;
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urAdapterGet"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -49,16 +74,38 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRelease
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ur_adapter_handle_t hAdapter ///< [in][release] Adapter handle to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAdapterRelease = d_context.urDdiTable.Global.pfnAdapterRelease;
-    if (nullptr != pfnAdapterRelease) {
-        result = pfnAdapterRelease(hAdapter);
+    ur_adapter_release_params_t params = {&hAdapter};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urAdapterRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urAdapterRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urAdapterRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -69,16 +116,38 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterRetain
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
-    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ur_adapter_handle_t hAdapter ///< [in][retain] Adapter handle to retain
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAdapterRetain = d_context.urDdiTable.Global.pfnAdapterRetain;
-    if (nullptr != pfnAdapterRetain) {
-        result = pfnAdapterRetain(hAdapter);
+    ur_adapter_retain_params_t params = {&hAdapter};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urAdapterRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urAdapterRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urAdapterRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -99,13 +168,35 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAdapterGetLastError =
-        d_context.urDdiTable.Global.pfnAdapterGetLastError;
-    if (nullptr != pfnAdapterGetLastError) {
-        result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+    ur_adapter_get_last_error_params_t params = {&hAdapter, &ppMessage,
+                                                 &pError};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urAdapterGetLastError"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urAdapterGetLastError"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urAdapterGetLastError"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -130,13 +221,35 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAdapterGetInfo = d_context.urDdiTable.Global.pfnAdapterGetInfo;
-    if (nullptr != pfnAdapterGetInfo) {
-        result = pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
-                                   pPropSizeRet);
+    ur_adapter_get_info_params_t params = {&hAdapter, &propName, &propSize,
+                                           &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urAdapterGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urAdapterGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urAdapterGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -164,17 +277,41 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGet = d_context.urDdiTable.Platform.pfnGet;
-    if (nullptr != pfnGet) {
-        result = pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms,
-                        pNumPlatforms);
-    } else {
-        // generic implementation
-        for (size_t i = 0; (nullptr != phPlatforms) && (i < NumEntries); ++i) {
-            phPlatforms[i] =
-                reinterpret_cast<ur_platform_handle_t>(d_context.get());
+    ur_platform_get_params_t params = {&phAdapters, &NumAdapters, &NumEntries,
+                                       &phPlatforms, &pNumPlatforms};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPlatformGet"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPlatformGet"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        if (pNumPlatforms) {
+            *pNumPlatforms = 1;
+        }
+        if (phPlatforms) {
+            *phPlatforms = d_context.platform;
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPlatformGet"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -199,13 +336,35 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Platform.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
+    ur_platform_get_info_params_t params = {&hPlatform, &propName, &propSize,
+                                            &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPlatformGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPlatformGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPlatformGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -221,12 +380,34 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetApiVersion = d_context.urDdiTable.Platform.pfnGetApiVersion;
-    if (nullptr != pfnGetApiVersion) {
-        result = pfnGetApiVersion(hPlatform, pVersion);
+    ur_platform_get_api_version_params_t params = {&hPlatform, &pVersion};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPlatformGetApiVersion"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPlatformGetApiVersion"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPlatformGetApiVersion"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -243,14 +424,36 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Platform.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hPlatform, phNativePlatform);
+    ur_platform_get_native_handle_params_t params = {&hPlatform,
+                                                     &phNativePlatform};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPlatformGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPlatformGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativePlatform =
-            reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativePlatform = reinterpret_cast<ur_native_handle_t>(hPlatform);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPlatformGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -272,15 +475,40 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Platform.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
-                                           pProperties, phPlatform);
+    ur_platform_create_with_native_handle_params_t params = {
+        &hNativePlatform, &hAdapter, &pProperties, &phPlatform};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urPlatformCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urPlatformCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phPlatform = reinterpret_cast<ur_platform_handle_t>(d_context.get());
+
+        *phPlatform = reinterpret_cast<ur_platform_handle_t>(hNativePlatform);
+        mock::retainDummyHandle(*phPlatform);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urPlatformCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -300,14 +528,36 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetBackendOption =
-        d_context.urDdiTable.Platform.pfnGetBackendOption;
-    if (nullptr != pfnGetBackendOption) {
-        result =
-            pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
+    ur_platform_get_backend_option_params_t params = {
+        &hPlatform, &pFrontendOption, &ppPlatformOption};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPlatformGetBackendOption"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urPlatformGetBackendOption"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPlatformGetBackendOption"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -334,17 +584,41 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGet = d_context.urDdiTable.Device.pfnGet;
-    if (nullptr != pfnGet) {
-        result =
-            pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
-    } else {
-        // generic implementation
-        for (size_t i = 0; (nullptr != phDevices) && (i < NumEntries); ++i) {
-            phDevices[i] =
-                reinterpret_cast<ur_device_handle_t>(d_context.get());
+    ur_device_get_params_t params = {&hPlatform, &DeviceType, &NumEntries,
+                                     &phDevices, &pNumDevices};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceGet"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceGet"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        if (pNumDevices) {
+            *pNumDevices = 1;
+        }
+        if (phDevices) {
+            *phDevices = d_context.device;
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceGet"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -370,55 +644,35 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Device.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_DEVICE_INFO_PLATFORM: {
-                ur_platform_handle_t *handles =
-                    reinterpret_cast<ur_platform_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_platform_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_platform_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_DEVICE_INFO_PARENT_DEVICE: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_DEVICE_INFO_COMPONENT_DEVICES: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_device_get_info_params_t params = {&hDevice, &propName, &propSize,
+                                          &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -430,16 +684,38 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 /// @brief Intercept function for urDeviceRetain
 __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
-        hDevice ///< [in] handle of the device to get a reference of.
+        hDevice ///< [in][retain] handle of the device to get a reference of.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Device.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hDevice);
+    ur_device_retain_params_t params = {&hDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -450,16 +726,39 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceRelease
 __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
-    ur_device_handle_t hDevice ///< [in] handle of the device to release.
+    ur_device_handle_t
+        hDevice ///< [in][release] handle of the device to release.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Device.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hDevice);
+    ur_device_release_params_t params = {&hDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -484,17 +783,35 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPartition = d_context.urDdiTable.Device.pfnPartition;
-    if (nullptr != pfnPartition) {
-        result = pfnPartition(hDevice, pProperties, NumDevices, phSubDevices,
-                              pNumDevicesRet);
-    } else {
-        // generic implementation
-        for (size_t i = 0; (nullptr != phSubDevices) && (i < NumDevices); ++i) {
-            phSubDevices[i] =
-                reinterpret_cast<ur_device_handle_t>(d_context.get());
+    ur_device_partition_params_t params = {&hDevice, &pProperties, &NumDevices,
+                                           &phSubDevices, &pNumDevicesRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDevicePartition"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDevicePartition"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDevicePartition"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -518,13 +835,35 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSelectBinary = d_context.urDdiTable.Device.pfnSelectBinary;
-    if (nullptr != pfnSelectBinary) {
-        result =
-            pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
+    ur_device_select_binary_params_t params = {&hDevice, &pBinaries,
+                                               &NumBinaries, &pSelectedBinary};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceSelectBinary"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceSelectBinary"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceSelectBinary"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -541,13 +880,35 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Device.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hDevice, phNativeDevice);
+    ur_device_get_native_handle_params_t params = {&hDevice, &phNativeDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urDeviceGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urDeviceGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeDevice = reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeDevice = reinterpret_cast<ur_native_handle_t>(hDevice);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -568,15 +929,40 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Device.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
-                                           pProperties, phDevice);
+    ur_device_create_with_native_handle_params_t params = {
+        &hNativeDevice, &hPlatform, &pProperties, &phDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urDeviceCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urDeviceCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phDevice = reinterpret_cast<ur_device_handle_t>(d_context.get());
+
+        *phDevice = reinterpret_cast<ur_device_handle_t>(hNativeDevice);
+        mock::retainDummyHandle(*phDevice);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urDeviceCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -597,14 +983,37 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetGlobalTimestamps =
-        d_context.urDdiTable.Device.pfnGetGlobalTimestamps;
-    if (nullptr != pfnGetGlobalTimestamps) {
-        result =
-            pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
+    ur_device_get_global_timestamps_params_t params = {
+        &hDevice, &pDeviceTimestamp, &pHostTimestamp};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urDeviceGetGlobalTimestamps"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urDeviceGetGlobalTimestamps"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urDeviceGetGlobalTimestamps"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -625,13 +1034,36 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Context.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(DeviceCount, phDevices, pProperties, phContext);
+    ur_context_create_params_t params = {&DeviceCount, &phDevices, &pProperties,
+                                         &phContext};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urContextCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urContextCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phContext = reinterpret_cast<ur_context_handle_t>(d_context.get());
+
+        *phContext = mock::createDummyHandle<ur_context_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -643,16 +1075,39 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 /// @brief Intercept function for urContextRetain
 __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
-        hContext ///< [in] handle of the context to get a reference of.
+        hContext ///< [in][retain] handle of the context to get a reference of.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Context.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hContext);
+    ur_context_retain_params_t params = {&hContext};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urContextRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urContextRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hContext);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -663,16 +1118,40 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
+    ur_context_handle_t
+        hContext ///< [in][release] handle of the context to release.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Context.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hContext);
+    ur_context_release_params_t params = {&hContext};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urContextRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urContextRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hContext);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -699,28 +1178,35 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Context.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_CONTEXT_INFO_DEVICES: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_context_get_info_params_t params = {&hContext, &propName, &propSize,
+                                           &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urContextGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urContextGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -737,14 +1223,36 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Context.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hContext, phNativeContext);
+    ur_context_get_native_handle_params_t params = {&hContext,
+                                                    &phNativeContext};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urContextGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urContextGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeContext =
-            reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -767,15 +1275,40 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Context.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeContext, numDevices,
-                                           phDevices, pProperties, phContext);
+    ur_context_create_with_native_handle_params_t params = {
+        &hNativeContext, &numDevices, &phDevices, &pProperties, &phContext};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urContextCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urContextCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phContext = reinterpret_cast<ur_context_handle_t>(d_context.get());
+
+        *phContext = reinterpret_cast<ur_context_handle_t>(hNativeContext);
+        mock::retainDummyHandle(*phContext);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urContextCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -794,13 +1327,37 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetExtendedDeleter =
-        d_context.urDdiTable.Context.pfnSetExtendedDeleter;
-    if (nullptr != pfnSetExtendedDeleter) {
-        result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
+    ur_context_set_extended_deleter_params_t params = {&hContext, &pfnDeleter,
+                                                       &pUserData};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urContextSetExtendedDeleter"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urContextSetExtendedDeleter"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urContextSetExtendedDeleter"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -821,14 +1378,36 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageCreate = d_context.urDdiTable.Mem.pfnImageCreate;
-    if (nullptr != pfnImageCreate) {
-        result = pfnImageCreate(hContext, flags, pImageFormat, pImageDesc,
-                                pHost, phMem);
+    ur_mem_image_create_params_t params = {&hContext,   &flags, &pImageFormat,
+                                           &pImageDesc, &pHost, &phMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemImageCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemImageCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phMem = mock::createDummyHandle<ur_mem_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemImageCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -849,13 +1428,42 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnBufferCreate = d_context.urDdiTable.Mem.pfnBufferCreate;
-    if (nullptr != pfnBufferCreate) {
-        result = pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
+    ur_mem_buffer_create_params_t params = {&hContext, &flags, &size,
+                                            &pProperties, &phBuffer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemBufferCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemBufferCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phBuffer = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        if (pProperties && (pProperties)->pHost &&
+            flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+            *phBuffer = mock::createDummyHandleWithData<ur_mem_handle_t>(
+                reinterpret_cast<unsigned char *>((pProperties)->pHost), size);
+        } else {
+            *phBuffer = mock::createDummyHandle<ur_mem_handle_t>(size);
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemBufferCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -866,16 +1474,40 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRetain
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
+    ur_mem_handle_t
+        hMem ///< [in][retain] handle of the memory object to get access
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Mem.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hMem);
+    ur_mem_retain_params_t params = {&hMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -886,16 +1518,40 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRelease
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
+    ur_mem_handle_t
+        hMem ///< [in][release] handle of the memory object to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Mem.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hMem);
+    ur_mem_release_params_t params = {&hMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -917,14 +1573,36 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnBufferPartition = d_context.urDdiTable.Mem.pfnBufferPartition;
-    if (nullptr != pfnBufferPartition) {
-        result = pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion,
-                                    phMem);
+    ur_mem_buffer_partition_params_t params = {
+        &hBuffer, &flags, &bufferCreateType, &pRegion, &phMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemBufferPartition"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemBufferPartition"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phMem = mock::createDummyHandle<ur_mem_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemBufferPartition"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -944,13 +1622,35 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Mem.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
+    ur_mem_get_native_handle_params_t params = {&hMem, &hDevice, &phNativeMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeMem = reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -971,15 +1671,40 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnBufferCreateWithNativeHandle =
-        d_context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
-    if (nullptr != pfnBufferCreateWithNativeHandle) {
-        result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
-                                                 pProperties, phMem);
+    ur_mem_buffer_create_with_native_handle_params_t params = {
+        &hNativeMem, &hContext, &pProperties, &phMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urMemBufferCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urMemBufferCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
+        mock::retainDummyHandle(*phMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urMemBufferCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1003,15 +1728,41 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageCreateWithNativeHandle =
-        d_context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
-    if (nullptr != pfnImageCreateWithNativeHandle) {
-        result = pfnImageCreateWithNativeHandle(
-            hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
+    ur_mem_image_create_with_native_handle_params_t params = {
+        &hNativeMem, &hContext,    &pImageFormat,
+        &pImageDesc, &pProperties, &phMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urMemImageCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urMemImageCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+
+        *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
+        mock::retainDummyHandle(*phMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urMemImageCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1038,28 +1789,35 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Mem.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_MEM_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_mem_get_info_params_t params = {&hMemory, &propName, &propSize,
+                                       &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1085,13 +1843,35 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageGetInfo = d_context.urDdiTable.Mem.pfnImageGetInfo;
-    if (nullptr != pfnImageGetInfo) {
-        result = pfnImageGetInfo(hMemory, propName, propSize, pPropValue,
-                                 pPropSizeRet);
+    ur_mem_image_get_info_params_t params = {&hMemory, &propName, &propSize,
+                                             &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urMemImageGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urMemImageGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urMemImageGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1109,13 +1889,35 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Sampler.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, pDesc, phSampler);
+    ur_sampler_create_params_t params = {&hContext, &pDesc, &phSampler};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urSamplerCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urSamplerCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phSampler = reinterpret_cast<ur_sampler_handle_t>(d_context.get());
+
+        *phSampler = mock::createDummyHandle<ur_sampler_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urSamplerCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1127,16 +1929,39 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
 /// @brief Intercept function for urSamplerRetain
 __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to get access
+        hSampler ///< [in][retain] handle of the sampler object to get access
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Sampler.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hSampler);
+    ur_sampler_retain_params_t params = {&hSampler};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urSamplerRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urSamplerRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hSampler);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urSamplerRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1148,16 +1973,39 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 /// @brief Intercept function for urSamplerRelease
 __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
-        hSampler ///< [in] handle of the sampler object to release
+        hSampler ///< [in][release] handle of the sampler object to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Sampler.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hSampler);
+    ur_sampler_release_params_t params = {&hSampler};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urSamplerRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urSamplerRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hSampler);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urSamplerRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1180,28 +2028,35 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Sampler.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_SAMPLER_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_sampler_get_info_params_t params = {&hSampler, &propName, &propSize,
+                                           &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urSamplerGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urSamplerGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urSamplerGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1218,14 +2073,36 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Sampler.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hSampler, phNativeSampler);
+    ur_sampler_get_native_handle_params_t params = {&hSampler,
+                                                    &phNativeSampler};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urSamplerGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urSamplerGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeSampler =
-            reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeSampler = reinterpret_cast<ur_native_handle_t>(hSampler);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urSamplerGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1246,15 +2123,40 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Sampler.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
-                                           pProperties, phSampler);
+    ur_sampler_create_with_native_handle_params_t params = {
+        &hNativeSampler, &hContext, &pProperties, &phSampler};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urSamplerCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urSamplerCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phSampler = reinterpret_cast<ur_sampler_handle_t>(d_context.get());
+
+        *phSampler = reinterpret_cast<ur_sampler_handle_t>(hNativeSampler);
+        mock::retainDummyHandle(*phSampler);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urSamplerCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1276,12 +2178,36 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnHostAlloc = d_context.urDdiTable.USM.pfnHostAlloc;
-    if (nullptr != pfnHostAlloc) {
-        result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
+    ur_usm_host_alloc_params_t params = {&hContext, &pUSMDesc, &pool, &size,
+                                         &ppMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMHostAlloc"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMHostAlloc"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        *ppMem = mock::createDummyHandle<void *>(size);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMHostAlloc"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1304,12 +2230,36 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnDeviceAlloc = d_context.urDdiTable.USM.pfnDeviceAlloc;
-    if (nullptr != pfnDeviceAlloc) {
-        result = pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+    ur_usm_device_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
+                                           &pool,     &size,    &ppMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMDeviceAlloc"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMDeviceAlloc"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        *ppMem = mock::createDummyHandle<void *>(size);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMDeviceAlloc"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1332,12 +2282,36 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSharedAlloc = d_context.urDdiTable.USM.pfnSharedAlloc;
-    if (nullptr != pfnSharedAlloc) {
-        result = pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+    ur_usm_shared_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
+                                           &pool,     &size,    &ppMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMSharedAlloc"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMSharedAlloc"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        *ppMem = mock::createDummyHandle<void *>(size);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMSharedAlloc"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1353,12 +2327,35 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnFree = d_context.urDdiTable.USM.pfnFree;
-    if (nullptr != pfnFree) {
-        result = pfnFree(hContext, pMem);
+    ur_usm_free_params_t params = {&hContext, &pMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMFree"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMFree"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(pMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMFree"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1383,37 +2380,35 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetMemAllocInfo = d_context.urDdiTable.USM.pfnGetMemAllocInfo;
-    if (nullptr != pfnGetMemAllocInfo) {
-        result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
-                                    pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_USM_ALLOC_INFO_DEVICE: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_USM_ALLOC_INFO_POOL: {
-                ur_usm_pool_handle_t *handles =
-                    reinterpret_cast<ur_usm_pool_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_usm_pool_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_usm_pool_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_usm_get_mem_alloc_info_params_t params = {
+        &hContext, &pMem, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMGetMemAllocInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMGetMemAllocInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMGetMemAllocInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1432,13 +2427,35 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPoolCreate = d_context.urDdiTable.USM.pfnPoolCreate;
-    if (nullptr != pfnPoolCreate) {
-        result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
+    ur_usm_pool_create_params_t params = {&hContext, &pPoolDesc, &ppPool};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMPoolCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMPoolCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *ppPool = reinterpret_cast<ur_usm_pool_handle_t>(d_context.get());
+
+        *ppPool = mock::createDummyHandle<ur_usm_pool_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMPoolCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1449,16 +2466,39 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRetain
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPoolRetain = d_context.urDdiTable.USM.pfnPoolRetain;
-    if (nullptr != pfnPoolRetain) {
-        result = pfnPoolRetain(pPool);
+    ur_usm_pool_retain_params_t params = {&pPool};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMPoolRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMPoolRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(pPool);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMPoolRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1469,16 +2509,39 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolRelease
 __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPoolRelease = d_context.urDdiTable.USM.pfnPoolRelease;
-    if (nullptr != pfnPoolRelease) {
-        result = pfnPoolRelease(pPool);
+    ur_usm_pool_release_params_t params = {&pPool};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMPoolRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMPoolRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(pPool);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMPoolRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1500,28 +2563,35 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPoolGetInfo = d_context.urDdiTable.USM.pfnPoolGetInfo;
-    if (nullptr != pfnPoolGetInfo) {
-        result =
-            pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_USM_POOL_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_usm_pool_get_info_params_t params = {&hPool, &propName, &propSize,
+                                            &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMPoolGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMPoolGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMPoolGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1550,14 +2620,38 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGranularityGetInfo =
-        d_context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
-    if (nullptr != pfnGranularityGetInfo) {
-        result = pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
-                                       pPropValue, pPropSizeRet);
+    ur_virtual_mem_granularity_get_info_params_t params = {
+        &hContext, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urVirtualMemGranularityGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urVirtualMemGranularityGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urVirtualMemGranularityGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1581,12 +2675,35 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReserve = d_context.urDdiTable.VirtualMem.pfnReserve;
-    if (nullptr != pfnReserve) {
-        result = pfnReserve(hContext, pStart, size, ppStart);
+    ur_virtual_mem_reserve_params_t params = {&hContext, &pStart, &size,
+                                              &ppStart};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemReserve"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemReserve"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemReserve"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1604,12 +2721,34 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnFree = d_context.urDdiTable.VirtualMem.pfnFree;
-    if (nullptr != pfnFree) {
-        result = pfnFree(hContext, pStart, size);
+    ur_virtual_mem_free_params_t params = {&hContext, &pStart, &size};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemFree"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemFree"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemFree"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1633,12 +2772,35 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMap = d_context.urDdiTable.VirtualMem.pfnMap;
-    if (nullptr != pfnMap) {
-        result = pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
+    ur_virtual_mem_map_params_t params = {&hContext,     &pStart, &size,
+                                          &hPhysicalMem, &offset, &flags};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemMap"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemMap"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemMap"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1656,12 +2818,34 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUnmap = d_context.urDdiTable.VirtualMem.pfnUnmap;
-    if (nullptr != pfnUnmap) {
-        result = pfnUnmap(hContext, pStart, size);
+    ur_virtual_mem_unmap_params_t params = {&hContext, &pStart, &size};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemUnmap"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemUnmap"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemUnmap"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1681,12 +2865,35 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetAccess = d_context.urDdiTable.VirtualMem.pfnSetAccess;
-    if (nullptr != pfnSetAccess) {
-        result = pfnSetAccess(hContext, pStart, size, flags);
+    ur_virtual_mem_set_access_params_t params = {&hContext, &pStart, &size,
+                                                 &flags};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemSetAccess"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemSetAccess"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemSetAccess"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1714,13 +2921,36 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.VirtualMem.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result = pfnGetInfo(hContext, pStart, size, propName, propSize,
-                            pPropValue, pPropSizeRet);
+    ur_virtual_mem_get_info_params_t params = {
+        &hContext, &pStart,     &size,        &propName,
+        &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urVirtualMemGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urVirtualMemGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urVirtualMemGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1743,14 +2973,36 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.PhysicalMem.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
+    ur_physical_mem_create_params_t params = {&hContext, &hDevice, &size,
+                                              &pProperties, &phPhysicalMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPhysicalMemCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPhysicalMemCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phPhysicalMem =
-            reinterpret_cast<ur_physical_mem_handle_t>(d_context.get());
+
+        *phPhysicalMem = mock::createDummyHandle<ur_physical_mem_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPhysicalMemCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1762,16 +3014,39 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 /// @brief Intercept function for urPhysicalMemRetain
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to retain.
+        hPhysicalMem ///< [in][retain] handle of the physical memory object to retain.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.PhysicalMem.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hPhysicalMem);
+    ur_physical_mem_retain_params_t params = {&hPhysicalMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPhysicalMemRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPhysicalMemRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hPhysicalMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPhysicalMemRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1783,16 +3058,39 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
 /// @brief Intercept function for urPhysicalMemRelease
 __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t
-        hPhysicalMem ///< [in] handle of the physical memory object to release.
+        hPhysicalMem ///< [in][release] handle of the physical memory object to release.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.PhysicalMem.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hPhysicalMem);
+    ur_physical_mem_release_params_t params = {&hPhysicalMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPhysicalMemRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPhysicalMemRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hPhysicalMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPhysicalMemRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1813,13 +3111,36 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithIL = d_context.urDdiTable.Program.pfnCreateWithIL;
-    if (nullptr != pfnCreateWithIL) {
-        result = pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
+    ur_program_create_with_il_params_t params = {&hContext, &pIL, &length,
+                                                 &pProperties, &phProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramCreateWithIL"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramCreateWithIL"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+
+        *phProgram = mock::createDummyHandle<ur_program_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramCreateWithIL"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1842,14 +3163,36 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithBinary = d_context.urDdiTable.Program.pfnCreateWithBinary;
-    if (nullptr != pfnCreateWithBinary) {
-        result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
-                                     pProperties, phProgram);
+    ur_program_create_with_binary_params_t params = {
+        &hContext, &hDevice, &size, &pBinary, &pProperties, &phProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramCreateWithBinary"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramCreateWithBinary"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+
+        *phProgram = mock::createDummyHandle<ur_program_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramCreateWithBinary"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1867,12 +3210,34 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnBuild = d_context.urDdiTable.Program.pfnBuild;
-    if (nullptr != pfnBuild) {
-        result = pfnBuild(hContext, hProgram, pOptions);
+    ur_program_build_params_t params = {&hContext, &hProgram, &pOptions};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramBuild"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramBuild"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramBuild"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1891,12 +3256,34 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCompile = d_context.urDdiTable.Program.pfnCompile;
-    if (nullptr != pfnCompile) {
-        result = pfnCompile(hContext, hProgram, pOptions);
+    ur_program_compile_params_t params = {&hContext, &hProgram, &pOptions};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramCompile"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramCompile"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramCompile"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1917,14 +3304,40 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnLink = d_context.urDdiTable.Program.pfnLink;
-    if (nullptr != pfnLink) {
-        result = pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+    ur_program_link_params_t params = {&hContext, &count, &phPrograms,
+                                       &pOptions, &phProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramLink"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramLink"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+
+        *phProgram = mock::createDummyHandle<ur_program_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramLink"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1935,16 +3348,40 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRetain
 __urdlllocal ur_result_t UR_APICALL urProgramRetain(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to retain
+    ur_program_handle_t
+        hProgram ///< [in][retain] handle for the Program to retain
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Program.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hProgram);
+    ur_program_retain_params_t params = {&hProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hProgram);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1955,16 +3392,40 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRelease
 __urdlllocal ur_result_t UR_APICALL urProgramRelease(
-    ur_program_handle_t hProgram ///< [in] handle for the Program to release
+    ur_program_handle_t
+        hProgram ///< [in][release] handle for the Program to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Program.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hProgram);
+    ur_program_release_params_t params = {&hProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hProgram);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -1988,14 +3449,37 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetFunctionPointer =
-        d_context.urDdiTable.Program.pfnGetFunctionPointer;
-    if (nullptr != pfnGetFunctionPointer) {
-        result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
-                                       ppFunctionPointer);
+    ur_program_get_function_pointer_params_t params = {
+        &hDevice, &hProgram, &pFunctionName, &ppFunctionPointer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urProgramGetFunctionPointer"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urProgramGetFunctionPointer"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramGetFunctionPointer"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2020,15 +3504,39 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetGlobalVariablePointer =
-        d_context.urDdiTable.Program.pfnGetGlobalVariablePointer;
-    if (nullptr != pfnGetGlobalVariablePointer) {
-        result = pfnGetGlobalVariablePointer(
-            hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
-            ppGlobalVariablePointerRet);
+    ur_program_get_global_variable_pointer_params_t params = {
+        &hDevice, &hProgram, &pGlobalVariableName, &pGlobalVariableSizeRet,
+        &ppGlobalVariablePointerRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urProgramGetGlobalVariablePointer"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urProgramGetGlobalVariablePointer"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urProgramGetGlobalVariablePointer"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2054,37 +3562,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Program.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_PROGRAM_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_PROGRAM_INFO_DEVICES: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_program_get_info_params_t params = {&hProgram, &propName, &propSize,
+                                           &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2112,13 +3618,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetBuildInfo = d_context.urDdiTable.Program.pfnGetBuildInfo;
-    if (nullptr != pfnGetBuildInfo) {
-        result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
-                                 pPropValue, pPropSizeRet);
+    ur_program_get_build_info_params_t params = {
+        &hProgram, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramGetBuildInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramGetBuildInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramGetBuildInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2137,13 +3665,38 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetSpecializationConstants =
-        d_context.urDdiTable.Program.pfnSetSpecializationConstants;
-    if (nullptr != pfnSetSpecializationConstants) {
-        result = pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
+    ur_program_set_specialization_constants_params_t params = {
+        &hProgram, &count, &pSpecConstants};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urProgramSetSpecializationConstants"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urProgramSetSpecializationConstants"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urProgramSetSpecializationConstants"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2160,14 +3713,36 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Program.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hProgram, phNativeProgram);
+    ur_program_get_native_handle_params_t params = {&hProgram,
+                                                    &phNativeProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeProgram =
-            reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeProgram = reinterpret_cast<ur_native_handle_t>(hProgram);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2188,15 +3763,40 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Program.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
-                                           pProperties, phProgram);
+    ur_program_create_with_native_handle_params_t params = {
+        &hNativeProgram, &hContext, &pProperties, &phProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urProgramCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urProgramCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+
+        *phProgram = reinterpret_cast<ur_program_handle_t>(hNativeProgram);
+        mock::retainDummyHandle(*phProgram);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urProgramCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2214,13 +3814,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Kernel.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hProgram, pKernelName, phKernel);
+    ur_kernel_create_params_t params = {&hProgram, &pKernelName, &phKernel};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phKernel = reinterpret_cast<ur_kernel_handle_t>(d_context.get());
+
+        *phKernel = mock::createDummyHandle<ur_kernel_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2241,13 +3863,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetArgValue = d_context.urDdiTable.Kernel.pfnSetArgValue;
-    if (nullptr != pfnSetArgValue) {
-        result =
-            pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
+    ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
+                                               &pProperties, &pArgValue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetArgValue"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetArgValue"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetArgValue"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2267,12 +3911,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetArgLocal = d_context.urDdiTable.Kernel.pfnSetArgLocal;
-    if (nullptr != pfnSetArgLocal) {
-        result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+    ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
+                                               &pProperties};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetArgLocal"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetArgLocal"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetArgLocal"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2299,37 +3966,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Kernel.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_KERNEL_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_KERNEL_INFO_PROGRAM: {
-                ur_program_handle_t *handles =
-                    reinterpret_cast<ur_program_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_program_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_program_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_kernel_get_info_params_t params = {&hKernel, &propName, &propSize,
+                                          &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2354,13 +4019,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetGroupInfo = d_context.urDdiTable.Kernel.pfnGetGroupInfo;
-    if (nullptr != pfnGetGroupInfo) {
-        result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
-                                 pPropValue, pPropSizeRet);
+    ur_kernel_get_group_info_params_t params = {
+        &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelGetGroupInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelGetGroupInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelGetGroupInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2385,13 +4072,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetSubGroupInfo = d_context.urDdiTable.Kernel.pfnGetSubGroupInfo;
-    if (nullptr != pfnGetSubGroupInfo) {
-        result = pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize,
-                                    pPropValue, pPropSizeRet);
+    ur_kernel_get_sub_group_info_params_t params = {
+        &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelGetSubGroupInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelGetSubGroupInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelGetSubGroupInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2402,16 +4111,39 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel ///< [in][retain] handle for the Kernel to retain
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Kernel.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hKernel);
+    ur_kernel_retain_params_t params = {&hKernel};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hKernel);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2422,16 +4154,40 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t UR_APICALL urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
+    ur_kernel_handle_t
+        hKernel ///< [in][release] handle for the Kernel to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Kernel.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hKernel);
+    ur_kernel_release_params_t params = {&hKernel};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hKernel);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2452,12 +4208,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetArgPointer = d_context.urDdiTable.Kernel.pfnSetArgPointer;
-    if (nullptr != pfnSetArgPointer) {
-        result = pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
+    ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
+                                                 &pProperties, &pArgValue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetArgPointer"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetArgPointer"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetArgPointer"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2479,13 +4258,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetExecInfo = d_context.urDdiTable.Kernel.pfnSetExecInfo;
-    if (nullptr != pfnSetExecInfo) {
-        result = pfnSetExecInfo(hKernel, propName, propSize, pProperties,
-                                pPropValue);
+    ur_kernel_set_exec_info_params_t params = {&hKernel, &propName, &propSize,
+                                               &pProperties, &pPropValue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetExecInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetExecInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetExecInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2504,12 +4305,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetArgSampler = d_context.urDdiTable.Kernel.pfnSetArgSampler;
-    if (nullptr != pfnSetArgSampler) {
-        result = pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
+    ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
+                                                 &pProperties, &hArgValue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetArgSampler"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetArgSampler"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetArgSampler"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2528,12 +4352,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetArgMemObj = d_context.urDdiTable.Kernel.pfnSetArgMemObj;
-    if (nullptr != pfnSetArgMemObj) {
-        result = pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
+    ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
+                                                 &pProperties, &hArgValue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelSetArgMemObj"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelSetArgMemObj"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelSetArgMemObj"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2551,13 +4398,38 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetSpecializationConstants =
-        d_context.urDdiTable.Kernel.pfnSetSpecializationConstants;
-    if (nullptr != pfnSetSpecializationConstants) {
-        result = pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+    ur_kernel_set_specialization_constants_params_t params = {&hKernel, &count,
+                                                              &pSpecConstants};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urKernelSetSpecializationConstants"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urKernelSetSpecializationConstants"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urKernelSetSpecializationConstants"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2574,13 +4446,35 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Kernel.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hKernel, phNativeKernel);
+    ur_kernel_get_native_handle_params_t params = {&hKernel, &phNativeKernel};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urKernelGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urKernelGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeKernel = reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urKernelGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2603,15 +4497,40 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Kernel.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
-                                           pProperties, phKernel);
+    ur_kernel_create_with_native_handle_params_t params = {
+        &hNativeKernel, &hContext, &hProgram, &pProperties, &phKernel};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urKernelCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urKernelCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phKernel = reinterpret_cast<ur_kernel_handle_t>(d_context.get());
+
+        *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
+        mock::retainDummyHandle(*phKernel);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urKernelCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2640,15 +4559,39 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetSuggestedLocalWorkSize =
-        d_context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
-    if (nullptr != pfnGetSuggestedLocalWorkSize) {
-        result = pfnGetSuggestedLocalWorkSize(
-            hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
-            pSuggestedLocalWorkSize);
+    ur_kernel_get_suggested_local_work_size_params_t params = {
+        &hKernel,           &hQueue,          &numWorkDim,
+        &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urKernelGetSuggestedLocalWorkSize"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urKernelGetSuggestedLocalWorkSize"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urKernelGetSuggestedLocalWorkSize"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2671,46 +4614,35 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Queue.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_QUEUE_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_QUEUE_INFO_DEVICE: {
-                ur_device_handle_t *handles =
-                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_device_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_device_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_QUEUE_INFO_DEVICE_DEFAULT: {
-                ur_queue_handle_t *handles =
-                    reinterpret_cast<ur_queue_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_queue_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_queue_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_queue_get_info_params_t params = {&hQueue, &propName, &propSize,
+                                         &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2730,13 +4662,36 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreate = d_context.urDdiTable.Queue.pfnCreate;
-    if (nullptr != pfnCreate) {
-        result = pfnCreate(hContext, hDevice, pProperties, phQueue);
+    ur_queue_create_params_t params = {&hContext, &hDevice, &pProperties,
+                                       &phQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueCreate"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueCreate"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phQueue = reinterpret_cast<ur_queue_handle_t>(d_context.get());
+
+        *phQueue = mock::createDummyHandle<ur_queue_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueCreate"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2747,16 +4702,40 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRetain
 __urdlllocal ur_result_t UR_APICALL urQueueRetain(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
+    ur_queue_handle_t
+        hQueue ///< [in][retain] handle of the queue object to get access
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Queue.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hQueue);
+    ur_queue_retain_params_t params = {&hQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hQueue);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2767,16 +4746,40 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRelease
 __urdlllocal ur_result_t UR_APICALL urQueueRelease(
-    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+    ur_queue_handle_t
+        hQueue ///< [in][release] handle of the queue object to release
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Queue.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hQueue);
+    ur_queue_release_params_t params = {&hQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hQueue);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2795,13 +4798,36 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Queue.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
+    ur_queue_get_native_handle_params_t params = {&hQueue, &pDesc,
+                                                  &phNativeQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeQueue = reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeQueue = reinterpret_cast<ur_native_handle_t>(hQueue);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2823,15 +4849,40 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Queue.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
-                                           pProperties, phQueue);
+    ur_queue_create_with_native_handle_params_t params = {
+        &hNativeQueue, &hContext, &hDevice, &pProperties, &phQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urQueueCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urQueueCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phQueue = reinterpret_cast<ur_queue_handle_t>(d_context.get());
+
+        *phQueue = reinterpret_cast<ur_queue_handle_t>(hNativeQueue);
+        mock::retainDummyHandle(*phQueue);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urQueueCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2846,12 +4897,34 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnFinish = d_context.urDdiTable.Queue.pfnFinish;
-    if (nullptr != pfnFinish) {
-        result = pfnFinish(hQueue);
+    ur_queue_finish_params_t params = {&hQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueFinish"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueFinish"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueFinish"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2866,12 +4939,34 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnFlush = d_context.urDdiTable.Queue.pfnFlush;
-    if (nullptr != pfnFlush) {
-        result = pfnFlush(hQueue);
+    ur_queue_flush_params_t params = {&hQueue};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urQueueFlush"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urQueueFlush"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urQueueFlush"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2892,37 +4987,35 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfo = d_context.urDdiTable.Event.pfnGetInfo;
-    if (nullptr != pfnGetInfo) {
-        result =
-            pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
-    } else {
-        // generic implementation
-        if (pPropValue != nullptr) {
-            switch (propName) {
-            case UR_EVENT_INFO_COMMAND_QUEUE: {
-                ur_queue_handle_t *handles =
-                    reinterpret_cast<ur_queue_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_queue_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_queue_handle_t>(d_context.get());
-                }
-            } break;
-            case UR_EVENT_INFO_CONTEXT: {
-                ur_context_handle_t *handles =
-                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
-                size_t nelements = propSize / sizeof(ur_context_handle_t);
-                for (size_t i = 0; i < nelements; ++i) {
-                    handles[i] =
-                        reinterpret_cast<ur_context_handle_t>(d_context.get());
-                }
-            } break;
-            default: {
-            } break;
-            }
+    ur_event_get_info_params_t params = {&hEvent, &propName, &propSize,
+                                         &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2946,13 +5039,35 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetProfilingInfo = d_context.urDdiTable.Event.pfnGetProfilingInfo;
-    if (nullptr != pfnGetProfilingInfo) {
-        result = pfnGetProfilingInfo(hEvent, propName, propSize, pPropValue,
-                                     pPropSizeRet);
+    ur_event_get_profiling_info_params_t params = {
+        &hEvent, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventGetProfilingInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventGetProfilingInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventGetProfilingInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2970,12 +5085,34 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnWait = d_context.urDdiTable.Event.pfnWait;
-    if (nullptr != pfnWait) {
-        result = pfnWait(numEvents, phEventWaitList);
+    ur_event_wait_params_t params = {&numEvents, &phEventWaitList};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventWait"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventWait"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventWait"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -2986,16 +5123,39 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRetain
 __urdlllocal ur_result_t UR_APICALL urEventRetain(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][retain] handle of the event object
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetain = d_context.urDdiTable.Event.pfnRetain;
-    if (nullptr != pfnRetain) {
-        result = pfnRetain(hEvent);
+    ur_event_retain_params_t params = {&hEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventRetain"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventRetain"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hEvent);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventRetain"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3006,16 +5166,39 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRelease
 __urdlllocal ur_result_t UR_APICALL urEventRelease(
-    ur_event_handle_t hEvent ///< [in] handle of the event object
+    ur_event_handle_t hEvent ///< [in][release] handle of the event object
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRelease = d_context.urDdiTable.Event.pfnRelease;
-    if (nullptr != pfnRelease) {
-        result = pfnRelease(hEvent);
+    ur_event_release_params_t params = {&hEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventRelease"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventRelease"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hEvent);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventRelease"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3032,13 +5215,35 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetNativeHandle = d_context.urDdiTable.Event.pfnGetNativeHandle;
-    if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hEvent, phNativeEvent);
+    ur_event_get_native_handle_params_t params = {&hEvent, &phNativeEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventGetNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventGetNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phNativeEvent = reinterpret_cast<ur_native_handle_t>(d_context.get());
+
+        *phNativeEvent = reinterpret_cast<ur_native_handle_t>(hEvent);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventGetNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3059,15 +5264,40 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Event.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties,
-                                           phEvent);
+    ur_event_create_with_native_handle_params_t params = {
+        &hNativeEvent, &hContext, &pProperties, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEventCreateWithNativeHandle"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEventCreateWithNativeHandle"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+
+        *phEvent = reinterpret_cast<ur_event_handle_t>(hNativeEvent);
+        mock::retainDummyHandle(*phEvent);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEventCreateWithNativeHandle"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3086,12 +5316,35 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSetCallback = d_context.urDdiTable.Event.pfnSetCallback;
-    if (nullptr != pfnSetCallback) {
-        result = pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
+    ur_event_set_callback_params_t params = {&hEvent, &execStatus, &pfnNotify,
+                                             &pUserData};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEventSetCallback"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEventSetCallback"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEventSetCallback"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3132,17 +5385,46 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnKernelLaunch = d_context.urDdiTable.Enqueue.pfnKernelLaunch;
-    if (nullptr != pfnKernelLaunch) {
-        result = pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                                 pGlobalWorkSize, pLocalWorkSize,
-                                 numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_kernel_launch_params_t params = {&hQueue,
+                                                &hKernel,
+                                                &workDim,
+                                                &pGlobalWorkOffset,
+                                                &pGlobalWorkSize,
+                                                &pLocalWorkSize,
+                                                &numEventsInWaitList,
+                                                &phEventWaitList,
+                                                &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueKernelLaunch"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueKernelLaunch"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueKernelLaunch"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3167,16 +5449,39 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnEventsWait = d_context.urDdiTable.Enqueue.pfnEventsWait;
-    if (nullptr != pfnEventsWait) {
-        result = pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList,
-                               phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_events_wait_params_t params = {&hQueue, &numEventsInWaitList,
+                                              &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueEventsWait"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueEventsWait"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueEventsWait"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3201,17 +5506,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnEventsWaitWithBarrier =
-        d_context.urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
-    if (nullptr != pfnEventsWaitWithBarrier) {
-        result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
-                                          phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_events_wait_with_barrier_params_t params = {
+        &hQueue, &numEventsInWaitList, &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueEventsWaitWithBarrier"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueEventsWaitWithBarrier"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueEventsWaitWithBarrier"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3241,17 +5571,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferRead = d_context.urDdiTable.Enqueue.pfnMemBufferRead;
-    if (nullptr != pfnMemBufferRead) {
-        result =
-            pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
-                             numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_read_params_t params = {
+        &hQueue, &hBuffer, &blockingRead,        &offset,
+        &size,   &pDst,    &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferRead"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemBufferRead"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferRead"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3283,17 +5637,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferWrite = d_context.urDdiTable.Enqueue.pfnMemBufferWrite;
-    if (nullptr != pfnMemBufferWrite) {
-        result = pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
-                                   pSrc, numEventsInWaitList, phEventWaitList,
-                                   phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_write_params_t params = {
+        &hQueue, &hBuffer, &blockingWrite,       &offset,
+        &size,   &pSrc,    &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferWrite"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemBufferWrite"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferWrite"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3335,19 +5713,52 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferReadRect =
-        d_context.urDdiTable.Enqueue.pfnMemBufferReadRect;
-    if (nullptr != pfnMemBufferReadRect) {
-        result = pfnMemBufferReadRect(
-            hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
-            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
-            pDst, numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_read_rect_params_t params = {&hQueue,
+                                                       &hBuffer,
+                                                       &blockingRead,
+                                                       &bufferOrigin,
+                                                       &hostOrigin,
+                                                       &region,
+                                                       &bufferRowPitch,
+                                                       &bufferSlicePitch,
+                                                       &hostRowPitch,
+                                                       &hostSlicePitch,
+                                                       &pDst,
+                                                       &numEventsInWaitList,
+                                                       &phEventWaitList,
+                                                       &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferReadRect"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueMemBufferReadRect"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferReadRect"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3392,19 +5803,53 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferWriteRect =
-        d_context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
-    if (nullptr != pfnMemBufferWriteRect) {
-        result = pfnMemBufferWriteRect(
-            hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
-            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
-            pSrc, numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_write_rect_params_t params = {&hQueue,
+                                                        &hBuffer,
+                                                        &blockingWrite,
+                                                        &bufferOrigin,
+                                                        &hostOrigin,
+                                                        &region,
+                                                        &bufferRowPitch,
+                                                        &bufferSlicePitch,
+                                                        &hostRowPitch,
+                                                        &hostSlicePitch,
+                                                        &pSrc,
+                                                        &numEventsInWaitList,
+                                                        &phEventWaitList,
+                                                        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueMemBufferWriteRect"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueMemBufferWriteRect"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferWriteRect"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3435,17 +5880,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferCopy = d_context.urDdiTable.Enqueue.pfnMemBufferCopy;
-    if (nullptr != pfnMemBufferCopy) {
-        result = pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
-                                  dstOffset, size, numEventsInWaitList,
-                                  phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_copy_params_t params = {
+        &hQueue, &hBufferSrc,          &hBufferDst,      &srcOffset, &dstOffset,
+        &size,   &numEventsInWaitList, &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferCopy"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemBufferCopy"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferCopy"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3485,19 +5953,43 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferCopyRect =
-        d_context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
-    if (nullptr != pfnMemBufferCopyRect) {
-        result = pfnMemBufferCopyRect(
-            hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
-            srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
-            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_copy_rect_params_t params = {
+        &hQueue,      &hBufferSrc,    &hBufferDst,          &srcOrigin,
+        &dstOrigin,   &region,        &srcRowPitch,         &srcSlicePitch,
+        &dstRowPitch, &dstSlicePitch, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferCopyRect"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueMemBufferCopyRect"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferCopyRect"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3527,17 +6019,46 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferFill = d_context.urDdiTable.Enqueue.pfnMemBufferFill;
-    if (nullptr != pfnMemBufferFill) {
-        result = pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize,
-                                  offset, size, numEventsInWaitList,
-                                  phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_fill_params_t params = {&hQueue,
+                                                  &hBuffer,
+                                                  &pPattern,
+                                                  &patternSize,
+                                                  &offset,
+                                                  &size,
+                                                  &numEventsInWaitList,
+                                                  &phEventWaitList,
+                                                  &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferFill"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemBufferFill"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferFill"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3572,17 +6093,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemImageRead = d_context.urDdiTable.Enqueue.pfnMemImageRead;
-    if (nullptr != pfnMemImageRead) {
-        result = pfnMemImageRead(hQueue, hImage, blockingRead, origin, region,
-                                 rowPitch, slicePitch, pDst,
-                                 numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_image_read_params_t params = {
+        &hQueue,          &hImage, &blockingRead,
+        &origin,          &region, &rowPitch,
+        &slicePitch,      &pDst,   &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemImageRead"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemImageRead"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemImageRead"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3618,17 +6164,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemImageWrite = d_context.urDdiTable.Enqueue.pfnMemImageWrite;
-    if (nullptr != pfnMemImageWrite) {
-        result = pfnMemImageWrite(
-            hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch,
-            pSrc, numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_image_write_params_t params = {
+        &hQueue,          &hImage, &blockingWrite,
+        &origin,          &region, &rowPitch,
+        &slicePitch,      &pSrc,   &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemImageWrite"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemImageWrite"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemImageWrite"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3665,17 +6236,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemImageCopy = d_context.urDdiTable.Enqueue.pfnMemImageCopy;
-    if (nullptr != pfnMemImageCopy) {
-        result = pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin,
-                                 dstOrigin, region, numEventsInWaitList,
-                                 phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_image_copy_params_t params = {
+        &hQueue, &hImageSrc,           &hImageDst,       &srcOrigin, &dstOrigin,
+        &region, &numEventsInWaitList, &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemImageCopy"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemImageCopy"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemImageCopy"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3707,17 +6301,44 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemBufferMap = d_context.urDdiTable.Enqueue.pfnMemBufferMap;
-    if (nullptr != pfnMemBufferMap) {
-        result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset,
-                                 size, numEventsInWaitList, phEventWaitList,
-                                 phEvent, ppRetMap);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_buffer_map_params_t params = {
+        &hQueue,  &hBuffer, &blockingMap,         &mapFlags,
+        &offset,  &size,    &numEventsInWaitList, &phEventWaitList,
+        &phEvent, &ppRetMap};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemBufferMap"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemBufferMap"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+
+        auto parentDummyHandle =
+            reinterpret_cast<mock::dummy_handle_t>(hBuffer);
+        *ppRetMap = (void *)(parentDummyHandle->MData);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemBufferMap"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3744,16 +6365,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemUnmap = d_context.urDdiTable.Enqueue.pfnMemUnmap;
-    if (nullptr != pfnMemUnmap) {
-        result = pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
-                             phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_mem_unmap_params_t params = {
+        &hQueue,          &hMem,   &pMappedPtr, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueMemUnmap"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueMemUnmap"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueMemUnmap"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3785,16 +6430,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMFill = d_context.urDdiTable.Enqueue.pfnUSMFill;
-    if (nullptr != pfnUSMFill) {
-        result = pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
-                            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_fill_params_t params = {
+        &hQueue,          &pMem,   &patternSize,
+        &pPattern,        &size,   &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMFill"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMFill"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMFill"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3824,16 +6494,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMMemcpy = d_context.urDdiTable.Enqueue.pfnUSMMemcpy;
-    if (nullptr != pfnUSMMemcpy) {
-        result = pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size,
-                              numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_memcpy_params_t params = {
+        &hQueue,          &blocking, &pDst, &pSrc, &size, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMMemcpy"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMMemcpy"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMMemcpy"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3861,16 +6555,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMPrefetch = d_context.urDdiTable.Enqueue.pfnUSMPrefetch;
-    if (nullptr != pfnUSMPrefetch) {
-        result = pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
-                                phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_prefetch_params_t params = {
+        &hQueue,          &pMem,   &size, &flags, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMPrefetch"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMPrefetch"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMPrefetch"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3892,15 +6610,39 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMAdvise = d_context.urDdiTable.Enqueue.pfnUSMAdvise;
-    if (nullptr != pfnUSMAdvise) {
-        result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_advise_params_t params = {&hQueue, &pMem, &size, &advice,
+                                             &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMAdvise"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMAdvise"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMAdvise"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3937,17 +6679,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMFill2D = d_context.urDdiTable.Enqueue.pfnUSMFill2D;
-    if (nullptr != pfnUSMFill2D) {
-        result =
-            pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width,
-                         height, numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_fill_2d_params_t params = {
+        &hQueue,          &pMem,   &pitch,  &patternSize,
+        &pPattern,        &width,  &height, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMFill2D"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMFill2D"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMFill2D"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -3983,17 +6749,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMMemcpy2D = d_context.urDdiTable.Enqueue.pfnUSMMemcpy2D;
-    if (nullptr != pfnUSMMemcpy2D) {
-        result = pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc,
-                                srcPitch, width, height, numEventsInWaitList,
-                                phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_usm_memcpy_2d_params_t params = {
+        &hQueue,          &blocking, &pDst,
+        &dstPitch,        &pSrc,     &srcPitch,
+        &width,           &height,   &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueUSMMemcpy2D"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueUSMMemcpy2D"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueUSMMemcpy2D"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4026,18 +6817,44 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnDeviceGlobalVariableWrite =
-        d_context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
-    if (nullptr != pfnDeviceGlobalVariableWrite) {
-        result = pfnDeviceGlobalVariableWrite(
-            hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
-            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_device_global_variable_write_params_t params = {
+        &hQueue,          &hProgram, &name, &blockingWrite,
+        &count,           &offset,   &pSrc, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueDeviceGlobalVariableWrite"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueDeviceGlobalVariableWrite"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueDeviceGlobalVariableWrite"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4070,18 +6887,44 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnDeviceGlobalVariableRead =
-        d_context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
-    if (nullptr != pfnDeviceGlobalVariableRead) {
-        result = pfnDeviceGlobalVariableRead(
-            hQueue, hProgram, name, blockingRead, count, offset, pDst,
-            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_device_global_variable_read_params_t params = {
+        &hQueue,          &hProgram, &name, &blockingRead,
+        &count,           &offset,   &pDst, &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueDeviceGlobalVariableRead"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueDeviceGlobalVariableRead"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueDeviceGlobalVariableRead"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4118,17 +6961,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReadHostPipe = d_context.urDdiTable.Enqueue.pfnReadHostPipe;
-    if (nullptr != pfnReadHostPipe) {
-        result =
-            pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
-                            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_read_host_pipe_params_t params = {
+        &hQueue, &hProgram, &pipe_symbol,         &blocking,
+        &pDst,   &size,     &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueReadHostPipe"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueReadHostPipe"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueReadHostPipe"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4165,17 +7032,41 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnWriteHostPipe = d_context.urDdiTable.Enqueue.pfnWriteHostPipe;
-    if (nullptr != pfnWriteHostPipe) {
-        result = pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc,
-                                  size, numEventsInWaitList, phEventWaitList,
-                                  phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_write_host_pipe_params_t params = {
+        &hQueue, &hProgram, &pipe_symbol,         &blocking,
+        &pSrc,   &size,     &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueWriteHostPipe"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueWriteHostPipe"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueWriteHostPipe"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4202,14 +7093,37 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPitchedAllocExp = d_context.urDdiTable.USMExp.pfnPitchedAllocExp;
-    if (nullptr != pfnPitchedAllocExp) {
-        result =
-            pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
-                               height, elementSizeBytes, ppMem, pResultPitch);
+    ur_usm_pitched_alloc_exp_params_t params = {
+        &hContext, &hDevice,          &pUSMDesc, &pool,        &widthInBytes,
+        &height,   &elementSizeBytes, &ppMem,    &pResultPitch};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMPitchedAllocExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMPitchedAllocExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        *ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMPitchedAllocExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4223,19 +7137,44 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_native_handle_t
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUnsampledImageHandleDestroyExp =
-        d_context.urDdiTable.BindlessImagesExp
-            .pfnUnsampledImageHandleDestroyExp;
-    if (nullptr != pfnUnsampledImageHandleDestroyExp) {
-        result = pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
+    ur_bindless_images_unsampled_image_handle_destroy_exp_params_t params = {
+        &hContext, &hDevice, &hImage};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesUnsampledImageHandleDestroyExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesUnsampledImageHandleDestroyExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hImage);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesUnsampledImageHandleDestroyExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4249,18 +7188,44 @@ __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_handle_t
-        hImage ///< [in] pointer to handle of image object to destroy
+    ur_exp_image_native_handle_t
+        hImage ///< [in][release] pointer to handle of image object to destroy
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSampledImageHandleDestroyExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
-    if (nullptr != pfnSampledImageHandleDestroyExp) {
-        result = pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
+    ur_bindless_images_sampled_image_handle_destroy_exp_params_t params = {
+        &hContext, &hDevice, &hImage};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesSampledImageHandleDestroyExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesSampledImageHandleDestroyExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hImage);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesSampledImageHandleDestroyExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4276,21 +7241,45 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] pointer to handle of image memory allocated
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageAllocateExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
-    if (nullptr != pfnImageAllocateExp) {
-        result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
-                                     pImageDesc, phImageMem);
+    ur_bindless_images_image_allocate_exp_params_t params = {
+        &hContext, &hDevice, &pImageFormat, &pImageDesc, &phImageMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImageAllocateExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImageAllocateExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            mock::createDummyHandle<ur_exp_image_mem_native_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImageAllocateExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4303,18 +7292,44 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_native_handle_t
+        hImageMem ///< [in][release] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageFreeExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
-    if (nullptr != pfnImageFreeExp) {
-        result = pfnImageFreeExp(hContext, hDevice, hImageMem);
+    ur_bindless_images_image_free_exp_params_t params = {&hContext, &hDevice,
+                                                         &hImageMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImageFreeExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImageFreeExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hImageMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImageFreeExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4327,25 +7342,49 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUnsampledImageCreateExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
-    if (nullptr != pfnUnsampledImageCreateExp) {
-        result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
-                                            pImageFormat, pImageDesc, phImage);
+    ur_bindless_images_unsampled_image_create_exp_params_t params = {
+        &hContext, &hDevice, &hImageMem, &pImageFormat, &pImageDesc, &phImage};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesUnsampledImageCreateExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesUnsampledImageCreateExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+
+        *phImage = mock::createDummyHandle<ur_exp_image_native_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesUnsampledImageCreateExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4358,27 +7397,51 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_exp_image_handle_t
+    ur_exp_image_native_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSampledImageCreateExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
-    if (nullptr != pfnSampledImageCreateExp) {
-        result =
-            pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                     pImageDesc, hSampler, phImage);
+    ur_bindless_images_sampled_image_create_exp_params_t params = {
+        &hContext,   &hDevice,  &hImageMem, &pImageFormat,
+        &pImageDesc, &hSampler, &phImage};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesSampledImageCreateExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesSampledImageCreateExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+
+        *phImage = mock::createDummyHandle<ur_exp_image_native_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesSampledImageCreateExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4422,19 +7485,53 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageCopyExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
-    if (nullptr != pfnImageCopyExp) {
-        result = pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
-                                 imageCopyFlags, srcOffset, dstOffset,
-                                 copyExtent, hostExtent, numEventsInWaitList,
-                                 phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_bindless_images_image_copy_exp_params_t params = {&hQueue,
+                                                         &pDst,
+                                                         &pSrc,
+                                                         &pImageFormat,
+                                                         &pImageDesc,
+                                                         &imageCopyFlags,
+                                                         &srcOffset,
+                                                         &dstOffset,
+                                                         &copyExtent,
+                                                         &hostExtent,
+                                                         &numEventsInWaitList,
+                                                         &phEventWaitList,
+                                                         &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImageCopyExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImageCopyExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImageCopyExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4445,21 +7542,47 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageGetInfoExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
-    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
-    ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,    ///< [out][optional] returned query value
-    size_t *pPropSizeRet ///< [out][optional] returned query value size
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_native_handle_t
+        hImageMem,            ///< [in] handle to the image memory
+    ur_image_info_t propName, ///< [in] queried info name
+    void *pPropValue,         ///< [out][optional] returned query value
+    size_t *pPropSizeRet      ///< [out][optional] returned query value size
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImageGetInfoExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
-    if (nullptr != pfnImageGetInfoExp) {
-        result =
-            pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+    ur_bindless_images_image_get_info_exp_params_t params = {
+        &hContext, &hImageMem, &propName, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImageGetInfoExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImageGetInfoExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImageGetInfoExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4472,24 +7595,48 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
-    ur_exp_image_mem_handle_t
+    ur_exp_image_mem_native_handle_t
         *phImageMem ///< [out] returning memory handle to the individual image
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMipmapGetLevelExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
-    if (nullptr != pfnMipmapGetLevelExp) {
-        result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem, mipmapLevel,
-                                      phImageMem);
+    ur_bindless_images_mipmap_get_level_exp_params_t params = {
+        &hContext, &hDevice, &hImageMem, &mipmapLevel, &phImageMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesMipmapGetLevelExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesMipmapGetLevelExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            mock::createDummyHandle<ur_exp_image_mem_native_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesMipmapGetLevelExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4500,19 +7647,46 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_native_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMipmapFreeExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
-    if (nullptr != pfnMipmapFreeExp) {
-        result = pfnMipmapFreeExp(hContext, hDevice, hMem);
+    ur_bindless_images_mipmap_free_exp_params_t params = {&hContext, &hDevice,
+                                                          &hMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesMipmapFreeExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesMipmapFreeExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesMipmapFreeExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4535,17 +7709,40 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImportExternalMemoryExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
-    if (nullptr != pfnImportExternalMemoryExp) {
-        result =
-            pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
-                                       pInteropMemDesc, phInteropMem);
+    ur_bindless_images_import_external_memory_exp_params_t params = {
+        &hContext,      &hDevice,         &size,
+        &memHandleType, &pInteropMemDesc, &phInteropMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImportExternalMemoryExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImportExternalMemoryExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phInteropMem =
-            reinterpret_cast<ur_exp_interop_mem_handle_t>(d_context.get());
+
+        *phInteropMem = mock::createDummyHandle<ur_exp_interop_mem_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImportExternalMemoryExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4563,21 +7760,46 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_mem_handle_t *
+    ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMapExternalArrayExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
-    if (nullptr != pfnMapExternalArrayExp) {
-        result = pfnMapExternalArrayExp(hContext, hDevice, pImageFormat,
-                                        pImageDesc, hInteropMem, phImageMem);
+    ur_bindless_images_map_external_array_exp_params_t params = {
+        &hContext,   &hDevice,     &pImageFormat,
+        &pImageDesc, &hInteropMem, &phImageMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesMapExternalArrayExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesMapExternalArrayExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
         *phImageMem =
-            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
+            mock::createDummyHandle<ur_exp_image_mem_native_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesMapExternalArrayExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4591,17 +7813,43 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReleaseInteropExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
-    if (nullptr != pfnReleaseInteropExp) {
-        result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
+    ur_bindless_images_release_interop_exp_params_t params = {
+        &hContext, &hDevice, &hInteropMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesReleaseInteropExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesReleaseInteropExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hInteropMem);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesReleaseInteropExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4623,18 +7871,41 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImportExternalSemaphoreExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnImportExternalSemaphoreExp;
-    if (nullptr != pfnImportExternalSemaphoreExp) {
-        result = pfnImportExternalSemaphoreExp(hContext, hDevice, semHandleType,
-                                               pInteropSemaphoreDesc,
-                                               phInteropSemaphore);
+    ur_bindless_images_import_external_semaphore_exp_params_t params = {
+        &hContext, &hDevice, &semHandleType, &pInteropSemaphoreDesc,
+        &phInteropSemaphore};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesImportExternalSemaphoreExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesImportExternalSemaphoreExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
         *phInteropSemaphore =
-            reinterpret_cast<ur_exp_interop_semaphore_handle_t>(
-                d_context.get());
+            mock::createDummyHandle<ur_exp_interop_semaphore_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesImportExternalSemaphoreExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4648,18 +7919,43 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnDestroyExternalSemaphoreExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
-    if (nullptr != pfnDestroyExternalSemaphoreExp) {
-        result = pfnDestroyExternalSemaphoreExp(hContext, hDevice,
-                                                hInteropSemaphore);
+    ur_bindless_images_destroy_external_semaphore_exp_params_t params = {
+        &hContext, &hDevice, &hInteropSemaphore};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesDestroyExternalSemaphoreExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesDestroyExternalSemaphoreExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hInteropSemaphore);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesDestroyExternalSemaphoreExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4692,18 +7988,44 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnWaitExternalSemaphoreExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
-    if (nullptr != pfnWaitExternalSemaphoreExp) {
-        result = pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, hasWaitValue,
-                                             waitValue, numEventsInWaitList,
-                                             phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_bindless_images_wait_external_semaphore_exp_params_t params = {
+        &hQueue,    &hSemaphore,          &hasWaitValue,
+        &waitValue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesWaitExternalSemaphoreExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesWaitExternalSemaphoreExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesWaitExternalSemaphoreExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4736,18 +8058,44 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSignalExternalSemaphoreExp =
-        d_context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
-    if (nullptr != pfnSignalExternalSemaphoreExp) {
-        result = pfnSignalExternalSemaphoreExp(
-            hQueue, hSemaphore, hasSignalValue, signalValue,
-            numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_bindless_images_signal_external_semaphore_exp_params_t params = {
+        &hQueue,      &hSemaphore,          &hasSignalValue,
+        &signalValue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesSignalExternalSemaphoreExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesSignalExternalSemaphoreExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesSignalExternalSemaphoreExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4767,15 +8115,37 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateExp = d_context.urDdiTable.CommandBufferExp.pfnCreateExp;
-    if (nullptr != pfnCreateExp) {
-        result = pfnCreateExp(hContext, hDevice, pCommandBufferDesc,
-                              phCommandBuffer);
+    ur_command_buffer_create_exp_params_t params = {
+        &hContext, &hDevice, &pCommandBufferDesc, &phCommandBuffer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferCreateExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urCommandBufferCreateExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
         *phCommandBuffer =
-            reinterpret_cast<ur_exp_command_buffer_handle_t>(d_context.get());
+            mock::createDummyHandle<ur_exp_command_buffer_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferCreateExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4787,16 +8157,39 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
 /// @brief Intercept function for urCommandBufferRetainExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][retain] Handle of the command-buffer object.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetainExp = d_context.urDdiTable.CommandBufferExp.pfnRetainExp;
-    if (nullptr != pfnRetainExp) {
-        result = pfnRetainExp(hCommandBuffer);
+    ur_command_buffer_retain_exp_params_t params = {&hCommandBuffer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferRetainExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urCommandBufferRetainExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hCommandBuffer);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferRetainExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4808,16 +8201,39 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 /// @brief Intercept function for urCommandBufferReleaseExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] Handle of the command-buffer object.
+        hCommandBuffer ///< [in][release] Handle of the command-buffer object.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReleaseExp = d_context.urDdiTable.CommandBufferExp.pfnReleaseExp;
-    if (nullptr != pfnReleaseExp) {
-        result = pfnReleaseExp(hCommandBuffer);
+    ur_command_buffer_release_exp_params_t params = {&hCommandBuffer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferReleaseExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urCommandBufferReleaseExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hCommandBuffer);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferReleaseExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4833,12 +8249,35 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnFinalizeExp = d_context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
-    if (nullptr != pfnFinalizeExp) {
-        result = pfnFinalizeExp(hCommandBuffer);
+    ur_command_buffer_finalize_exp_params_t params = {&hCommandBuffer};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferFinalizeExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferFinalizeExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferFinalizeExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4871,21 +8310,52 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendKernelLaunchExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
-    if (nullptr != pfnAppendKernelLaunchExp) {
-        result = pfnAppendKernelLaunchExp(
-            hCommandBuffer, hKernel, workDim, pGlobalWorkOffset,
-            pGlobalWorkSize, pLocalWorkSize, numSyncPointsInWaitList,
-            pSyncPointWaitList, pSyncPoint, phCommand);
-    } else {
-        // generic implementation
-        if (nullptr != phCommand) {
-            *phCommand =
-                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
-                    d_context.get());
+    ur_command_buffer_append_kernel_launch_exp_params_t params = {
+        &hCommandBuffer,
+        &hKernel,
+        &workDim,
+        &pGlobalWorkOffset,
+        &pGlobalWorkSize,
+        &pLocalWorkSize,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint,
+        &phCommand};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendKernelLaunchExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendKernelLaunchExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendKernelLaunchExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4911,15 +8381,39 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendUSMMemcpyExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
-    if (nullptr != pfnAppendUSMMemcpyExp) {
-        result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
-                                       numSyncPointsInWaitList,
-                                       pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_usm_memcpy_exp_params_t params = {
+        &hCommandBuffer,     &pDst,      &pSrc, &size, &numSyncPointsInWaitList,
+        &pSyncPointWaitList, &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendUSMMemcpyExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendUSMMemcpyExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendUSMMemcpyExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4947,15 +8441,40 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendUSMFillExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
-    if (nullptr != pfnAppendUSMFillExp) {
-        result = pfnAppendUSMFillExp(hCommandBuffer, pMemory, pPattern,
-                                     patternSize, size, numSyncPointsInWaitList,
-                                     pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_usm_fill_exp_params_t params = {
+        &hCommandBuffer,     &pMemory,   &pPattern,
+        &patternSize,        &size,      &numSyncPointsInWaitList,
+        &pSyncPointWaitList, &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendUSMFillExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendUSMFillExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendUSMFillExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -4983,15 +8502,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferCopyExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
-    if (nullptr != pfnAppendMemBufferCopyExp) {
-        result = pfnAppendMemBufferCopyExp(
-            hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
-            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_copy_exp_params_t params = {
+        &hCommandBuffer,
+        &hSrcMem,
+        &hDstMem,
+        &srcOffset,
+        &dstOffset,
+        &size,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferCopyExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferCopyExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferCopyExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5019,15 +8569,45 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferWriteExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
-    if (nullptr != pfnAppendMemBufferWriteExp) {
-        result = pfnAppendMemBufferWriteExp(hCommandBuffer, hBuffer, offset,
-                                            size, pSrc, numSyncPointsInWaitList,
-                                            pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_write_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &offset,
+        &size,
+        &pSrc,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferWriteExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferWriteExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferWriteExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5054,15 +8634,45 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferReadExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
-    if (nullptr != pfnAppendMemBufferReadExp) {
-        result = pfnAppendMemBufferReadExp(hCommandBuffer, hBuffer, offset,
-                                           size, pDst, numSyncPointsInWaitList,
-                                           pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_read_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &offset,
+        &size,
+        &pDst,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferReadExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferReadExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferReadExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5097,16 +8707,50 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferCopyRectExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
-    if (nullptr != pfnAppendMemBufferCopyRectExp) {
-        result = pfnAppendMemBufferCopyRectExp(
-            hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
-            srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
-            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t params = {
+        &hCommandBuffer,
+        &hSrcMem,
+        &hDstMem,
+        &srcOrigin,
+        &dstOrigin,
+        &region,
+        &srcRowPitch,
+        &srcSlicePitch,
+        &dstRowPitch,
+        &dstSlicePitch,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferCopyRectExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferCopyRectExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferCopyRectExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5147,16 +8791,50 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferWriteRectExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
-    if (nullptr != pfnAppendMemBufferWriteRectExp) {
-        result = pfnAppendMemBufferWriteRectExp(
-            hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
-            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
-            pSrc, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_write_rect_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &bufferOffset,
+        &hostOffset,
+        &region,
+        &bufferRowPitch,
+        &bufferSlicePitch,
+        &hostRowPitch,
+        &hostSlicePitch,
+        &pSrc,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferWriteRectExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferWriteRectExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferWriteRectExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5195,16 +8873,50 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferReadRectExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
-    if (nullptr != pfnAppendMemBufferReadRectExp) {
-        result = pfnAppendMemBufferReadRectExp(
-            hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
-            bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
-            pDst, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_read_rect_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &bufferOffset,
+        &hostOffset,
+        &region,
+        &bufferRowPitch,
+        &bufferSlicePitch,
+        &hostRowPitch,
+        &hostSlicePitch,
+        &pDst,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferReadRectExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferReadRectExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferReadRectExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5233,15 +8945,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendMemBufferFillExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
-    if (nullptr != pfnAppendMemBufferFillExp) {
-        result = pfnAppendMemBufferFillExp(
-            hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
-            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_mem_buffer_fill_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &pPattern,
+        &patternSize,
+        &offset,
+        &size,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendMemBufferFillExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendMemBufferFillExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendMemBufferFillExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5267,15 +9010,44 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendUSMPrefetchExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
-    if (nullptr != pfnAppendUSMPrefetchExp) {
-        result = pfnAppendUSMPrefetchExp(hCommandBuffer, pMemory, size, flags,
-                                         numSyncPointsInWaitList,
-                                         pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_usm_prefetch_exp_params_t params = {
+        &hCommandBuffer,
+        &pMemory,
+        &size,
+        &flags,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendUSMPrefetchExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendUSMPrefetchExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendUSMPrefetchExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5301,15 +9073,44 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnAppendUSMAdviseExp =
-        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
-    if (nullptr != pfnAppendUSMAdviseExp) {
-        result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size, advice,
-                                       numSyncPointsInWaitList,
-                                       pSyncPointWaitList, pSyncPoint);
+    ur_command_buffer_append_usm_advise_exp_params_t params = {
+        &hCommandBuffer,
+        &pMemory,
+        &size,
+        &advice,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferAppendUSMAdviseExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferAppendUSMAdviseExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferAppendUSMAdviseExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5335,16 +9136,40 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnEnqueueExp = d_context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
-    if (nullptr != pfnEnqueueExp) {
-        result = pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                               phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_command_buffer_enqueue_exp_params_t params = {
+        &hCommandBuffer, &hQueue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferEnqueueExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urCommandBufferEnqueueExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferEnqueueExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5356,17 +9181,42 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 /// @brief Intercept function for urCommandBufferRetainCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][retain] Handle of the command-buffer command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnRetainCommandExp =
-        d_context.urDdiTable.CommandBufferExp.pfnRetainCommandExp;
-    if (nullptr != pfnRetainCommandExp) {
-        result = pfnRetainCommandExp(hCommand);
+    ur_command_buffer_retain_command_exp_params_t params = {&hCommand};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferRetainCommandExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferRetainCommandExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::retainDummyHandle(hCommand);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferRetainCommandExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5378,17 +9228,42 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
 /// @brief Intercept function for urCommandBufferReleaseCommandExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
     ur_exp_command_buffer_command_handle_t
-        hCommand ///< [in] Handle of the command-buffer command.
+        hCommand ///< [in][release] Handle of the command-buffer command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReleaseCommandExp =
-        d_context.urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
-    if (nullptr != pfnReleaseCommandExp) {
-        result = pfnReleaseCommandExp(hCommand);
+    ur_command_buffer_release_command_exp_params_t params = {&hCommand};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferReleaseCommandExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferReleaseCommandExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        mock::releaseDummyHandle(hCommand);
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferReleaseCommandExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5406,13 +9281,38 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUpdateKernelLaunchExp =
-        d_context.urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
-    if (nullptr != pfnUpdateKernelLaunchExp) {
-        result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+    ur_command_buffer_update_kernel_launch_exp_params_t params = {
+        &hCommand, &pUpdateKernelLaunch};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferUpdateKernelLaunchExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferUpdateKernelLaunchExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferUpdateKernelLaunchExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5437,13 +9337,35 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetInfoExp = d_context.urDdiTable.CommandBufferExp.pfnGetInfoExp;
-    if (nullptr != pfnGetInfoExp) {
-        result = pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
-                               pPropSizeRet);
+    ur_command_buffer_get_info_exp_params_t params = {
+        &hCommandBuffer, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urCommandBufferGetInfoExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urCommandBufferGetInfoExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urCommandBufferGetInfoExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5468,14 +9390,38 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCommandGetInfoExp =
-        d_context.urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
-    if (nullptr != pfnCommandGetInfoExp) {
-        result = pfnCommandGetInfoExp(hCommand, propName, propSize, pPropValue,
-                                      pPropSizeRet);
+    ur_command_buffer_command_get_info_exp_params_t params = {
+        &hCommand, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferCommandGetInfoExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferCommandGetInfoExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferCommandGetInfoExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5516,18 +9462,50 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCooperativeKernelLaunchExp =
-        d_context.urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
-    if (nullptr != pfnCooperativeKernelLaunchExp) {
-        result = pfnCooperativeKernelLaunchExp(
-            hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-            pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
-    } else {
-        // generic implementation
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    ur_enqueue_cooperative_kernel_launch_exp_params_t params = {
+        &hQueue,
+        &hKernel,
+        &workDim,
+        &pGlobalWorkOffset,
+        &pGlobalWorkSize,
+        &pLocalWorkSize,
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueCooperativeKernelLaunchExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
         }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueCooperativeKernelLaunchExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueCooperativeKernelLaunchExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5549,14 +9527,38 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnSuggestMaxCooperativeGroupCountExp =
-        d_context.urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
-    if (nullptr != pfnSuggestMaxCooperativeGroupCountExp) {
-        result = pfnSuggestMaxCooperativeGroupCountExp(
-            hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
+    ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
+        &hKernel, &localWorkSize, &dynamicSharedMemorySize, &pGroupCountRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urKernelSuggestMaxCooperativeGroupCountExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urKernelSuggestMaxCooperativeGroupCountExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urKernelSuggestMaxCooperativeGroupCountExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5589,15 +9591,39 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnTimestampRecordingExp =
-        d_context.urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
-    if (nullptr != pfnTimestampRecordingExp) {
-        result = pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
-                                          phEventWaitList, phEvent);
+    ur_enqueue_timestamp_recording_exp_params_t params = {
+        &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueTimestampRecordingExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueTimestampRecordingExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+
+        *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueTimestampRecordingExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5637,16 +9663,42 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnKernelLaunchCustomExp =
-        d_context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
-    if (nullptr != pfnKernelLaunchCustomExp) {
-        result = pfnKernelLaunchCustomExp(
-            hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
-            numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-            phEventWaitList, phEvent);
+    ur_enqueue_kernel_launch_custom_exp_params_t params = {
+        &hQueue,          &hKernel,
+        &workDim,         &pGlobalWorkSize,
+        &pLocalWorkSize,  &numPropsInLaunchPropList,
+        &launchPropList,  &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueKernelLaunchCustomExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueKernelLaunchCustomExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueKernelLaunchCustomExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5666,12 +9718,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnBuildExp = d_context.urDdiTable.ProgramExp.pfnBuildExp;
-    if (nullptr != pfnBuildExp) {
-        result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+    ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
+                                            &pOptions};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramBuildExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramBuildExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramBuildExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5692,12 +9767,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCompileExp = d_context.urDdiTable.ProgramExp.pfnCompileExp;
-    if (nullptr != pfnCompileExp) {
-        result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+    ur_program_compile_exp_params_t params = {&hProgram, &numDevices,
+                                              &phDevices, &pOptions};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramCompileExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramCompileExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramCompileExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5721,15 +9819,41 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
         *phProgram ///< [out] pointer to handle of program object created.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnLinkExp = d_context.urDdiTable.ProgramExp.pfnLinkExp;
-    if (nullptr != pfnLinkExp) {
-        result = pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
-                            pOptions, phProgram);
+    ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
+                                           &count,    &phPrograms, &pOptions,
+                                           &phProgram};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urProgramLinkExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urProgramLinkExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
+
+        *phProgram = mock::createDummyHandle<ur_program_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urProgramLinkExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5746,12 +9870,34 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnImportExp = d_context.urDdiTable.USMExp.pfnImportExp;
-    if (nullptr != pfnImportExp) {
-        result = pfnImportExp(hContext, pMem, size);
+    ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMImportExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMImportExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMImportExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5767,12 +9913,34 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnReleaseExp = d_context.urDdiTable.USMExp.pfnReleaseExp;
-    if (nullptr != pfnReleaseExp) {
-        result = pfnReleaseExp(hContext, pMem);
+    ur_usm_release_exp_params_t params = {&hContext, &pMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urUSMReleaseExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urUSMReleaseExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUSMReleaseExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5789,13 +9957,37 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnEnablePeerAccessExp =
-        d_context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
-    if (nullptr != pfnEnablePeerAccessExp) {
-        result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
+    ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
+                                                         &peerDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urUsmP2PEnablePeerAccessExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urUsmP2PEnablePeerAccessExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urUsmP2PEnablePeerAccessExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5812,13 +10004,38 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnDisablePeerAccessExp =
-        d_context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
-    if (nullptr != pfnDisablePeerAccessExp) {
-        result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
+    ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
+                                                          &peerDevice};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urUsmP2PDisablePeerAccessExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urUsmP2PDisablePeerAccessExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urUsmP2PDisablePeerAccessExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5846,14 +10063,39 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPeerAccessGetInfoExp =
-        d_context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
-    if (nullptr != pfnPeerAccessGetInfoExp) {
-        result = pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName,
-                                         propSize, pPropValue, pPropSizeRet);
+    ur_usm_p2p_peer_access_get_info_exp_params_t params = {
+        &commandDevice, &peerDevice, &propName,
+        &propSize,      &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urUsmP2PPeerAccessGetInfoExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urUsmP2PPeerAccessGetInfoExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urUsmP2PPeerAccessGetInfoExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;
@@ -5883,21 +10125,51 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< events that must be complete before the kernel execution.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
-        phEvent ///< [in,out] return an event object that identifies the work that has
-                ///< been enqueued in nativeEnqueueFunc.
+        phEvent ///< [out][optional] return an event object that identifies the work that has
+    ///< been enqueued in nativeEnqueueFunc.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnNativeCommandExp =
-        d_context.urDdiTable.EnqueueExp.pfnNativeCommandExp;
-    if (nullptr != pfnNativeCommandExp) {
-        result = pfnNativeCommandExp(
-            hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
-            pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+    ur_enqueue_native_command_exp_params_t params = {&hQueue,
+                                                     &pfnNativeEnqueue,
+                                                     &data,
+                                                     &numMemsInMemList,
+                                                     &phMemList,
+                                                     &pProperties,
+                                                     &numEventsInWaitList,
+                                                     &phEventWaitList,
+                                                     &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urEnqueueNativeCommandExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urEnqueueNativeCommandExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
     } else {
-        // generic implementation
-        *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urEnqueueNativeCommandExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
     }
 
     return result;

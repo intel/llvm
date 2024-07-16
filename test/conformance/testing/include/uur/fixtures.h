@@ -1486,11 +1486,39 @@ struct urGlobalVariableTest : uur::urKernelExecutionTest {
                              UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
                              metadataData.size(), metadata_value});
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+        bool global_var_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT,
+            sizeof(global_var_support), &global_var_support, nullptr));
+        if (!global_var_support) {
+            GTEST_SKIP() << "Global variable access is not supported";
+        }
     }
 
     /* We pad the first 8 bytes of the metadata since they are ignored */
     std::string metadataData = "\0\0\0\0\0\0\0\0dev_var"s;
     GlobalVar<int> global_var;
+};
+
+struct urMultiDeviceQueueTest : urMultiDeviceContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+        queues.reserve(DevicesEnvironment::instance->devices.size());
+        for (const auto &device : DevicesEnvironment::instance->devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+            queues.push_back(queue);
+        }
+    }
+
+    void TearDown() override {
+        for (const auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::TearDown());
+    }
+
+    std::vector<ur_queue_handle_t> queues;
 };
 
 } // namespace uur

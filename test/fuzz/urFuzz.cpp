@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -12,6 +12,7 @@ in the corpus directory for reaching better coverage of tests.
 #include "kernel_entry_points.h"
 #include "ur_api.h"
 #include "utils.hpp"
+#include <cassert>
 
 namespace fuzz {
 
@@ -353,42 +354,73 @@ int ur_program_create_with_il(TestState &state) {
     }
 
     std::vector<char> il_bin;
-    ur_program_handle_t program = nullptr;
-    ur_kernel_handle_t kernel = nullptr;
-    ur_queue_handle_t queue = nullptr;
-    ur_event_handle_t event = nullptr;
+    ur_program_handle_t program;
+    ur_kernel_handle_t kernel;
+    ur_queue_handle_t queue;
+    ur_event_handle_t event;
     auto &context = state.contexts[state.context_num]->handle;
     auto &device = state.devices[state.device_num];
+    // TODO: Use some generic utility to retrieve/use kernels
     std::string kernel_name =
-        uur::device_binaries::program_kernel_map["bar"][0];
+        uur::device_binaries::program_kernel_map["fill"][0];
 
     il_bin = state.load_kernel_source();
     if (il_bin.empty()) {
         return -1;
     }
 
+    constexpr int vec_size = 64;
+    std::vector<int> vec(vec_size, 0);
+
     urProgramCreateWithIL(context, il_bin.data(), il_bin.size(), nullptr,
                           &program);
     urProgramBuild(context, program, nullptr);
+
+    ur_mem_handle_t memory_buffer;
+    urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, vec_size * sizeof(int),
+                      nullptr, &memory_buffer);
     urKernelCreate(program, kernel_name.data(), &kernel);
+    urKernelSetArgMemObj(kernel, 0, nullptr, memory_buffer);
+
     urQueueCreate(context, device, nullptr, &queue);
 
-    const uint32_t nDim = 3;
-    const size_t gWorkOffset[] = {0, 0, 0};
-    const size_t gWorkSize[] = {128, 128, 128};
-
-    urEnqueueKernelLaunch(queue, kernel, nDim, gWorkOffset, gWorkSize, nullptr,
-                          0, nullptr, &event);
-
+    urEnqueueMemBufferWrite(queue, memory_buffer, true, 0,
+                            vec_size * sizeof(int), vec.data(), 0, nullptr,
+                            &event);
     urEventWait(1, &event);
     urEventRelease(event);
+
+    constexpr uint32_t nDim = 3;
+    const size_t gWorkOffset[] = {0, 0, 0};
+    const size_t gWorkSize[] = {vec_size * 4, 1, 1};
+    const size_t lWorkSize[] = {1, 1, 1};
+
+    urEnqueueKernelLaunch(queue, kernel, nDim, gWorkOffset, gWorkSize,
+                          lWorkSize, 0, nullptr, &event);
+    urEventWait(1, &event);
+    urEventRelease(event);
+
     urQueueFinish(queue);
+    urMemRelease(memory_buffer);
     urQueueRelease(queue);
     urKernelRelease(kernel);
     urProgramRelease(program);
 
     return 0;
 }
+
+// Call loader init and teardown exactly once.
+static struct UrLoader {
+    UrLoader() {
+        LoaderConfig config;
+        ur_result_t res = urLoaderInit(0, config.handle);
+        if (res != UR_RESULT_SUCCESS) {
+            exit(0);
+        }
+    }
+    ~UrLoader() { urLoaderTearDown(); }
+    LoaderConfig config;
+} UrLoader;
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     int next_api_call;
@@ -422,15 +454,10 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         return ret;
     }
 
-    LoaderConfig config;
-    ur_result_t res = urLoaderInit(0, config.handle);
-    if (res != UR_RESULT_SUCCESS) {
-        return -1;
-    }
-
     test_state.adapters.resize(test_state.num_entries);
-    res = urAdapterGet(test_state.num_entries, test_state.adapters.data(),
-                       &test_state.num_adapters);
+    ur_result_t res =
+        urAdapterGet(test_state.num_entries, test_state.adapters.data(),
+                     &test_state.num_adapters);
     if (res != UR_RESULT_SUCCESS || test_state.num_adapters == 0) {
         return -1;
     }
@@ -440,11 +467,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         if (ret) {
             return -1;
         }
-    }
-
-    res = urLoaderTearDown();
-    if (res != UR_RESULT_SUCCESS) {
-        return -1;
     }
 
     return 0;
