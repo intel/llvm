@@ -180,9 +180,7 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc) {
-  std::cerr << "submit_without_event_impl invoked" << std::endl;
   return impl->submit_without_event(CGH, impl, CodeLoc);
-  std::cerr << "submit_without_event_impl is fine" << std::endl;
 }
 
 event queue::submit_impl_and_postprocess(
