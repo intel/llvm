@@ -246,7 +246,8 @@ private:
   friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
   template <class Obj>
-  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
