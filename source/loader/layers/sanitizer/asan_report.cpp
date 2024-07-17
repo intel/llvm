@@ -25,8 +25,8 @@ namespace {
 
 void PrintAllocateInfo(uptr Addr, const AllocInfo *AI) {
     getContext()->logger.always("{} is located inside of {} region [{}, {})",
-                          (void *)Addr, ToString(AI->Type),
-                          (void *)AI->UserBegin, (void *)AI->UserEnd);
+                                (void *)Addr, ToString(AI->Type),
+                                (void *)AI->UserBegin, (void *)AI->UserEnd);
     getContext()->logger.always("allocated here:");
     AI->AllocStack.print();
     if (AI->IsReleased) {
@@ -158,18 +158,19 @@ void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
                                  uptr Addr, const ValidateUSMResult &VR,
                                  StackTrace Stack) {
     getContext()->logger.always("\n====ERROR: DeviceSanitizer: "
-                          "invalid-argument on kernel <{}>",
-                          DemangleName(GetKernelName(Kernel)));
+                                "invalid-argument on kernel <{}>",
+                                DemangleName(GetKernelName(Kernel)));
     Stack.print();
     auto &AI = VR.AI;
     switch (VR.Type) {
     case ValidateUSMResult::MAYBE_HOST_POINTER:
         getContext()->logger.always("The {}th argument {} is not a USM pointer",
-                              ArgIndex, (void *)Addr);
+                                    ArgIndex, (void *)Addr);
         break;
     case ValidateUSMResult::RELEASED_POINTER:
-        getContext()->logger.always("The {}th argument {} is a released USM pointer",
-                              ArgIndex, (void *)Addr);
+        getContext()->logger.always(
+            "The {}th argument {} is a released USM pointer", ArgIndex,
+            (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::BAD_CONTEXT:
