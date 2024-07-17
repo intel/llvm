@@ -82,24 +82,6 @@ void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool buffer_plain::has_property<param_type>() const noexcept { \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type buffer_plain::get_property<param_type>() const {    \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 std::vector<pi_native_handle>
 buffer_plain::getNativeVector(backend BackendName) const {
   return impl->getNativeVector(BackendName);
@@ -126,6 +108,10 @@ void buffer_plain::handleRelease() const {
   // Buffer copy will have pointer to the same impl.
   if (impl.use_count() == 1)
     impl->detachMemoryObject(impl);
+}
+
+const property_list &buffer_plain::getPropList() const {
+  return impl->getPropList();
 }
 
 } // namespace detail

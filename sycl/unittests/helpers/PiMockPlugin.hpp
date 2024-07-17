@@ -609,7 +609,7 @@ inline pi_result mock_piextBindlessImageSamplerCreate(
 }
 
 inline pi_result mock_piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
     const pi_image_copy_flags flags, pi_image_offset src_offset,
     pi_image_offset dst_offset, pi_image_region copy_extent,
@@ -618,7 +618,8 @@ inline pi_result mock_piextMemImageCopy(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+inline pi_result mock_piextMemImageGetInfo(pi_context context,
+                                           pi_image_mem_handle mem_handle,
                                            pi_image_info param_name,
                                            void *param_value,
                                            size_t *param_value_size_ret) {

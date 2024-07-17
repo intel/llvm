@@ -5714,6 +5714,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
 
+  if (getContext().getLangOpts().SYCLIsDevice && Callee.isVirtual()) {
+    // Annotate virtual calls in SYCL device code to help passes that emit
+    // diagnostics on incorrect uses of virtual functions.
+    Attrs = Attrs.addFnAttribute(
+        getLLVMContext(),
+        llvm::Attribute::get(getLLVMContext(), "virtual-call"));
+  }
+
   // Apply always_inline to all calls within flatten functions.
   // FIXME: should this really take priority over __try, below?
   if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
