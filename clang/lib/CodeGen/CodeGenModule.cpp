@@ -1358,14 +1358,14 @@ void CodeGenModule::Release() {
         TheModule.getOrInsertNamedMetadata("opencl.spir.version");
     SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
     // We are trying to look like OpenCL C++ for SPIR-V translator.
-    // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
+    // 6 - CPP_for_OpenCL, 100000 - OpenCL C++ version 1.0
     // 0 - ESIMD, if any kernel or function is an explicit SIMD one
     int Lang = llvm::any_of(TheModule,
                             [](const auto &F) {
                               return F.getMetadata("sycl_explicit_simd");
                             })
                    ? 0
-                   : 4;
+                   : 6;
 
     llvm::Metadata *SPIRVSourceElts[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, Lang)),
