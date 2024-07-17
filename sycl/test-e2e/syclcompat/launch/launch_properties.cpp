@@ -30,7 +30,7 @@
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
-#include <syclcompat/launch_policy.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 
 namespace compat_exp = syclcompat::experimental;

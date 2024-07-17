@@ -26,7 +26,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
-#include <syclcompat/launch_policy.hpp>
+#include <syclcompat/launch.hpp>
 
 namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;

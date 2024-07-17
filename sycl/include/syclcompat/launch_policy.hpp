@@ -242,41 +242,6 @@ auto build_kernel_functor(sycl::handler &cgh, LaunchPolicy launch_policy,
   }
 }
 
-template <auto F, typename LaunchPolicy, typename... Args>
-sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
-  static_assert(syclcompat::args_compatible<LaunchPolicy, F, Args...>,
-                "Mismatch between device function signature and supplied "
-                "arguments. Have you correctly handled local memory/char*?");
-
-  sycl_exp::launch_config config(launch_policy.get_range(),
-                                 launch_policy.get_launch_properties());
-
-  return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
-    auto KernelFunctor = build_kernel_functor<F>(cgh, launch_policy, args...);
-    if constexpr (syclcompat::detail::is_range_v<
-                      typename LaunchPolicy::RangeT>) {
-      parallel_for(cgh, config, KernelFunctor);
-    } else {
-      static_assert(
-          syclcompat::detail::is_nd_range_v<typename LaunchPolicy::RangeT>);
-      nd_launch(cgh, config, KernelFunctor);
-    }
-  });
-}
-
 } // namespace detail
-
-template <auto F, typename LaunchPolicy, typename... Args>
-sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
-  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
-  return detail::launch<F>(launch_policy, q, args...);
-}
-
-template <auto F, typename LaunchPolicy, typename... Args>
-sycl::event launch(LaunchPolicy launch_policy, Args... args) {
-  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
-  return launch<F>(launch_policy, get_default_queue(), args...);
-}
-
 } // namespace experimental
 } // namespace syclcompat

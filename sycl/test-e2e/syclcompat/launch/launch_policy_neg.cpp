@@ -27,10 +27,9 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 
-#include <syclcompat/launch_policy.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/dims.hpp>
-#include <syclcompat/launch_policy.hpp>
 
 namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;

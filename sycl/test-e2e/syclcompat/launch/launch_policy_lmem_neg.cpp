@@ -27,7 +27,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
-#include <syclcompat/launch_policy.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 
 // Dummy kernels for testing

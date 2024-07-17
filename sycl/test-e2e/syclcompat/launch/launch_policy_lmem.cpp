@@ -27,7 +27,7 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 
-#include <syclcompat/launch_policy.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/id_query.hpp>
 
