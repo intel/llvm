@@ -7541,7 +7541,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
 ) {
     auto pfnReleaseInteropExp =
         getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
@@ -7640,18 +7640,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesReleaseExternalSemaphoreExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
+/// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
 ) {
-    auto pfnReleaseExternalSemaphoreExp =
+    auto pfnDestroyExternalSemaphoreExp =
         getContext()
-            ->urDdiTable.BindlessImagesExp.pfnReleaseExternalSemaphoreExp;
+            ->urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
 
-    if (nullptr == pfnReleaseExternalSemaphoreExp) {
+    if (nullptr == pfnDestroyExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -7680,7 +7680,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     }
 
     ur_result_t result =
-        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+        pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
     return result;
 }
@@ -9745,10 +9745,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnImportExternalSemaphoreExp =
         ur_validation_layer::urBindlessImagesImportExternalSemaphoreExp;
 
-    dditable.pfnReleaseExternalSemaphoreExp =
-        pDdiTable->pfnReleaseExternalSemaphoreExp;
-    pDdiTable->pfnReleaseExternalSemaphoreExp =
-        ur_validation_layer::urBindlessImagesReleaseExternalSemaphoreExp;
+    dditable.pfnDestroyExternalSemaphoreExp =
+        pDdiTable->pfnDestroyExternalSemaphoreExp;
+    pDdiTable->pfnDestroyExternalSemaphoreExp =
+        ur_validation_layer::urBindlessImagesDestroyExternalSemaphoreExp;
 
     dditable.pfnWaitExternalSemaphoreExp =
         pDdiTable->pfnWaitExternalSemaphoreExp;
