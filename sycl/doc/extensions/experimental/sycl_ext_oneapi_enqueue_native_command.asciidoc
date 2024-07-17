@@ -73,73 +73,6 @@ synchronous, backend work within the user lambda. Asynchronous work must only
 be submitted to the native queue obtained from
 `interop_handle::get_native_queue`.
 
-=== Additions to handler class
-
-This extension adds the following new member function to the SYCL `handler`
-class:
-
-```c++
-class handler {
-  template <typename Func>
-  void ext_oneapi_enqueue_native_command(Func&& interopCallable);
-};
-```
-
-_Constraints_: The `Func` must a C++ callable object which takes a single
-parameter of type `interop_handle`. `interopCallable` must only submit
-asynchronous interop work to the backend, through the native backend object
-obtained from `interop_handle::get_native_queue`.
-
-_Effects_: The `interopCallable` object is called exactly once, and this call
-may be made asynchronously even after the calling thread returns from
-`ext_oneapi_enqueue_native_command`.
-
-The call to `interopCallable` may submit one or more asynchronous tasks to the
-native backend object obtained from `interop_handle::get_native_queue`, and
-these tasks become encapsulated in a SYCL command that is added to the queue.
-If the enclosing command group has any dependencies, these dependencies will be
-propagated to the native API during the command submission, meaning no further
-dependency analysis is needed within the native API. This happens, for example,
-if the command group calls `handler::depends_on` or if it constructs an
-accessor. Note, however, that the SYCL command is associated with the
-_asynchronous tasks submitted by_ `interopCallable`, not the call to
-`interopCallable`. The call to `interopCallable` may happen even before the
-dependencies are satisfied.
-
-The SYCL command described above completes once all of the native asynchronous
-tasks it contains have completed.
-
-The call to interopCallable must not submit any synchronous tasks to the native
-backend object, and it must not block waiting for any tasks to complete. The
-call also must not add tasks to backend objects that underly any other queue,
-aside from the queue that is associated with this handler. If it does any of
-these things, the behavior is undefined.
-
-_Example_:
-
-```c++
-sycl::queue q;
-q.submit([&](sycl::handler &cgh) {
-    sycl::accessor acc{buf, cgh};
-
-    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
-      // Can extract device pointers from accessors
-      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
-      // Can extract stream (note: get_native_queue() may not be 
-      // supported on CPU backends)
-      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
-      // Can extract HIP device (note: get_native_device() may not be
-      // supported on CPU backends)
-      int dev = h.get_native_device<sycl::backend::hip>();
-      // Can enqueue arbitrary backend operations. This could also be a kernel
-      // launch or call to a library that enqueues operations on the stream etc
-      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
-                      hipMemcpyDeviceToHost, stream);
-    });
-  });
-q.wait();
-```
-
 === Differences with `host_task`
 
 A callable submitted to `ext_oneapi_enqueue_native_command` won't wait
@@ -206,12 +139,72 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
-=== Enqueue Native Command
+=== Additions to handler class
 
-In the interop callable submitted to `ext_oneapi_enqueue_native_command` all
-asynchronous interop work submitted to the native queue object returned by
-`interop_handle::get_native_queue` will be correctly synchronized with the
-command's dependent events.
+This extension adds the following new member function to the SYCL `handler`
+class:
+
+```c++
+class handler {
+  template <typename Func>
+  void ext_oneapi_enqueue_native_command(Func&& interopCallable);
+};
+```
+
+_Constraints_: The `Func` must a C++ callable object which takes a single
+parameter of type `interop_handle`. `interopCallable` must only submit
+asynchronous interop work to the backend, through the native backend object
+obtained from `interop_handle::get_native_queue`.
+
+_Effects_: The `interopCallable` object is called exactly once, and this call
+may be made asynchronously even after the calling thread returns from
+`ext_oneapi_enqueue_native_command`.
+
+The call to `interopCallable` may submit one or more asynchronous tasks to the
+native backend object obtained from `interop_handle::get_native_queue`, and
+these tasks become encapsulated in a SYCL command that is added to the queue.
+If the enclosing command group has any dependencies, these dependencies will be
+propagated to the native API during the command submission, meaning no further
+dependency analysis is needed within the native API. This happens, for example,
+if the command group calls `handler::depends_on` or if it constructs an
+accessor. Note, however, that the SYCL command is associated with the
+_asynchronous tasks submitted by_ `interopCallable`, not the call to
+`interopCallable`. The call to `interopCallable` may happen even before the
+dependencies are satisfied.
+
+The SYCL command described above completes once all of the native asynchronous
+tasks it contains have completed.
+
+The call to interopCallable must not submit any synchronous tasks to the native
+backend object, and it must not block waiting for any tasks to complete. The
+call also must not add tasks to backend objects that underly any other queue,
+aside from the queue that is associated with this handler. If it does any of
+these things, the behavior is undefined.
+
+=== Example
+
+```c++
+sycl::queue q;
+q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{buf, cgh};
+
+    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
+      // Can extract device pointers from accessors
+      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
+      // Can extract stream (note: get_native_queue() may not be 
+      // supported on CPU backends)
+      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+      // Can extract HIP device (note: get_native_device() may not be
+      // supported on CPU backends)
+      int dev = h.get_native_device<sycl::backend::hip>();
+      // Can enqueue arbitrary backend operations. This could also be a kernel
+      // launch or call to a library that enqueues operations on the stream etc
+      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
+                      hipMemcpyDeviceToHost, stream);
+    });
+  });
+q.wait();
+```
 
 == Issues
 
