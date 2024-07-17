@@ -7,11 +7,9 @@
 //===----------------------------------------------------------------------===//
 // Add "-options -vc-codegen" explicitly to workaround bug in dev igc package.
 // REQUIRES: ocloc
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -Xs "-options -vc-codegen" -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -Xs "-options -vc-codegen" -o %t.out
 // RUN: %t.out
-// TODO: remove XFAIL when the fix in GPU RT for Windows is updated on CI
-// machines
-// XFAIL: windows
+
 // This is basic test to test hardware dispatch functionality with ESIMD.
 
 #include <iostream>
@@ -39,7 +37,7 @@ int main() {
 
         // test if_architecture_is
         sycl::ext::oneapi::experimental::if_architecture_is<
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_bdw>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
             [&]() { result[0] = 1; })
             .otherwise([&]() { result[0] = 0; });
 
@@ -48,7 +46,7 @@ int main() {
             sycl::ext::oneapi::experimental::architecture::intel_gpu_dg1>(
             [&]() { result[1] = 0; })
             .else_if_architecture_is<
-                sycl::ext::oneapi::experimental::architecture::intel_gpu_bdw>(
+                sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
                 [&]() { result[1] = 2; })
             .otherwise([&]() { result[1] = 0; });
 
@@ -62,7 +60,7 @@ int main() {
         // if_architecture_is
         sycl::ext::oneapi::experimental::if_architecture_is<
             sycl::ext::oneapi::experimental::architecture::intel_gpu_dg1,
-            sycl::ext::oneapi::experimental::architecture::intel_gpu_bdw>(
+            sycl::ext::oneapi::experimental::architecture::intel_gpu_tgllp>(
             [&]() { result[3] = 4; })
             .otherwise([&]() { result[3] = 0; });
         result.copy_to(output_ptr);

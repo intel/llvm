@@ -405,7 +405,7 @@ pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 }
 
 pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
+piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
                   const pi_image_format *ImageFormat,
                   const pi_image_desc *ImageDesc,
                   const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
@@ -430,10 +430,12 @@ pi_result piextMemSampledImageHandleDestroy(pi_context Context,
   return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
 }
 
-pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
-                               pi_image_info ParamName, void *ParamValue,
-                               size_t *ParamValueSizeRet) {
-  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context Context,
+                                             pi_image_mem_handle MemHandle,
+                                             pi_image_info ParamName,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
+  return pi2ur::piextMemImageGetInfo(Context, MemHandle, ParamName, ParamValue,
                                      ParamValueSizeRet);
 }
 
