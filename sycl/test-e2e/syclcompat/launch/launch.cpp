@@ -24,8 +24,6 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <type_traits>
-
 #include <sycl/detail/core.hpp>
 #include <sycl/group_barrier.hpp>
 
@@ -34,7 +32,6 @@
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 
-#include "../common.hpp"
 #include "launch_fixt.hpp"
 
 // Dummy kernel functions for testing
