@@ -1500,6 +1500,27 @@ struct urGlobalVariableTest : uur::urKernelExecutionTest {
     GlobalVar<int> global_var;
 };
 
+struct urMultiDeviceQueueTest : urMultiDeviceContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+        queues.reserve(DevicesEnvironment::instance->devices.size());
+        for (const auto &device : DevicesEnvironment::instance->devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+            queues.push_back(queue);
+        }
+    }
+
+    void TearDown() override {
+        for (const auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::TearDown());
+    }
+
+    std::vector<ur_queue_handle_t> queues;
+};
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED

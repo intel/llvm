@@ -53,7 +53,7 @@ ur_result_t urEnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, char Value,
     if (Size == 0) {
         return UR_RESULT_SUCCESS;
     }
-    return context.urDdiTable.Enqueue.pfnUSMFill(
+    return getContext()->urDdiTable.Enqueue.pfnUSMFill(
         Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
@@ -79,9 +79,10 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
         if (!MemSet) {
             return UR_RESULT_ERROR_UNKNOWN;
         }
-        context.logger.debug("enqueueMemSetShadow(addr={}, count={}, value={})",
-                             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-                             (void *)(size_t)Value);
+        getContext()->logger.debug(
+            "enqueueMemSetShadow(addr={}, count={}, value={})",
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+            (void *)(size_t)Value);
         MemSet((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
     } else {
         ///
@@ -98,7 +99,7 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
             ShadowEnd =
                 MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr + Size - 1);
         } else {
-            context.logger.error("Unsupport device type");
+            getContext()->logger.error("Unsupport device type");
             return UR_RESULT_ERROR_INVALID_ARGUMENT;
         }
 
@@ -115,25 +116,26 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
             for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
                  MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
                 if (!PhysicalMem) {
-                    auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
+                    auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
                         Context, DeviceInfo->Handle, PageSize, &Desc,
                         &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("urPhysicalMemCreate(): {}", URes);
+                        getContext()->logger.error("urPhysicalMemCreate(): {}",
+                                                   URes);
                         return URes;
                     }
                 }
 
-                context.logger.debug("urVirtualMemMap: {} ~ {}",
-                                     (void *)MappedPtr,
-                                     (void *)(MappedPtr + PageSize - 1));
+                getContext()->logger.debug("urVirtualMemMap: {} ~ {}",
+                                           (void *)MappedPtr,
+                                           (void *)(MappedPtr + PageSize - 1));
 
                 // FIXME: No flag to check the failed reason is VA is already mapped
-                auto URes = context.urDdiTable.VirtualMem.pfnMap(
+                auto URes = getContext()->urDdiTable.VirtualMem.pfnMap(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("urVirtualMemMap({}, {}): {}",
+                    getContext()->logger.debug("urVirtualMemMap({}, {}): {}",
                                          (void *)MappedPtr, PageSize, URes);
                 }
 
@@ -145,7 +147,8 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                     auto URes =
                         urEnqueueUSMSet(Queue, (void *)MappedPtr, 0, PageSize);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("urEnqueueUSMFill(): {}", URes);
+                        getContext()->logger.error("urEnqueueUSMFill(): {}",
+                                                   URes);
                         return URes;
                     }
                 }
@@ -154,12 +157,12 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 
         auto URes = urEnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
                                     ShadowEnd - ShadowBegin + 1);
-        context.logger.debug(
+        getContext()->logger.debug(
             "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
             (void *)(size_t)Value, URes);
         if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error("urEnqueueUSMFill(): {}", URes);
+            getContext()->logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
         }
     }
@@ -168,10 +171,12 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 
 } // namespace
 
-SanitizerInterceptor::SanitizerInterceptor() {
-    if (Options().MaxQuarantineSizeMB) {
+SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
+    : logger(logger) {
+    if (Options(logger).MaxQuarantineSizeMB) {
         m_Quarantine = std::make_unique<Quarantine>(
-            static_cast<uint64_t>(Options().MaxQuarantineSizeMB) * 1024 * 1024);
+            static_cast<uint64_t>(Options(logger).MaxQuarantineSizeMB) * 1024 *
+            1024);
     }
 }
 
@@ -212,7 +217,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         Alignment = MinAlignment;
     }
 
-    uptr RZLog = ComputeRZLog(Size, Options().MinRZSize, Options().MaxRZSize);
+    uptr RZLog = ComputeRZLog(Size, Options(logger).MinRZSize,
+                              Options(logger).MaxRZSize);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
     uptr NeededSize = RoundedSize + RZSize * 2;
@@ -223,19 +229,19 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     void *Allocated = nullptr;
 
     if (Type == AllocType::DEVICE_USM) {
-        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else if (Type == AllocType::HOST_USM) {
-        UR_CALL(context.urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                    NeededSize, &Allocated));
+        UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(
+            Context, Properties, Pool, NeededSize, &Allocated));
     } else if (Type == AllocType::SHARED_USM) {
-        UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+        UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else if (Type == AllocType::MEM_BUFFER) {
-        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
-        context.logger.error("Unsupport memory type");
+        getContext()->logger.error("Unsupport memory type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
@@ -326,21 +332,21 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     // If quarantine is disabled, USM is freed immediately
     if (!m_Quarantine) {
-        context.logger.debug("Free: {}", (void *)AllocInfo->AllocBegin);
+        getContext()->logger.debug("Free: {}", (void *)AllocInfo->AllocBegin);
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         m_AllocationMap.erase(AllocInfoIt);
-        return context.urDdiTable.USM.pfnFree(Context,
-                                              (void *)(AllocInfo->AllocBegin));
+        return getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)(AllocInfo->AllocBegin));
     }
 
     auto ReleaseList = m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
     if (ReleaseList.size()) {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         for (auto &It : ReleaseList) {
-            context.logger.info("Quarantine Free: {}",
-                                (void *)It->second->AllocBegin);
+            getContext()->logger.info("Quarantine Free: {}",
+                                      (void *)It->second->AllocBegin);
             m_AllocationMap.erase(It);
-            UR_CALL(context.urDdiTable.USM.pfnFree(
+            UR_CALL(getContext()->urDdiTable.USM.pfnFree(
                 Context, (void *)(It->second->AllocBegin)));
         }
     }
@@ -361,7 +367,7 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
     ManagedQueue InternalQueue(Context, Device);
     if (!InternalQueue) {
-        context.logger.error("Failed to create internal queue");
+        getContext()->logger.error("Failed to create internal queue");
         return UR_RESULT_ERROR_INVALID_QUEUE;
     }
 
@@ -377,7 +383,7 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                                    ur_queue_handle_t Queue,
                                                    USMLaunchInfo &LaunchInfo) {
     // FIXME: We must use block operation here, until we support urEventSetCallback
-    auto Result = context.urDdiTable.Queue.pfnFinish(Queue);
+    auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
 
     if (Result == UR_RESULT_SUCCESS) {
         for (const auto &AH : LaunchInfo.Data->SanitizerReport) {
@@ -413,11 +419,11 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
     } else if (Type == DeviceType::GPU_DG2) {
         UR_CALL(SetupShadowMemoryOnDG2(Context, ShadowOffset, ShadowOffsetEnd));
     } else {
-        context.logger.error("Unsupport device type");
+        getContext()->logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
-    context.logger.info("ShadowMemory(Global): {} - {}", (void *)ShadowOffset,
-                        (void *)ShadowOffsetEnd);
+    getContext()->logger.info("ShadowMemory(Global): {} - {}",
+                              (void *)ShadowOffset, (void *)ShadowOffsetEnd);
     return UR_RESULT_SUCCESS;
 }
 
@@ -528,23 +534,24 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
         ManagedQueue Queue(Context, Device);
 
         uint64_t NumOfDeviceGlobal;
-        auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-            Queue, Program, kSPIR_AsanDeviceGlobalCount, true,
-            sizeof(NumOfDeviceGlobal), 0, &NumOfDeviceGlobal, 0, nullptr,
-            nullptr);
+        auto Result =
+            getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
+                Queue, Program, kSPIR_AsanDeviceGlobalCount, true,
+                sizeof(NumOfDeviceGlobal), 0, &NumOfDeviceGlobal, 0, nullptr,
+                nullptr);
         if (Result != UR_RESULT_SUCCESS) {
-            context.logger.info("No device globals");
+            getContext()->logger.info("No device globals");
             continue;
         }
 
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
-        Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
+        Result = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
             Queue, Program, kSPIR_AsanDeviceGlobalMetadata, true,
             sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, &GVInfos[0], 0,
             nullptr, nullptr);
         if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_AsanDeviceGlobalMetadata, Result);
+            getContext()->logger.error("Device Global[{}] Read Failed: {}",
+                                       kSPIR_AsanDeviceGlobalMetadata, Result);
             return Result;
         }
 
@@ -608,7 +615,7 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
     // Query alignment
-    UR_CALL(context.urDdiTable.Device.pfnGetInfo(
+    UR_CALL(getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
 
@@ -680,10 +687,10 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
             char *ArgPointer = nullptr;
             UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-            ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
+            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
                 Kernel, ArgIndex, nullptr, ArgPointer);
             if (URes != UR_RESULT_SUCCESS) {
-                context.logger.error(
+                getContext()->logger.error(
                     "Failed to set buffer {} as the {} arg to kernel {}: {}",
                     ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                     URes);
@@ -693,14 +700,15 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Set launch info argument
         auto ArgNums = GetKernelNumArgs(Kernel);
         if (ArgNums) {
-            context.logger.debug(
+            getContext()->logger.debug(
                 "launch_info {} (numLocalArgs={}, localArgs={})",
                 (void *)LaunchInfo.Data, LaunchInfo.Data->NumLocalArgs,
                 (void *)LaunchInfo.Data->LocalArgs);
-            ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
+            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
                 Kernel, ArgNums - 1, nullptr, LaunchInfo.Data);
             if (URes != UR_RESULT_SUCCESS) {
-                context.logger.error("Failed to set launch info: {}", URes);
+                getContext()->logger.error("Failed to set launch info: {}",
+                                           URes);
                 return URes;
             }
         }
@@ -710,11 +718,11 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                                                    const void *Value,
                                                    size_t Size) {
             auto Result =
-                context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+                getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
                     Queue, Program, Name, false, Size, 0, Value, 0, nullptr,
                     nullptr);
             if (Result != UR_RESULT_SUCCESS) {
-                context.logger.warning(
+                getContext()->logger.warning(
                     "Failed to write device global \"{}\": {}", Name, Result);
                 return false;
             }
@@ -723,7 +731,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         // Write debug
         // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-        uint64_t Debug = Options().Debug ? 1 : 0;
+        uint64_t Debug = Options(logger).Debug ? 1 : 0;
         EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
 
         // Write shadow memory offset for global memory
@@ -740,9 +748,11 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         if (LaunchInfo.LocalWorkSize.empty()) {
             LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-            auto URes = context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-                Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
-                LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+            auto URes =
+                getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+                    Kernel, Queue, LaunchInfo.WorkDim,
+                    LaunchInfo.GlobalWorkOffset, LaunchInfo.GlobalWorkSize,
+                    LaunchInfo.LocalWorkSize.data());
             if (URes != UR_RESULT_SUCCESS) {
                 if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
                     return URes;
@@ -765,7 +775,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         auto EnqueueAllocateShadowMemory = [Context, &DeviceInfo,
                                             Queue](size_t Size, uptr &Ptr) {
             void *Allocated = nullptr;
-            auto URes = context.urDdiTable.USM.pfnDeviceAlloc(
+            auto URes = getContext()->urDdiTable.USM.pfnDeviceAlloc(
                 Context, DeviceInfo->Handle, nullptr, nullptr, Size,
                 &Allocated);
             if (URes != UR_RESULT_SUCCESS) {
@@ -775,7 +785,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             URes = urEnqueueUSMSet(Queue, Allocated, 0, Size);
             if (URes != UR_RESULT_SUCCESS) {
                 [[maybe_unused]] auto URes =
-                    context.urDdiTable.USM.pfnFree(Context, Allocated);
+                    getContext()->urDdiTable.USM.pfnFree(Context, Allocated);
                 assert(URes == UR_RESULT_SUCCESS &&
                        "urUSMFree failed at allocating shadow memory");
                 Allocated = nullptr;
@@ -789,12 +799,12 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         auto PrivateMemoryUsage =
             GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
 
-        context.logger.info("KernelInfo {} (LocalMemory={}, PrivateMemory={})",
-                            (void *)Kernel, LocalMemoryUsage,
-                            PrivateMemoryUsage);
+        getContext()->logger.info(
+            "KernelInfo {} (LocalMemory={}, PrivateMemory={})", (void *)Kernel,
+            LocalMemoryUsage, PrivateMemoryUsage);
 
         // Write shadow memory offset for local memory
-        if (Options().DetectLocals) {
+        if (Options(logger).DetectLocals) {
             // CPU needn't this
             if (DeviceInfo->Type == DeviceType::GPU_PVC ||
                 DeviceInfo->Type == DeviceType::GPU_DG2) {
@@ -803,7 +813,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 const size_t LocalShadowMemorySize =
                     (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
-                context.logger.debug(
+                getContext()->logger.debug(
                     "LocalMemory(WorkGroup={}, LocalMemorySize={}, "
                     "LocalShadowMemorySize={})",
                     NumWG, LocalMemorySize, LocalShadowMemorySize);
@@ -812,12 +822,12 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                         LocalShadowMemorySize,
                         LaunchInfo.Data->LocalShadowOffset) !=
                     UR_RESULT_SUCCESS) {
-                    context.logger.warning(
+                    getContext()->logger.warning(
                         "Failed to allocate shadow memory for local "
                         "memory, maybe the number of workgroup ({}) is too "
                         "large",
                         NumWG);
-                    context.logger.warning(
+                    getContext()->logger.warning(
                         "Skip checking local memory of kernel <{}>",
                         GetKernelName(Kernel));
                 } else {
@@ -825,7 +835,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                         LaunchInfo.Data->LocalShadowOffset +
                         LocalShadowMemorySize - 1;
 
-                    context.logger.info(
+                    getContext()->logger.info(
                         "ShadowMemory(Local, {} - {})",
                         (void *)LaunchInfo.Data->LocalShadowOffset,
                         (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
@@ -834,7 +844,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         }
 
         // Write shadow memory offset for private memory
-        if (Options().DetectPrivates) {
+        if (Options(logger).DetectPrivates) {
             if (DeviceInfo->Type == DeviceType::CPU) {
                 LaunchInfo.Data->PrivateShadowOffset = DeviceInfo->ShadowOffset;
             } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
@@ -842,27 +852,27 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 const size_t PrivateShadowMemorySize =
                     (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
 
-                context.logger.debug("PrivateMemory(WorkGroup={}, "
-                                     "PrivateShadowMemorySize={})",
-                                     NumWG, PrivateShadowMemorySize);
+                getContext()->logger.debug("PrivateMemory(WorkGroup={}, "
+                                           "PrivateShadowMemorySize={})",
+                                           NumWG, PrivateShadowMemorySize);
 
                 if (EnqueueAllocateShadowMemory(
                         PrivateShadowMemorySize,
                         LaunchInfo.Data->PrivateShadowOffset) !=
                     UR_RESULT_SUCCESS) {
-                    context.logger.warning(
+                    getContext()->logger.warning(
                         "Failed to allocate shadow memory for private "
                         "memory, maybe the number of workgroup ({}) is too "
                         "large",
                         NumWG);
-                    context.logger.warning(
+                    getContext()->logger.warning(
                         "Skip checking private memory of kernel <{}>",
                         GetKernelName(Kernel));
                 } else {
                     LaunchInfo.Data->PrivateShadowOffsetEnd =
                         LaunchInfo.Data->PrivateShadowOffset +
                         PrivateShadowMemorySize - 1;
-                    context.logger.info(
+                    getContext()->logger.info(
                         "ShadowMemory(Private, {} - {})",
                         (void *)LaunchInfo.Data->PrivateShadowOffset,
                         (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
@@ -890,9 +900,9 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
 }
 
 ur_result_t USMLaunchInfo::initialize() {
-    UR_CALL(context.urDdiTable.Context.pfnRetain(Context));
-    UR_CALL(context.urDdiTable.Device.pfnRetain(Device));
-    UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+    UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
+    UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
+    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
         Context, Device, nullptr, nullptr, sizeof(LaunchInfo), (void **)&Data));
     *Data = LaunchInfo{};
     return UR_RESULT_SUCCESS;
@@ -902,13 +912,13 @@ ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
     auto NumArgs = KI.LocalArgs.size();
     if (NumArgs) {
         Data->NumLocalArgs = NumArgs;
-        UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+        UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
             Context, Device, nullptr, nullptr, sizeof(LocalArgsInfo) * NumArgs,
             (void **)&Data->LocalArgs));
         uint32_t i = 0;
         for (auto [ArgIndex, ArgInfo] : KI.LocalArgs) {
             Data->LocalArgs[i++] = ArgInfo;
-            context.logger.debug(
+            getContext()->logger.debug(
                 "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
                 ArgInfo.Size, ArgInfo.SizeWithRedZone);
         }
@@ -922,27 +932,27 @@ USMLaunchInfo::~USMLaunchInfo() {
         auto Type = GetDeviceType(Context, Device);
         if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
             if (Data->PrivateShadowOffset) {
-                Result = context.urDdiTable.USM.pfnFree(
+                Result = getContext()->urDdiTable.USM.pfnFree(
                     Context, (void *)Data->PrivateShadowOffset);
                 assert(Result == UR_RESULT_SUCCESS);
             }
             if (Data->LocalShadowOffset) {
-                Result = context.urDdiTable.USM.pfnFree(
+                Result = getContext()->urDdiTable.USM.pfnFree(
                     Context, (void *)Data->LocalShadowOffset);
                 assert(Result == UR_RESULT_SUCCESS);
             }
         }
         if (Data->LocalArgs) {
-            Result = context.urDdiTable.USM.pfnFree(Context,
-                                                    (void *)Data->LocalArgs);
+            Result = getContext()->urDdiTable.USM.pfnFree(
+                Context, (void *)Data->LocalArgs);
             assert(Result == UR_RESULT_SUCCESS);
         }
-        Result = context.urDdiTable.USM.pfnFree(Context, (void *)Data);
+        Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
         assert(Result == UR_RESULT_SUCCESS);
     }
-    Result = context.urDdiTable.Context.pfnRelease(Context);
+    Result = getContext()->urDdiTable.Context.pfnRelease(Context);
     assert(Result == UR_RESULT_SUCCESS);
-    Result = context.urDdiTable.Device.pfnRelease(Device);
+    Result = getContext()->urDdiTable.Device.pfnRelease(Device);
     assert(Result == UR_RESULT_SUCCESS);
 }
 
