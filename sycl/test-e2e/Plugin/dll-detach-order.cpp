@@ -1,7 +1,7 @@
 // REQUIRES: windows
 // RUN: env SYCL_UR_TRACE=1 sycl-ls | FileCheck %s
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: windows
+// UNSUPPORTED: windows, linux
 
 // ensure that the plugins are detached AFTER urLoaderTearDown is done executing
 

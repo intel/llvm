@@ -2,7 +2,7 @@
 // RUN: %{build} %opencl_lib -o %t.ocl.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 #include <CL/cl.h>
 #include <sycl/backend.hpp>

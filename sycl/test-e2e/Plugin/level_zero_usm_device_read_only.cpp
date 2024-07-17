@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s

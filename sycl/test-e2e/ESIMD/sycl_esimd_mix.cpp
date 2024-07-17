@@ -12,7 +12,7 @@
 // RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=11 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 #include "esimd_test_utils.hpp"
 

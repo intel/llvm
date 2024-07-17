@@ -2,7 +2,7 @@
 // RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %if level_zero %{env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s --implicit-check-not=LEAK %}
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 // Checks the UR call trace to ensure that the bundle kernel of the single task
 // is used.

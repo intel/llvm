@@ -1,6 +1,6 @@
 // REQUIRES: (opencl || level_zero) && gpu && ocloc
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants

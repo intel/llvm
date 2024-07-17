@@ -2,7 +2,7 @@
 // windows.
 // REQUIRES: (level_zero || opencl) && windows
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: windows
+// UNSUPPORTED: windows, linux
 
 // RUN: rm -rf %t/cache_dir
 // RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100

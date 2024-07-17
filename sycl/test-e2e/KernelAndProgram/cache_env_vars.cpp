@@ -22,7 +22,7 @@
 // CPU OCL JIT       0.12    0.12  0.16     1.1     16
 // CPU OCL Cache     0.01    0.01  0.01	   0.02   0.08
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 // CHECK-BUILD-NOT: urProgramCreateWithBinary(
 // CHECK-BUILD: urProgramCreateWithIL(

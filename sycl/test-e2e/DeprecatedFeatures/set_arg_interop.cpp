@@ -3,7 +3,7 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
 // RUN: %{run} %t.out
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

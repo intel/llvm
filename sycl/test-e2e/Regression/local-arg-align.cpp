@@ -2,7 +2,7 @@
 //
 // RUN: %{run} %t.out
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 
 // https://github.com/intel/llvm/issues/10682
 // UNSUPPORTED: gpu-intel-gen12

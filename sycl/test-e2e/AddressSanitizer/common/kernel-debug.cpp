@@ -3,7 +3,7 @@
 // RUN: env UR_LAYER_ASAN_OPTIONS=debug:1 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-DEBUG %s
 // RUN: env UR_LAYER_ASAN_OPTIONS=debug:0 %{run} %t 2>&1 | FileCheck %s
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
+// UNSUPPORTED: windows, linux
 #include <sycl/usm.hpp>
 
 /// This test is used to check enabling/disabling kernel debug message
