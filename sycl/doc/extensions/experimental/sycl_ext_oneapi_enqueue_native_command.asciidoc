@@ -66,15 +66,19 @@ This extension is derived from the experimental AdaptiveCpp extension,
 `enqueue_custom_operation` which is documented
 https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here].
 
-The extension aims to integrate asynchronous interop work submitted through the
-backend API with the asynchrony of the SYCL runtime DAG. As such it is required
-that any interop calls used within `ext_oneapi_enqueue_native_command`
-are asynchronous.
+The goal of `ext_oneapi_enqueue_native_command` is to integrate interop
+work within the SYCL runtime's creation of the asynchronous SYCL DAG. As such,
+the user defined lambda must only enqueue asynchronous, as opposed to
+synchronous, backend work within the user lambda. Asynchronous work must only
+be submitted to the native queue obtained from
+`interop_handle::get_native_queue`.
+
+=== Additions to handler class
 
 This extension adds the following new member function to the SYCL `handler`
 class:
 
-```
+```c++
 class handler {
   template <typename Func>
   void ext_oneapi_enqueue_native_command(Func&& interopCallable);
@@ -100,8 +104,7 @@ if the command group calls `handler::depends_on` or if it constructs an
 accessor. Note, however, that the SYCL command is associated with the
 _asynchronous tasks submitted by_ `interopCallable`, not the call to
 `interopCallable`. The call to `interopCallable` may happen even before the
-dependencies are satisfied. For more description of synchronization guarantees,
-see the <<Synchronization, Synchronization section>>.
+dependencies are satisfied.
 
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
@@ -137,58 +140,16 @@ q.submit([&](sycl::handler &cgh) {
 q.wait();
 ```
 
-== Specification
-
-=== Feature test macro
-
-This extension provides a feature-test macro as described in the core SYCL
-specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND` to one of the values defined
-in the table below.  Applications can test for the existence of this macro to
-determine if the implementation supports this feature, or applications can test
-the macro's value to determine which of the extension's features the
-implementation supports.
-
-[%header,cols="1,5"]
-|===
-|Value
-|Description
-
-|1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
-|===
-
-
-=== Synchronization
-
-The goal of `ext_oneapi_enqueue_native_command` is to integrate interop
-work within the SYCL runtime's creation of the asynchronous SYCL DAG. As such,
-the user defined lambda must only enqueue asynchronous, as opposed to
-synchronous, backend work within the user lambda. Asynchronous work must only
-be submitted to the native queue obtained from
-`interop_handle::get_native_queue`.
-
-Using `ext_oneapi_enqueue_native_command` allows the user to tell the
-SYCL runtime to dispatch interop work in the same manner that native SYCL
-commands, like `parallel_for` s or `memcpy` s, are dispatched by the SYCL
-runtime. If the SYCL runtime uses eager submission of commands to the backend,
-for normal kernel or other command submissions, then the callable passed to
-`ext_oneapi_enqueue_native_command` should execute eagerly, once any
-dependent events have also been submitted to the backend. If the SYCL runtime
-enqueues work to the backend lazily, then the user submitted callable will be
-executed lazily as well.
+=== Differences with `host_task`
 
 A callable submitted to `ext_oneapi_enqueue_native_command` won't wait
-on its dependent events to complete, only to be enqueued to the backend. This
-allows asynchronous interop work to be composed with asynchronous SYCL
-commands. This gives different sychronization guarantees from normal SYCL
-`host_task` s. `ext_oneapi_enqueue_native_command` doesn't provide
-synchronization for host side code in the user submitted callable, meaning host
-code will execute before its dependent events have been satisfied. Only interop
-work submitted to the native queue obtained by
-`interop_handle::get_native_queue` is guaranteed to execute once its
-dependencies are satisfied.
+on its dependent events to execute. The dependencies passed to an
+`ext_oneapi_enqueue_native_command` submission will result in dependencies being
+implicitly handled in the backend API, using the native queue object associated
+with the SYCL queue that the `sycl_ext_oneapi_enqueue_native_command` is
+submitted to. This gives different sychronization guarantees from normal SYCL
+`host_task` s, which guarantee that the `host_task` callable will only begin
+execution once all of its dependent events have completed.
 
 In this example:
 
@@ -223,17 +184,34 @@ asynchronous work enqueued to the native queue obtained through
 `interop_handle::get_native_queue()` has completed.
 
 
-=== Additions to handler class
+== Specification
 
-This extension adds the following new member function to the SYCL `handler`
-class:
+=== Feature test macro
 
-```
-class handler {
-  template <typename Func>
-  void ext_oneapi_enqueue_native_command(Func&& interopCallable);
-};
-```
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Enqueue Native Command
+
+In the interop callable submitted to `ext_oneapi_enqueue_native_command` all
+asynchronous interop work submitted to the native queue object returned by
+`interop_handle::get_native_queue` will be correctly synchronized with the
+command's dependent events.
 
 == Issues
 
