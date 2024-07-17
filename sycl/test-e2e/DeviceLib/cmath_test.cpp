@@ -160,15 +160,15 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
 // support from underlying device.
 #ifndef _WIN32
 template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
-  s::range<1> numOfItems{2};
-  T result[2] = {-1};
-  T ref[3] = {0, 2, 1};
+  constexpr int NumOfTestItems = 3;
+  T result[NumOfTestItems] = {-1};
+  T ref[NumOfTestItems] = {0, 2, 1};
   // Variable exponent is an integer value to store the exponent in frexp
   // function
   int exponent = -1;
 
   {
-    s::buffer<T, 1> buffer1(result, numOfItems);
+    s::buffer<T, 1> buffer1(result, NumOfTestItems);
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
     deviceQueue.submit([&](s::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
@@ -183,7 +183,7 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
   }
 
   // Compare result with reference
-  for (int i = 0; i < 2; ++i) {
+  for (int i = 0; i < NumOfTestItems; ++i) {
     assert(approx_equal_fp(result[i], ref[i]));
   }
 

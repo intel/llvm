@@ -98,14 +98,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
-  # Merge: fc9bb61b c893a3c4
+
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 6c2329edef40cdacb8e28704eb02172c4c17a903
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 20 15:50:02 2024 +0100
-  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
-  #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8ad8e38cd0852987e3bbf3c82f037bff6554b37f)
+  # Date:   Tue Jul 16 21:04:25 2024 +0100
+  #     Merge pull request #1743 from Seanst98/sean/copy-const-qualifiers
+  #     [Bindless][Exp] Add const-qualifier to Src param in urBindlessImagesImageCopyExp
+  set(UNIFIED_RUNTIME_TAG 6c2329edef40cdacb8e28704eb02172c4c17a903)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

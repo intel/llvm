@@ -41,12 +41,6 @@
 #include <sycl/property_list.hpp>                       // for property_list
 #include <sycl/range.hpp>                               // for range
 
-#if __SYCL_USE_FALLBACK_ASSERT
-// TODO: maybe we can move detail::submitAssertCapture into the shared library
-// instead.
-#include <sycl/detail/host_task_impl.hpp>
-#endif
-
 #include <cstddef>     // for size_t
 #include <functional>  // for function
 #include <memory>      // for shared_ptr, hash
@@ -2730,11 +2724,6 @@ private:
     submit_without_event_impl(CGF, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
-
-  /// Checks if the event needs to be discarded and if so, discards it and
-  /// returns a discarded event. Otherwise, it returns input event.
-  /// TODO: move to impl class in the next ABI Breaking window
-  event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
   // Arguments:
