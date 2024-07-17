@@ -317,9 +317,12 @@ sycl::event launch(LaunchPolicy launch_policy, Args... args);
 
 ```
 
-For local memory, `launch<function>` injects a pointer to a
-local `char *` accessor of the requested size as the last argument of the kernel
-function. For example, the previous function named `vectorAdd` can be modified
+For local memory, `launch<function>` injects a `char *` pointer to the beginning
+of a local accessor of the requested `local_mem_size` as the last argument of
+the kernel function. This `char *` can then be reinterpreted as the datatype
+required by the user within the kernel function.
+
+For example, the previous function named `vectorAdd` can be modified
 with the following signature, which adds a `char *` pointer to access local
 memory inside the kernel:
 
@@ -328,22 +331,44 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
                char *local_mem);
 ```
 
-Then, `vectorAdd` can be launched like this:
+Then, the new `vectorAdd` can be launched like this:
 
 ``` c++
 using syclcompat::experimental;
 launch_policy policy{blocksPerGrid, threadsPerBlock,
-                      local_mem_size(mem_size)};
+                      local_mem_size(nbytes)};
 launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
-This `launch` interface allows users to define a local memory scratchpad that
-can then be reinterpreted as the datatype required by the user within the kernel
-function.
+To request a different cache/local memory split on supported hardware:
 
+```c++
+using syclcompat::experimental;
+namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
-TODO: describe launch_policy usage here.
+sycl_intel_exp::cache_config cache_config{
+    sycl_intel_exp::large_slm};
+kernel_properties kernel_props{cache_config};
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                      local_mem_size(nbytes), kernel_props};
 
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
+```
+
+To request a certain cluster dimension on supported hardware:
+
+```c++
+using syclcompat::experimental;
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+sycl_exp::cuda::cluster_size ClusterDims(ClusterRange);
+sycl_exp::properties ClusterLaunchProperty{ClusterDims};
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                                  local_mem_size(nbytes), 
+                                  launch_properties{ClusterDims}};
+
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
+```
 
 ### Utilities
 
