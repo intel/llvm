@@ -22,7 +22,7 @@
 // CHECK-NEXT:         0 |     struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > > (base)
 // CHECK-NEXT:         0 |       struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > >::_Vector_impl _M_impl
 // CHECK-NEXT:         0 |         class std::allocator<class std::basic_string<char> > (base) (empty)
-// CHECK-NEXT:         0 |           class {{(std|__gnu_cxx)}}::__new_allocator<class std::basic_string<char> > (base) (empty)
+// CHECK-NEXT:         0 |           class {{(std::__new_allocator|__gnu_cxx::new_allocator)}}<class std::basic_string<char> > (base) (empty)
 // CHECK-NEXT:         0 |         struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > >::_Vector_impl_data (base)
 
 
@@ -33,7 +33,7 @@
 // CHECK-NEXT:         0 |     struct std::_Vector_base<struct std::pair<class std::basic_string<char>, class std::basic_string<char> >, class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > > (base)
 // CHECK-NEXT:         0 |       struct std::_Vector_base<struct std::pair<class std::basic_string<char>, class std::basic_string<char> >, class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > >::_Vector_impl _M_impl
 // CHECK-NEXT:         0 |         class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > (base) (empty)
-// CHECK-NEXT:         0 |           class {{(std|__gnu_cxx)}}::__new_allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > (base) (empty)
+// CHECK-NEXT:         0 |           class {{(std::__new_allocator|__gnu_cxx::new_allocator)}}<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > (base) (empty)
 // CHECK-NEXT:         0 |         struct std::_Vector_base<struct std::pair<class std::basic_string<char>, class std::basic_string<char> >, class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > >::_Vector_impl_data (base)
 
 
@@ -44,7 +44,7 @@
 // CHECK-NEXT:         0 |     struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > > (base)
 // CHECK-NEXT:         0 |       struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > >::_Vector_impl _M_impl
 // CHECK-NEXT:         0 |         class std::allocator<class std::basic_string<char> > (base) (empty)
-// CHECK-NEXT:         0 |           class {{(std|__gnu_cxx)}}::__new_allocator<class std::basic_string<char> > (base) (empty)
+// CHECK-NEXT:         0 |           class {{(std::__new_allocator|__gnu_cxx::new_allocator)}}<class std::basic_string<char> > (base) (empty)
 // CHECK-NEXT:         0 |         struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > >::_Vector_impl_data (base)
 
 #include <sycl/sycl.hpp>
