@@ -10,6 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <helpers/PiMock.hpp>
+#include <helpers/TestKernel.hpp>
 
 using namespace sycl;
 
@@ -41,4 +42,41 @@ TEST_F(SchedulerTest, FailedDependency) {
       << "MUser shouldn't be marked as failed\n";
   ASSERT_EQ(MDep.MEnqueueStatus, detail::EnqueueResultT::SyclEnqueueFailed)
       << "MDep should be marked as failed\n";
+}
+
+inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
+                                           const size_t *, const size_t *,
+                                           const size_t *,
+                                           pi_uint32 EventsCount,
+                                           const pi_event *, pi_event *) {
+  return PI_ERROR_UNKNOWN;
+}
+
+TEST_F(SchedulerTest, FailedKernelException) {
+  unittest::PiMock Mock;
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
+      customEnqueueKernelLaunch);
+  platform Plt = Mock.getPlatform();
+  int ExceptionListSize = 0;
+  sycl::async_handler AsyncHandler =
+      [&ExceptionListSize](sycl::exception_list ExceptionList) {
+        ExceptionListSize = ExceptionList.size();
+      };
+  bool ExceptionThrown = false;
+  queue Queue(context(Plt), default_selector_v, AsyncHandler);
+  {
+    int initVal = 0;
+    sycl::buffer<int, 1> Buf(&initVal, 1);
+    try {
+      Queue.submit([&](sycl::handler &CGH) {
+        Buf.get_access<sycl::access::mode::write>(CGH);
+        CGH.single_task<TestKernel<1>>([]() {});
+      });
+    } catch (...) {
+      ExceptionThrown = true;
+    }
+  }
+  EXPECT_TRUE(ExceptionThrown);
+  Queue.wait_and_throw();
+  EXPECT_EQ(ExceptionListSize, 0);
 }
