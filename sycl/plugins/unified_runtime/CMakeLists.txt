@@ -100,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
-  # Merge: 76c6bf9a 0cd10f63
+  # commit 6c2329edef40cdacb8e28704eb02172c4c17a903
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 11 15:12:38 2024 +0100
-  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
-  #     [DeviceSanitizer] Support detecting misaligned access error
-  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
+  # Date:   Tue Jul 16 21:04:25 2024 +0100
+  #     Merge pull request #1743 from Seanst98/sean/copy-const-qualifiers
+  #     [Bindless][Exp] Add const-qualifier to Src param in urBindlessImagesImageCopyExp
+  set(UNIFIED_RUNTIME_TAG 6c2329edef40cdacb8e28704eb02172c4c17a903)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

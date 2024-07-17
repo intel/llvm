@@ -200,11 +200,12 @@
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
 // 17.58 Added context parameter to piextMemImageGetInfo
-// 18.59 Remove deprecated functions piextMemImportOpaqueFD and
+// 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
+// 18.60 Remove deprecated functions piextMemImportOpaqueFD and
 //       piextImportExternalSemaphoreOpaqueFD
 
 #define _PI_H_VERSION_MAJOR 18
-#define _PI_H_VERSION_MINOR 59
+#define _PI_H_VERSION_MINOR 60
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3096,7 +3097,7 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
     const pi_image_copy_flags flags, pi_image_offset src_offset,
     pi_image_offset dst_offset, pi_image_region copy_extent,

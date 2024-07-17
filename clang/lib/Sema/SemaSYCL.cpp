@@ -5067,7 +5067,7 @@ void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
 
   Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
                                   int_header, int_footer);
-};
+}
 
 // Figure out the sub-group for the this function.  First we check the
 // attributes, then the global settings.
