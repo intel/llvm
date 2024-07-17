@@ -199,9 +199,11 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
+// 17.58 Added context parameter to piextMemImageGetInfo
+// 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
 
-#define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 57
+#define _PI_H_VERSION_MAJOR 17
+#define _PI_H_VERSION_MINOR 59
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1083,6 +1085,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
   "SYCL/device requirements"
 /// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
+/// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -3091,7 +3095,7 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
     const pi_image_copy_flags flags, pi_image_offset src_offset,
     pi_image_offset dst_offset, pi_image_region copy_extent,
@@ -3100,13 +3104,16 @@ __SYCL_EXPORT pi_result piextMemImageCopy(
 
 /// API to query an image memory handle for specific properties.
 ///
+/// \param context is the handle to the context
 /// \param mem_handle is the handle to the image memory
 /// \param param_name is the queried info name
 /// \param param_value is the returned query value
 /// \param param_value_size_ret is the returned query value size
-__SYCL_EXPORT pi_result piextMemImageGetInfo(
-    const pi_image_mem_handle mem_handle, pi_image_info param_name,
-    void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
+                                             pi_image_mem_handle mem_handle,
+                                             pi_image_info param_name,
+                                             void *param_value,
+                                             size_t *param_value_size_ret);
 
 /// [DEPRECATED] This function is deprecated in favor of
 /// `piextImportExternalMemory`

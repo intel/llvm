@@ -130,9 +130,13 @@ protected:
                                const void *Type, uint32_t Dim,
                                uint32_t ElemType, size_t Range[3]);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
 
@@ -147,6 +151,8 @@ protected:
   void handleRelease() const;
 
   std::shared_ptr<detail::buffer_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 } // namespace detail

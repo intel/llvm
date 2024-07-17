@@ -301,10 +301,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   // consistent with the required number of sub-groups for kernel in the
   // program source.
 
-  // Fallback
-  constexpr pi_result Error = PI_ERROR_INVALID_WORK_GROUP_SIZE;
-  throw runtime_error(
-      "PI backend failed. PI backend returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range),
+                  "internal error: expected HasLocalSize");
 }
 
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
@@ -348,9 +346,7 @@ void handleInvalidValue(const device_impl &DeviceImpl,
   }
 
   // fallback
-  constexpr pi_result Error = PI_ERROR_INVALID_VALUE;
-  throw runtime_error(
-      "Native API failed. Native API returns: " + codeToString(Error), Error);
+  throw exception(make_error_code(errc::nd_range), "unknown internal error");
 }
 
 void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
@@ -424,8 +420,8 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
-    throw runtime_error(
-        "Native API failed. Native API returns: " + codeToString(Error), Error);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::runtime), "PI error"), Error);
   }
 }
 
