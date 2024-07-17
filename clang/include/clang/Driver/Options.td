@@ -4030,7 +4030,7 @@ defm sycl_instrument_device_code
                     "(experimental)">>;
 defm sycl_decompose_functor
     : BoolFOption<"sycl-decompose-functor",
-          LangOpts<"SYCLDecomposeStruct">, DefaultFalse,
+          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
           PosFlag<SetTrue, [], [ClangOption], "Do">,
           NegFlag<SetFalse, [], [ClangOption], "Do not">,
           BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option],
