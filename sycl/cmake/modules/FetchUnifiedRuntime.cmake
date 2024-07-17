@@ -114,13 +114,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7e38af77174f92bf4025122b1fa8e3fc49f3ba29
-  # Merge: ddafd29b 6c7d7a76
+  # commit 6c2329edef40cdacb8e28704eb02172c4c17a903
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 15 15:14:47 2024 +0100
-  #     Merge pull request #1863 from kbenzie/benie/main-reverts
-  #     Revert "Merge pull request #1849 from ayylol/cl-subgroupsizes"
-  set(UNIFIED_RUNTIME_TAG 7e38af77174f92bf4025122b1fa8e3fc49f3ba29)
+  # Date:   Tue Jul 16 21:04:25 2024 +0100
+  #     Merge pull request #1743 from Seanst98/sean/copy-const-qualifiers
+  #     [Bindless][Exp] Add const-qualifier to Src param in urBindlessImagesImageCopyExp
+  set(UNIFIED_RUNTIME_TAG 6c2329edef40cdacb8e28704eb02172c4c17a903)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
