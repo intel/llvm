@@ -1,6 +1,6 @@
 // REQUIRES: native_cpu_ock
 
-// Tests that no linker errors occurr when group collective functions are used
+// Tests that no linker errors occur when group collective functions are used
 // in conjuction with SYCL_EXTERNAL.
 
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DFILE1 -c -o %t1.o %s
