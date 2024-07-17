@@ -1582,7 +1582,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
     ur_queue_handle_t,
     void *,
-    void *,
+    const void *,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_copy_flags_t,

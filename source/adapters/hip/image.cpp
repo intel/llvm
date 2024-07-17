@@ -76,7 +76,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] void *pDst,
-    [[maybe_unused]] void *pSrc,
+    [[maybe_unused]] const void *pSrc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_exp_image_copy_flags_t imageCopyFlags,
