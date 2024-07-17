@@ -71,9 +71,51 @@ backend API with the asynchrony of the SYCL runtime DAG. As such it is required
 that any interop calls used within `ext_oneapi_enqueue_native_command`
 are asynchronous.
 
+This extension adds the following new member function to the SYCL `handler`
+class:
+
+```
+class handler {
+  template <typename Func>
+  void ext_oneapi_enqueue_native_command(Func&& interopCallable);
+};
+```
+
+_Constraints_: The `Func` must a C++ callable object which takes a single
+parameter of type `interop_handle`. `interopCallable` must only submit
+asynchronous interop work to the backend, through the native backend object
+obtained from `interop_handle::get_native_queue`.
+
+_Effects_: The `interopCallable` object is called exactly once, and this call
+may be made asynchronously even after the calling thread returns from
+`ext_oneapi_enqueue_native_command`.
+
+The call to `interopCallable` may submit one or more asynchronous tasks to the
+native backend object obtained from `interop_handle::get_native_queue`, and
+these tasks become encapsulated in a SYCL command that is added to the queue.
+If the enclosing command group has any dependencies, these dependencies will be
+propagated to the native API during the command submission, meaning no further
+dependency analysis is needed within the native API. This happens, for example,
+if the command group calls `handler::depends_on` or if it constructs an
+accessor. Note, however, that the SYCL command is associated with the
+_asynchronous tasks submitted by_ `interopCallable`, not the call to
+`interopCallable`. The call to `interopCallable` may happen even before the
+dependencies are satisfied. For more description of synchronization guarantees,
+see the <<Synchronization, Synchronization section>>.
+
+The SYCL command described above completes once all of the native asynchronous
+tasks it contains have completed.
+
+The call to interopCallable must not submit any synchronous tasks to the native
+backend object, and it must not block waiting for any tasks to complete. The
+call also must not add tasks to backend objects that underly any other queue,
+aside from the queue that is associated with this handler. If it does any of
+these things, the behavior is undefined.
+
+_Example_:
+
 ```c++
 sycl::queue q;
-
 q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{buf, cgh};
 
@@ -94,11 +136,6 @@ q.submit([&](sycl::handler &cgh) {
   });
 q.wait();
 ```
-
-Provided that the correct dependencies are handled by the user within the SYCL
-API, there is no need to do any further synchronization within the backend API
-in the user submitted lambda.
-
 
 == Specification
 
@@ -134,9 +171,9 @@ be submitted to the native queue obtained from
 
 Using `ext_oneapi_enqueue_native_command` allows the user to tell the
 SYCL runtime to dispatch interop work in the same manner that native SYCL
-commands, like `parallel_for` s or `memcpy` s,  are dispatched. If the SYCL
-runtime uses eager submission of commands to the backend, for normal kernel or
-other command submissions, then the callable passed to
+commands, like `parallel_for` s or `memcpy` s, are dispatched by the SYCL
+runtime. If the SYCL runtime uses eager submission of commands to the backend,
+for normal kernel or other command submissions, then the callable passed to
 `ext_oneapi_enqueue_native_command` should execute eagerly, once any
 dependent events have also been submitted to the backend. If the SYCL runtime
 enqueues work to the backend lazily, then the user submitted callable will be
@@ -197,9 +234,6 @@ class handler {
   void ext_oneapi_enqueue_native_command(Func&& interopCallable);
 };
 ```
-Constraints: The `Func` must a C++ callable object which takes a single parameter
-of type `interop_handle`.
-
 
 == Issues
 
