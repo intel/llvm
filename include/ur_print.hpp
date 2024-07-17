@@ -752,8 +752,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
         break;
-    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP";
@@ -15191,10 +15191,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_destroy_external_semaphore_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_release_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_release_external_semaphore_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -17747,8 +17747,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_import_external_semaphore_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP: {
-        os << (const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP: {
+        os << (const struct ur_bindless_images_release_external_semaphore_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_wait_external_semaphore_exp_params_t *)params;
