@@ -7773,7 +7773,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     void *pDst,                               ///< [in] location the data will be copied to
-    void *pSrc,                               ///< [in] location the data will be copied from
+    const void *pSrc,                         ///< [in] location the data will be copied from
     const ur_image_format_t *pImageFormat,    ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,        ///< [in] pointer to image description
     ur_exp_image_copy_flags_t imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
@@ -11139,7 +11139,7 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
 typedef struct ur_bindless_images_image_copy_exp_params_t {
     ur_queue_handle_t *phQueue;
     void **ppDst;
-    void **ppSrc;
+    const void **ppSrc;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_image_copy_flags_t *pimageCopyFlags;

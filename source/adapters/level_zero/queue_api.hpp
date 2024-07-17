@@ -123,7 +123,7 @@ struct ur_queue_handle_t_ {
                                            const ur_event_handle_t *,
                                            ur_event_handle_t *) = 0;
   virtual ur_result_t bindlessImagesImageCopyExp(
-      void *, void *, const ur_image_format_t *, const ur_image_desc_t *,
+      void *, const void *, const ur_image_format_t *, const ur_image_desc_t *,
       ur_exp_image_copy_flags_t, ur_rect_offset_t, ur_rect_offset_t,
       ur_rect_region_t, ur_rect_region_t, uint32_t, const ur_event_handle_t *,
       ur_event_handle_t *) = 0;
