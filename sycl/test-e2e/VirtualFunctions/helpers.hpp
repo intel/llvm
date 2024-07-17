@@ -3,18 +3,24 @@
 
 // TODO: strictly speaking, selecting a max alignment here may not be always
 // valid, but for test cases that we have now we expect alignment of all types
-// to be the same
-template <typename... T>
-struct aligned_storage_helper
-    : std::aligned_storage<std::max({sizeof(T)...}),
-                           std::max({alignof(T)...})> {};
+// to be the same.
+// std::aligned_storage uses double under the hood which prevents us from
+// using it on some HW. Therefore we use a custom implementation.
+template <typename... T> struct aligned_storage {
+  static constexpr size_t Len = std::max({sizeof(T)...});
+  static constexpr size_t Align = std::max({alignof(T)...});
+
+  struct type {
+    alignas(Align) unsigned char data[Len];
+  };
+};
 
 // Helper data structure that automatically creates a right (in terms of size
 // and alignment) storage to accomodate a value of any of types T...
 template <typename... T> struct obj_storage_t {
   static_assert(std::max({alignof(T)...}) == std::min({alignof(T)...}),
                 "Unsupported alignment of input types");
-  using type = typename aligned_storage_helper<T...>::type;
+  using type = typename aligned_storage<T...>::type;
   static constexpr size_t size = std::max({sizeof(T)...});
 
   type storage;

@@ -8,6 +8,8 @@
 
 #include "helpers.hpp"
 
+#include <iostream>
+
 namespace oneapi = sycl::ext::oneapi::experimental;
 
 class AbstractOp {
@@ -46,14 +48,19 @@ class IncrementBy8 : public IncrementOp {
 
 void applyOp(int *Data, AbstractOp *Obj) { Obj->applyOp(Data); }
 
-int main() {
+int main() try {
   using storage_t =
       obj_storage_t<IncrementBy1, IncrementBy2, IncrementBy4, IncrementBy8>;
 
   storage_t HostStorage;
   sycl::buffer<storage_t> DeviceStorage(sycl::range{1});
 
-  sycl::queue q;
+  auto asyncHandler = [](sycl::exception_list list) {
+    for (auto &e : list)
+      std::rethrow_exception(e);
+  };
+
+  sycl::queue q(asyncHandler);
 
   constexpr oneapi::properties props{oneapi::calls_indirectly<>};
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
@@ -80,4 +87,7 @@ int main() {
   }
 
   return 0;
+} catch (sycl::exception &e) {
+  std::cout << "Unexpected exception was thrown: " << e.what() << std::endl;
+  return 1;
 }
