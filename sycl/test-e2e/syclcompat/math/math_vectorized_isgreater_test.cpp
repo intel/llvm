@@ -30,6 +30,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+// REQUIRES: aspect-fp16
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
