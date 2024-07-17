@@ -20,7 +20,7 @@
  *     Negative tests for new launch_policy.
  **************************************************************************/
 
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out 2>&1 | FileCheck -vv %s
+// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out 2>&1 | FileCheck -vv %s
 
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>
@@ -34,7 +34,6 @@
 
 namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
-namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
 // Notes on use of FileCheck here:
 // Failures do not necessarily occur in order (hence use of CHECK-DAG)

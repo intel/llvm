@@ -20,7 +20,7 @@
  *     launch<F> with kernel_properties tests
  **************************************************************************/
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -S -emit-llvm %s -o - | FileCheck %s
 
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>
