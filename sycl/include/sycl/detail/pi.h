@@ -200,11 +200,12 @@
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
 // 17.58 Added context parameter to piextMemImageGetInfo
-// 18.59 Changed the signature of piextMemImageCopy to take 2 image and format
+// 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
+// 18.60 Changed the signature of piextMemImageCopy to take 2 image and format
 //       descriptors.
 
 #define _PI_H_VERSION_MAJOR 18
-#define _PI_H_VERSION_MINOR 59
+#define _PI_H_VERSION_MINOR 60
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3097,7 +3098,7 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue queue, void *src_ptr, void *dst_ptr,
+    pi_queue queue,  void *dst_ptr, const void *src_ptr,
     const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
     const pi_image_format *src_image_format,
     const pi_image_format *dst_image_format, const pi_image_copy_flags flags,

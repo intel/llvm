@@ -405,7 +405,7 @@ pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 }
 
 pi_result piextMemImageCopy(
-    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
     const pi_image_desc *SrcImageDesc, const pi_image_desc *DestImageDesc,
     const pi_image_format *SrcImageFormat,
     const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,

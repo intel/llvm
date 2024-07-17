@@ -7,9 +7,6 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-// FIXME: enable opaque pointers support
-// REQUIRES: TEMPORARY_DISABLED
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM pointer.
 

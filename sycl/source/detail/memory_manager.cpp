@@ -1649,7 +1649,7 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
 }
 
 void MemoryManager::copy_image_bindless(
-    QueueImplPtr Queue, void *Src, void *Dst,
+    QueueImplPtr Queue, const void *Src, void *Dst,
     const sycl::detail::pi::PiMemImageDesc &SrcImageDesc,
     const sycl::detail::pi::PiMemImageDesc &DestImageDesc,
     const sycl::detail::pi::PiMemImageFormat &SrcImageFormat,

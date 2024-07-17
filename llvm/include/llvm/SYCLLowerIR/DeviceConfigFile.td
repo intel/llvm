@@ -160,9 +160,40 @@ def : TargetInfo<"x86_64", [], [], "", "", 1>;
 
 // TODO: The aspects listed for the intel_gpu targets right now are incomplete; 
 // only the fp16/fp64/atomic64 aspects are listed.
-def : TargetInfo<"intel_gpu_cfl", [AspectFp16, AspectFp64, AspectAtomic64], [8, 16, 32]>;
-def : TargetInfo<"intel_gpu_tgllp", [AspectFp16, AspectAtomic64], [8, 16, 32]>;
-def : TargetInfo<"intel_gpu_pvc", [AspectFp16, AspectFp64, AspectAtomic64], [16, 32]>;
+defvar Fp16Fp64Atomic64 = [AspectFp16, AspectFp64, AspectAtomic64];
+defvar Fp16Atomic64 = [AspectFp16, AspectAtomic64];
+defvar Sg8_16_32 = [8, 16, 32];
+defvar Sg16_32 = [16, 32];
+defvar IntelBaseAspects = [AspectExt_intel_esimd];
+class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizesList>
+: TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
+// Note: only the "canonical" target names are listed here - see
+// SYCL::gen::resolveGenDevice().
+def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_pvc_vg", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_pvc", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_acm_g12", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_acm_g11", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_acm_g10", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_dg1", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_adl_n", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_adl_p", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_adl_s", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_rkl", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_tgllp", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_ehl", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_icllp", Fp16Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_cml", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_aml", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_whl", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_glk", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_apl", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_cfl", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_kbl", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_skl", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_bdw", Fp16Fp64Atomic64, Sg8_16_32>;
 
 //
 // CUDA / NVPTX device aspects
