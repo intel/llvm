@@ -267,7 +267,7 @@ bool hasDoubleType(const Type *T) {
   if (T->isDoubleTy())
     return true;
   for (const Type *TT : T->subtypes())
-    if (TT->isDoubleTy())
+    if (hasDoubleType(TT))
       return true;
   return false;
 }
