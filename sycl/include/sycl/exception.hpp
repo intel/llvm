@@ -119,7 +119,7 @@ private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
   std::shared_ptr<detail::string> MMsg;
-  int32_t MURErr = 0;
+  int32_t MErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
@@ -130,7 +130,7 @@ protected:
 
   exception(std::error_code Ec, const std::string &Msg, const int32_t URErr)
       : exception(Ec, nullptr, Msg + " " + detail::codeToString(URErr)) {
-    MURErr = URErr;
+    MErr = URErr;
   }
 
   // base constructor for all SYCL 2020 constructors

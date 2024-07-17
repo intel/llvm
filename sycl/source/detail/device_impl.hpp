@@ -62,34 +62,34 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to UR device
-  ur_device_handle_t &getHandleRef() { return MUrDevice; }
+  ur_device_handle_t &getHandleRef() { return MDevice; }
 
   /// Get constant reference to UR device
   ///
   /// For host device an exception is thrown
   ///
   /// \return constant reference to UR device
-  const ur_device_handle_t &getHandleRef() const { return MUrDevice; }
+  const ur_device_handle_t &getHandleRef() const { return MDevice; }
 
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return MUrType == UR_DEVICE_TYPE_CPU; }
+  bool is_cpu() const { return MType == UR_DEVICE_TYPE_CPU; }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return MUrType == UR_DEVICE_TYPE_GPU; }
+  bool is_gpu() const { return MType == UR_DEVICE_TYPE_GPU; }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const { return MUrType == UR_DEVICE_TYPE_FPGA; }
+  bool is_accelerator() const { return MType == UR_DEVICE_TYPE_FPGA; }
 
   /// Return device type
   ///
   /// \return the type of the device
-  ur_device_type_t get_device_type() const { return MUrType; }
+  ur_device_type_t get_device_type() const { return MType; }
 
   /// Get associated SYCL platform
   ///
@@ -211,7 +211,7 @@ public:
 
   bool isAssertFailSupported() const;
 
-  bool isRootDevice() const { return MUrRootDevice == nullptr; }
+  bool isRootDevice() const { return MRootDevice == nullptr; }
 
   std::string getDeviceName() const;
 
@@ -298,9 +298,9 @@ private:
                        ur_device_handle_t Device, PlatformImplPtr Platform,
                        const PluginPtr &Plugin);
 
-  ur_device_handle_t MUrDevice = 0;
-  ur_device_type_t MUrType;
-  ur_device_handle_t MUrRootDevice = nullptr;
+  ur_device_handle_t MDevice = 0;
+  ur_device_type_t MType;
+  ur_device_handle_t MRootDevice = nullptr;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;

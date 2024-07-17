@@ -918,7 +918,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   }
 
   if (!SrcMem || !DstMem)
-
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory copy operation.");
 

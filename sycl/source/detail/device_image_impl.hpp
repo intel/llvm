@@ -61,7 +61,7 @@ public:
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
                     ur_program_handle_t Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()) {
     updateSpecConstSymMap();
@@ -74,7 +74,7 @@ public:
                     const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap) {}
@@ -243,7 +243,7 @@ public:
   }
 
   const ur_program_handle_t &get_ur_program_ref() const noexcept {
-    return MURProgram;
+    return MProgram;
   }
 
   const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
@@ -286,23 +286,23 @@ public:
   }
 
   ur_native_handle_t getNative() const {
-    assert(MURProgram);
+    assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
-      Plugin->call(urProgramRetain, MURProgram);
+      Plugin->call(urProgramRetain, MProgram);
     ur_native_handle_t NativeProgram = 0;
-    Plugin->call(urProgramGetNativeHandle, MURProgram, &NativeProgram);
+    Plugin->call(urProgramGetNativeHandle, MProgram, &NativeProgram);
 
     return NativeProgram;
   }
 
   ~device_image_impl() {
     try {
-      if (MURProgram) {
+      if (MProgram) {
         const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-        Plugin->call(urProgramRelease, MURProgram);
+        Plugin->call(urProgramRelease, MProgram);
       }
       if (MSpecConstsBuffer) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
@@ -394,7 +394,7 @@ private:
   std::vector<device> MDevices;
   bundle_state MState;
   // Native program handler which this device image represents
-  ur_program_handle_t MURProgram = nullptr;
+  ur_program_handle_t MProgram = nullptr;
 
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp

@@ -45,7 +45,7 @@ public:
 };
 
 static std::vector<ur_event_handle_t>
-getUREvents(const std::vector<sycl::event> &DepEvents) {
+getUrEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
     const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
@@ -58,7 +58,7 @@ getUREvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
+  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
                     sizeof(result), &result, nullptr);
   return result;
 }
@@ -438,7 +438,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       if ((MDiscardEvents || !CallerNeedsEvent) &&
           supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getUREvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
         return createDiscardedEvent();
       }
@@ -447,7 +447,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getUREvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   &EventImpl->getHandleRef(), EventImpl);
       }
 
@@ -634,13 +634,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call(urQueueRetain, MUrQueues[0]);
+    Plugin->call(urQueueRetain, MQueues[0]);
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
-  Plugin->call(urQueueGetNativeHandle, MUrQueues[0], &UrNativeDesc, &Handle);
+  Plugin->call(urQueueGetNativeHandle, MQueues[0], &UrNativeDesc, &Handle);
   return Handle;
 }
 
@@ -670,7 +670,7 @@ bool queue_impl::ext_oneapi_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   ur_bool_t IsReady = false;
-  getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_EMPTY,
+  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_EMPTY,
                     sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;

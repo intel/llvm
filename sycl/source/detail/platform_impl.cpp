@@ -198,7 +198,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
 
   // Find out backend of the platform
   ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-  MPlugin->call(urPlatformGetInfo, MUrPlatform, UR_PLATFORM_INFO_BACKEND,
+  MPlugin->call(urPlatformGetInfo, MPlatform, UR_PLATFORM_INFO_BACKEND,
                 sizeof(ur_platform_backend_t), &UrBackend, nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
@@ -206,7 +206,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
   std::lock_guard<std::mutex> Guard(*MPlugin->getPluginMutex());
-  int DeviceNum = MPlugin->getStartingDeviceId(MUrPlatform);
+  int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
   for (ur_device_handle_t Device : UrDevices) {
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     MPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
@@ -269,7 +269,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  MPlugin->setLastDeviceId(MUrPlatform, DeviceNum);
+  MPlugin->setLastDeviceId(MPlatform, DeviceNum);
   return original_indices;
 }
 
@@ -460,7 +460,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   uint32_t NumDevices = 0;
-  MPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
+  MPlugin->call(urDeviceGet, MPlatform, UrDeviceType,
                 0, // CP info::device_type::all
                 nullptr, &NumDevices);
   const backend Backend = getBackend();
@@ -473,20 +473,20 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // Needs non const plugin reference.
     std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
-                           [&Platform = MUrPlatform](PluginPtr &Plugin) {
+                           [&Platform = MPlatform](PluginPtr &Plugin) {
                              return Plugin->containsUrPlatform(Platform);
                            });
     if (It != Plugins.end()) {
       PluginPtr &Plugin = *It;
       std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
-      Plugin->adjustLastDeviceId(MUrPlatform);
+      Plugin->adjustLastDeviceId(MPlatform);
     }
     return Res;
   }
 
   std::vector<ur_device_handle_t> UrDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  MPlugin->call(urDeviceGet, MUrPlatform,
+  MPlugin->call(urDeviceGet, MPlatform,
                 UrDeviceType, // CP info::device_type::all
                 NumDevices, UrDevices.data(), nullptr);
 
@@ -496,7 +496,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(UrDevices, MUrPlatform, MPlugin);
+    applyAllowList(UrDevices, MPlatform, MPlugin);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -509,7 +509,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MUrPlatform, MPlugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MPlugin);
   std::transform(
       UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
@@ -536,7 +536,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
   std::string AllExtensionNames = get_platform_info_string_impl(
-      MUrPlatform, getPlugin(),
+      MPlatform, getPlugin(),
       detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }

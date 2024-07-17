@@ -376,7 +376,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
   for (ur_device_handle_t Device : UrDevices) {
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
-    ur_device_type_t UrDevType;
+    ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
                  sizeof(UrDevType), &UrDevType, nullptr);
     // TODO need mechanism to do these casts, there's a bunch of this sort of
@@ -387,14 +387,14 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     case UR_DEVICE_TYPE_ALL:
       DeviceType = info::device_type::all;
       break;
-      DeviceType = info::device_type::gpu;
     case UR_DEVICE_TYPE_GPU:
+      DeviceType = info::device_type::gpu;
       break;
-      DeviceType = info::device_type::cpu;
     case UR_DEVICE_TYPE_CPU:
+      DeviceType = info::device_type::cpu;
       break;
-      DeviceType = info::device_type::accelerator;
     case UR_DEVICE_TYPE_FPGA:
+      DeviceType = info::device_type::accelerator;
       break;
     }
     for (const auto &SyclDeviceType :

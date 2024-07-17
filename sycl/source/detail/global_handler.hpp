@@ -23,7 +23,6 @@ class Scheduler;
 class ProgramManager;
 class Sync;
 class plugin;
-class plugin;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;

@@ -74,9 +74,9 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getPlugin()->call(urKernelRetain, MURKernel);
+    getPlugin()->call(urKernelRetain, MKernel);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
+    getPlugin()->call(urKernelGetNativeHandle, MKernel, &nativeHandle);
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -120,7 +120,7 @@ public:
   ///
   /// \return a constant reference to a valid UrKernel instance with raw
   /// kernel object.
-  const ur_kernel_handle_t &getHandleRef() const { return MURKernel; }
+  const ur_kernel_handle_t &getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -134,10 +134,10 @@ public:
     const PluginPtr &Plugin = MContext->getPlugin();
 
     if (MContext->getBackend() == backend::opencl)
-      Plugin->call(urKernelRetain, MURKernel);
+      Plugin->call(urKernelRetain, MKernel);
 
     ur_native_handle_t NativeKernel = 0;
-    Plugin->call(urKernelGetNativeHandle, MURKernel, &NativeKernel);
+    Plugin->call(urKernelGetNativeHandle, MKernel, &NativeKernel);
 
     return NativeKernel;
   }
@@ -157,7 +157,7 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
 
 private:
-  ur_kernel_handle_t MURKernel = nullptr;
+  ur_kernel_handle_t MKernel = nullptr;
   const ContextImplPtr MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;

@@ -39,7 +39,7 @@ public:
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(ur_platform_handle_t APlatform,
                          const std::shared_ptr<plugin> &APlugin)
-      : MUrPlatform(APlatform), MPlugin(APlugin) {
+      : MPlatform(APlatform), MPlugin(APlugin) {
     // Find out backend of the platform
     ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
     APlugin->call_nocheck(urPlatformGetInfo, APlatform,
@@ -92,16 +92,15 @@ public:
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
     const auto &Plugin = getPlugin();
-    ur_result_t Err =
-        Plugin->call_nocheck(urPlatformGetBackendOption, MUrPlatform,
-                             frontend_option, backend_option);
+    ur_result_t Err = Plugin->call_nocheck(
+        urPlatformGetBackendOption, MPlatform, frontend_option, backend_option);
     Plugin->checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
+    getPlugin()->call(urPlatformGetNativeHandle, MPlatform, &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
@@ -112,7 +111,7 @@ public:
   /// is in use.
   ///
   /// \return a raw plug-in platform handle.
-  const ur_platform_handle_t &getHandleRef() const { return MUrPlatform; }
+  const ur_platform_handle_t &getHandleRef() const { return MPlatform; }
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -207,7 +206,7 @@ private:
   filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
                      ListT *FilterList) const;
 
-  ur_platform_handle_t MUrPlatform = 0;
+  ur_platform_handle_t MPlatform = 0;
   backend MBackend;
 
   PluginPtr MPlugin;

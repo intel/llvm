@@ -13,7 +13,6 @@
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/property_list.hpp>     // for property_list
-#include <ur_api.h>
 
 #include <cstddef> // for size_t
 #include <memory>  // for shared_ptr, hash

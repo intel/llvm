@@ -635,8 +635,8 @@ void exec_graph_impl::findRealDeps(
     // Verify if CurrentNode belong the the same partition
     if (MPartitionNodes[CurrentNode] == ReferencePartitionNum) {
       // Verify that the sync point has actually been set for this node.
-      auto SyncPoint = MUrSyncPoints.find(CurrentNode);
-      assert(SyncPoint != MUrSyncPoints.end() &&
+      auto SyncPoint = MSyncPoints.find(CurrentNode);
+      assert(SyncPoint != MSyncPoints.end() &&
              "No sync point has been set for node dependency.");
       // Check if the dependency has already been added.
       if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) ==
@@ -712,7 +712,7 @@ void exec_graph_impl::createCommandBuffers(
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
   }
 
-  Partition->MUrCommandBuffers[Device] = OutCommandBuffer;
+  Partition->MCommandBuffers[Device] = OutCommandBuffer;
 
   for (const auto &Node : Partition->MSchedule) {
     // Empty nodes are not processed as other nodes, but only their
@@ -729,10 +729,10 @@ void exec_graph_impl::createCommandBuffers(
                     Node->MCommandGroup.get())
                     ->MStreams.size() ==
             0) {
-      MUrSyncPoints[Node] =
+      MSyncPoints[Node] =
           enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
     } else {
-      MUrSyncPoints[Node] =
+      MSyncPoints[Node] =
           enqueueNode(MContext, DeviceImpl, OutCommandBuffer, Node);
     }
 
@@ -757,7 +757,7 @@ void exec_graph_impl::createCommandBuffers(
 exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
-    : MSchedule(), MGraphImpl(GraphImpl), MUrSyncPoints(),
+    : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -791,7 +791,7 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
-      for (const auto &Iter : Partition->MUrCommandBuffers) {
+      for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
           ur_result_t Res =
               Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
@@ -847,8 +847,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       CGData.MEvents.push_back(PartitionsExecutionEvents[DepPartition]);
     }
 
-    auto CommandBuffer =
-        CurrentPartition->MUrCommandBuffers[Queue->get_device()];
+    auto CommandBuffer = CurrentPartition->MCommandBuffers[Queue->get_device()];
 
     if (CommandBuffer) {
       // if previous submissions are incompleted, we automatically

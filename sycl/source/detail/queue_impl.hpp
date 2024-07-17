@@ -166,7 +166,7 @@ public:
     }
     const QueueOrder QOrder =
         MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-    MUrQueues.push_back(createQueue(QOrder));
+    MQueues.push_back(createQueue(QOrder));
     // This section is the second part of the instrumentation that uses the
     // tracepoint information and notifies
 
@@ -218,12 +218,12 @@ private:
                             "discard_events and enable_profiling.");
     }
 
-    MUrQueues.push_back(UrQueue);
+    MQueues.push_back(UrQueue);
 
     ur_device_handle_t DeviceUr{};
     const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_DEVICE,
+    Plugin->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_DEVICE,
                  sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
@@ -323,7 +323,7 @@ public:
 #endif
       throw_asynchronous();
       cleanup_fusion_cmd();
-      getPlugin()->call(urQueueRelease, MUrQueues[0]);
+      getPlugin()->call(urQueueRelease, MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -332,9 +332,9 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getPlugin()->call(urQueueRetain, MUrQueues[0]);
+    getPlugin()->call(urQueueRetain, MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr,
+    getPlugin()->call(urQueueGetNativeHandle, MQueues[0], nullptr,
                       &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -381,7 +381,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    for (const auto &queue : MUrQueues) {
+    for (const auto &queue : MQueues) {
       getPlugin()->call(urQueueFlush, queue);
     }
   }
@@ -602,13 +602,13 @@ public:
       // To achieve parallelism for FPGA with in order execution model with
       // possibility of two kernels to share data with each other we shall
       // create a queue for every kernel enqueued.
-      if (MUrQueues.size() < MaxNumQueues) {
-        MUrQueues.push_back({});
-        PIQ = &MUrQueues.back();
+      if (MQueues.size() < MaxNumQueues) {
+        MQueues.push_back({});
+        PIQ = &MQueues.back();
       } else {
         // If the limit of OpenCL queues is going to be exceeded - take the
         // earliest used queue, wait until it finished and then reuse it.
-        PIQ = &MUrQueues[MNextQueueIdx];
+        PIQ = &MQueues[MNextQueueIdx];
         MNextQueueIdx = (MNextQueueIdx + 1) % MaxNumQueues;
         ReuseQueue = true;
       }
@@ -626,7 +626,7 @@ public:
   /// is caller responsibility to make sure queue is still alive.
   ur_queue_handle_t &getHandleRef() {
     if (!MEmulateOOO)
-      return MUrQueues[0];
+      return MQueues[0];
 
     return getExclusiveUrQueueHandleRef();
   }
@@ -967,7 +967,7 @@ protected:
   const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
-  std::vector<ur_queue_handle_t> MUrQueues;
+  std::vector<ur_queue_handle_t> MQueues;
   /// Iterator through MQueues.
   size_t MNextQueueIdx = 0;
 

@@ -1130,27 +1130,27 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   }
 }
 
-static const char *getURDeviceTarget(const char *PIDeviceTarget) {
-  if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+static const char *getUrDeviceTarget(const char *URDeviceTarget) {
+  if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
     return UR_DEVICE_BINARY_TARGET_UNKNOWN;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV32) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV32;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64;
-  else if (strcmp(PIDeviceTarget,
+  else if (strcmp(URDeviceTarget,
                   __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
            0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(PIDeviceTarget,
+  else if (strcmp(URDeviceTarget,
                   __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_AMDGCN) == 0)
     return UR_DEVICE_BINARY_TARGET_AMDGCN;
-  else if (strcmp(PIDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
+  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
            0)
     return "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
 
@@ -1173,7 +1173,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
     UrBinaries[BinaryCount].pDeviceTargetSpec =
-        getURDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
+        getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
   uint32_t ImgInd = 0;
@@ -1261,7 +1261,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
     UrBinaries[BinaryCount].pDeviceTargetSpec =
-        getURDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
+        getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
   getSyclObjImpl(Context)->getPlugin()->call(
@@ -1754,7 +1754,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<ur_device_binary>(&BinImage->getRawData());
 
   ur_device_binary_t UrBinary{};
-  UrBinary.pDeviceTargetSpec = getURDeviceTarget(DevBin->DeviceTargetSpec);
+  UrBinary.pDeviceTargetSpec = getUrDeviceTarget(DevBin->DeviceTargetSpec);
 
   ur_result_t Error =
       Plugin->call_nocheck(urDeviceSelectBinary, URDeviceHandle, &UrBinary,

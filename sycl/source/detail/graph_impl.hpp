@@ -803,7 +803,7 @@ private:
 class partition {
 public:
   /// Constructor.
-  partition() : MSchedule(), MUrCommandBuffers() {}
+  partition() : MSchedule(), MCommandBuffers() {}
 
   /// List of root nodes.
   std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
@@ -812,7 +812,7 @@ public:
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
-      MUrCommandBuffers;
+      MCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
   /// True if the graph of this partition is a single path graph
@@ -1466,7 +1466,7 @@ private:
   /// execution in the command graph.
   std::unordered_map<std::shared_ptr<node_impl>,
                      ur_exp_command_buffer_sync_point_t>
-      MUrSyncPoints;
+      MSyncPoints;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;

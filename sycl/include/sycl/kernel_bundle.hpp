@@ -19,6 +19,7 @@
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
+#include <ur_api.h>                     // for ur_native_handle_t
 
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options

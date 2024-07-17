@@ -23,7 +23,7 @@ option(SYCL_PI_UR_USE_FETCH_CONTENT
 set(SYCL_PI_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
-# Override default to enable building tests from unified-runtime
+# Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UMF_ENABLE_POOL_TRACKING ON)
@@ -222,7 +222,7 @@ if(TARGET UnifiedRuntimeLoader)
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
-  # TODO: yeah we definitely should do this as part of the port
+  # See issue #post-work-merge
   install(TARGETS ur_loader
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev

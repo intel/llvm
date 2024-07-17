@@ -29,6 +29,7 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
+      MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
       MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
@@ -38,7 +39,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MUrContext(nullptr), MPlatform(), MPropList(PropList),
+      MContext(nullptr), MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
@@ -59,7 +60,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
   }
 
   getPlugin()->call(urContextCreate, DeviceIds.size(), DeviceIds.data(),
-                    nullptr, &MUrContext);
+                    nullptr, &MContext);
 
   MKernelProgramCache.setContextPtr(this);
 }
@@ -69,7 +70,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
-      MDevices(DeviceList), MUrContext(UrContext), MPlatform(),
+      MDevices(DeviceList), MContext(UrContext), MPlatform(),
       MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
@@ -77,11 +78,11 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urContextGetInfo, MUrContext, UR_CONTEXT_INFO_NUM_DEVICES,
+    Plugin->call(urContextGetInfo, MContext, UR_CONTEXT_INFO_NUM_DEVICES,
                  sizeof(DevicesNum), &DevicesNum, nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urContextGetInfo, MUrContext, UR_CONTEXT_INFO_DEVICES,
+    Plugin->call(urContextGetInfo, MContext, UR_CONTEXT_INFO_DEVICES,
                  sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0],
                  nullptr);
 
@@ -105,16 +106,16 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getPlugin()->call(urContextRetain, MUrContext);
+    getPlugin()->call(urContextRetain, MContext);
   }
   MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin()->call(urContextRetain, MUrContext);
+  getPlugin()->call(urContextRetain, MContext);
   ur_native_handle_t nativeHandle = 0;
-  getPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
+  getPlugin()->call(urContextGetNativeHandle, MContext, &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }
 
@@ -135,7 +136,7 @@ context_impl::~context_impl() {
       getPlugin()->call(urProgramRelease, LibProg.second);
     }
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call_nocheck(urContextRelease, MUrContext);
+    getPlugin()->call_nocheck(urContextRelease, MContext);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
@@ -262,9 +263,9 @@ context_impl::get_backend_info<info::device::backend_version>() const {
   // empty string as per specification.
 }
 
-ur_context_handle_t &context_impl::getHandleRef() { return MUrContext; }
+ur_context_handle_t &context_impl::getHandleRef() { return MContext; }
 const ur_context_handle_t &context_impl::getHandleRef() const {
-  return MUrContext;
+  return MContext;
 }
 
 KernelProgramCache &context_impl::getKernelProgramCache() const {

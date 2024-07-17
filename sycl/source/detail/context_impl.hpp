@@ -248,7 +248,7 @@ private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
-  ur_context_handle_t MUrContext;
+  ur_context_handle_t MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;

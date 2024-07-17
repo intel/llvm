@@ -19,14 +19,14 @@ namespace detail {
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MURKernel(Kernel), MContext(Context),
+    : MKernel(Kernel), MContext(Context),
       MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
                                                                       Context)),
       MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
   // Using the plugin from the passed ContextImpl
-  getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
+  getPlugin()->call(urKernelGetInfo, MKernel, UR_KERNEL_INFO_CONTEXT,
                     sizeof(UrContext), &UrContext, nullptr);
   if (Context->getHandleRef() != UrContext)
     throw sycl::exception(
@@ -38,7 +38,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
   // For others, UR will turn this into a NOP.
   if (Context->getPlatformImpl()->supports_usm()) {
     bool EnableAccess = true;
-    getPlugin()->call(urKernelSetExecInfo, MURKernel,
+    getPlugin()->call(urKernelSetExecInfo, MKernel,
                       UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
                       sizeof(ur_bool_t), nullptr, &EnableAccess);
   }
@@ -49,7 +49,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
-    : MURKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
@@ -59,7 +59,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
 kernel_impl::~kernel_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call(urKernelRelease, MURKernel);
+    getPlugin()->call(urKernelRelease, MKernel);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }

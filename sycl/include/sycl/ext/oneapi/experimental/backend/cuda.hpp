@@ -75,7 +75,7 @@ inline device make_device<backend::ext_oneapi_cuda>(
     }
   }
   ur_native_handle_t NativeHandle =
-      detail::pi::cast<ur_native_handle_t>(BackendObject);
+      detail::ur::cast<ur_native_handle_t>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
 
@@ -84,7 +84,7 @@ template <>
 inline event make_event<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, event> &BackendObject,
     const context &TargetContext) {
-  return detail::make_event(detail::pi::cast<ur_native_handle_t>(BackendObject),
+  return detail::make_event(detail::ur::cast<ur_native_handle_t>(BackendObject),
                             TargetContext, true,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
@@ -96,7 +96,7 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const context &TargetContext, const async_handler Handler) {
   int32_t nativeHandleDesc = 0;
   const property_list &PropList{};
-  return detail::make_queue(detail::pi::cast<ur_native_handle_t>(BackendObject),
+  return detail::make_queue(detail::ur::cast<ur_native_handle_t>(BackendObject),
                             nativeHandleDesc, TargetContext, nullptr, true,
                             PropList, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);

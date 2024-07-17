@@ -17,11 +17,11 @@
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/device.hpp>            // for device, device_impl
 #include <sycl/exception.hpp>
-#include <sycl/exception_list.hpp>    // for queue_impl
+#include <sycl/exception_list.hpp>                    // for queue_impl
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/image.hpp>                             // for image
 #include <sycl/properties/buffer_properties.hpp>      // for buffer
-#include <ur_api.h>
+#include <ur_api.h> // for ur_mem_handle_t, ur...
 
 #include <memory>      // for shared_ptr
 #include <stdint.h>    // for int32_t
