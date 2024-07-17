@@ -143,7 +143,6 @@
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
-// CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
@@ -158,5 +157,6 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
+// CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:
