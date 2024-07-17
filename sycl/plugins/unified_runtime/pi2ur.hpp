@@ -5322,7 +5322,7 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
 }
 
 inline pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
+piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
                   const pi_image_format *ImageFormat,
                   const pi_image_desc *ImageDesc,
                   const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
