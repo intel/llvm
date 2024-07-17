@@ -129,9 +129,9 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     case UR_DEVICE_TYPE_GPU: {
         uptr Ptr;
         [[maybe_unused]] ur_result_t Result =
-            context.urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,
-                                                  nullptr, 4, (void **)&Ptr);
-        context.logger.debug("GetDeviceType: {}", (void *)Ptr);
+            getContext()->urDdiTable.USM.pfnDeviceAlloc(
+                Context, Device, nullptr, nullptr, 4, (void **)&Ptr);
+        getContext()->logger.debug("GetDeviceType: {}", (void *)Ptr);
         assert(Result == UR_RESULT_SUCCESS &&
                "getDeviceType() failed at allocating device USM");
         // FIXME: There's no API querying the address bits of device, so we guess it by the
@@ -142,7 +142,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
         } else {
             Type = DeviceType::GPU_DG2;
         }
-        Result = context.urDdiTable.USM.pfnFree(Context, (void *)Ptr);
+        Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Ptr);
         assert(Result == UR_RESULT_SUCCESS &&
                "getDeviceType() failed at releasing device USM");
         return Type;
