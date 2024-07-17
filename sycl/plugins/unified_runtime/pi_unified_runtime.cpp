@@ -1359,7 +1359,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
     const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
     const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
     pi_image_offset DstOffset, pi_image_region CopyExtent,
