@@ -176,7 +176,7 @@ void invokeCompiler(const std::filesystem::path &FPath,
       userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
       ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + " 2> " +
+      FilePath.make_preferred().string() + " > " +
       LogPath.make_preferred().string();
 
   int Result = std::system(Command.c_str());
