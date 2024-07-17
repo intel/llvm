@@ -109,7 +109,7 @@ void test_variadic_config_ctor() {
   {
     sycl::range<3> launch_range{1, 1, 32};
     compat_exp::local_mem_size lmem_size(0);
-    compat_exp::launch_policy range_and_local_mem_config(launch_range,
+    compat_exp::launch_policy range_and_local_mem_config_1(launch_range,
                                                          lmem_size);
     //CHECK-DAG: error: static assertion failed due to requirement 'syclcompat::detail::is_nd_range_v<sycl::range<3>> || !true': sycl::range kernel launches are incompatible with local
   }
