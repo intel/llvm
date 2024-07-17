@@ -1,6 +1,6 @@
 // REQUIRES: accelerator
 // https://github.com/intel/llvm/issues/14308
-// UNSUPPORTED: accelerator
+// Temporarily re-enabled for testing purposes
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
