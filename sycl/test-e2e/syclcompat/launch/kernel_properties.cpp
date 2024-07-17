@@ -45,7 +45,7 @@ int test_kernel_properties() {
                                       my_k_props);
   compat_exp::launch<empty_kernel_1>(my_config);
 
-  //CHECK: {{define.*spir_kernel.*empty_kernel_1.* !intel_reqd_sub_group_size !}}
+  //CHECK: {{define.*kernel.*empty_kernel_1.* !intel_reqd_sub_group_size !}}
   return 0;
 }
 
@@ -56,6 +56,6 @@ int test_no_kernel_properties() {
   compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}});
   compat_exp::launch<empty_kernel_2>(my_config);
 
-  //CHECK-NOT: {{define.*spir_kernel.*empty_kernel_2.* !intel_reqd_sub_group_size !}}
+  //CHECK-NOT: {{define.*kernel.*empty_kernel_2.* !intel_reqd_sub_group_size !}}
   return 0;
 }
