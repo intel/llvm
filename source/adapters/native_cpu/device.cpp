@@ -184,7 +184,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    uint64_t Supported = 0;
+    ur_device_usm_access_capability_flags_t Supported = 0;
     // TODO[1.0]: how to query for USM support now?
     if (true) {
       // TODO: Use ze_memory_access_capabilities_t
