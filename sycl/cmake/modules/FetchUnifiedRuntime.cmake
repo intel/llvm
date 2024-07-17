@@ -221,7 +221,7 @@ if(TARGET UnifiedRuntimeLoader)
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
-  # See issue #post-work-merge
+  # See github issue #14598
   install(TARGETS ur_loader
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev

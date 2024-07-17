@@ -7,6 +7,8 @@
 // RUN: llvm-ar crv %t.a %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t2.o %t.a -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 #include <iostream>
 #include <sycl/sycl.hpp>

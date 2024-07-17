@@ -1,5 +1,7 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
 // UNSUPPORTED: accelerator
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 // RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out

@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s

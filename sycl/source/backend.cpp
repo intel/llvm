@@ -49,6 +49,8 @@ static const PluginPtr &getPlugin(backend Backend) {
 
 backend convertUrBackend(ur_platform_backend_t UrBackend) {
   switch (UrBackend) {
+  case UR_PLATFORM_BACKEND_UNKNOWN:
+    return backend::all; // No specific backend
   case UR_PLATFORM_BACKEND_LEVEL_ZERO:
     return backend::ext_oneapi_level_zero;
   case UR_PLATFORM_BACKEND_OPENCL:

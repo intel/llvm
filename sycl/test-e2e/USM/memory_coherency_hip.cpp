@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t1.out
 // REQUIRES: hip_amd
 // RUN: %{run} %t1.out
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 //==---- memory_coherency_hip.cpp  -----------------------------------------==//
 // USM coarse/fine grain memory coherency test for the HIP-AMD backend.

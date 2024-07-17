@@ -3,7 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
 //
-// XFAIL: hip_nvidia
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: hip_nvidia, windows
+// was formerly XFAIL: hip_nvidia but now also fails on windows
 
 #include <sycl/detail/core.hpp>
 

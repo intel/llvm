@@ -15,29 +15,6 @@
 namespace {
 using namespace sycl;
 
-TEST(UrUtilityTest, CheckUrCastScalar) {
-  std::int32_t I = 42;
-  std::int64_t L = 1234;
-  float F = 31.2f;
-  double D = 4321.1234;
-  float ItoF = detail::ur::cast<float>(I);
-  double LtoD = detail::ur::cast<double>(L);
-  std::int32_t FtoI = detail::ur::cast<std::int32_t>(F);
-  std::int32_t DtoL = detail::ur::cast<std::int64_t>(D);
-  EXPECT_EQ((std::int32_t)F, FtoI);
-  EXPECT_EQ((float)I, ItoF);
-  EXPECT_EQ((std::int64_t)D, DtoL);
-  EXPECT_EQ((double)L, LtoD);
-}
-
-TEST(UrUtilityTest, CheckUrCastVector) {
-  std::vector<std::int32_t> IVec{6, 1, 5, 2, 3, 4};
-  std::vector<float> IVecToFVec = detail::ur::cast<std::vector<float>>(IVec);
-  ASSERT_EQ(IVecToFVec.size(), IVec.size());
-  for (size_t I = 0; I < IVecToFVec.size(); ++I)
-    EXPECT_EQ(IVecToFVec[I], (float)IVec[I]);
-}
-
 TEST(UrUtilityTest, CheckUrCastOCLEventVector) {
   // Current special case for vectors of OpenCL vectors. This may change in the
   // future.

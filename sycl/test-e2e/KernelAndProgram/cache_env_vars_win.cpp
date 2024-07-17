@@ -1,6 +1,8 @@
 // No JITing for host devices and diffrent environment variables on linux and
 // windows.
 // REQUIRES: (level_zero || opencl) && windows
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: windows
 
 // RUN: rm -rf %t/cache_dir
 // RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100

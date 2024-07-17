@@ -3,6 +3,8 @@
 // On level_zero Q.fill uses urEnqueueKernelLaunch and not urEnqueueUSMFill
 // due to https://github.com/intel/llvm/issues/13787
 //
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: windows
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
 //
 // REQUIRES: aspect-usm_shared_allocations

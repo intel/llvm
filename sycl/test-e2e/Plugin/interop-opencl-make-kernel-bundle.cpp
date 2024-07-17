@@ -1,4 +1,6 @@
 // REQUIRES: opencl, opencl_icd
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out

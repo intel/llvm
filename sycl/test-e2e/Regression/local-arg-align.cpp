@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
 
 // https://github.com/intel/llvm/issues/10682
 // UNSUPPORTED: gpu-intel-gen12

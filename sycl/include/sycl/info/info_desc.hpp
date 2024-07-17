@@ -24,7 +24,7 @@
 
 // This is used in trait .def files when there isn't a corresponding backend
 // query but we still need a value to instantiate the template.
-#define SYCL_TRAIT_HANDLED_IN_RT 0
+#define __SYCL_TRAIT_HANDLED_IN_RT 0
 
 namespace sycl {
 inline namespace _V1 {
@@ -59,8 +59,7 @@ enum class device_type : uint32_t {
   cpu = UR_DEVICE_TYPE_CPU,
   gpu = UR_DEVICE_TYPE_GPU,
   accelerator = UR_DEVICE_TYPE_FPGA,
-  // TODO: figure out if we need all the below in UR
-  // custom = UR_DEVICE_TYPE_CUSTOM,
+  // TODO: evaluate the need for equivalent UR enums for these types
   custom,
   automatic,
   host,
@@ -228,7 +227,7 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*Namespace*/
 
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
-                                          UUrode)                              \
+                                          UrCode)                              \
   namespace Namespace {                                                        \
   namespace info {                                                             \
   namespace DescType {                                                         \

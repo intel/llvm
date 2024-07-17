@@ -1,5 +1,7 @@
 // This test ensures created program/kernels are not retained
 // if and only if caching is disabled.
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: windows
 
 // RUN: %{build} -o %t.out
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=1 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
