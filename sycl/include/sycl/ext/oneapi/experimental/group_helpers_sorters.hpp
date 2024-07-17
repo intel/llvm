@@ -459,11 +459,11 @@ public:
     // 2. Output buffer for values and temporary buffer for values.
     // Where number of elements in each buffer is range_size (group size)
     // multiplied by elements per work item. We have to align buffers of keys
-    // and buffers of values, so need an additional space of size alignof(KeyTy)
-    // + alignof(ValueTy).
+    // and buffers of values, so need an additional space equal to maximum
+    // between alignment requirements of types KeyTy and ValueTy.
     return 2 * range_size * ElementsPerWorkItem *
                (sizeof(KeyTy) + sizeof(ValueTy)) +
-           alignof(KeyTy) + alignof(ValueTy);
+           (std::max)(alignof(KeyTy), alignof(ValueTy));
   }
 };
 } // namespace default_sorters
