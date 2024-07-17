@@ -59,18 +59,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *pProperties,
     const void *pArgValue) {
-  // Todo: error checking
-  // Todo: I think that the opencl spec (and therefore the pi spec mandates that
-  // arg is copied (this is why it is defined as const void*, I guess we should
-  // do it
-  // TODO: can args arrive out of order?
+  // TODO: error checking
   std::ignore = argIndex;
   std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
-  hKernel->_args.emplace_back(const_cast<void *>(pArgValue));
+  hKernel->addArg(pArgValue, argIndex, argSize);
 
   return UR_RESULT_SUCCESS;
 }
@@ -81,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
   std::ignore = pProperties;
   // emplace a placeholder kernel arg, gets replaced with a pointer to the
   // memory pool before enqueueing the kernel.
-  hKernel->_args.emplace_back(nullptr);
+  hKernel->addPtrArg(nullptr, argIndex);
   hKernel->_localArgInfo.emplace_back(argIndex, argSize);
   return UR_RESULT_SUCCESS;
 }
@@ -221,14 +217,13 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_pointer_properties_t *pProperties,
                       const void *pArgValue) {
-  // TODO: out_of_order args?
   std::ignore = argIndex;
   std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  hKernel->_args.push_back(const_cast<void *>(pArgValue));
+  hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
 
   return UR_RESULT_SUCCESS;
 }
@@ -262,7 +257,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *pProperties,
                      ur_mem_handle_t hArgValue) {
-  // TODO: out_of_order args?
   std::ignore = argIndex;
   std::ignore = pProperties;
 
@@ -271,11 +265,11 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   // Taken from ur/adapters/cuda/kernel.cpp
   // zero-sized buffers are expected to be null.
   if (hArgValue == nullptr) {
-    hKernel->_args.emplace_back(nullptr);
+    hKernel->addPtrArg(nullptr, argIndex);
     return UR_RESULT_SUCCESS;
   }
 
-  hKernel->_args.emplace_back(hArgValue->_mem);
+  hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
 
