@@ -157,6 +157,7 @@ void __devicelib_default_work_group_joint_sort_descending_p3i32_u32_p3i8(
   merge_sort(first, n, scratch, std::greater<int32_t>{});
 }
 
+DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p1i64_u32_p1i8(
     int64_t *first, uint32_t n, uint8_t *scratch) {
   merge_sort(first, n, scratch, std::less<int64_t>{});
