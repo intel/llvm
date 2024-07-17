@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
   # commit 7e38af77174f92bf4025122b1fa8e3fc49f3ba29
   # Merge: ddafd29b 6c7d7a76
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Mon Jul 15 15:14:47 2024 +0100
   #     Merge pull request #1863 from kbenzie/benie/main-reverts
   #     Revert "Merge pull request #1849 from ayylol/cl-subgroupsizes"
-  set(UNIFIED_RUNTIME_TAG 7e38af77174f92bf4025122b1fa8e3fc49f3ba29)
+  set(UNIFIED_RUNTIME_TAG review/yang/dg2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -142,8 +142,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
-    GIT_REPOSITORY    "https://github.com/AllanZyne/unified-runtime.git"
-    GIT_TAG           "review/yang/dg2"
+    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
+    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
   FetchContent_GetProperties(unified-runtime)
