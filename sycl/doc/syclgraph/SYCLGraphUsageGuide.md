@@ -453,6 +453,51 @@ node kernelNode = myGraph.add([&](handler& cgh) {
 dynParamAccessor.update(bufferB.get_access());
 ```
 
+### Dynamic Command Groups
+
+Example showing how a graph with a dynamic command group node can be updated.
+
+```cpp
+queue Queue{};
+exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+int *PtrA = malloc_device<int>(1024, Queue);
+int *PtrB = malloc_device<int>(1024, Queue)​
+
+auto CgfA = [&](handler &cgh) {
+  cgh.parallel_for(1024, [=](item<1> Item) {
+    PtrA[Item.get_id()] = 1;​
+  });
+};
+
+auto CgfB = [&](handler &cgh) {
+  cgh.parallel_for(512, [=](item<1> Item) {
+    PtrB[Item.get_id()] = 2;
+  });
+};
+
+// Construct a dynamic command-group with CgfA as the active cgf (index 0).
+auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CgfA, CgfB});
+
+// Create a dynamic command-group graph node.
+auto DynamicCGNode = Graph.add(DynamicCG);
+
+auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
+
+// The graph will execute CgfA.
+Queue.ext_oneapi_graph(ExecGraph).wait();
+
+// Sets CgfB as active in the dynamic command-group (index 1).
+DynamicCG.set_active_cgf(1);
+
+// Calls update to update the executable graph node with the changes to DynamicCG.
+ExecGraph.update(DynamicCGNode);
+
+// The graph will execute CgfB.
+Queue.ext_oneapi_graph(ExecGraph).wait();
+```
+
+
 ### Whole Graph Update
 
 Example that shows recording and updating several nodes with different
