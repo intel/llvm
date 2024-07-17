@@ -281,7 +281,6 @@ public:
   using LPropsT = LProps;
   using RangeT = Range;
   static constexpr bool HasLocalMem = LocalMem;
-  static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
   template <typename... Ts>
   launch_policy(Range range, Ts... ts);

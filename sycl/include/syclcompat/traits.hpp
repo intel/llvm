@@ -76,18 +76,6 @@ template <typename T>
 constexpr bool is_range_or_nd_range_v =
     std::disjunction_v<is_range<T>, is_nd_range<T>>;
 
-// Trait to extract dimension from range & nd_range
-template <typename T> struct range_dimension;
-
-template <template <int Dim> typename RangeT, int RangeDim>
-struct range_dimension<RangeT<RangeDim>> {
-  static_assert(is_range_or_nd_range_v<RangeT<RangeDim>>);
-  static constexpr int Dim = RangeDim;
-};
-
-template <typename RangeT>
-constexpr int range_dimension_v = range_dimension<RangeT>::Dim;
-
 // Trait range_to_item_t to convert nd_range -> nd_item, range -> item
 template <typename T> struct range_to_item_map;
 template <int Dim> struct range_to_item_map<sycl::nd_range<Dim>> {
