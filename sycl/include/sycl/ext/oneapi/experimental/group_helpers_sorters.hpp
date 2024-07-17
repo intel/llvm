@@ -341,8 +341,12 @@ public:
 #endif
   }
 
-  static std::size_t memory_required(sycl::memory_scope scope,
+  static std::size_t memory_required([[maybe_unused]] sycl::memory_scope scope,
                                      size_t range_size) {
+    // We need a space (in bytes) for the buffer of output values and the
+    // temporary buffer. Where number of elements in each buffer is range_size
+    // (group size) multiplied by elements per work item. Also we have to align
+    // these two buffers, so need an additional space of size alignof(T).
     return 2 * range_size * ElementsPerWorkItem * sizeof(T) + alignof(T);
   }
 };
@@ -448,8 +452,15 @@ public:
 #endif
   }
 
-  static std::size_t memory_required(sycl::memory_scope scope,
+  static std::size_t memory_required([[maybe_unused]] sycl::memory_scope scope,
                                      std::size_t range_size) {
+    // We need a space (in bytes) for the following buffers:
+    // 1. Output buffer for keys and temporary buffer for keys.
+    // 2. Output buffer for values and temporary buffer for values.
+    // Where number of elements in each buffer is range_size (group size)
+    // multiplied by elements per work item. We have to align buffers of keys
+    // and buffers of values, so need an additional space of size alignof(KeyTy)
+    // + alignof(ValueTy).
     return 2 * range_size * ElementsPerWorkItem *
                (sizeof(KeyTy) + sizeof(ValueTy)) +
            alignof(KeyTy) + alignof(ValueTy);
