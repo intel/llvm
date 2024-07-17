@@ -157,7 +157,9 @@ public:
   /// \return true if specified extension is supported by this SYCL platform.
   __SYCL2020_DEPRECATED(
       "use platform::has() function with aspects APIs instead")
-  bool has_extension(const std::string &ExtensionName) const;
+  bool has_extension(const std::string &ExtensionName) const {
+    return has_extension(detail::string_view{ExtensionName});
+  }
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -249,6 +251,8 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view ExtensionName) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

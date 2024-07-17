@@ -117,8 +117,8 @@ std::vector<device> device::create_sub_devices() const {
 template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::ext_intel_partition_by_cslice>() const;
 
-bool device::has_extension(const std::string &extension_name) const {
-  return impl->has_extension(extension_name);
+bool device::has_extension(detail::string_view ext_name) const {
+  return impl->has_extension(ext_name.data());
 }
 
 template <typename Param>
@@ -269,7 +269,7 @@ bool device::ext_oneapi_can_compile(
   return impl->extOneapiCanCompile(Language);
 }
 
-bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
@@ -280,7 +280,7 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
-      Feature, ipVersion);
+      Feature.data(), ipVersion);
 }
 
 bool device::ext_oneapi_supports_cl_c_version(
@@ -299,7 +299,7 @@ bool device::ext_oneapi_supports_cl_c_version(
 }
 
 bool device::ext_oneapi_supports_cl_extension(
-    const std::string &Name,
+    detail::string_view Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
@@ -311,7 +311,7 @@ bool device::ext_oneapi_supports_cl_extension(
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
-      Name, VersionPtr, ipVersion);
+      Name.data(), VersionPtr, ipVersion);
 }
 
 std::string device::ext_oneapi_cl_profile() const {
