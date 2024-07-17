@@ -341,139 +341,46 @@ std::pair<const char *, int> vcompare4_add() {
   return {nullptr, 0};
 }
 
-void test(const sycl::stream &s, int *ec) {
-  {
-    auto res = vadd4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 1;
-      return;
-    }
-    s << "vadd4 check passed!\n";
-  }
-  {
-    auto res = vsub4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 2;
-      return;
-    }
-    s << "vsub4 check passed!\n";
-  }
-  {
-    auto res = vadd4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 3;
-      return;
-    }
-    s << "vadd4_add check passed!\n";
-  }
-  {
-    auto res = vsub4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 4;
-      return;
-    }
-    s << "vsub4_add check passed!\n";
-  }
-  {
-    auto res = vabsdiff4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 5;
-      return;
-    }
-    s << "vabsdiff4 check passed!\n";
-  }
-  {
-    auto res = vabsdiff4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 6;
-      return;
-    }
-    s << "vabsdiff4_add check passed!\n";
-  }
-  {
-    auto res = vmin4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 7;
-      return;
-    }
-    s << "vmin4 check passed!\n";
-  }
-  {
-    auto res = vmax4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 8;
-      return;
-    }
-    s << "vmax4 check passed!\n";
-  }
-  {
-    auto res = vmin4_vmax4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 9;
-      return;
-    }
-    s << "vmin4_add/vmax4_add check passed!\n";
-  }
-  {
-    auto res = vavrg4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 10;
-      return;
-    }
-    s << "vavrg4 check passed!\n";
-  }
-  {
-    auto res = vavrg4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 11;
-      return;
-    }
-    s << "vavrg4_add check passed!\n";
-  }
-  {
-    auto res = vcompare4();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 12;
-      return;
-    }
-    s << "vcompare4 check passed!\n";
-  }
-  {
-    auto res = vcompare4_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 13;
-      return;
-    }
-    s << "vcompare4_add check passed!\n";
-  }
-  *ec = 0;
-}
+template <auto F> void test_fn(sycl::queue q, int *ec, int id) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-int main() {
-  sycl::queue q = syclcompat::get_default_queue();
-  int *ec = syclcompat::malloc<int>(1);
-  syclcompat::fill<int>(ec, 0, 1);
   q.submit([&](sycl::handler &cgh) {
     sycl::stream out(1024, 256, cgh);
-    cgh.parallel_for(1, [=](sycl::item<1> it) { test(out, ec); });
+    cgh.parallel_for(1, [=](sycl::item<1> it) {
+      auto res = F();
+      if (res.first) {
+        out << res.first << " = " << res.second << " check failed!\n";
+        *ec = id;
+        return;
+      }
+    });
   });
   q.wait_and_throw();
 
   int ec_h;
   syclcompat::memcpy<int>(&ec_h, ec, 1);
+  assert(ec_h == 0);
+}
 
-  return ec_h;
+
+int main() {
+  sycl::queue q = syclcompat::get_default_queue();
+  int *ec = syclcompat::malloc<int>(1, q);
+  syclcompat::fill<int>(ec, 0, 1);
+
+  test_fn<vadd4>(q, ec, 1);
+  test_fn<vsub4>(q, ec, 2);
+  test_fn<vadd4_add>(q, ec, 3);
+  test_fn<vsub4_add>(q, ec, 4);
+  test_fn<vabsdiff4>(q, ec, 5);
+  test_fn<vabsdiff4_add>(q, ec, 6);
+  test_fn<vmin4>(q, ec, 7);
+  test_fn<vmax4>(q, ec, 8);
+  test_fn<vmin4_vmax4_add>(q, ec, 9);
+  test_fn<vavrg4>(q, ec, 10);
+  test_fn<vavrg4_add>(q, ec, 11);
+  test_fn<vcompare4>(q, ec, 12);
+  test_fn<vcompare4_add>(q, ec, 13);
+
+  syclcompat::free(ec, q);
 }
