@@ -14,8 +14,6 @@
 // doing vectorization.
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-cpu-vecz-width=4 %s -g -o %t-vec
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-vec
-// See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
 
 #include <sycl/sycl.hpp>
 

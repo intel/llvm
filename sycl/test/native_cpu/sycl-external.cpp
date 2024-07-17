@@ -5,8 +5,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
-// See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
 
 #include <iostream>
 #include <sycl/sycl.hpp>

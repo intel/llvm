@@ -143,7 +143,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit b26e53cdbd178ee03c3e8252aa00e596deb1f313
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jul 17 19:11:56 2024 +0100
+    #     Revert "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release"
+    b26e53cdbd178ee03c3e8252aa00e596deb1f313
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

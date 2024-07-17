@@ -4,8 +4,6 @@
 // This test is needed since we need to make sure that there no
 // "multiple definitions" linker errors when a function appears
 // both in the host and in the device module.
-// See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
 
 #include <sycl/sycl.hpp>
 
