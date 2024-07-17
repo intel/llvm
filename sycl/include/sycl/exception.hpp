@@ -150,53 +150,6 @@ protected:
                                                       pi_int32 pi_err);
 };
 
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::runtime instead.") runtime_error
-    : public exception {
-public:
-  runtime_error() : exception(make_error_code(errc::runtime)) {}
-
-  runtime_error(const char *Msg, pi_int32 Err)
-      : runtime_error(std::string(Msg), Err) {}
-
-  runtime_error(const std::string &Msg, pi_int32 Err)
-      : exception(make_error_code(errc::runtime), Msg, Err) {}
-
-  runtime_error(std::error_code Ec, const std::string &Msg,
-                const pi_int32 PIErr)
-      : exception(Ec, Msg, PIErr) {}
-
-protected:
-  runtime_error(std::error_code Ec) : exception(Ec) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
-    : public runtime_error {
-public:
-  nd_range_error() : runtime_error(make_error_code(errc::nd_range)) {}
-
-  nd_range_error(const char *Msg, pi_int32 Err)
-      : nd_range_error(std::string(Msg), Err) {}
-
-  nd_range_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_parameter_error : public runtime_error {
-public:
-  invalid_parameter_error()
-      : runtime_error(make_error_code(errc::kernel_argument)) {}
-
-  invalid_parameter_error(const char *Msg, pi_int32 Err)
-      : invalid_parameter_error(std::string(Msg), Err) {}
-
-  invalid_parameter_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel_argument), Msg, Err) {}
-};
-
 } // namespace _V1
 } // namespace sycl
 
