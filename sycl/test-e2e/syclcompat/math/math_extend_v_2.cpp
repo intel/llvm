@@ -48,6 +48,7 @@
       errc = test_id;                                                          \
     }                                                                          \
   }
+
 int vadd2() {
   int errc{};
   int test_id{};
