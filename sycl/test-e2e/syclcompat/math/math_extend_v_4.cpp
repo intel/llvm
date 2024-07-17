@@ -358,7 +358,7 @@ template <auto F> void test_fn(sycl::queue q, int *ec, int id) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   q.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for(1, [=](sycl::item<1>) {
+    cgh.single_task([=]() {
       auto res = F();
       if(res != 0) *ec = res;
     });
