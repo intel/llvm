@@ -983,10 +983,7 @@ public:
   /// \return an event representing the fill operation.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
-  event ext_oneapi_memset2d(
-      void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
-      event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
+  event ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height, event DepEvent, const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
