@@ -309,10 +309,11 @@ def err_target_unsupported_type_for_abi
 }
 
 def err_sycl_illegal_virtual_call
-    : Error<"kernel '%0' performs virtual function call and they are illegal "
+    : Error<"kernel '%0' performs a virtual function call and they are illegal "
             "per the core SYCL 2020 specification. To enable their support, "
-            "submit a kernel using 'calls_indirectly' property, see "
-            "sycl_ext_oneapi_virtual_functions extension for more information">,
+            "submit a kernel using the 'calls_indirectly' property, see "
+            "the sycl_ext_oneapi_virtual_functions extension for more "
+            "information">,
       BackendInfo;
 def note_sycl_virtual_call_done_from : Note<"performed by function '%1'">,
                                        BackendInfo;

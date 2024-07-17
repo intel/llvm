@@ -38,17 +38,17 @@ int main() {
   Base *Ptr = sycl::malloc_device<Derived>(1, q);
 
   // expected-note@+1 {{performed by function 'main::'lambda'()::operator()() const'}}
-  q.single_task([=]() { // expected-error {{kernel 'typeinfo name for main::'lambda'()' performs virtual function call}}
+  q.single_task([=]() { // expected-error {{kernel 'typeinfo name for main::'lambda'()' performs a virtual function call}}
     Ptr->foo();
   });
 
   // expected-note@+1 {{performed by function 'main::'lambda0'()::operator()() const'}}
-  q.single_task<class Kernel1>([=]() { // expected-error {{kernel 'typeinfo name for main::Kernel1' performs virtual function call}}
+  q.single_task<class Kernel1>([=]() { // expected-error {{kernel 'typeinfo name for main::Kernel1' performs a virtual function call}}
     foo(Ptr);
   });
 
   // expected-note@+1 2{{performed by function 'main::'lambda1'()::operator()() const'}}
-  q.single_task<class Kernel2>([=]() { // expected-error 2{{kernel 'typeinfo name for main::Kernel2' performs virtual function call}}
+  q.single_task<class Kernel2>([=]() { // expected-error 2{{kernel 'typeinfo name for main::Kernel2' performs a virtual function call}}
     bar(Ptr);
     Ptr->bar();
   });
