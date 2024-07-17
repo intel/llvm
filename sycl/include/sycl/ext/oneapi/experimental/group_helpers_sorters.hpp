@@ -37,22 +37,22 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class group_algorithm_data_placement { blocked, striped };
+enum class group_algorithm_data_placement : std::uint8_t { blocked, striped };
 
 struct input_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::InputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<input_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      input_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 struct output_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::OutputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<output_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      output_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 template <group_algorithm_data_placement Placement>
