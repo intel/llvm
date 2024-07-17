@@ -354,7 +354,7 @@ int vcompare4_add() {
   return errc;
 }
 
-template <auto F> void test_fn(sycl::queue q, int *ec, int id) {
+template <auto F> void test_fn(sycl::queue q, int *ec) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   q.submit([&](sycl::handler &cgh) {
@@ -365,8 +365,8 @@ template <auto F> void test_fn(sycl::queue q, int *ec, int id) {
   });
   q.wait_and_throw();
 
-  int ec_h;
-  syclcompat::memcpy<int>(&ec_h, ec, 1);
+  int ec_h{};
+  syclcompat::memcpy<int>(&ec_h, ec, 1, q);
   if (ec_h != 0) {
     std::cout << "Test " << ec_h << " failed." << std::endl;
     syclcompat::free(ec, q);
@@ -378,21 +378,21 @@ template <auto F> void test_fn(sycl::queue q, int *ec, int id) {
 int main() {
   sycl::queue q = syclcompat::get_default_queue();
   int *ec = syclcompat::malloc<int>(1, q);
-  syclcompat::fill<int>(ec, 0, 1);
+  syclcompat::fill<int>(ec, 0, 1, q);
 
-  test_fn<vadd4>(q, ec, 1);
-  test_fn<vsub4>(q, ec, 2);
-  test_fn<vadd4_add>(q, ec, 3);
-  test_fn<vsub4_add>(q, ec, 4);
-  test_fn<vabsdiff4>(q, ec, 5);
-  test_fn<vabsdiff4_add>(q, ec, 6);
-  test_fn<vmin4>(q, ec, 7);
-  test_fn<vmax4>(q, ec, 8);
-  test_fn<vmin4_vmax4_add>(q, ec, 9);
-  test_fn<vavrg4>(q, ec, 10);
-  test_fn<vavrg4_add>(q, ec, 11);
-  test_fn<vcompare4>(q, ec, 12);
-  test_fn<vcompare4_add>(q, ec, 13);
+  test_fn<vadd4>(q, ec);
+  test_fn<vsub4>(q, ec);
+  test_fn<vadd4_add>(q, ec);
+  test_fn<vsub4_add>(q, ec);
+  test_fn<vabsdiff4>(q, ec);
+  test_fn<vabsdiff4_add>(q, ec);
+  test_fn<vmin4>(q, ec);
+  test_fn<vmax4>(q, ec);
+  test_fn<vmin4_vmax4_add>(q, ec);
+  test_fn<vavrg4>(q, ec);
+  test_fn<vavrg4_add>(q, ec);
+  test_fn<vcompare4>(q, ec);
+  test_fn<vcompare4_add>(q, ec);
 
   syclcompat::free(ec, q);
 }
