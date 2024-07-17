@@ -717,7 +717,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Release interop memory"
+desc: "Destroy interop memory"
 class: $xBindlessImages
 name: ReleaseInteropExp
 ordinal: "0"
@@ -732,7 +732,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
-      desc: "[in][release] handle of interop memory to be destroyed"
+      desc: "[in][release] handle of interop memory to be freed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -765,9 +765,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Release the external semaphore"
+desc: "Destroy the external semaphore handle"
 class: $xBindlessImages
-name: ReleaseExternalSemaphoreExp
+name: DestroyExternalSemaphoreExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalSemaphore**"

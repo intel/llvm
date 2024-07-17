@@ -7109,7 +7109,7 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Release interop memory
+/// @brief Destroy interop memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -7130,7 +7130,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+        hInteropMem ///< [in][release] handle of interop memory to be freed
     ) try {
     auto pfnReleaseInteropExp =
         ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
@@ -7190,7 +7190,7 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Release the external semaphore
+/// @brief Destroy the external semaphore handle
 ///
 /// @remarks
 ///   _Analogues_
@@ -7207,20 +7207,20 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 ///         + `NULL == hInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
+ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
-    auto pfnReleaseExternalSemaphoreExp =
+    auto pfnDestroyExternalSemaphoreExp =
         ur_lib::getContext()
-            ->urDdiTable.BindlessImagesExp.pfnReleaseExternalSemaphoreExp;
-    if (nullptr == pfnReleaseExternalSemaphoreExp) {
+            ->urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
+    if (nullptr == pfnDestroyExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+    return pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
