@@ -23,9 +23,9 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include "sycl/ext/intel/experimental/kernel_execution_properties.hpp"
-#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
-#include "syclcompat/device.hpp"
+#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <syclcompat/device.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>

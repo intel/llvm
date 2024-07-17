@@ -23,7 +23,9 @@
 #pragma once
 
 #include <cstddef>
-#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/range.hpp>
+#include <sycl/nd_range.hpp>
 #include <type_traits>
 
 namespace syclcompat {

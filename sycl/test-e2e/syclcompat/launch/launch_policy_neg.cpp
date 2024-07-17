@@ -22,16 +22,15 @@
 
 // RUN: not %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out 2>&1 | FileCheck -vv %s
 
-#include "sycl/ext/oneapi/kernel_properties/properties.hpp"
+#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 
 #include <syclcompat/launch_policy.hpp>
 #include <syclcompat/memory.hpp>
-
-#include "syclcompat/dims.hpp"
-#include "syclcompat/launch_policy.hpp"
+#include <syclcompat/dims.hpp>
+#include <syclcompat/launch_policy.hpp>
 
 namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
