@@ -98,7 +98,7 @@ void sortTopological(std::shared_ptr<node_impl> NodeImpl,
 /// @param PartitionNum Number to propagate.
 void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
   if (((Node->MPartitionNum != -1) && (Node->MPartitionNum <= PartitionNum)) ||
-      (Node->MCGType == sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
+      (Node->MCGType == sycl::detail::CGType::CodeplayHostTask)) {
     return;
   }
   Node->MPartitionNum = PartitionNum;
@@ -117,7 +117,7 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 void propagatePartitionDown(
     std::shared_ptr<node_impl> Node, int PartitionNum,
     std::list<std::shared_ptr<node_impl>> &HostTaskList) {
-  if (Node->MCGType == sycl::detail::CG::CGTYPE::CodeplayHostTask) {
+  if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
     if (Node->MPartitionNum != -1) {
       HostTaskList.push_front(Node);
     }
@@ -185,7 +185,7 @@ void exec_graph_impl::makePartitions() {
   std::list<std::shared_ptr<node_impl>> HostTaskList;
   // find all the host-tasks in the graph
   for (auto &Node : MNodeStorage) {
-    if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
+    if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
       HostTaskList.push_back(Node);
     }
   }
@@ -374,7 +374,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   sycl::handler Handler{Impl};
   CGF(Handler);
 
-  if (Handler.MCGType == sycl::detail::CG::Barrier) {
+  if (Handler.getType() == sycl::detail::CGType::Barrier) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
@@ -384,20 +384,21 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   Handler.finalize();
 
   node_type NodeType =
-      Handler.MImpl->MUserFacingNodeType !=
+      Handler.impl->MUserFacingNodeType !=
               ext::oneapi::experimental::node_type::empty
-          ? Handler.MImpl->MUserFacingNodeType
+          ? Handler.impl->MUserFacingNodeType
           : ext::oneapi::experimental::detail::getNodeTypeFromCG(
-                Handler.MCGType);
+                Handler.getType());
 
-  auto NodeImpl = this->add(NodeType, std::move(Handler.MGraphNodeCG), Dep);
-  NodeImpl->MNDRangeUsed = Handler.MImpl->MNDRangeUsed;
+  auto NodeImpl =
+      this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Dep);
+  NodeImpl->MNDRangeUsed = Handler.impl->MNDRangeUsed;
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.MImpl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MDynamicParameters;
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -721,10 +722,10 @@ void exec_graph_impl::createCommandBuffers(
     if (Node->isEmpty())
       continue;
 
-    sycl::detail::CG::CGTYPE type = Node->MCGType;
+    sycl::detail::CGType type = Node->MCGType;
     // If the node is a kernel with no special requirements we can enqueue it
     // directly.
-    if (type == sycl::detail::CG::Kernel &&
+    if (type == sycl::detail::CGType::Kernel &&
         Node->MCommandGroup->getRequirements().size() +
                 static_cast<sycl::detail::CGExecKernel *>(
                     Node->MCommandGroup.get())
@@ -936,7 +937,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
-                sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
+                sycl::detail::CGType::CodeplayHostTask)) {
       auto NodeImpl = CurrentPartition->MSchedule.front();
       // Schedule host task
       NodeImpl->MCommandGroup->getEvents().insert(
@@ -957,7 +958,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
         // If the node has no requirements for accessors etc. then we skip the
         // scheduler and enqueue directly.
-        if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
+        if (NodeImpl->MCGType == sycl::detail::CGType::Kernel &&
             NodeImpl->MCommandGroup->getRequirements().size() +
                     static_cast<sycl::detail::CGExecKernel *>(
                         NodeImpl->MCommandGroup.get())
@@ -967,18 +968,14 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               static_cast<sycl::detail::CGExecKernel *>(
                   NodeImpl->MCommandGroup.get());
           auto OutEvent = CreateNewEvent();
-          pi_int32 Res = sycl::detail::enqueueImpKernel(
+          sycl::detail::enqueueImpKernel(
               Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
               CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
-              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative);
-          if (Res != pi_result::PI_SUCCESS) {
-            throw sycl::exception(
-                sycl::make_error_code(sycl::errc::kernel),
-                "Error during emulated graph command group submission.");
-          }
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative,
+              CG->MKernelUsesClusterLaunch);
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their
@@ -1183,23 +1180,45 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Cannot update using a graph with a different "
                           "topology. Mismatch found in the number of nodes.");
-  } else {
-    for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
-      if (MNodeStorage[i]->MSuccessors.size() !=
-              GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
-          MNodeStorage[i]->MPredecessors.size() !=
-              GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with a different topology. Mismatch "
-            "found in the number of edges.");
-      }
+  }
 
-      if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "Cannot update using a graph with mismatched node types. Each pair "
-            "of nodes being updated must have the same type");
+  for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
+    if (MNodeStorage[i]->MSuccessors.size() !=
+            GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
+        MNodeStorage[i]->MPredecessors.size() !=
+            GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with a different topology. Mismatch "
+          "found in the number of edges.");
+    }
+    if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Cannot update using a graph with mismatched node types. Each pair "
+          "of nodes being updated must have the same type");
+    }
+
+    if (MNodeStorage[i]->MCGType == sycl::detail::CGType::Kernel) {
+      sycl::detail::CGExecKernel *TargetCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              MNodeStorage[i]->MCommandGroup.get());
+      const std::string &TargetKernelName = TargetCGExec->getKernelName();
+
+      sycl::detail::CGExecKernel *SourceCGExec =
+          static_cast<sycl::detail::CGExecKernel *>(
+              GraphImpl->MNodeStorage[i]->MCommandGroup.get());
+      const std::string &SourceKernelName = SourceCGExec->getKernelName();
+
+      if (TargetKernelName.compare(SourceKernelName) != 0) {
+        std::stringstream ErrorStream(
+            "Cannot update using a graph with mismatched kernel "
+            "types. Source node type ");
+        ErrorStream << SourceKernelName;
+        ErrorStream << ", target node type ";
+        ErrorStream << TargetKernelName;
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              ErrorStream.str());
       }
     }
   }
@@ -1241,8 +1260,8 @@ void exec_graph_impl::update(
           "Node passed to update() is not part of the graph.");
     }
 
-    if (!(Node->isEmpty() || Node->MCGType == sycl::detail::CG::Kernel ||
-          Node->MCGType == sycl::detail::CG::Barrier)) {
+    if (!(Node->isEmpty() || Node->MCGType == sycl::detail::CGType::Kernel ||
+          Node->MCGType == sycl::detail::CGType::Barrier)) {
       throw sycl::exception(errc::invalid,
                             "Unsupported node type for update. Only kernel, "
                             "barrier and empty nodes are supported.");
@@ -1300,7 +1319,7 @@ void exec_graph_impl::update(
 void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   // Kernel node update is the only command type supported in UR for update.
   // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
-  if (Node->MCGType != sycl::detail::CG::Kernel) {
+  if (Node->MCGType != sycl::detail::CGType::Kernel) {
     return;
   }
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);

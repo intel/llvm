@@ -28,7 +28,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
-#include <sycl/properties/context_properties.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
@@ -153,16 +153,16 @@ public:
     }
     if (!Context->isDeviceValid(Device)) {
       if (Context->getBackend() == backend::opencl)
-        throw sycl::invalid_object_error(
+        throw sycl::exception(
+            make_error_code(errc::invalid),
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
-            "devices from the context are not supported on OpenCL yet).",
-            PI_ERROR_INVALID_DEVICE);
-      throw sycl::invalid_object_error(
+            "devices from the context are not supported on OpenCL yet).");
+      throw sycl::exception(
+          make_error_code(errc::invalid),
           "Queue cannot be constructed with the given context and device "
           "since the device is neither a member of the context nor a "
-          "descendant of its member.",
-          PI_ERROR_INVALID_DEVICE);
+          "descendant of its member.");
     }
 
     const QueueOrder QOrder =
@@ -630,7 +630,7 @@ public:
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
+  /// property, a SYCL exception with errc::invalid error code will be thrown.
   template <typename propertyT> propertyT get_property() const {
     return MPropList.get_property<propertyT>();
   }
@@ -777,6 +777,8 @@ public:
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
           &Graph);
 
+  const property_list &getPropList() const { return MPropList; }
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -815,7 +817,7 @@ protected:
         // Note that host_task events can never be discarded, so this will not
         // insert barriers between host_task enqueues.
         if (EventToBuildDeps->isDiscarded() &&
-            Handler.getType() == CG::CodeplayHostTask)
+            getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
           EventToBuildDeps = insertHelperBarrier(Handler);
 
         if (!EventToBuildDeps->isDiscarded())
@@ -832,7 +834,7 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
-      const CG::CGTYPE Type = Handler.getType();
+      const CGType Type = getSyclObjImpl(Handler)->MCGType;
       std::lock_guard<std::mutex> Lock{MMutex};
       // The following code supports barrier synchronization if host task is
       // involved in the scenario. Native barriers cannot handle host task
@@ -846,17 +848,17 @@ protected:
         MMissedCleanupRequests.clear();
       }
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
-      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+      if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
       if (Deps.LastBarrier)
         Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
-      if (Type == CG::CodeplayHostTask)
+      if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
           Deps.LastBarrier = EventRetImpl;
           Deps.UnenqueuedCmdEvents.clear();
         } else

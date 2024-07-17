@@ -970,7 +970,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig, false /* KernelIsCooperative */));
+      CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
+      false /* KernelUsesClusterLaunch*/));
   return FusedCG;
 }
 

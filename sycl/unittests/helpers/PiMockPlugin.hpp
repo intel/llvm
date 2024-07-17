@@ -28,6 +28,16 @@ struct DummyHandleT {
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
+
+  template <typename T> T getDataAs() {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data());
+  }
+
+  template <typename T> T setDataAs(T Val) {
+    assert(MStorage.size() >= sizeof(T));
+    return *reinterpret_cast<T *>(MStorage.data()) = Val;
+  }
 };
 
 using DummyHandlePtrT = DummyHandleT *;
@@ -599,7 +609,7 @@ inline pi_result mock_piextBindlessImageSamplerCreate(
 }
 
 inline pi_result mock_piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
     const pi_image_copy_flags flags, pi_image_offset src_offset,
     pi_image_offset dst_offset, pi_image_region copy_extent,
@@ -608,7 +618,8 @@ inline pi_result mock_piextMemImageCopy(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+inline pi_result mock_piextMemImageGetInfo(pi_context context,
+                                           pi_image_mem_handle mem_handle,
                                            pi_image_info param_name,
                                            void *param_value,
                                            size_t *param_value_size_ret) {
@@ -1656,5 +1667,15 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 }
 
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
   return PI_SUCCESS;
 }

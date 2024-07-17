@@ -424,7 +424,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
     const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
     const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
     pi_image_offset DstOffset, pi_image_region CopyExtent,
@@ -446,11 +446,12 @@ __SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
   return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
 }
 
-__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context Context,
+                                             pi_image_mem_handle MemHandle,
                                              pi_image_info ParamName,
                                              void *ParamValue,
                                              size_t *ParamValueSizeRet) {
-  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+  return pi2ur::piextMemImageGetInfo(Context, MemHandle, ParamName, ParamValue,
                                      ParamValueSizeRet);
 }
 
@@ -562,6 +563,19 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return pi2ur::piEnqueueKernelLaunch(
       Queue, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
       NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
+pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  return pi2ur::piextEnqueueKernelLaunchCustom(
+      Queue, Kernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
+      EventsWaitList, OutEvent);
 }
 
 pi_result piextEnqueueCooperativeKernelLaunch(

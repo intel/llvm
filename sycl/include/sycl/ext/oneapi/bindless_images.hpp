@@ -812,6 +812,11 @@ template <int NDims>
 using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
     NDims, sycl::access::mode::write, sycl::access::target::image_array>::type;
 
+template <int NDims>
+using OCLSampledImageArrayTyRead =
+    typename sycl::detail::sampled_opencl_image_type<
+        detail::OCLImageArrayTyRead<NDims>>::type;
+
 // Macros are required because it is not legal for a function to return
 // a variable of type 'opencl_image_type'.
 #if defined(__SPIR__)
@@ -823,11 +828,19 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
       typename sycl::detail::sampled_opencl_image_type<                        \
           detail::OCLImageTyRead<NDims>>::type>(raw_handle)
 
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(raw_handle, NDims)               \
+  __spirv_ConvertHandleToSampledImageINTEL<                                    \
+      typename sycl::detail::sampled_opencl_image_type<                        \
+          detail::OCLImageArrayTyRead<NDims>>::type>(raw_handle)
+
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageRead<DataT>(raw_handle, coords)
 
 #define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
-  __invoke__ImageRead<DataT>(raw_handle, coords)
+  __invoke__ImageReadLod<DataT>(raw_handle, coords, 0.f)
+
+#define SAMPLE_IMAGE_READ(DataT, raw_handle, coords)                           \
+  __invoke__ImageReadLod<DataT>(raw_handle, coords, 0.f)
 
 #define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
   __invoke__ImageRead<DataT>(raw_handle, coordsLayer)
@@ -835,10 +848,20 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
 #define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
   __invoke__ImageWrite(raw_handle, coordsLayer, color)
 
+#define FETCH_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,       \
+                                  coordsLayer)                                 \
+  __invoke__ImageReadLod<DataT>(raw_handle, coordsLayer, 0.f)
+
+#define READ_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,        \
+                                 coordsLayer)                                  \
+  __invoke__ImageReadLod<DataT>(raw_handle, coordsLayer, 0.f)
+
 #else
 #define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
 
 #define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
+
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(raw_handle, NDims) raw_handle
 
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageFetch<DataT>(raw_handle, coords)
@@ -846,11 +869,23 @@ using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
 #define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
   __invoke__SampledImageFetch<DataT>(raw_handle, coords)
 
+#define SAMPLE_IMAGE_READ(DataT, raw_handle, coords)                           \
+  __invoke__ImageRead<DataT>(raw_handle, coords)
+
 #define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
   __invoke__ImageArrayFetch<DataT>(raw_handle, coords, arrayLayer)
 
 #define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
   __invoke__ImageArrayWrite(raw_handle, coords, arrayLayer, color)
+
+#define FETCH_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,       \
+                                  coordsLayer)                                 \
+  __invoke__SampledImageArrayFetch<DataT>(raw_handle, coords, arrayLayer)
+
+#define READ_SAMPLED_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer,        \
+                                 coordsLayer)                                  \
+  __invoke__ImageArrayRead<DataT>(raw_handle, coords, arrayLayer)
+
 #endif
 
 #endif // __SYCL_DEVICE_ONLY__
@@ -1030,11 +1065,13 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(
+    return SAMPLE_IMAGE_READ(
+        DataT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(__invoke__ImageRead<HintT>(
+    return sycl::bit_cast<DataT>(SAMPLE_IMAGE_READ(
+        HintT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords));
   }
@@ -1410,17 +1447,23 @@ DataT fetch_image_array(const sampled_image_handle &imageHandle
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__SampledImageArrayFetch<DataT>(imageHandle.raw_handle,
-                                                   coords, arrayLayer);
+    return FETCH_SAMPLED_IMAGE_ARRAY(DataT,
+                                     CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                         imageHandle.raw_handle, coordSize),
+                                     coords, arrayLayer, coordsLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__SampledImageArrayFetch<HintT>(
-        imageHandle.raw_handle, coords, arrayLayer));
+    return sycl::bit_cast<DataT>(
+        FETCH_SAMPLED_IMAGE_ARRAY(HintT,
+                                  CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                      imageHandle.raw_handle, coordSize),
+                                  coords, arrayLayer, coordsLayer));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1454,17 +1497,23 @@ DataT sample_image_array(const sampled_image_handle &imageHandle
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<float, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageArrayRead<DataT>(imageHandle.raw_handle, coords,
-                                           arrayLayer);
+    return READ_SAMPLED_IMAGE_ARRAY(DataT,
+                                    CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                        imageHandle.raw_handle, coordSize),
+                                    coords, arrayLayer, coordsLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__ImageArrayRead<HintT>(
-        imageHandle.raw_handle, coords, arrayLayer));
+    return sycl::bit_cast<DataT>(
+        READ_SAMPLED_IMAGE_ARRAY(HintT,
+                                 CONVERT_HANDLE_TO_SAMPLED_IMAGE_ARRAY(
+                                     imageHandle.raw_handle, coordSize),
+                                 coords, arrayLayer, coordsLayer));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1571,7 +1620,7 @@ void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
 } // namespace ext::oneapi::experimental
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1581,7 +1630,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1595,7 +1644,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1608,7 +1657,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1624,7 +1673,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1637,7 +1686,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1653,7 +1702,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1663,7 +1712,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1677,7 +1727,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1690,7 +1740,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1706,7 +1757,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1719,7 +1770,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1735,7 +1787,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1747,7 +1799,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const detail::code_location &CodeLoc) {
@@ -1761,7 +1814,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, event DepEvent,
     const detail::code_location &CodeLoc) {
@@ -1775,7 +1828,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1789,7 +1842,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
@@ -1803,7 +1856,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const detail::code_location &CodeLoc) {
@@ -1814,7 +1867,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1829,7 +1883,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const std::vector<event> &DepEvents,
     const detail::code_location &CodeLoc) {
@@ -1843,7 +1897,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
