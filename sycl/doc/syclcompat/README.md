@@ -217,12 +217,16 @@ auto range = sycl::nd_range<3>{blocksPerGrid * threadsPerBlock,
 syclcompat::launch<vectorAdd>(range, d_A, d_B, d_C, n);
 ```
 
-Note that since `syclcompat::launch` accepts a device function, the kernel lambda is constructed by SYCLcompat behind the scenes. This means that, for example, `sycl::local_accessor`s cannot be declared. Instead, users wishing to use local memory should launch with a `launch_policy` object as described below.
+Note that since `syclcompat::launch` accepts a device function, the kernel
+lambda is constructed by SYCLcompat behind the scenes. This means that, for
+example, `sycl::local_accessor`s cannot be declared. Instead, users wishing to
+use local memory should launch with a `launch_policy` object as described below.
 
 #### launch_policy
 
 In addition to the simple `syclcompat::launch` interface described above,
-SYCLcompat provides a `launch_policy` class, and associated `syclcompat::launch` interface which can be used to pass more complex requirements, including:
+SYCLcompat provides a `launch_policy` class, and associated `syclcompat::launch`
+interface which can be used to pass more complex requirements, including:
 
  - local memory size
  - kernel_properties
