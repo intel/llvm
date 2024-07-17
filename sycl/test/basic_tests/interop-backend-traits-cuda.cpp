@@ -2,6 +2,9 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %clangxx -fsycl -fsyntax-only -DUSE_CUDA_EXPERIMENTAL %s
 
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
+
 #ifdef USE_CUDA_EXPERIMENTAL
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA 1
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1

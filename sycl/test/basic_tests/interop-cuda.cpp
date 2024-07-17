@@ -6,6 +6,9 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s
 
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: *
+
 // Test for legacy and experimental CUDA interop API
 
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
