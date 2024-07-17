@@ -618,13 +618,11 @@ class CGSemaphoreWait : public CG {
   std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(
-      sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
-      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreWait(sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
+                  std::optional<uint64_t> WaitValue,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(CGType::SemaphoreWait, std::move(CGData), std::move(loc)),
-        MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {
-  }
+        MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
   sycl::detail::pi::PiExternalSemaphore getExternalSemaphore() const {
     return MExternalSemaphore;
@@ -638,13 +636,12 @@ class CGSemaphoreSignal : public CG {
   std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(
-      sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
-      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreSignal(sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
+                    std::optional<uint64_t> SignalValue,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
       : CG(CGType::SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MExternalSemaphore(ExternalSemaphore),
-        MSignalValue(SignalValue) {}
+        MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
   sycl::detail::pi::PiExternalSemaphore getExternalSemaphore() const {
     return MExternalSemaphore;
