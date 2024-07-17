@@ -35,8 +35,6 @@
 #include "launch_fixt.hpp"
 
 namespace compat_exp = syclcompat::experimental;
-namespace sycl_exp = sycl::ext::oneapi::experimental;
-namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
 using compat_exp::launch_policy;
 using compat_exp::local_mem_size;

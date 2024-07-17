@@ -24,7 +24,6 @@
 // RUN: %{run} %t.out
 
 #include "sycl/ext/intel/experimental/kernel_execution_properties.hpp"
-#include "sycl/ext/oneapi/experimental/root_group.hpp"
 #include "sycl/ext/oneapi/kernel_properties/properties.hpp"
 #include "syclcompat/device.hpp"
 #include <sycl/detail/core.hpp>
