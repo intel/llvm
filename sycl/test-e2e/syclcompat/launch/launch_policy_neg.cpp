@@ -109,7 +109,7 @@ void test_variadic_config_ctor() {
   {
     sycl::range<3> launch_range{1, 1, 32};
     compat_exp::local_mem_size lmem_size(0);
-    compat_exp::launch_policy duplicate_local_mem_config(launch_range,
+    compat_exp::launch_policy range_and_local_mem_config(launch_range,
                                                          lmem_size);
     //CHECK-DAG: error: static assertion failed due to requirement 'syclcompat::detail::is_nd_range_v<sycl::range<3>> || !true': sycl::range kernel launches are incompatible with local
   }
@@ -117,7 +117,7 @@ void test_variadic_config_ctor() {
   {
     syclcompat::dim3 launch_range{32, 1, 1};
     compat_exp::local_mem_size lmem_size(0);
-    compat_exp::launch_policy duplicate_local_mem_config(launch_range, compat_exp::kernel_properties{sycl_exp::sub_group_size<32>},
+    compat_exp::launch_policy range_and_local_mem_config_2(launch_range, compat_exp::kernel_properties{sycl_exp::sub_group_size<32>},
                                                          lmem_size);
     //CHECK-DAG: error: static assertion failed due to requirement 'syclcompat::detail::is_nd_range_v<sycl::range<3>> || !true': sycl::range kernel launches are incompatible with local
   }
@@ -133,7 +133,7 @@ void test_variadic_config_ctor() {
   {
     sycl::nd_range<3> launch_range{{1, 1, 32}, {1, 1, 32}};
     compat_exp::kernel_properties kernel_props{sycl_exp::sub_group_size<32>};
-    compat_exp::launch_policy duplicate_local_mem_config(launch_range, kernel_props, kernel_props);
+    compat_exp::launch_policy duplicate_kernel_properties_config(launch_range, kernel_props, kernel_props);
     //CHECK-DAG: error: static assertion failed due to requirement{{.*type appears more than once}}
   }
 
@@ -142,7 +142,7 @@ void test_variadic_config_ctor() {
     sycl::nd_range<3> launch_range{{1, 1, 32}, {1, 1, 32}};
     compat_exp::launch_properties launch_props{};
     compat_exp::local_mem_size lmem_size(0);
-    compat_exp::launch_policy duplicate_local_mem_config(launch_range, launch_props, lmem_size, launch_props);
+    compat_exp::launch_policy duplicate_launch_properties_config(launch_range, launch_props, lmem_size, launch_props);
     //CHECK-DAG: error: static assertion failed due to requirement{{.*type appears more than once}}
   }
 
