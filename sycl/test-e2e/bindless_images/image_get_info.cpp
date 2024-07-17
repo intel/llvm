@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
@@ -37,8 +36,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::r,
-        sycl::image_channel_type::signed_int32);
+        {width, height, depth}, 1, sycl::image_channel_type::signed_int32);
 
     // Extension: returns the device pointer to the allocated memory
     // Input images memory
@@ -197,14 +195,6 @@ int main() {
       printString("channel type is correct!\n");
     } else {
       printString("channel type is NOT correct!\n");
-      validated = false;
-    }
-
-    auto corder = imgMem.get_channel_order();
-    if (corder == sycl::image_channel_order::r) {
-      printString("channel order is correct!\n");
-    } else {
-      printString("channel order is NOT correct!\n");
       validated = false;
     }
 

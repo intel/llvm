@@ -63,7 +63,6 @@ add_llvm_component_library(LLVMCodeGen
   ExpandVectorPredication.cpp
   FaultMaps.cpp
   FEntryInserter.cpp
-  FPBuiltinFnSelection.cpp
   FinalizeISel.cpp
   FixupStatepointCallerSaved.cpp
   FuncletLayout.cpp
@@ -164,7 +163,6 @@ add_llvm_component_library(LLVMCodeGen
   MacroFusion.cpp
   NonRelocatableStringpool.cpp
   OptimizePHIs.cpp
-  ParallelCG.cpp
   PeepholeOptimizer.cpp
   PHIElimination.cpp
   PHIEliminationUtils.cpp
@@ -245,6 +243,7 @@ add_llvm_component_library(LLVMCodeGen
   VLIWMachineScheduler.cpp
   VirtRegMap.cpp
   WasmEHPrepare.cpp
+  WindowScheduler.cpp
   WinEHPrepare.cpp
   XRayInstrumentation.cpp
   ${GeneratedMLSources}

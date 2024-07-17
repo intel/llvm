@@ -19,14 +19,19 @@ static void DieUnsupported() {
 
 // Adapters may be released by piTearDown being called, or the global dtors
 // being called first. Handle releasing the adapters exactly once.
-static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) noexcept {
   static std::once_flag ReleaseFlag{};
-  std::call_once(ReleaseFlag, [&]() {
-    for (auto Adapter : Vec) {
-      urAdapterRelease(Adapter);
-    }
-    urLoaderTearDown();
-  });
+  try {
+    std::call_once(ReleaseFlag, [&]() {
+      for (auto Adapter : Vec) {
+        urAdapterRelease(Adapter);
+      }
+      urLoaderTearDown();
+    });
+  } catch (...) {
+    // Ignore any potential exceptions on teardown. Worst case scenario
+    // this just leaks some memory on exit.
+  }
 }
 
 struct AdapterHolder {
@@ -268,6 +273,19 @@ __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  return pi2ur::piextEnqueueKernelLaunchCustom(
+      Queue, Kernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
+      EventsWaitList, OutEvent);
+}
+
 __SYCL_EXPORT pi_result piEnqueueMemImageWrite(
     pi_queue Queue, pi_mem Image, pi_bool BlockingWrite, pi_image_offset Origin,
     pi_image_region Region, size_t InputRowPitch, size_t InputSlicePitch,
@@ -437,24 +455,24 @@ __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                                ParamValueSizeRet);
 }
 
-/// USM Memset API
+/// USM Fill API
 ///
-/// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to memset
-/// @param Value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// @param Count is the size in bytes to memset
-/// @param NumEventsInWaitlist is the number of events to wait on
-/// @param EventsWaitlist is an array of events to wait on
-/// @param Event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                              pi_int32 Value, size_t Count,
-                                              pi_uint32 NumEventsInWaitlist,
-                                              const pi_event *EventsWaitlist,
-                                              pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                            const void *Pattern,
+                                            size_t PatternSize, size_t Count,
+                                            pi_uint32 NumEventsInWaitlist,
+                                            const pi_event *EventsWaitlist,
+                                            pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
@@ -680,6 +698,13 @@ __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
     pi_event *Event) {
   return pi2ur::piextEventCreateWithNativeHandle(NativeHandle, Context,
                                                  OwnNativeHandle, Event);
+}
+
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue Queue, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piEnqueueTimestampRecordingExp(
+      Queue, Blocking, NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piEnqueueMemImageFill(
@@ -1177,6 +1202,72 @@ piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
   return pi2ur::piextCommandBufferReleaseCommand(Command);
 }
 
+__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
+    pi_context Context, pi_device Device,
+    pi_virtual_mem_granularity_info ParamName, size_t ParamValueSize,
+    void *ParamValue, size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGranularityGetInfo(Context, Device, ParamName,
+                                                  ParamValueSize, ParamValue,
+                                                  ParamValueSizeRet);
+}
+
+__SYCL_EXPORT pi_result
+piextPhysicalMemCreate(pi_context Context, pi_device Device, size_t MemSize,
+                       pi_physical_mem *RetPhsycialMem) {
+  return pi2ur::piextPhysicalMemCreate(Context, Device, MemSize,
+                                       RetPhsycialMem);
+}
+
+__SYCL_EXPORT pi_result piextPhysicalMemRetain(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRetain(PhysicalMem);
+}
+
+__SYCL_EXPORT pi_result piextPhysicalMemRelease(pi_physical_mem PhysicalMem) {
+  return pi2ur::piextPhysicalMemRelease(PhysicalMem);
+}
+
+__SYCL_EXPORT pi_result piextVirtualMemReserve(pi_context Context,
+                                               const void *Start,
+                                               size_t RangeSize,
+                                               void **RetPtr) {
+  return pi2ur::piextVirtualMemReserve(Context, Start, RangeSize, RetPtr);
+}
+
+__SYCL_EXPORT pi_result piextVirtualMemFree(pi_context Context, const void *Ptr,
+                                            size_t RangeSize) {
+  return pi2ur::piextVirtualMemFree(Context, Ptr, RangeSize);
+}
+
+__SYCL_EXPORT pi_result
+piextVirtualMemSetAccess(pi_context Context, const void *Ptr, size_t RangeSize,
+                         pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemSetAccess(Context, Ptr, RangeSize, Flags);
+}
+
+__SYCL_EXPORT pi_result piextVirtualMemMap(pi_context Context, const void *Ptr,
+                                           size_t RangeSize,
+                                           pi_physical_mem PhysicalMem,
+                                           size_t Offset,
+                                           pi_virtual_access_flags Flags) {
+  return pi2ur::piextVirtualMemMap(Context, Ptr, RangeSize, PhysicalMem, Offset,
+                                   Flags);
+}
+
+__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context Context,
+                                             const void *Ptr,
+                                             size_t RangeSize) {
+  return pi2ur::piextVirtualMemUnmap(Context, Ptr, RangeSize);
+}
+
+__SYCL_EXPORT pi_result
+piextVirtualMemGetInfo(pi_context Context, const void *Ptr, size_t RangeSize,
+                       pi_virtual_mem_info ParamName, size_t ParamValueSize,
+                       void *ParamValue, size_t *ParamValueSizeRet) {
+  return pi2ur::piextVirtualMemGetInfo(Context, Ptr, RangeSize, ParamName,
+                                       ParamValueSize, ParamValue,
+                                       ParamValueSizeRet);
+}
+
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime) {
@@ -1268,7 +1359,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
     const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
     const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
     pi_image_offset DstOffset, pi_image_region CopyExtent,
@@ -1290,19 +1381,28 @@ __SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
   return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
 }
 
-__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context Context,
+                                             pi_image_mem_handle MemHandle,
                                              pi_image_info ParamName,
                                              void *ParamValue,
                                              size_t *ParamValueSizeRet) {
-  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+  return pi2ur::piextMemImageGetInfo(Context, MemHandle, ParamName, ParamValue,
                                      ParamValueSizeRet);
 }
 
-__SYCL_EXPORT pi_result
-piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
-                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalMemory`")
+pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
+                                 size_t Size, int FileDescriptor,
+                                 pi_interop_mem_handle *RetHandle) {
   return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
                                        RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextImportExternalMemory(
+    pi_context Context, pi_device Device, pi_external_mem_descriptor *MemDesc,
+    pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextImportExternalMemory(Context, Device, MemDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemMapExternalArray(
@@ -1319,11 +1419,22 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
   return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
 }
 
-__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context Context, pi_device Device, int FileDescriptor,
-    pi_interop_semaphore_handle *RetHandle) {
+__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
+                         "`piextImportExternalSemaphore`")
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
+                                     int FileDescriptor,
+                                     pi_interop_semaphore_handle *RetHandle) {
   return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
                                                      FileDescriptor, RetHandle);
+}
+
+__SYCL_EXPORT pi_result
+piextImportExternalSemaphore(pi_context Context, pi_device Device,
+                             pi_external_semaphore_descriptor *SemDesc,
+                             pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphore(Context, Device, SemDesc,
+                                             RetHandle);
 }
 
 __SYCL_EXPORT pi_result
@@ -1333,19 +1444,31 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piextWaitExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(Queue, SemHandle, HasWaitValue,
+                                           WaitValue, NumEventsInWaitList,
+                                           EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
-  return pi2ur::piextSignalExternalSemaphore(
-      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(Queue, SemHandle, HasSignalValue,
+                                             SignalValue, NumEventsInWaitList,
+                                             EventWaitList, Event);
+}
+
+pi_result
+piextEnqueueNativeCommand(pi_queue Queue, pi_enqueue_native_command_function Fn,
+                          void *Data, pi_uint32 NumMems, const pi_mem *Mems,
+                          pi_uint32 NumEventsInWaitList,
+                          const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextEnqueueNativeCommand(Queue, Fn, Data, NumMems, Mems,
+                                          NumEventsInWaitList, EventWaitList,
+                                          Event);
 }
 
 // This interface is not in Unified Runtime currently
@@ -1489,7 +1612,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferMap)
   _PI_API(piEnqueueMemUnmap)
   _PI_API(piEnqueueMemBufferFill)
-  _PI_API(piextUSMEnqueueMemset)
+  _PI_API(piextUSMEnqueueFill)
   _PI_API(piEnqueueMemBufferCopyRect)
   _PI_API(piEnqueueMemBufferCopy)
   _PI_API(piextUSMEnqueueMemcpy)
@@ -1511,6 +1634,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextEventGetNativeHandle)
   _PI_API(piEventGetProfilingInfo)
   _PI_API(piEventCreate)
+  _PI_API(piEnqueueTimestampRecordingExp)
 
   _PI_API(piSamplerCreate)
   _PI_API(piSamplerGetInfo)
@@ -1521,6 +1645,9 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextEnablePeerAccess)
   _PI_API(piextDisablePeerAccess)
   _PI_API(piextPeerAccessGetInfo)
+
+  // Launch Properties
+  _PI_API(piextEnqueueKernelLaunchCustom)
 
   _PI_API(piextPluginGetOpaqueData)
   _PI_API(piTearDown)

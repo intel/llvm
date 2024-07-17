@@ -518,19 +518,6 @@ protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
 
 public:
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, size_t OffsetInBytes = 0,
@@ -1447,10 +1434,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1491,10 +1477,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1562,10 +1547,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1606,10 +1590,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1959,9 +1942,8 @@ private:
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
-      throw sycl::invalid_object_error(
-          "accessor would cannot be both read_only and no_init",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "accessor cannot be both read_only and no_init");
     }
   }
 

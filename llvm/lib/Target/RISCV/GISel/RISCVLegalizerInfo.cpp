@@ -130,6 +130,10 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
 
   getActionDefinitionsBuilder({G_SADDO, G_SSUBO}).minScalar(0, sXLen).lower();
 
+  // TODO: Use Vector Single-Width Saturating Instructions for vector types.
+  getActionDefinitionsBuilder({G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT})
+      .lower();
+
   auto &ShiftActions = getActionDefinitionsBuilder({G_ASHR, G_LSHR, G_SHL});
   if (ST.is64Bit())
     ShiftActions.customFor({{s32, s32}});
@@ -137,7 +141,8 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
       .widenScalarToNextPow2(0)
       .clampScalar(1, s32, sXLen)
       .clampScalar(0, s32, sXLen)
-      .minScalarSameAs(1, 0);
+      .minScalarSameAs(1, 0)
+      .widenScalarToNextPow2(1);
 
   auto &ExtActions =
       getActionDefinitionsBuilder({G_ZEXT, G_SEXT, G_ANYEXT})
@@ -227,7 +232,8 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
   ConstantActions.widenScalarToNextPow2(0).clampScalar(0, s32, sXLen);
 
   // TODO: transform illegal vector types into legal vector type
-  getActionDefinitionsBuilder(G_IMPLICIT_DEF)
+  getActionDefinitionsBuilder(
+      {G_IMPLICIT_DEF, G_CONSTANT_FOLD_BARRIER, G_FREEZE})
       .legalFor({s32, sXLen, p0})
       .legalIf(typeIsLegalBoolVec(0, BoolVecTys, ST))
       .legalIf(typeIsLegalIntOrFPVec(0, IntOrFPVecTys, ST))
@@ -299,7 +305,7 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
   getActionDefinitionsBuilder({G_GLOBAL_VALUE, G_JUMP_TABLE, G_CONSTANT_POOL})
       .legalFor({p0});
 
-  if (ST.hasStdExtM() || ST.hasStdExtZmmul()) {
+  if (ST.hasStdExtZmmul()) {
     getActionDefinitionsBuilder(G_MUL)
         .legalFor({s32, sXLen})
         .widenScalarToNextPow2(0)
@@ -343,6 +349,9 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
         .widenScalarToNextPow2(0);
   }
 
+  // TODO: Use libcall for sDoubleXLen.
+  getActionDefinitionsBuilder({G_UDIVREM, G_SDIVREM}).lower();
+
   auto &AbsActions = getActionDefinitionsBuilder(G_ABS);
   if (ST.hasStdExtZbb())
     AbsActions.customFor({s32, sXLen}).minScalar(0, sXLen);
@@ -362,12 +371,25 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
 
   // FP Operations
 
-  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FMA, G_FNEG,
-                               G_FABS, G_FSQRT, G_FMAXNUM, G_FMINNUM})
-      .legalIf(typeIsScalarFPArith(0, ST));
+  auto &FPArithActions = getActionDefinitionsBuilder(
+                             {G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FMA, G_FNEG,
+                              G_FABS, G_FSQRT, G_FMAXNUM, G_FMINNUM})
+                             .legalIf(typeIsScalarFPArith(0, ST));
+  // TODO: Fold this into typeIsScalarFPArith.
+  if (ST.hasStdExtZfh())
+    FPArithActions.legalFor({s16});
 
-  getActionDefinitionsBuilder(G_FCOPYSIGN)
-      .legalIf(all(typeIsScalarFPArith(0, ST), typeIsScalarFPArith(1, ST)));
+  getActionDefinitionsBuilder(G_FREM)
+      .libcallFor({s32, s64})
+      .minScalar(0, s32)
+      .scalarize(0);
+
+  auto &CopySignActions =
+      getActionDefinitionsBuilder(G_FCOPYSIGN)
+          .legalIf(all(typeIsScalarFPArith(0, ST), typeIsScalarFPArith(1, ST)));
+  // TODO: Fold this into typeIsScalarFPArith.
+  if (ST.hasStdExtZfh())
+    CopySignActions.legalFor({s16, s16});
 
   getActionDefinitionsBuilder(G_FPTRUNC).legalIf(
       [=, &ST](const LegalityQuery &Query) -> bool {
@@ -388,14 +410,17 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
   getActionDefinitionsBuilder(G_IS_FPCLASS)
       .customIf(all(typeIs(0, s1), typeIsScalarFPArith(1, ST)));
 
-  getActionDefinitionsBuilder(G_FCONSTANT)
-      .legalIf(typeIsScalarFPArith(0, ST))
-      .lowerFor({s32, s64});
+  auto &FConstantActions = getActionDefinitionsBuilder(G_FCONSTANT)
+                               .legalIf(typeIsScalarFPArith(0, ST));
+  if (ST.hasStdExtZfh())
+    FConstantActions.legalFor({s16});
+  FConstantActions.lowerFor({s32, s64});
 
   getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
       .legalIf(all(typeInSet(0, {s32, sXLen}), typeIsScalarFPArith(1, ST)))
       .widenScalarToNextPow2(0)
-      .clampScalar(0, s32, sXLen);
+      .clampScalar(0, s32, sXLen)
+      .libcall();
 
   getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
       .legalIf(all(typeIsScalarFPArith(0, ST), typeInSet(1, {s32, sXLen})))
@@ -445,13 +470,6 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
   SplatActions.clampScalar(1, sXLen, sXLen);
 
   getLegacyLegalizerInfo().computeTables();
-}
-
-static Type *getTypeForLLT(LLT Ty, LLVMContext &C) {
-  if (Ty.isVector())
-    return FixedVectorType::get(IntegerType::get(C, Ty.getScalarSizeInBits()),
-                                Ty.getNumElements());
-  return IntegerType::get(C, Ty.getSizeInBits());
 }
 
 bool RISCVLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,

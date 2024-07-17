@@ -72,6 +72,23 @@ template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_native_powr(__ESIMD_raw_vec_t(T, N), __ESIMD_raw_vec_t(T, N));
 
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_fabs(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_s_abs(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_fmin(__ESIMD_raw_vec_t(T, N),
+                     __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_fmax(__ESIMD_raw_vec_t(T, N),
+                     __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
@@ -101,15 +118,7 @@ template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
     __esimd_sstrunc_sat(__ESIMD_raw_vec_t(T1, SZ) src) __ESIMD_INTRIN_END;
 
-template <typename T, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
-    __esimd_abs(__ESIMD_raw_vec_t(T, SZ) src0) __ESIMD_INTRIN_END;
-
-/// 3 kinds of max
-template <typename T, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
-    __esimd_fmax(__ESIMD_raw_vec_t(T, SZ) src0,
-                 __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
+/// 3 kinds of max, the missing fmax uses spir-v intrinsics above
 template <typename T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     __esimd_umax(__ESIMD_raw_vec_t(T, SZ) src0,
@@ -119,11 +128,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     __esimd_smax(__ESIMD_raw_vec_t(T, SZ) src0,
                  __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
 
-/// 3 kinds of min
-template <typename T, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
-    __esimd_fmin(__ESIMD_raw_vec_t(T, SZ) src0,
-                 __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
+/// 3 kinds of min, the missing fmin uses spir-v instrinsics above
 template <typename T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     __esimd_umin(__ESIMD_raw_vec_t(T, SZ) src0,
@@ -239,8 +244,6 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T1, N)
     __esimd_ssdp4a_sat(__ESIMD_raw_vec_t(T2, N) src0,
                        __ESIMD_raw_vec_t(T3, N) src1,
                        __ESIMD_raw_vec_t(T4, N) src2) __ESIMD_INTRIN_END;
-__ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
-    __esimd_timestamp() __ESIMD_INTRIN_END;
 
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)

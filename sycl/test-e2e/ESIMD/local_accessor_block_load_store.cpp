@@ -102,9 +102,7 @@ int main() {
   Pass &= test<int, 16, Align16>(Q);
   Pass &= test<float, 16, Align16>(Q);
 
-  if (Dev.has(aspect::fp16) &&
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "26032", "101.4502"))
+  if (Dev.has(aspect::fp16))
     Pass &= test<sycl::half, 16, Align16>(Q);
 
   // Check SLM load/store with vector size that is not power of 2

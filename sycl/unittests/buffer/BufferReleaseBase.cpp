@@ -256,9 +256,8 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
 
   sycl::buffer<int, 1> Buf(1);
   sycl::detail::Requirement MockReq = getMockRequirement(Buf);
-  std::vector<sycl::detail::Command *> AuxCmds;
   sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-      sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+      sycl::detail::getSyclObjImpl(Q), &MockReq);
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(Context);

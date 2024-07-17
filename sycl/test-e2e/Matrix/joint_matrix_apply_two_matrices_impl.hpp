@@ -139,6 +139,10 @@ int main() {
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       passed &= test<int8_t, int32_t, 8, 16, 32, class pvc_int_8x16x32>();
       passed &= test<bfloat16, float, 8, 16, 16, class pvc_bf16_8x16x16>();
+// This combination is not currently supported for sub group size = 32 in IGC
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      passed &= test<bfloat16, float, 16, 16, 16, class pvc_bf16_16x16x16>();
+#endif
       break;
     }
 

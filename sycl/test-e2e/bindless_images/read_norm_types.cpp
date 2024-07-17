@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
@@ -8,7 +7,7 @@
 #include <limits>
 #include <sycl/detail/core.hpp>
 
-#include "bindless_helpers.hpp"
+#include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
@@ -17,8 +16,7 @@
 static sycl::device dev;
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
   using InputType = sycl::vec<DType, NChannels>;
   using OutputType = sycl::vec<float, NChannels>;
@@ -37,8 +35,8 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
     namespace syclexp = sycl::ext::oneapi::experimental;
 
-    syclexp::image_descriptor descIn(globalSize, COrder, CType);
-    syclexp::image_descriptor descOut(globalSize, COrder,
+    syclexp::image_descriptor descIn(globalSize, NChannels, CType);
+    syclexp::image_descriptor descOut(globalSize, NChannels,
                                       sycl::image_channel_type::fp32);
 
     syclexp::image_mem_handle imgMemIn = syclexp::alloc_image_mem(descIn, q);
@@ -142,171 +140,123 @@ int main() {
 
   // 1D tests
   verbose_println("Running kernel unorm_int8_1d_1c");
-  validated &=
-      run_test<1, uint8_t, 1, sycl::image_channel_type::unorm_int8,
-               sycl::image_channel_order::r, class unorm_int8_1d_1c>({32}, {2});
+  validated &= run_test<1, uint8_t, 1, sycl::image_channel_type::unorm_int8,
+                        class unorm_int8_1d_1c>({32}, {2});
   verbose_println("Running kernel snorm_int8_1d_1c");
-  validated &=
-      run_test<1, int8_t, 1, sycl::image_channel_type::snorm_int8,
-               sycl::image_channel_order::r, class snorm_int8_1d_1c>({32}, {2});
+  validated &= run_test<1, int8_t, 1, sycl::image_channel_type::snorm_int8,
+                        class snorm_int8_1d_1c>({32}, {2});
   verbose_println("Running kernel unorm_int16_1d_1c");
   validated &= run_test<1, uint16_t, 1, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::r, class unorm_int16_1d_1c>(
-      {32}, {2});
+                        class unorm_int16_1d_1c>({32}, {2});
   verbose_println("Running kernel snorm_int16_1d_1c");
   validated &= run_test<1, int16_t, 1, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::r, class snorm_int16_1d_1c>(
-      {32}, {2});
+                        class snorm_int16_1d_1c>({32}, {2});
 
   verbose_println("Running kernel unorm_int8_1d_2c");
   validated &= run_test<1, uint8_t, 2, sycl::image_channel_type::unorm_int8,
-                        sycl::image_channel_order::rg, class unorm_int8_1d_2c>(
-      {32}, {2});
+                        class unorm_int8_1d_2c>({32}, {2});
   verbose_println("Running kernel snorm_int8_1d_2c");
   validated &= run_test<1, int8_t, 2, sycl::image_channel_type::snorm_int8,
-                        sycl::image_channel_order::rg, class snorm_int8_1d_2c>(
-      {32}, {2});
+                        class snorm_int8_1d_2c>({32}, {2});
   verbose_println("Running kernel unorm_int16_1d_2c");
   validated &= run_test<1, uint16_t, 2, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::rg, class unorm_int16_1d_2c>(
-      {32}, {2});
+                        class unorm_int16_1d_2c>({32}, {2});
   verbose_println("Running kernel snorm_int16_1d_2c");
   validated &= run_test<1, int16_t, 2, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::rg, class snorm_int16_1d_2c>(
-      {32}, {2});
+                        class snorm_int16_1d_2c>({32}, {2});
 
   verbose_println("Running kernel unorm_int8_1d_4c");
-  validated &=
-      run_test<1, uint8_t, 4, sycl::image_channel_type::unorm_int8,
-               sycl::image_channel_order::rgba, class unorm_int8_1d_4c>({32},
-                                                                        {2});
+  validated &= run_test<1, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                        class unorm_int8_1d_4c>({32}, {2});
   verbose_println("Running kernel snorm_int8_1d_4c");
-  validated &=
-      run_test<1, int8_t, 4, sycl::image_channel_type::snorm_int8,
-               sycl::image_channel_order::rgba, class snorm_int8_1d_4c>({32},
-                                                                        {2});
+  validated &= run_test<1, int8_t, 4, sycl::image_channel_type::snorm_int8,
+                        class snorm_int8_1d_4c>({32}, {2});
   verbose_println("Running kernel unorm_int16_1d_4c");
-  validated &=
-      run_test<1, uint16_t, 4, sycl::image_channel_type::unorm_int16,
-               sycl::image_channel_order::rgba, class unorm_int16_1d_4c>({32},
-                                                                         {2});
+  validated &= run_test<1, uint16_t, 4, sycl::image_channel_type::unorm_int16,
+                        class unorm_int16_1d_4c>({32}, {2});
   verbose_println("Running kernel snorm_int16_1d_4c");
-  validated &=
-      run_test<1, int16_t, 4, sycl::image_channel_type::snorm_int16,
-               sycl::image_channel_order::rgba, class snorm_int16_1d_4c>({32},
-                                                                         {2});
+  validated &= run_test<1, int16_t, 4, sycl::image_channel_type::snorm_int16,
+                        class snorm_int16_1d_4c>({32}, {2});
 
   // 2D tests
   verbose_println("Running kernel unorm_int8_2d_1c");
   validated &= run_test<2, uint8_t, 1, sycl::image_channel_type::unorm_int8,
-                        sycl::image_channel_order::r, class unorm_int8_2d_1c>(
-      {32, 32}, {16, 16});
+                        class unorm_int8_2d_1c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int8_2d_1c");
   validated &= run_test<2, int8_t, 1, sycl::image_channel_type::snorm_int8,
-                        sycl::image_channel_order::r, class snorm_int8_2d_1c>(
-      {32, 32}, {16, 16});
+                        class snorm_int8_2d_1c>({32, 32}, {16, 16});
   verbose_println("Running kernel unorm_int16_2d_1c");
   validated &= run_test<2, uint16_t, 1, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::r, class unorm_int16_2d_1c>(
-      {32, 32}, {16, 16});
+                        class unorm_int16_2d_1c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int16_2d_1c");
   validated &= run_test<2, int16_t, 1, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::r, class snorm_int16_2d_1c>(
-      {32, 32}, {16, 16});
+                        class snorm_int16_2d_1c>({32, 32}, {16, 16});
 
   verbose_println("Running kernel unorm_int8_2d_2c");
   validated &= run_test<2, uint8_t, 2, sycl::image_channel_type::unorm_int8,
-                        sycl::image_channel_order::rg, class unorm_int8_2d_2c>(
-      {32, 32}, {16, 16});
+                        class unorm_int8_2d_2c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int8_2d_2c");
   validated &= run_test<2, int8_t, 2, sycl::image_channel_type::snorm_int8,
-                        sycl::image_channel_order::rg, class snorm_int8_2d_2c>(
-      {32, 32}, {16, 16});
+                        class snorm_int8_2d_2c>({32, 32}, {16, 16});
   verbose_println("Running kernel unorm_int16_2d_2c");
   validated &= run_test<2, uint16_t, 2, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::rg, class unorm_int16_2d_2c>(
-      {32, 32}, {16, 16});
+                        class unorm_int16_2d_2c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int16_2d_2c");
   validated &= run_test<2, int16_t, 2, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::rg, class snorm_int16_2d_2c>(
-      {32, 32}, {16, 16});
+                        class snorm_int16_2d_2c>({32, 32}, {16, 16});
 
   verbose_println("Running kernel unorm_int8_2d_4c");
-  validated &=
-      run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
-               sycl::image_channel_order::rgba, class unorm_int8_2d_4c>(
-          {32, 32}, {16, 16});
+  validated &= run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                        class unorm_int8_2d_4c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int8_2d_4c");
-  validated &=
-      run_test<2, int8_t, 4, sycl::image_channel_type::snorm_int8,
-               sycl::image_channel_order::rgba, class snorm_int8_2d_4c>(
-          {32, 32}, {16, 16});
+  validated &= run_test<2, int8_t, 4, sycl::image_channel_type::snorm_int8,
+                        class snorm_int8_2d_4c>({32, 32}, {16, 16});
   verbose_println("Running kernel unorm_int16_2d_4c");
-  validated &=
-      run_test<2, uint16_t, 4, sycl::image_channel_type::unorm_int16,
-               sycl::image_channel_order::rgba, class unorm_int16_2d_4c>(
-          {32, 32}, {16, 16});
+  validated &= run_test<2, uint16_t, 4, sycl::image_channel_type::unorm_int16,
+                        class unorm_int16_2d_4c>({32, 32}, {16, 16});
   verbose_println("Running kernel snorm_int16_2d_4c");
-  validated &=
-      run_test<2, int16_t, 4, sycl::image_channel_type::snorm_int16,
-               sycl::image_channel_order::rgba, class snorm_int16_2d_4c>(
-          {32, 32}, {16, 16});
+  validated &= run_test<2, int16_t, 4, sycl::image_channel_type::snorm_int16,
+                        class snorm_int16_2d_4c>({32, 32}, {16, 16});
 
   // 3D tests
   verbose_println("Running kernel unorm_int8_3d_1c");
   validated &= run_test<3, uint8_t, 1, sycl::image_channel_type::unorm_int8,
-                        sycl::image_channel_order::r, class unorm_int8_3d_1c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class unorm_int8_3d_1c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int8_3d_1c");
   validated &= run_test<3, int8_t, 1, sycl::image_channel_type::snorm_int8,
-                        sycl::image_channel_order::r, class snorm_int8_3d_1c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class snorm_int8_3d_1c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel unorm_int16_3d_1c");
   validated &= run_test<3, uint16_t, 1, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::r, class unorm_int16_3d_1c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class unorm_int16_3d_1c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int16_3d_1c");
   validated &= run_test<3, int16_t, 1, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::r, class snorm_int16_3d_1c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class snorm_int16_3d_1c>({32, 32, 32}, {16, 16, 4});
 
   verbose_println("Running kernel unorm_int8_3d_2c");
   validated &= run_test<3, uint8_t, 2, sycl::image_channel_type::unorm_int8,
-                        sycl::image_channel_order::rg, class unorm_int8_3d_2c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class unorm_int8_3d_2c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int8_3d_2c");
   validated &= run_test<3, int8_t, 2, sycl::image_channel_type::snorm_int8,
-                        sycl::image_channel_order::rg, class snorm_int8_3d_2c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class snorm_int8_3d_2c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel unorm_int16_3d_2c");
   validated &= run_test<3, uint16_t, 2, sycl::image_channel_type::unorm_int16,
-                        sycl::image_channel_order::rg, class unorm_int16_3d_2c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class unorm_int16_3d_2c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int16_3d_2c");
   validated &= run_test<3, int16_t, 2, sycl::image_channel_type::snorm_int16,
-                        sycl::image_channel_order::rg, class snorm_int16_3d_2c>(
-      {32, 32, 32}, {16, 16, 4});
+                        class snorm_int16_3d_2c>({32, 32, 32}, {16, 16, 4});
 
   verbose_println("Running kernel unorm_int8_3d_4c");
-  validated &=
-      run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
-               sycl::image_channel_order::rgba, class unorm_int8_3d_4c>(
-          {32, 32, 32}, {16, 16, 4});
+  validated &= run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                        class unorm_int8_3d_4c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int8_3d_4c");
-  validated &=
-      run_test<3, int8_t, 4, sycl::image_channel_type::snorm_int8,
-               sycl::image_channel_order::rgba, class snorm_int8_3d_4c>(
-          {32, 32, 32}, {16, 16, 4});
+  validated &= run_test<3, int8_t, 4, sycl::image_channel_type::snorm_int8,
+                        class snorm_int8_3d_4c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel unorm_int16_3d_4c");
-  validated &=
-      run_test<3, uint16_t, 4, sycl::image_channel_type::unorm_int16,
-               sycl::image_channel_order::rgba, class unorm_int16_3d_4c>(
-          {32, 32, 32}, {16, 16, 4});
+  validated &= run_test<3, uint16_t, 4, sycl::image_channel_type::unorm_int16,
+                        class unorm_int16_3d_4c>({32, 32, 32}, {16, 16, 4});
   verbose_println("Running kernel snorm_int16_3d_4c");
-  validated &=
-      run_test<3, int16_t, 4, sycl::image_channel_type::snorm_int16,
-               sycl::image_channel_order::rgba, class snorm_int16_3d_4c>(
-          {32, 32, 32}, {16, 16, 4});
+  validated &= run_test<3, int16_t, 4, sycl::image_channel_type::snorm_int16,
+                        class snorm_int16_3d_4c>({32, 32, 32}, {16, 16, 4});
 
   if (validated)
     std::cout << "All test cases passed!\n";

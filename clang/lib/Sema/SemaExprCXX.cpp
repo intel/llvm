@@ -42,6 +42,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaLambda.h"
 #include "clang/Sema/SemaObjC.h"
+#include "clang/Sema/SemaPPC.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/APInt.h"
@@ -936,7 +937,7 @@ ExprResult Sema::BuildCXXThrow(SourceLocation OpLoc, Expr *Ex,
 
   // PPC MMA non-pointer types are not allowed as throw expr types.
   if (Ex && Context.getTargetInfo().getTriple().isPPC64())
-    CheckPPCMMAType(Ex->getType(), Ex->getBeginLoc());
+    PPC().CheckPPCMMAType(Ex->getType(), Ex->getBeginLoc());
 
   return new (Context)
       CXXThrowExpr(Ex, Context.VoidTy, OpLoc, IsThrownVarInScope);
@@ -1449,10 +1450,10 @@ bool Sema::CheckCXXThisType(SourceLocation Loc, QualType Type) {
   //   category are defined within such member functions as they are within
   //   an implicit object member function).
   DeclContext *DC = getFunctionLevelDeclContext();
-  if (const auto *Method = dyn_cast<CXXMethodDecl>(DC);
-      Method && Method->isExplicitObjectMemberFunction()) {
+  const auto *Method = dyn_cast<CXXMethodDecl>(DC);
+  if (Method && Method->isExplicitObjectMemberFunction()) {
     Diag(Loc, diag::err_invalid_this_use) << 1;
-  } else if (isLambdaCallWithExplicitObjectParameter(CurContext)) {
+  } else if (Method && isLambdaCallWithExplicitObjectParameter(CurContext)) {
     Diag(Loc, diag::err_invalid_this_use) << 1;
   } else {
     Diag(Loc, diag::err_invalid_this_use) << 0;
@@ -2078,7 +2079,7 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
   if (DirectInitRange.isValid()) {
     assert(Initializer && "Have parens but no initializer.");
     InitStyle = CXXNewInitializationStyle::Parens;
-  } else if (Initializer && isa<InitListExpr>(Initializer))
+  } else if (isa_and_nonnull<InitListExpr>(Initializer))
     InitStyle = CXXNewInitializationStyle::Braces;
   else {
     assert((!Initializer || isa<ImplicitValueInitExpr>(Initializer) ||
@@ -3831,7 +3832,7 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
 
         // Otherwise, the usual operator delete[] should be the
         // function we just found.
-        else if (OperatorDelete && isa<CXXMethodDecl>(OperatorDelete))
+        else if (isa_and_nonnull<CXXMethodDecl>(OperatorDelete))
           UsualArrayDeleteWantsSize =
             UsualDeallocFnInfo(*this,
                                DeclAccessPair::make(OperatorDelete, AS_public))
@@ -5137,6 +5138,7 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsStandardLayout:
   case UTT_IsPOD:
   case UTT_IsLiteral:
+  case UTT_IsBitwiseCloneable:
   // By analogy, is_trivially_relocatable and is_trivially_equality_comparable
   // impose the same constraints.
   case UTT_IsTriviallyRelocatable:
@@ -5226,10 +5228,18 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
   case UTT_IsFloatingPoint:
     return T->isFloatingType();
   case UTT_IsArray:
+    // Zero-sized arrays aren't considered arrays in partial specializations,
+    // so __is_array shouldn't consider them arrays either.
+    if (const auto *CAT = C.getAsConstantArrayType(T))
+      return CAT->getSize() != 0;
     return T->isArrayType();
   case UTT_IsBoundedArray:
     if (DiagnoseVLAInCXXTypeTrait(Self, TInfo, tok::kw___is_bounded_array))
       return false;
+    // Zero-sized arrays aren't considered arrays in partial specializations,
+    // so __is_bounded_array shouldn't consider them arrays either.
+    if (const auto *CAT = C.getAsConstantArrayType(T))
+      return CAT->getSize() != 0;
     return T->isArrayType() && !T->isIncompleteArrayType();
   case UTT_IsUnboundedArray:
     if (DiagnoseVLAInCXXTypeTrait(Self, TInfo, tok::kw___is_unbounded_array))
@@ -5622,6 +5632,8 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     return C.hasUniqueObjectRepresentations(T);
   case UTT_IsTriviallyRelocatable:
     return T.isTriviallyRelocatableType(C);
+  case UTT_IsBitwiseCloneable:
+    return T.isBitwiseCloneableType(C);
   case UTT_IsReferenceable:
     return T.isReferenceable();
   case UTT_CanPassInRegs:
@@ -6152,7 +6164,15 @@ static bool EvaluateBinaryTypeTrait(Sema &Self, TypeTrait BTT, const TypeSourceI
 
     return Self.IsPointerInterconvertibleBaseOf(Lhs, Rhs);
   }
-    default: llvm_unreachable("not a BTT");
+  case BTT_IsDeducible: {
+    const auto *TSTToBeDeduced = cast<DeducedTemplateSpecializationType>(LhsT);
+    sema::TemplateDeductionInfo Info(KeyLoc);
+    return Self.DeduceTemplateArgumentsFromType(
+               TSTToBeDeduced->getTemplateName().getAsTemplateDecl(), RhsT,
+               Info) == TemplateDeductionResult::Success;
+  }
+  default:
+    llvm_unreachable("not a BTT");
   }
   llvm_unreachable("Unknown type trait or not implemented");
 }
@@ -8584,7 +8604,7 @@ static void CheckIfAnyEnclosingLambdasMustCaptureAnyPotentialCaptures(
   assert(S.CurContext->isDependentContext());
 #ifndef NDEBUG
   DeclContext *DC = S.CurContext;
-  while (DC && isa<CapturedDecl>(DC))
+  while (isa_and_nonnull<CapturedDecl>(DC))
     DC = DC->getParent();
   assert(
       CurrentLSI->CallOperator == DC &&
@@ -9161,7 +9181,7 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
   //  - Teach the handful of places that iterate over FunctionScopes to
   //    stop at the outermost enclosing lexical scope."
   DeclContext *DC = CurContext;
-  while (DC && isa<CapturedDecl>(DC))
+  while (isa_and_nonnull<CapturedDecl>(DC))
     DC = DC->getParent();
   const bool IsInLambdaDeclContext = isLambdaCallOperator(DC);
   if (IsInLambdaDeclContext && CurrentLSI &&

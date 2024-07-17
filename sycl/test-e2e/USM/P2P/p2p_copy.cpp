@@ -1,6 +1,6 @@
-// REQUIRES: cuda
-// RUN: %{build} -o %t.out
-// RUN: %if cuda %{ %{run} %t.out %}
+// REQUIRES: cuda || hip || level_zero
+// RUN:  %{build} -o %t.out
+// RUN:  %{run} %t.out
 
 #include <cassert>
 #include <numeric>
@@ -15,17 +15,8 @@ constexpr int N = 100;
 
 int main() {
 
-  // Note that this code will largely be removed: it is temporary due to the
-  // temporary lack of multiple devices per sycl context in the Nvidia backend.
-  // A portable implementation, using a single gpu platform, should be possible
-  // once the Nvidia context issues are resolved.
-  ////////////////////////////////////////////////////////////////////////
-  std::vector<sycl::device> Devs;
-  for (const auto &plt : sycl::platform::get_platforms()) {
+  auto Devs = platform(gpu_selector_v).get_devices(info::device_type::gpu);
 
-    if (plt.get_backend() == sycl::backend::ext_oneapi_cuda)
-      Devs.push_back(plt.get_devices()[0]);
-  }
   if (Devs.size() < 2) {
     std::cout << "Cannot test P2P capabilities, at least two devices are "
                  "required, exiting."

@@ -28,14 +28,7 @@ public:
 
 // CHECK: call {{.*}}sqrt
 
-int main() {
-  queue Q;
-  int f = 5;
-
-  Q.single_task([=]() {
-    intel::fpga_datapath<foo> mem{42};
-
-    volatile int ReadVal = mem.get().secret;
-  });
-  return 0;
+SYCL_EXTERNAL void fetch_secret() {
+  intel::fpga_datapath<foo> mem{42};
+  volatile int ReadVal = mem.get().secret;
 }

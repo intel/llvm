@@ -6,30 +6,35 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define TM 8
-#define TK 32
+template <size_t TileRows, size_t TileCols> class add;
+template <size_t TileRows, size_t TileCols> class sub;
+template <size_t TileRows, size_t TileCols> class mul;
+template <size_t TileRows, size_t TileCols> class divide;
+template <size_t TileRows, size_t TileCols> class logic;
 
-template <typename T, size_t M, size_t N, typename R>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
-  for (size_t i = 0; i < M; i++)
-    for (size_t j = 0; j < N; j++) {
-      auto diff = C[i][j] - ref;
-      assert(std::fabs(static_cast<R>(diff)) <=
-             std::numeric_limits<R>::epsilon());
+template <typename T, size_t Rows, size_t Cols, typename TResult>
+void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
+                    const TResult ref) {
+  for (size_t i = 0; i < Rows; i++)
+    for (size_t j = 0; j < Cols; j++) {
+      TResult diff = C[i][j] - ref;
+      assert(std::fabs(static_cast<TResult>(diff)) <=
+             std::numeric_limits<TResult>::epsilon());
     }
 }
 
-template <typename T, size_t M, size_t N, size_t TileM, size_t TileN,
-          size_t TileK, class kernel_name, typename R, typename OP>
-void matrix_verify_op(big_matrix<T, M, N> &B, const R ref, OP op) {
-  buffer<int8_t, 2> bufB(B.get_data(), range<2>(M, N));
+template <typename T, size_t Rows, size_t Cols, size_t TileRows,
+          size_t TileCols, size_t VNNI, class kernel_name, typename TResult,
+          typename OP>
+void matrix_verify_op(big_matrix<T, Rows, Cols> &B, const TResult ref, OP op) {
+  buffer<T, 2> bufB(B.get_data(), range<2>(Rows, Cols));
 
   queue q;
   size_t sg_size = get_sg_size<kernel_name>(q);
-  nd_range<2> r({M / TileM, N / TileN * sg_size}, {1, 1 * sg_size});
+  nd_range<2> r({Rows / TileRows, Cols / TileCols * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     sycl::accessor accB{bufB, cgh, sycl::read_write};
 
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
@@ -43,7 +48,7 @@ void matrix_verify_op(big_matrix<T, M, N> &B, const R ref, OP op) {
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::b, TileK, TileN,
+           joint_matrix<sub_group, T, use::b, TileRows, TileCols,
                         layout::ext_intel_packed>
                sub_b;
 
@@ -53,35 +58,35 @@ void matrix_verify_op(big_matrix<T, M, N> &B, const R ref, OP op) {
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TileM) * N * 4 +
-                   sg_starty / sg_size * TileN * 4,
-               N * 4);
+                   (sg_startx * TileRows / VNNI) * Cols * VNNI +
+                   sg_starty / sg_size * TileCols * VNNI,
+               Cols * VNNI);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N, R>(bufB.get_host_access(read_only), ref);
+  assert_ops_ref<T, Rows, Cols, TResult>(bufB.get_host_access(read_only), ref);
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-int8_t B[MATRIX_M][MATRIX_N];
+template <typename T, typename TResult, size_t TK, size_t TN, size_t VNNI>
+void test() {
+  static constexpr size_t Rows = TK * 2;
+  static constexpr size_t Cols = TN * 2;
+  T B[Rows][Cols];
 
-int main() {
+  big_matrix<T, Rows, Cols> MB((T *)&B);
 
-  big_matrix<int8_t, MATRIX_M, MATRIX_N> MB((int8_t *)&B);
-
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class add, int>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, add<TK, TN>, TResult>(
       MB, 7, [=](auto &x) { x = x + 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class sub, int>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, sub<TK, TN>, TResult>(
       MB, 3, [=](auto &x) { x = x - 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class mul, int>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, mul<TK, TN>, TResult>(
       MB, 10, [=](auto &x) { x = x * 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class div, int>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, divide<TK, TN>, TResult>(
       MB, 2, [=](auto &x) { x = x / 2; }); // truncation is expected
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class logic, int>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, logic<TK, TN>, TResult>(
       MB, 7, [=](auto &x) {
         if (x) {
           if (x > 2 || x >= 2 || x < 2 || x <= 2) {
-            int8_t val = (x != 2) ? x : 2;
+            T val = (x != 2) ? x : 2;
             val--;
             val++;
             if (x == 2) {
@@ -95,6 +100,31 @@ int main() {
           }
         }
       });
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<int8_t, int, /*TK*/ 64, /*TN*/ 16, /*VNNI*/ 4>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<int8_t, int, /*TK*/ 32, /*TN*/ 16, /*VNNI*/ 4>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<int8_t, int, /*TK*/ 32, /*TN*/ 8, /*VNNI*/ 4>();
+      break;
+    }
+  }
 
   return 0;
 }

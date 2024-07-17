@@ -36,6 +36,11 @@ namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
+// forward decl
+void shutdown_win(); // TODO: win variant will go away soon
+void shutdown_early();
+void shutdown_late();
+
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
 // Scheduler usage. Origin idea is to track usage of Scheduler from main and
@@ -49,14 +54,18 @@ public:
       MCounter++;
   }
   ~ObjectUsageCounter() {
-    if (!MModifyCounter)
-      return;
+    try {
+      if (!MModifyCounter)
+        return;
 
-    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-    MCounter--;
-    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-    if (RTGlobalObjHandler) {
-      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
+      MCounter--;
+      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+      if (RTGlobalObjHandler) {
+        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
   }
 
@@ -227,15 +236,29 @@ void GlobalHandler::releaseDefaultContexts() {
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
-struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
+struct EarlyShutdownHandler {
+  ~EarlyShutdownHandler() {
+    try {
+#ifdef _WIN32
+      // on Windows we keep to the existing shutdown procedure
+      GlobalHandler::instance().releaseDefaultContexts();
+#else
+      shutdown_early();
+#endif
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~EarlyShutdownHandler",
+                                        e);
+    }
   }
 };
 
-void GlobalHandler::registerDefaultContextReleaseHandler() {
-  static DefaultContextReleaseHandler handler{};
+void GlobalHandler::registerEarlyShutdownHandler() {
+  static EarlyShutdownHandler handler{};
 }
+
+bool GlobalHandler::isOkToDefer() const { return OkToDefer; }
+
+void GlobalHandler::endDeferredRelease() { OkToDefer = false; }
 
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.
@@ -279,16 +302,19 @@ void GlobalHandler::drainThreadPool() {
 // itself is very aggressive about reclaiming memory. Thus,
 // we focus solely on unloading the plugins, so as to not
 // accidentally retain device handles. etc
-void shutdown() {
+void shutdown_win() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadPlugins();
 }
 #else
-void shutdown() {
+void shutdown_early() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
+
+  // Now that we are shutting down, we will no longer defer MemObj releases.
+  Handler->endDeferredRelease();
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
@@ -297,12 +323,16 @@ void shutdown() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // If default contexts are requested after the first default contexts have
-  // been released there may be a new default context. These must be released
-  // prior to closing the plugins.
-  // Note: Releasing a default context here may cause failures in plugins with
-  // global state as the global state may have been released.
+  // This releases OUR reference to the default context, but
+  // other may yet have refs
   Handler->releaseDefaultContexts();
+}
+
+void shutdown_late() {
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
 
   // First, release resources, that may access plugins.
   Handler->MPlatformCache.Inst.reset(nullptr);
@@ -345,7 +375,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
-    shutdown();
+    shutdown_win();
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
@@ -363,7 +393,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library
 // deinitialization.
-__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
+__attribute__((destructor(110))) static void syclUnload() { shutdown_late(); }
 #endif
 } // namespace detail
 } // namespace _V1
