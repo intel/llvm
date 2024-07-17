@@ -238,50 +238,34 @@ launch, as well as request **local memory** for the kernel.
 
 ```cpp
 namespace syclcompat::experimental {
-
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 // Wrapper for kernel sycl_exp::properties
 template <typename Properties> struct kernel_properties {
-  static_assert(sycl_exp::is_property_list_v<Properties>);
   using Props = Properties;
-
   template <typename... Props>
-  kernel_properties(Props... properties) : props{properties...} {}
-
+  kernel_properties(Props... properties);
   Properties props;
 };
-
-// Deduction guide
-template <typename... Props>
-kernel_properties(Props... props)
-    -> kernel_properties<decltype(sycl_exp::properties(props...))>;
 
 // Wrapper for launch sycl_exp::properties
 template <typename Properties> struct launch_properties {
-  static_assert(sycl_exp::is_property_list_v<Properties>);
   using Props = Properties;
-
   template <typename... Props>
-  launch_properties(Props... properties) : props{properties...} {}
-
+  launch_properties(Props... properties);
   Properties props;
 };
 
-template <typename... Props>
-launch_properties(Props... props)
-    -> launch_properties<decltype(sycl_exp::properties(props...))>;
-
 // Wrapper for local memory size
 struct local_mem_size {
-  local_mem_size(size_t size = 0) : size{size} {};
+  local_mem_size(size_t size = 0);
   size_t size;
 };
 
 } //namespace syclcompat::experimental
 ```
 
-The constructor for the `launch_policy` is variadic, accepting any form of range
+The constructors of `launch_policy` are variadic, accepting any form of range
 (`nd_range`, `range`, `dim3`, `dim3, dim3`), followed by zero or more of
 `local_memory_size`, `kernel_properties`, and `launch_properties`:
 
@@ -292,13 +276,6 @@ namespace sycl_exp = sycl::ext::oneapi::experimental;
 // launch_policy is constructed by the user & passed to `compat_exp::launch`
 template <typename Range, typename KProps, typename LProps, bool LocalMem>
 class launch_policy {
-  static_assert(sycl_exp::is_property_list_v<KProps>);
-  static_assert(sycl_exp::is_property_list_v<LProps>);
-  static_assert(syclcompat::detail::is_range_or_nd_range_v<Range>);
-  static_assert(syclcompat::detail::is_nd_range_v<Range> || !LocalMem,
-                "sycl::range kernel launches are incompatible with local "
-                "memory usage!");
-
 public:
   using KPropsT = KProps;
   using LPropsT = LProps;
@@ -306,98 +283,24 @@ public:
   static constexpr bool HasLocalMem = LocalMem;
   static constexpr int Dim = syclcompat::detail::range_dimension_v<Range>;
 
-private:
-  launch_policy() = default;
-
   template <typename... Ts>
-  launch_policy(Ts... ts)
-      : _kernel_properties{detail::property_getter<
-            kernel_properties, kernel_properties<KPropsT>, std::tuple<Ts...>>()(
-            std::tuple<Ts...>(ts...))},
-        _launch_properties{detail::property_getter<
-            launch_properties, launch_properties<LPropsT>, std::tuple<Ts...>>()(
-            std::tuple<Ts...>(ts...))},
-        _local_mem_size{
-            detail::local_mem_getter<local_mem_size, std::tuple<Ts...>>()(
-                std::tuple<Ts...>(ts...))} {
-    check_variadic_args(ts...);
-  }
-
-  template <typename... Ts> void check_variadic_args(Ts... ts) {
-    static_assert(
-        std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
-                                            detail::is_launch_properties<Ts>,
-                                            detail::is_local_mem_size<Ts>>...>,
-        "\nReceived an unexpected argument to ctor. Did you forget to wrap "
-        "in "
-        "compat::kernel_properties, launch_properties, local_mem_size?");
-  }
-
-public:
-  template <typename... Ts>
-  launch_policy(Range range, Ts... ts) : launch_policy(ts...) {
-    _range = range;
-    check_variadic_args(ts...);
-  }
+  launch_policy(Range range, Ts... ts);
 
   template <int Dim, typename... Ts>
   launch_policy(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
-                Ts... ts)
-      : launch_policy(ts...) {
-    _range = {global_range, local_range};
-    check_variadic_args(ts...);
-  }
+                Ts... ts);
 
   template <typename... Ts>
-  launch_policy(dim3 global_range, Ts... ts) : launch_policy(ts...) {
-    _range = Range{global_range};
-    check_variadic_args(ts...);
-  }
+  launch_policy(dim3 global_range, Ts... ts);
 
   template <typename... Ts>
-  launch_policy(dim3 global_range, dim3 local_range, Ts... ts)
-      : launch_policy(ts...) {
-    _range = Range{global_range * local_range, local_range};
-    check_variadic_args(ts...);
-  }
+  launch_policy(dim3 global_range, dim3 local_range, Ts... ts);
 
-  KProps get_kernel_properties() { return _kernel_properties.props; }
-  LProps get_launch_properties() { return _launch_properties.props; }
-  size_t get_local_mem_size() { return _local_mem_size.size; }
-  Range get_range() { return _range; }
-
-private:
-  Range _range;
-  kernel_properties<KProps> _kernel_properties;
-  launch_properties<LProps> _launch_properties;
-  local_mem_size _local_mem_size;
+  KProps get_kernel_properties();
+  LProps get_launch_properties();
+  size_t get_local_mem_size();
+  Range get_range();
 };
-
-// Deduction guides for launch_policy
-template <typename Range, typename... Ts>
-launch_policy(Range, Ts...) -> launch_policy<
-    Range, detail::properties_or_empty<kernel_properties, Ts...>,
-    detail::properties_or_empty<launch_properties, Ts...>,
-    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
-
-template <int Dim, typename... Ts>
-launch_policy(sycl::range<Dim>, sycl::range<Dim>, Ts...) -> launch_policy<
-    sycl::nd_range<Dim>, detail::properties_or_empty<kernel_properties, Ts...>,
-    detail::properties_or_empty<launch_properties, Ts...>,
-    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
-
-template <typename... Ts>
-launch_policy(dim3, Ts...) -> launch_policy<
-    sycl::range<3>, detail::properties_or_empty<kernel_properties, Ts...>,
-    detail::properties_or_empty<launch_properties, Ts...>,
-    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
-
-template <typename... Ts>
-launch_policy(dim3, dim3, Ts...) -> launch_policy<
-    sycl::nd_range<3>, detail::properties_or_empty<kernel_properties, Ts...>,
-    detail::properties_or_empty<launch_properties, Ts...>,
-    detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
-
 } //namespace syclcompat::experimental
 ```
 
