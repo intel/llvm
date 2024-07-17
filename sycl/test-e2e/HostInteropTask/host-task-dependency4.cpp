@@ -3,7 +3,6 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 sycl::event submit(sycl::queue &Q, sycl::buffer<int> &B) {
   return Q.submit([&](sycl::handler &CGH) {

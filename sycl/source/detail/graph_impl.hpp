@@ -13,10 +13,10 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
-#include <sycl/detail/host_task_impl.hpp>
-
 #include <detail/accessor_impl.hpp>
+#include <detail/cg.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/host_task.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 
@@ -41,34 +41,34 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-inline node_type getNodeTypeFromCG(sycl::detail::CG::CGTYPE CGType) {
+inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
 
   switch (CGType) {
-  case CG::None:
+  case sycl::detail::CGType::None:
     return node_type::empty;
-  case CG::Kernel:
+  case sycl::detail::CGType::Kernel:
     return node_type::kernel;
-  case CG::CopyAccToPtr:
-  case CG::CopyPtrToAcc:
-  case CG::CopyAccToAcc:
-  case CG::CopyUSM:
+  case sycl::detail::CGType::CopyAccToPtr:
+  case sycl::detail::CGType::CopyPtrToAcc:
+  case sycl::detail::CGType::CopyAccToAcc:
+  case sycl::detail::CGType::CopyUSM:
     return node_type::memcpy;
-  case CG::Memset2DUSM:
+  case sycl::detail::CGType::Memset2DUSM:
     return node_type::memset;
-  case CG::Fill:
-  case CG::FillUSM:
+  case sycl::detail::CGType::Fill:
+  case sycl::detail::CGType::FillUSM:
     return node_type::memfill;
-  case CG::PrefetchUSM:
+  case sycl::detail::CGType::PrefetchUSM:
     return node_type::prefetch;
-  case CG::AdviseUSM:
+  case sycl::detail::CGType::AdviseUSM:
     return node_type::memadvise;
-  case CG::Barrier:
-  case CG::BarrierWaitlist:
+  case sycl::detail::CGType::Barrier:
+  case sycl::detail::CGType::BarrierWaitlist:
     return node_type::ext_oneapi_barrier;
-  case CG::CodeplayHostTask:
+  case sycl::detail::CGType::CodeplayHostTask:
     return node_type::host_task;
-  case CG::ExecCommandBuffer:
+  case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
   default:
     assert(false && "Invalid Graph Node Type");
@@ -90,7 +90,7 @@ public:
   /// Using weak_ptr here to prevent circular references between nodes.
   std::vector<std::weak_ptr<node_impl>> MPredecessors;
   /// Type of the command-group for the node.
-  sycl::detail::CG::CGTYPE MCGType = sycl::detail::CG::None;
+  sycl::detail::CGType MCGType = sycl::detail::CGType::None;
   /// User facing type of the node.
   node_type MNodeType = node_type::empty;
   /// Command group object which stores all args etc needed to enqueue the node
@@ -221,51 +221,51 @@ public:
   /// workload but only dependencies
   /// @return True if this is an empty node, false otherwise.
   bool isEmpty() const {
-    return ((MCGType == sycl::detail::CG::None) ||
-            (MCGType == sycl::detail::CG::Barrier));
+    return ((MCGType == sycl::detail::CGType::None) ||
+            (MCGType == sycl::detail::CGType::Barrier));
   }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
   std::unique_ptr<sycl::detail::CG> getCGCopy() const {
     switch (MCGType) {
-    case sycl::detail::CG::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       auto CGCopy = createCGCopy<sycl::detail::CGExecKernel>();
       rebuildArgStorage(CGCopy->MArgs, MCommandGroup->getArgsStorage(),
                         CGCopy->getArgsStorage());
       return std::move(CGCopy);
     }
-    case sycl::detail::CG::CopyAccToPtr:
-    case sycl::detail::CG::CopyPtrToAcc:
-    case sycl::detail::CG::CopyAccToAcc:
+    case sycl::detail::CGType::CopyAccToPtr:
+    case sycl::detail::CGType::CopyPtrToAcc:
+    case sycl::detail::CGType::CopyAccToAcc:
       return createCGCopy<sycl::detail::CGCopy>();
-    case sycl::detail::CG::Fill:
+    case sycl::detail::CGType::Fill:
       return createCGCopy<sycl::detail::CGFill>();
-    case sycl::detail::CG::UpdateHost:
+    case sycl::detail::CGType::UpdateHost:
       return createCGCopy<sycl::detail::CGUpdateHost>();
-    case sycl::detail::CG::CopyUSM:
+    case sycl::detail::CGType::CopyUSM:
       return createCGCopy<sycl::detail::CGCopyUSM>();
-    case sycl::detail::CG::FillUSM:
+    case sycl::detail::CGType::FillUSM:
       return createCGCopy<sycl::detail::CGFillUSM>();
-    case sycl::detail::CG::PrefetchUSM:
+    case sycl::detail::CGType::PrefetchUSM:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
-    case sycl::detail::CG::AdviseUSM:
+    case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
-    case sycl::detail::CG::Copy2DUSM:
+    case sycl::detail::CGType::Copy2DUSM:
       return createCGCopy<sycl::detail::CGCopy2DUSM>();
-    case sycl::detail::CG::Fill2DUSM:
+    case sycl::detail::CGType::Fill2DUSM:
       return createCGCopy<sycl::detail::CGFill2DUSM>();
-    case sycl::detail::CG::Memset2DUSM:
+    case sycl::detail::CGType::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
-    case sycl::detail::CG::ACPPCustomOperation:
-    case sycl::detail::CG::CodeplayHostTask: {
+    case sycl::detail::CGType::ACPPCustomOperation:
+    case sycl::detail::CGType::CodeplayHostTask: {
       // The unique_ptr to the `sycl::detail::HostTask` in the HostTask CG
       // prevents from copying the CG.
       // We overcome this restriction by creating a new CG with the same data.
       auto CommandGroupPtr =
           static_cast<sycl::detail::CGHostTask *>(MCommandGroup.get());
       sycl::detail::HostTask HostTask = *CommandGroupPtr->MHostTask.get();
-      auto HostTaskUPtr = std::make_unique<sycl::detail::HostTask>(HostTask);
+      auto HostTaskSPtr = std::make_shared<sycl::detail::HostTask>(HostTask);
 
       sycl::detail::CG::StorageInitHelper Data(
           CommandGroupPtr->getArgsStorage(), CommandGroupPtr->getAccStorage(),
@@ -284,32 +284,32 @@ public:
 
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
-              std::move(HostTaskUPtr), CommandGroupPtr->MQueue,
+              std::move(HostTaskSPtr), CommandGroupPtr->MQueue,
               CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
               CommandGroupPtr->getType(), Loc));
     }
-    case sycl::detail::CG::Barrier:
-    case sycl::detail::CG::BarrierWaitlist:
+    case sycl::detail::CGType::Barrier:
+    case sycl::detail::CGType::BarrierWaitlist:
       // Barrier nodes are stored in the graph with only the base CG class,
       // since they are treated internally as empty nodes.
       return createCGCopy<sycl::detail::CG>();
-    case sycl::detail::CG::CopyToDeviceGlobal:
+    case sycl::detail::CGType::CopyToDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
-    case sycl::detail::CG::CopyFromDeviceGlobal:
+    case sycl::detail::CGType::CopyFromDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyFromDeviceGlobal>();
-    case sycl::detail::CG::ReadWriteHostPipe:
+    case sycl::detail::CGType::ReadWriteHostPipe:
       return createCGCopy<sycl::detail::CGReadWriteHostPipe>();
-    case sycl::detail::CG::CopyImage:
+    case sycl::detail::CGType::CopyImage:
       return createCGCopy<sycl::detail::CGCopyImage>();
-    case sycl::detail::CG::SemaphoreSignal:
+    case sycl::detail::CGType::SemaphoreSignal:
       return createCGCopy<sycl::detail::CGSemaphoreSignal>();
-    case sycl::detail::CG::SemaphoreWait:
+    case sycl::detail::CGType::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
-    case sycl::detail::CG::ProfilingTag:
+    case sycl::detail::CGType::ProfilingTag:
       return createCGCopy<sycl::detail::CGProfilingTag>();
-    case sycl::detail::CG::ExecCommandBuffer:
+    case sycl::detail::CGType::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
-    case sycl::detail::CG::None:
+    case sycl::detail::CGType::None:
       return nullptr;
     }
     return nullptr;
@@ -333,14 +333,14 @@ public:
       return false;
 
     switch (MCGType) {
-    case sycl::detail::CG::CGTYPE::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
       return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
     }
-    case sycl::detail::CG::CGTYPE::CopyUSM: {
+    case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
       sycl::detail::CGCopyUSM *CopyB =
@@ -349,9 +349,9 @@ public:
              (CopyA->getDst() == CopyB->getDst()) &&
              (CopyA->getLength() == CopyB->getLength());
     }
-    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
-    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
-    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
+    case sycl::detail::CGType::CopyAccToAcc:
+    case sycl::detail::CGType::CopyAccToPtr:
+    case sycl::detail::CGType::CopyPtrToAcc: {
       sycl::detail::CGCopy *CopyA =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
       sycl::detail::CGCopy *CopyB =
@@ -395,9 +395,9 @@ public:
   /// Test if the node contains a N-D copy
   /// @return true if the op is a N-D copy
   bool isNDCopyNode() const {
-    if ((MCGType != sycl::detail::CG::CGTYPE::CopyAccToAcc) &&
-        (MCGType != sycl::detail::CG::CGTYPE::CopyAccToPtr) &&
-        (MCGType != sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+    if ((MCGType != sycl::detail::CGType::CopyAccToAcc) &&
+        (MCGType != sycl::detail::CGType::CopyAccToPtr) &&
+        (MCGType != sycl::detail::CGType::CopyPtrToAcc)) {
       return false;
     }
 
@@ -478,7 +478,7 @@ public:
 
   template <int Dimensions>
   void updateNDRange(nd_range<Dimensions> ExecutionRange) {
-    if (MCGType != sycl::detail::CG::Kernel) {
+    if (MCGType != sycl::detail::CGType::Kernel) {
       throw sycl::exception(
           sycl::errc::invalid,
           "Cannot update execution range of nodes which are not kernel nodes");
@@ -500,11 +500,11 @@ public:
                             "the node was originall created with.");
     }
 
-    NDRDesc.set(ExecutionRange);
+    NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
   }
 
   template <int Dimensions> void updateRange(range<Dimensions> ExecutionRange) {
-    if (MCGType != sycl::detail::CG::Kernel) {
+    if (MCGType != sycl::detail::CGType::Kernel) {
       throw sycl::exception(
           sycl::errc::invalid,
           "Cannot update execution range of nodes which are not kernel nodes");
@@ -526,7 +526,7 @@ public:
                             "the node was originall created with.");
     }
 
-    NDRDesc.set(ExecutionRange);
+    NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
   }
 
   void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
@@ -596,10 +596,10 @@ private:
     Stream << "TYPE = ";
 
     switch (MCGType) {
-    case sycl::detail::CG::CGTYPE::None:
+    case sycl::detail::CGType::None:
       Stream << "None \\n";
       break;
-    case sycl::detail::CG::CGTYPE::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
@@ -646,7 +646,7 @@ private:
       }
       break;
     }
-    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CGType::CopyAccToPtr:
       Stream << "CGCopy Device-to-Host \\n";
       if (Verbose) {
         sycl::detail::CGCopy *Copy =
@@ -655,7 +655,7 @@ private:
                << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::CopyPtrToAcc:
+    case sycl::detail::CGType::CopyPtrToAcc:
       Stream << "CGCopy Host-to-Device \\n";
       if (Verbose) {
         sycl::detail::CGCopy *Copy =
@@ -664,7 +664,7 @@ private:
                << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+    case sycl::detail::CGType::CopyAccToAcc:
       Stream << "CGCopy Device-to-Device \\n";
       if (Verbose) {
         sycl::detail::CGCopy *Copy =
@@ -673,7 +673,7 @@ private:
                << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::Fill:
+    case sycl::detail::CGType::Fill:
       Stream << "CGFill \\n";
       if (Verbose) {
         sycl::detail::CGFill *Fill =
@@ -681,7 +681,7 @@ private:
         Stream << "Ptr: " << Fill->MPtr << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::UpdateHost:
+    case sycl::detail::CGType::UpdateHost:
       Stream << "CGCUpdateHost \\n";
       if (Verbose) {
         sycl::detail::CGUpdateHost *Host =
@@ -689,7 +689,7 @@ private:
         Stream << "Ptr: " << Host->getReqToUpdate() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::CopyUSM:
+    case sycl::detail::CGType::CopyUSM:
       Stream << "CGCopyUSM \\n";
       if (Verbose) {
         sycl::detail::CGCopyUSM *CopyUSM =
@@ -698,7 +698,7 @@ private:
                << " Length: " << CopyUSM->getLength() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::FillUSM:
+    case sycl::detail::CGType::FillUSM:
       Stream << "CGFillUSM \\n";
       if (Verbose) {
         sycl::detail::CGFillUSM *FillUSM =
@@ -710,7 +710,7 @@ private:
         Stream << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::PrefetchUSM:
+    case sycl::detail::CGType::PrefetchUSM:
       Stream << "CGPrefetchUSM \\n";
       if (Verbose) {
         sycl::detail::CGPrefetchUSM *Prefetch =
@@ -719,7 +719,7 @@ private:
                << " Length: " << Prefetch->getLength() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::AdviseUSM:
+    case sycl::detail::CGType::AdviseUSM:
       Stream << "CGAdviseUSM \\n";
       if (Verbose) {
         sycl::detail::CGAdviseUSM *AdviseUSM =
@@ -728,13 +728,13 @@ private:
                << " Length: " << AdviseUSM->getLength() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::CodeplayHostTask:
+    case sycl::detail::CGType::CodeplayHostTask:
       Stream << "CGHostTask \\n";
       break;
-    case sycl::detail::CG::CGTYPE::Barrier:
+    case sycl::detail::CGType::Barrier:
       Stream << "CGBarrier \\n";
       break;
-    case sycl::detail::CG::CGTYPE::Copy2DUSM:
+    case sycl::detail::CGType::Copy2DUSM:
       Stream << "CGCopy2DUSM \\n";
       if (Verbose) {
         sycl::detail::CGCopy2DUSM *Copy2DUSM =
@@ -743,7 +743,7 @@ private:
                << " Dst: " << Copy2DUSM->getDst() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::Fill2DUSM:
+    case sycl::detail::CGType::Fill2DUSM:
       Stream << "CGFill2DUSM \\n";
       if (Verbose) {
         sycl::detail::CGFill2DUSM *Fill2DUSM =
@@ -751,7 +751,7 @@ private:
         Stream << "Dst: " << Fill2DUSM->getDst() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::Memset2DUSM:
+    case sycl::detail::CGType::Memset2DUSM:
       Stream << "CGMemset2DUSM \\n";
       if (Verbose) {
         sycl::detail::CGMemset2DUSM *Memset2DUSM =
@@ -759,10 +759,10 @@ private:
         Stream << "Dst: " << Memset2DUSM->getDst() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::ReadWriteHostPipe:
+    case sycl::detail::CGType::ReadWriteHostPipe:
       Stream << "CGReadWriteHostPipe \\n";
       break;
-    case sycl::detail::CG::CGTYPE::CopyToDeviceGlobal:
+    case sycl::detail::CGType::CopyToDeviceGlobal:
       Stream << "CGCopyToDeviceGlobal \\n";
       if (Verbose) {
         sycl::detail::CGCopyToDeviceGlobal *CopyToDeviceGlobal =
@@ -772,7 +772,7 @@ private:
                << " Dst: " << CopyToDeviceGlobal->getDeviceGlobalPtr() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::CopyFromDeviceGlobal:
+    case sycl::detail::CGType::CopyFromDeviceGlobal:
       Stream << "CGCopyFromDeviceGlobal \\n";
       if (Verbose) {
         sycl::detail::CGCopyFromDeviceGlobal *CopyFromDeviceGlobal =
@@ -782,7 +782,7 @@ private:
                << " Dst: " << CopyFromDeviceGlobal->getDest() << "\\n";
       }
       break;
-    case sycl::detail::CG::CGTYPE::ExecCommandBuffer:
+    case sycl::detail::CGType::ExecCommandBuffer:
       Stream << "CGExecCommandBuffer \\n";
       break;
     default:
@@ -823,7 +823,7 @@ public:
   /// @return True if the partition contains a host task
   bool isHostTask() const {
     return (MRoots.size() && ((*MRoots.begin()).lock()->MCGType ==
-                              sycl::detail::CG::CGTYPE::CodeplayHostTask));
+                              sycl::detail::CGType::CodeplayHostTask));
   }
 
   /// Checks if the graph is single path, i.e. each node has a single successor.
