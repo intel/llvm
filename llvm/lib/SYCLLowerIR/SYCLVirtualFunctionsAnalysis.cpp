@@ -1,4 +1,4 @@
-//===--- SYCLVirtualFunctionsAnalysis.cpp ---------------------------------===//
+//===---------------- SYCLVirtualFunctionsAnalysis.cpp --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains implementation of SYCLVirtualFunctionsAnalysis pass that
-// is responsible for checking that virtual functions are used properly in SYCL
-// device code:
-// - if a kernel submitted without calls_indirectly property performs virtual
-//   function calls, a diagnostic should be emitted
+// This file contains the implementation of the SYCLVirtualFunctionsAnalysis
+// pass that is responsible for checking that virtual functions are used
+// properly in SYCL device code:
+// - if a kernel submitted without the calls_indirectly property performs
+//   virtual function calls, a diagnostic should be emitted.
 //
 //===----------------------------------------------------------------------===//
 
