@@ -527,7 +527,7 @@ params:
     - type: void*
       name: pDst
       desc: "[in] location the data will be copied to"
-    - type: void*
+    - type: const void*
       name: pSrc
       desc: "[in] location the data will be copied from"
     - type: "const $x_image_format_t*"

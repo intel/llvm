@@ -9,11 +9,15 @@
  */
 
 #include <algorithm>
+#include <functional>
+#include <memory>
+#include <thread>
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
 #include <ur_api.h>
 
+#include <atomic>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -343,4 +347,135 @@ splitMetadataName(const std::string &metadataName) {
     return std::make_pair(metadataName.substr(0, splitPos),
                           metadataName.substr(splitPos, metadataName.length()));
 }
+
+// A simple spinlock, must be kept trivially destructible
+// so that it's safe to use after its destructor has been called.
+template <typename T> class Spinlock {
+  public:
+    Spinlock() {}
+
+    T *acquire() {
+        while (lock.test_and_set(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        return &value;
+    }
+    void release() { lock.clear(std::memory_order_release); }
+
+    T *bypass() { return &value; }
+
+  private:
+    std::atomic_flag lock;
+    T value;
+};
+
+// A reference counted pointer.
+template <typename T> class Rc {
+  public:
+    Rc() : ptr(nullptr), refcount(0) {}
+    Rc(const Rc &) = delete;
+    Rc &operator=(const Rc &) = delete;
+    Rc(Rc &&) = delete;
+    Rc &operator=(Rc &&) = delete;
+
+    T *get_or_create(bool refcounted = true) {
+        if (refcounted) {
+            refcount++;
+        }
+
+        if (ptr == nullptr) {
+            ptr = new T();
+        }
+        return ptr;
+    }
+
+    T *get_direct() { return ptr; }
+
+    int release(std::function<void(T *)> deleter) {
+        if (refcount <= 0) {
+            return -1;
+        }
+
+        if (--refcount == 0) {
+            deleter(ptr);
+            ptr = nullptr;
+        }
+
+        return 0;
+    }
+
+    void forceDelete() {
+        delete ptr;
+        refcount = 0;
+        ptr = nullptr;
+    }
+
+  private:
+    // can be read, unsyncrhonized, from multiple threads
+    std::atomic<T *> ptr;
+    size_t refcount;
+};
+
+// AtomicSingleton is for those cases where we want to support creating state
+// on first use, global MT-safe reference-counted access, explicit synchronized deletion,
+// and, on top of all that, need to gracefully handle situations where destructor order
+// causes a library/application to call into the loader after it has been destroyed.
+template <typename T> class AtomicSingleton {
+  private:
+    static Spinlock<Rc<T>> instance;
+    // Simply using an std::mutex would have been much simpler, but mutexes might
+    // get deleted prior to last use of this type.
+
+  public:
+    static T *get() {
+        auto val = instance.acquire();
+
+        auto ptr = val->get_or_create();
+
+        instance.release();
+
+        return ptr;
+    }
+
+    static T *get_direct() {
+        auto ptr = instance.bypass()->get_direct();
+        if (ptr == nullptr) {
+            auto val = instance.acquire();
+            ptr = val->get_or_create(false);
+            instance.release();
+        }
+
+        // This ptr is *not* safe to access if
+        // this thread is not holding a refcount
+        // for this object, because some other thread
+        // can come in and release it. But the alternative
+        // would be to do proper refcounting on every access
+        // to loader context objects. Just to secure against
+        // a misbehaving application that accesses loader state
+        // after it has been teardown'ed, from multiple threads.
+        // Probably not worth it.
+
+        return ptr;
+    }
+
+    static int release(std::function<void(T *)> deleter) {
+        auto val = instance.acquire();
+        int ret = val->release(deleter);
+        instance.release();
+
+        return ret;
+    }
+
+    // When we don't care about the refcount or the refcount is external.
+    static void forceDelete() {
+        auto val = instance.acquire();
+
+        val->forceDelete();
+
+        instance.release();
+    }
+};
+
+template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
+
 #endif /* UR_UTIL_H */

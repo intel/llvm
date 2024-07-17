@@ -119,10 +119,10 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
 #define UR_CALL(Call)                                                          \
     {                                                                          \
         if (PrintTrace)                                                        \
-            context.logger.debug("UR ---> {}", #Call);                         \
+            getContext()->logger.debug("UR ---> {}", #Call);                   \
         ur_result_t Result = (Call);                                           \
         if (PrintTrace)                                                        \
-            context.logger.debug("UR <--- {}({})", #Call, Result);             \
+            getContext()->logger.debug("UR <--- {}({})", #Call, Result);       \
         if (Result != UR_RESULT_SUCCESS)                                       \
             return Result;                                                     \
     }

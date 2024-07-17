@@ -12,6 +12,7 @@ in the corpus directory for reaching better coverage of tests.
 #include "kernel_entry_points.h"
 #include "ur_api.h"
 #include "utils.hpp"
+#include <cassert>
 
 namespace fuzz {
 
@@ -408,6 +409,19 @@ int ur_program_create_with_il(TestState &state) {
     return 0;
 }
 
+// Call loader init and teardown exactly once.
+static struct UrLoader {
+    UrLoader() {
+        LoaderConfig config;
+        ur_result_t res = urLoaderInit(0, config.handle);
+        if (res != UR_RESULT_SUCCESS) {
+            exit(0);
+        }
+    }
+    ~UrLoader() { urLoaderTearDown(); }
+    LoaderConfig config;
+} UrLoader;
+
 extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     int next_api_call;
     auto data_provider = std::make_unique<FuzzedDataProvider>(data, size);
@@ -440,15 +454,10 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         return ret;
     }
 
-    LoaderConfig config;
-    ur_result_t res = urLoaderInit(0, config.handle);
-    if (res != UR_RESULT_SUCCESS) {
-        return -1;
-    }
-
     test_state.adapters.resize(test_state.num_entries);
-    res = urAdapterGet(test_state.num_entries, test_state.adapters.data(),
-                       &test_state.num_adapters);
+    ur_result_t res =
+        urAdapterGet(test_state.num_entries, test_state.adapters.data(),
+                     &test_state.num_adapters);
     if (res != UR_RESULT_SUCCESS || test_state.num_adapters == 0) {
         return -1;
     }
@@ -458,11 +467,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         if (ret) {
             return -1;
         }
-    }
-
-    res = urLoaderTearDown();
-    if (res != UR_RESULT_SUCCESS) {
-        return -1;
     }
 
     return 0;

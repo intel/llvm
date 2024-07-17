@@ -17,8 +17,11 @@
 
 namespace ur_validation_layer {
 
+struct RefCountContext;
+
 ///////////////////////////////////////////////////////////////////////////////
-class __urdlllocal context_t : public proxy_layer_context_t {
+class __urdlllocal context_t : public proxy_layer_context_t,
+                               public AtomicSingleton<context_t> {
   public:
     bool enableParameterValidation = false;
     bool enableLeakChecking = false;
@@ -30,8 +33,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     context_t();
     ~context_t();
 
-    bool isAvailable() const override { return true; }
-    std::vector<std::string> getNames() const override {
+    static std::vector<std::string> getNames() {
         return {nameFullValidation, nameParameterValidation, nameLeakChecking,
                 nameLifetimeValidation};
     }
@@ -40,11 +42,16 @@ class __urdlllocal context_t : public proxy_layer_context_t {
                      codeloc_data codelocData) override;
     ur_result_t tearDown() override;
 
+    std::unique_ptr<RefCountContext> refCountContext;
+
   private:
-    const std::string nameFullValidation = "UR_LAYER_FULL_VALIDATION";
-    const std::string nameParameterValidation = "UR_LAYER_PARAMETER_VALIDATION";
-    const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
-    const std::string nameLifetimeValidation = "UR_LAYER_LIFETIME_VALIDATION";
+    inline static const std::string nameFullValidation =
+        "UR_LAYER_FULL_VALIDATION";
+    inline static const std::string nameParameterValidation =
+        "UR_LAYER_PARAMETER_VALIDATION";
+    inline static const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
+    inline static const std::string nameLifetimeValidation =
+        "UR_LAYER_LIFETIME_VALIDATION";
 };
 
 ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size);
@@ -58,6 +65,6 @@ ur_result_t bounds(ur_queue_handle_t queue, const void *ptr, size_t offset,
 ur_result_t boundsImage(ur_mem_handle_t image, ur_rect_offset_t origin,
                         ur_rect_region_t region);
 
-extern context_t context;
+context_t *getContext();
 
 } // namespace ur_validation_layer

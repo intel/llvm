@@ -751,7 +751,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
-    void *pDst, void *pSrc, const ur_image_format_t *pImageFormat,
+    void *pDst, const void *pSrc, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_exp_image_copy_flags_t imageCopyFlags,
     ur_rect_offset_t srcOffset, ur_rect_offset_t dstOffset,
     ur_rect_region_t copyExtent, ur_rect_region_t hostExtent,
@@ -813,8 +813,9 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
       UR_CALL(getImageRegionHelper(ZeImageDesc, &dstOffset, &copyExtent,
                                    DstRegion));
       auto *UrImage = static_cast<_ur_image *>(pDst);
-      char *SrcPtr = static_cast<char *>(pSrc) + srcOffset.z * SrcSlicePitch +
-                     srcOffset.y * SrcRowPitch + srcOffset.x * PixelSizeInBytes;
+      const char *SrcPtr =
+          static_cast<const char *>(pSrc) + srcOffset.z * SrcSlicePitch +
+          srcOffset.y * SrcRowPitch + srcOffset.x * PixelSizeInBytes;
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
                  (ZeCommandList, UrImage->ZeImage, SrcPtr, &DstRegion,
                   SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
@@ -844,7 +845,7 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent,
                                    SrcRegion));
-      auto *UrImage = static_cast<_ur_image *>(pSrc);
+      auto *UrImage = static_cast<const _ur_image *>(pSrc);
       char *DstPtr = static_cast<char *>(pDst) + dstOffset.z * DstSlicePitch +
                      dstOffset.y * DstRowPitch + dstOffset.x * PixelSizeInBytes;
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
@@ -876,7 +877,7 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
     UR_CALL(
         getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent, SrcRegion));
     auto *UrImageDst = static_cast<_ur_image *>(pDst);
-    auto *UrImageSrc = static_cast<_ur_image *>(pSrc);
+    auto *UrImageSrc = static_cast<const _ur_image *>(pSrc);
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
                 &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
