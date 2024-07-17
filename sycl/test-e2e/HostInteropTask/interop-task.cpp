@@ -8,7 +8,7 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/interop_handle.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
