@@ -27,16 +27,16 @@ public:
   std::unique_ptr<detail::CG> finalize() {
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
-    case detail::CG::Kernel: {
+    case detail::CGType::Kernel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle),
+          std::move(impl->MKernelBundle),
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), getStreamStorage(),
-          std::move(MImpl->MAuxiliaryResources), getCGType(), {},
-          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          std::move(impl->MAuxiliaryResources), getType(), {},
+          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
           getCodeLoc()));
       break;
     }

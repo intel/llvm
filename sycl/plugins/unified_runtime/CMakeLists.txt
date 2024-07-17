@@ -100,13 +100,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
-  # commit 529e8b9c34acd231eb5b829f6af8123e5f09c974
-  # Merge: 6b33a1bb 5dc794cb
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 10 15:05:31 2024 +0100
-  #     Merge pull request #1816 from nrspruit/l0_intel_driver_version
-  #     [L0] Use Intel Level Zero Driver String extension
-  set(UNIFIED_RUNTIME_TAG 81290df47fd5017fe7ca961521ab8be34f909ef3)
+# From 7e38b39ad717d30f013699e5002dbee892d743cc Mon Sep 17 00:00:00 2001
+# From: JackAKirk <jack.kirk@codeplay.com>
+# Date: Mon, 8 Jul 2024 14:35:56 +0100
+# Subject: [PATCH] Remove deprecated hip APIs.
+
+# Mostly these APIs were completely redundant already. HIP amd doesn't have have a context concept.
+
+# Signed-off-by: JackAKirk <jack.kirk@codeplay.com>
+# ---
+  set(UNIFIED_RUNTIME_TAG 7e38b39ad717d30f013699e5002dbee892d743cc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
