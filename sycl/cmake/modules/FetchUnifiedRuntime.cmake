@@ -232,41 +232,51 @@ endif()
 
 add_custom_target(UnifiedRuntimeAdapters)
 
+function(add_sycl_ur_adapter NAME)
+  add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
+
+  install(TARGETS ur_adapter_${NAME}
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
+    RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
+
+  set(manifest_file
+    ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_ur_adapter_${NAME}.txt)
+  add_custom_command(OUTPUT ${manifest_file}
+    COMMAND "${CMAKE_COMMAND}"
+    "-DCMAKE_INSTALL_COMPONENT=ur_adapter_${NAME}"
+    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+    COMMENT "Deploying component ur_adapter_${NAME}"
+    USES_TERMINAL
+  )
+  add_custom_target(install-sycl-ur-adapter-${NAME}
+    DEPENDS ${manifest_file} ur_adapter_${NAME}
+  )
+
+  set_property(GLOBAL APPEND PROPERTY
+    SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+endfunction()
+
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(UnifiedRuntimeAdapters ur_adapter_level_zero)
+  add_sycl_ur_adapter(level_zero)
 
   # TODO: L0 adapter does other... things in its cmake - make sure they get
   # added to the new build system
-
-  # Install L0 library
-  if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
-    install(TARGETS ur_adapter_level_zero
-      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-    )
-  endif()
 endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(UnifiedRuntimeAdapters ur_adapter_cuda)
+  add_sycl_ur_adapter(cuda)
 endif()
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(UnifiedRuntimeAdapters ur_adapter_hip)
-endif()
-if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(UnifiedRuntimeAdapters ur_adapter_opencl)
 
-  # Install the UR adapters too
-  # TODO: copied from plugins/unified-runtime/CMakeLists.txt, looks a little
-  # weird: why the level-zero-sycl-dev component for opencl??
-  install(TARGETS ur_adapter_opencl
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-  )
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_sycl_ur_adapter(hip)
 endif()
+
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_sycl_ur_adapter(opencl)
+endif()
+
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(UnifiedRuntimeAdapters ur_adapter_native_cpu)
+  add_sycl_ur_adapter(native_cpu)
 
   # Deal with OCK option
   option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
