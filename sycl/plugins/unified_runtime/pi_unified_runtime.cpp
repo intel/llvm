@@ -1366,10 +1366,10 @@ __SYCL_EXPORT pi_result piextMemImageCopy(
     pi_image_offset SrcOffset, pi_image_offset DstOffset,
     pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextMemImageCopy(
-      Queue, DstPtr, SrcPtr, SrcImageDesc, DstImageDesc, SrcImageFormat,
-      DstImageFormat, Flags, SrcOffset, DstOffset, CopyExtent,
-      NumEventsInWaitList, EventWaitList, Event);
+  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, SrcImageDesc,
+                                  DstImageDesc, SrcImageFormat, DstImageFormat,
+                                  Flags, SrcOffset, DstOffset, CopyExtent,
+                                  NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
