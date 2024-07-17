@@ -12,74 +12,13 @@
 //
 // UNSUPPORTED: cuda || hip
 
+#include "group_sort_decls.hpp"
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <sycl.hpp>
 using namespace sycl;
-#ifdef __SYCL_DEVICE_ONLY__
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i32_u32_p1i8(
-    int32_t *first, uint32_t n, uint8_t *scratch);
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i32_u32_p1i8(
-    int32_t *first, uint32_t n, uint8_t *scratch);
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i16_u32_p1i8(
-    int16_t *first, uint32_t n, uint8_t *scratch);
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i16_u32_p1i8(
-    int16_t *first, uint32_t n, uint8_t *scratch);
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i64_u32_p1i8(
-    int64_t *first, uint32_t n, uint8_t *scratch);
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i64_u32_p1i8(
-    int64_t *first, uint32_t n, uint8_t *scratch);
-#else
-extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i32_u32_p1i8(
-    int32_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-SYCL_EXTERNAL extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i32_u32_p1i8(
-    int32_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i16_u32_p1i8(
-    int16_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i16_u32_p1i8(
-    int16_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-extern "C" void
-__devicelib_default_work_group_joint_sort_ascending_p1i64_u32_p1i8(
-    int64_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-extern "C" void
-__devicelib_default_work_group_joint_sort_descending_p1i64_u32_p1i8(
-    int64_t *first, uint32_t n, uint8_t *scratch) {
-  return;
-}
-
-#endif
 
 template <typename Ty, size_t WG_SZ, size_t NUM, typename SortHelper>
 void test_work_group_joint_sort(sycl::queue &q, Ty input[NUM], SortHelper gsh) {
@@ -123,6 +62,24 @@ void test_work_group_joint_sort(sycl::queue &q, Ty input[NUM], SortHelper gsh) {
 
 int main() {
   queue q;
+
+  {
+    constexpr static int NUM = 19;
+    int8_t a[NUM] = {-1,  11, 10, 9, 3,   100, 34, 8,  10, 77,
+                     -93, 23, 36, 2, 111, 91,  88, -2, -25};
+    auto work_group_sorter = [](int8_t *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<int8_t, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1i8_u32_p1i8 passes" << std::endl;
+  }
 
   {
     constexpr static int NUM = 19;
@@ -177,6 +134,27 @@ int main() {
     test_work_group_joint_sort<int64_t, 8, NUM, decltype(work_group_sorter)>(
         q, a, work_group_sorter);
     std::cout << "work group joint sort p1i64_u32_p1i8 passes" << std::endl;
+  }
+
+  {
+    constexpr static int NUM = 23;
+    float a[NUM] = {-1.25f,  11.4643f,    1.45f,           -9.98f,   13.665f,
+                    100.0f,  34.625f,     8.125f,          1000.12f, 77.91f,
+                    293.33f, 23.4f,       -36.6f,          2.5f,     111.11f,
+                    91.889f, 88.88f,      -2.98f,          525.25f,  -12.11f,
+                    525.0f,  -9999999.9f, 19928348493.123f};
+    auto work_group_sorter = [](float *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1f32_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1f32_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<float, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1f32_u32_p1i8 passes" << std::endl;
   }
 
   return 0;
