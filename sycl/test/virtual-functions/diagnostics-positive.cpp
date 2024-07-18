@@ -87,6 +87,8 @@ int main() {
     bar(Ptr);
   });
 
+  sycl::free(Storage, q);
+
   return 0;
 }
 

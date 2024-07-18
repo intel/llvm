@@ -53,6 +53,8 @@ int main() {
     Ptr->bar();
   });
 
+  sycl::free(Ptr, q);
+
   return 0;
 }
 
