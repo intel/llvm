@@ -119,11 +119,7 @@ struct ContextInfo {
         assert(Result == UR_RESULT_SUCCESS);
     }
 
-    ~ContextInfo() {
-        [[maybe_unused]] auto Result =
-            getContext()->urDdiTable.Context.pfnRelease(Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
+    ~ContextInfo();
 
     void insertAllocInfo(const std::vector<ur_device_handle_t> &Devices,
                          std::shared_ptr<AllocInfo> &AI) {
@@ -169,6 +165,8 @@ struct DeviceGlobalInfo {
 
 class SanitizerInterceptor {
   public:
+    static bool AbnormalExit;
+
     explicit SanitizerInterceptor(logger::Logger &logger);
 
     ~SanitizerInterceptor();
@@ -207,6 +205,9 @@ class SanitizerInterceptor {
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
+
+    std::vector<AllocationIterator>
+    findAllocInfoByContext(ur_context_handle_t Context);
 
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
