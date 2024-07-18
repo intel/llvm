@@ -136,7 +136,8 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
                     getContext()->logger.debug("urVirtualMemMap({}, {}): {}",
-                                         (void *)MappedPtr, PageSize, URes);
+                                               (void *)MappedPtr, PageSize,
+                                               URes);
                 }
 
                 // Initialize to zero

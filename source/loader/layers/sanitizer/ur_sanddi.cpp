@@ -32,7 +32,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
             return UR_RESULT_ERROR_INVALID_DEVICE;
         }
         getContext()->logger.info("Add {} into context {}", ToString(DI->Type),
-                            (void *)Context);
+                                  (void *)Context);
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
