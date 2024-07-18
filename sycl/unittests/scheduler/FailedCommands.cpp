@@ -80,3 +80,40 @@ TEST_F(SchedulerTest, FailedKernelException) {
   Queue.wait_and_throw();
   EXPECT_EQ(ExceptionListSize, 0);
 }
+
+inline pi_result
+failingEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
+                            pi_bool blocking_read, size_t offset, size_t size,
+                            void *ptr, pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list, pi_event *event) {
+  return PI_ERROR_UNKNOWN;
+}
+
+TEST_F(SchedulerTest, FailedCopyBackException) {
+  unittest::PiMock Mock;
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferRead>(
+      failingEnqueueMemBufferRead);
+  platform Plt = Mock.getPlatform();
+  int ExceptionListSize = 0;
+  sycl::async_handler AsyncHandler =
+      [&ExceptionListSize](sycl::exception_list ExceptionList) {
+        ExceptionListSize = ExceptionList.size();
+      };
+  bool ExceptionThrown = false;
+  queue Queue(context(Plt), default_selector_v, AsyncHandler);
+  {
+    int initVal = 0;
+    sycl::buffer<int, 1> Buf(&initVal, 1);
+    try {
+      Queue.submit([&](sycl::handler &CGH) {
+        Buf.get_access<sycl::access::mode::write>(CGH);
+        CGH.single_task<TestKernel<1>>([]() {});
+      });
+    } catch (...) {
+      ExceptionThrown = true;
+    }
+  }
+  EXPECT_FALSE(ExceptionThrown);
+  Queue.wait_and_throw();
+  EXPECT_EQ(ExceptionListSize, 1);
+}

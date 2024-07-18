@@ -1719,12 +1719,17 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-  MemoryManager::copy(
-      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
-      MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+  try {
+    MemoryManager::copy(
+        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+        MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+        MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
+        MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
+        MEvent);
+  } catch (sycl::exception &e) {
+    return get_pi_error(e);
+  }
 
   return PI_SUCCESS;
 }
