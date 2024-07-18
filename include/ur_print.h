@@ -2155,12 +2155,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseInteropExpParams
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalSemaphoreExpParams(const struct ur_bindless_images_import_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_destroy_external_semaphore_exp_params_t struct
+/// @brief Print ur_bindless_images_release_external_semaphore_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesDestroyExternalSemaphoreExpParams(const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseExternalSemaphoreExpParams(const struct ur_bindless_images_release_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_wait_external_semaphore_exp_params_t struct

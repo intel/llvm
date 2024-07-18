@@ -138,7 +138,7 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
-    * ${X}_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
 
@@ -181,7 +181,7 @@ Functions
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesReleaseInteropExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
-   * ${x}BindlessImagesDestroyExternalSemaphoreExp
+   * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
    * ${x}BindlessImagesSignalExternalSemaphoreExp
 
@@ -236,6 +236,9 @@ Changelog
 |          || Introduced resource enums for DX12 interop:                |
 |          ||  - ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE       |
 |          ||  - ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE    |
++------------------------------------------------------------------------+
+| 14.0     || Rename func BindlessImagesDestroyExternalSemaphoreExp to   |
+|          || BindlessImagesReleaseExternalSemaphoreExp                  |
 +------------------------------------------------------------------------+
 
 Contributors
