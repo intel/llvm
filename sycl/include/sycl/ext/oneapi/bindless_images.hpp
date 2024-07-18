@@ -224,7 +224,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
     const sycl::queue &syclQueue);
 
 /**
- *  @brief   Destroy the external semaphore handle
+ *  @brief   Release the external semaphore
  *
  *  @param   semaphoreHandle The interop semaphore handle to destroy
  *  @param   syclDevice The device in which the interop semaphore handle was
@@ -233,19 +233,19 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
  *           created
  */
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext);
 
 /**
- *  @brief   Destroy the external semaphore handle
+ *  @brief   Release the external semaphore
  *
  *  @param   semaphoreHandle The interop semaphore handle to destroy
  *  @param   syclQueue The queue in which the interop semaphore handle was
  *           created
  */
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::queue &syclQueue);
 
 /**
