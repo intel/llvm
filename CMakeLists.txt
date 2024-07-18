@@ -135,6 +135,15 @@ if(UR_ENABLE_TRACING)
         set_target_properties(xptifw PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         )
+
+        if (UR_STATIC_LOADER)
+            install(TARGETS xpti xptifw
+                EXPORT ${PROJECT_NAME}-targets
+                ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            )
+        endif()
     endif()
 
     if (MSVC)
