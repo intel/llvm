@@ -3705,7 +3705,6 @@
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?aspect_selector@_V1@sycl@@YA?AV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@4@0@Z
-?assertion@pi@detail@_V1@sycl@@YAX_NPEBD@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVAccessorBaseHost@123@W4target@access@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVSampledImageAccessorBaseHost@123@W4image_target@23@@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVUnsampledImageAccessorBaseHost@123@W4image_target@23@@Z
