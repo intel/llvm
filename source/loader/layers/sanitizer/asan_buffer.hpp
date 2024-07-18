@@ -48,7 +48,11 @@ struct MemBuffer {
 
     ur_context_handle_t Context;
 
-    ur_device_handle_t LastSyncedDevice{};
+    struct Device_t {
+        ur_device_handle_t hDevice;
+        char *MemHandle;
+    };
+    Device_t LastSyncedDevice{};
 
     size_t Size;
 
