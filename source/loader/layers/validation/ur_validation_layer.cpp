@@ -10,14 +10,17 @@
  *
  */
 #include "ur_validation_layer.hpp"
+#include "ur_leak_check.hpp"
 
 #include <cassert>
 
 namespace ur_validation_layer {
-context_t context;
+context_t *getContext() { return context_t::get_direct(); }
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::context_t() : logger(logger::create_logger("validation")) {}
+context_t::context_t()
+    : logger(logger::create_logger("validation")),
+      refCountContext(new RefCountContext()) {}
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
@@ -29,14 +32,14 @@ context_t::~context_t() {}
         result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)                         \
         return UR_RESULT_SUCCESS;                                              \
     if (result != UR_RESULT_SUCCESS) {                                         \
-        context.logger.error("Unexpected non-success result code from {}",     \
-                             #result);                                         \
+        getContext()->logger.error(                                            \
+            "Unexpected non-success result code from {}", #result);            \
         assert(0);                                                             \
         return result;                                                         \
     }
 
 ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size) {
-    auto pfnMemGetInfo = context.urDdiTable.Mem.pfnGetInfo;
+    auto pfnMemGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
     size_t bufferSize = 0;
     RETURN_ON_FAILURE(pfnMemGetInfo(buffer, UR_MEM_INFO_SIZE,
@@ -51,7 +54,7 @@ ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size) {
 
 ur_result_t bounds(ur_mem_handle_t buffer, ur_rect_offset_t offset,
                    ur_rect_region_t region) {
-    auto pfnMemGetInfo = context.urDdiTable.Mem.pfnGetInfo;
+    auto pfnMemGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
     size_t bufferSize = 0;
     RETURN_ON_FAILURE(pfnMemGetInfo(buffer, UR_MEM_INFO_SIZE,
@@ -73,8 +76,9 @@ ur_result_t bounds(ur_mem_handle_t buffer, ur_rect_offset_t offset,
 
 ur_result_t bounds(ur_queue_handle_t queue, const void *ptr, size_t offset,
                    size_t size) {
-    auto pfnQueueGetInfo = context.urDdiTable.Queue.pfnGetInfo;
-    auto pfnUSMGetMemAllocInfo = context.urDdiTable.USM.pfnGetMemAllocInfo;
+    auto pfnQueueGetInfo = getContext()->urDdiTable.Queue.pfnGetInfo;
+    auto pfnUSMGetMemAllocInfo =
+        getContext()->urDdiTable.USM.pfnGetMemAllocInfo;
 
     ur_context_handle_t urContext = nullptr;
     RETURN_ON_FAILURE(pfnQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT,
@@ -105,7 +109,7 @@ ur_result_t bounds(ur_queue_handle_t queue, const void *ptr, size_t offset,
 
 ur_result_t boundsImage(ur_mem_handle_t image, ur_rect_offset_t origin,
                         ur_rect_region_t region) {
-    auto pfnMemImageGetInfo = context.urDdiTable.Mem.pfnImageGetInfo;
+    auto pfnMemImageGetInfo = getContext()->urDdiTable.Mem.pfnImageGetInfo;
 
     size_t width = 0;
     RETURN_ON_FAILURE(pfnMemImageGetInfo(image, UR_IMAGE_INFO_WIDTH,

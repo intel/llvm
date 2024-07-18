@@ -17,28 +17,28 @@ namespace ur_sanitizer_layer {
 
 ManagedQueue::ManagedQueue(ur_context_handle_t Context,
                            ur_device_handle_t Device) {
-    [[maybe_unused]] auto Result =
-        context.urDdiTable.Queue.pfnCreate(Context, Device, nullptr, &Handle);
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnCreate(
+        Context, Device, nullptr, &Handle);
     assert(Result == UR_RESULT_SUCCESS && "Failed to create ManagedQueue");
-    context.logger.debug(">>> ManagedQueue {}", (void *)Handle);
+    getContext()->logger.debug(">>> ManagedQueue {}", (void *)Handle);
 }
 
 ManagedQueue::~ManagedQueue() {
-    context.logger.debug("<<< ~ManagedQueue {}", (void *)Handle);
+    getContext()->logger.debug("<<< ~ManagedQueue {}", (void *)Handle);
 
     [[maybe_unused]] ur_result_t Result;
-    Result = context.urDdiTable.Queue.pfnFinish(Handle);
+    Result = getContext()->urDdiTable.Queue.pfnFinish(Handle);
     if (Result != UR_RESULT_SUCCESS) {
-        context.logger.error("Failed to finish ManagedQueue: {}", Result);
+        getContext()->logger.error("Failed to finish ManagedQueue: {}", Result);
     }
     assert(Result == UR_RESULT_SUCCESS && "Failed to finish ManagedQueue");
-    Result = context.urDdiTable.Queue.pfnRelease(Handle);
+    Result = getContext()->urDdiTable.Queue.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS && "Failed to release ManagedQueue");
 }
 
 ur_context_handle_t GetContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
@@ -47,7 +47,7 @@ ur_context_handle_t GetContext(ur_queue_handle_t Queue) {
 
 ur_context_handle_t GetContext(ur_program_handle_t Program) {
     ur_context_handle_t Context{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Program.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Program.pfnGetInfo(
         Program, UR_PROGRAM_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
@@ -56,7 +56,7 @@ ur_context_handle_t GetContext(ur_program_handle_t Program) {
 
 ur_context_handle_t GetContext(ur_kernel_handle_t Kernel) {
     ur_context_handle_t Context{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
@@ -65,7 +65,7 @@ ur_context_handle_t GetContext(ur_kernel_handle_t Kernel) {
 
 ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     ur_device_handle_t Device{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getDevice() failed");
@@ -74,7 +74,7 @@ ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
 
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getProgram() failed");
@@ -83,7 +83,7 @@ ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
 
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device) {
     size_t LocalMemorySize{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
         &LocalMemorySize, nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getLocalMemorySize() failed");
@@ -92,12 +92,12 @@ size_t GetDeviceLocalMemorySize(ur_device_handle_t Device) {
 
 std::string GetKernelName(ur_kernel_handle_t Kernel) {
     size_t KernelNameSize = 0;
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
     assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
 
     std::vector<char> KernelNameBuf(KernelNameSize);
-    Result = context.urDdiTable.Kernel.pfnGetInfo(
+    Result = getContext()->urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
         KernelNameBuf.data(), nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
@@ -109,15 +109,15 @@ ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
     ur_device_handle_t Device{};
     // if urGetMemAllocInfo failed, return nullptr
-    context.urDdiTable.USM.pfnGetMemAllocInfo(Context, MemPtr,
-                                              UR_USM_ALLOC_INFO_DEVICE,
-                                              sizeof(Device), &Device, nullptr);
+    getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+        Context, MemPtr, UR_USM_ALLOC_INFO_DEVICE, sizeof(Device), &Device,
+        nullptr);
     return Device;
 }
 
 DeviceType GetDeviceType(ur_device_handle_t Device) {
     ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getDeviceType() failed");
     switch (DeviceType) {
@@ -136,13 +136,14 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
 
 std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
     size_t PropSize;
-    [[maybe_unused]] ur_result_t Result = context.urDdiTable.Program.pfnGetInfo(
-        Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr, &PropSize);
+    [[maybe_unused]] ur_result_t Result =
+        getContext()->urDdiTable.Program.pfnGetInfo(
+            Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr, &PropSize);
     assert(Result == UR_RESULT_SUCCESS);
 
     std::vector<ur_device_handle_t> Devices;
     Devices.resize(PropSize / sizeof(ur_device_handle_t));
-    Result = context.urDdiTable.Program.pfnGetInfo(
+    Result = getContext()->urDdiTable.Program.pfnGetInfo(
         Program, UR_PROGRAM_INFO_DEVICES, PropSize, Devices.data(), nullptr);
     assert(Result == UR_RESULT_SUCCESS);
 
@@ -151,7 +152,7 @@ std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
 
 uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel) {
     uint32_t NumArgs = 0;
-    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Res = getContext()->urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_NUM_ARGS, sizeof(NumArgs), &NumArgs, nullptr);
     assert(Res == UR_RESULT_SUCCESS);
     return NumArgs;
@@ -160,7 +161,7 @@ uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel) {
 size_t GetKernelLocalMemorySize(ur_kernel_handle_t Kernel,
                                 ur_device_handle_t Device) {
     size_t Size = 0;
-    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetGroupInfo(
+    [[maybe_unused]] auto Res = getContext()->urDdiTable.Kernel.pfnGetGroupInfo(
         Kernel, Device, UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE, sizeof(size_t),
         &Size, nullptr);
     assert(Res == UR_RESULT_SUCCESS);
@@ -170,7 +171,7 @@ size_t GetKernelLocalMemorySize(ur_kernel_handle_t Kernel,
 size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
                                   ur_device_handle_t Device) {
     size_t Size = 0;
-    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetGroupInfo(
+    [[maybe_unused]] auto Res = getContext()->urDdiTable.Kernel.pfnGetGroupInfo(
         Kernel, Device, UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE, sizeof(size_t),
         &Size, nullptr);
     assert(Res == UR_RESULT_SUCCESS);
@@ -181,7 +182,7 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device) {
     size_t Size;
     [[maybe_unused]] auto Result =
-        context.urDdiTable.VirtualMem.pfnGranularityGetInfo(
+        getContext()->urDdiTable.VirtualMem.pfnGranularityGetInfo(
             Context, Device, UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
             sizeof(Size), &Size, nullptr);
     assert(Result == UR_RESULT_SUCCESS);

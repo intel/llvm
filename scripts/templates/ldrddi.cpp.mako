@@ -23,17 +23,6 @@ from templates import helper as th
 
 namespace ur_loader
 {
-    ///////////////////////////////////////////////////////////////////////////////
-    %for obj in th.get_adapter_handles(specs):
-    %if 'class' in obj:
-    <%
-        _handle_t = th.subt(n, tags, obj['name'])
-        _factory_t = re.sub(r"(\w+)_handle_t", r"\1_factory_t", _handle_t)
-        _factory = re.sub(r"(\w+)_handle_t", r"\1_factory", _handle_t)
-    %>${th.append_ws(_factory_t, 35)} ${_factory};
-    %endif
-    %endfor
-
     %for obj in th.get_adapter_functions(specs):
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
@@ -51,6 +40,7 @@ namespace ur_loader
         add_local = False
     %>${th.get_initial_null_set(obj)}
 
+        [[maybe_unused]] auto context = getContext();
         %if re.match(r"\w+AdapterGet$", th.make_func_name(n, tags, obj)):
         
         size_t adapterIndex = 0;
@@ -63,7 +53,7 @@ namespace ur_loader
                 platform.dditable.${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( 1, &${obj['params'][1]['name']}[adapterIndex], nullptr );
                 try
                 {
-                    ${obj['params'][1]['name']}[adapterIndex] = reinterpret_cast<${n}_adapter_handle_t>(${n}_adapter_factory.getInstance(
+                    ${obj['params'][1]['name']}[adapterIndex] = reinterpret_cast<${n}_adapter_handle_t>(context->factories.${n}_adapter_factory.getInstance(
                         ${obj['params'][1]['name']}[adapterIndex], &platform.dditable
                     ));
                 }
@@ -114,7 +104,7 @@ namespace ur_loader
                     for( uint32_t i = 0; i < library_platform_handle_count; ++i ) {
                         uint32_t platform_index = total_platform_handle_count + i;
                         ${obj['params'][3]['name']}[ platform_index ] = reinterpret_cast<${n}_platform_handle_t>(
-                            ${n}_platform_factory.getInstance( ${obj['params'][3]['name']}[ platform_index ], dditable ) );
+                            context->factories.${n}_platform_factory.getInstance( ${obj['params'][3]['name']}[ platform_index ], dditable ) );
                     }
                 }
                 catch( std::bad_alloc& )
@@ -272,9 +262,16 @@ namespace ur_loader
         %>
         %for i, item in enumerate(epilogue):
         %if 0 == i and not item['release'] and not item['retain'] and not th.always_wrap_outputs(obj):
-        if( ${X}_RESULT_SUCCESS != result )
+        ## TODO: Remove once we have a concrete way for submitting warnings in place.
+        %if re.match(r"urEnqueue\w+", th.make_func_name(n, tags, obj)):
+        // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
+        if( ${X}_RESULT_SUCCESS != result && ${X}_RESULT_ERROR_ADAPTER_SPECIFIC != result )
+            return result;
+        %else:
+        if( ${X}_RESULT_SUCCESS != result)
             return result;
 
+        %endif
         %endif
         ## Before we can re-enable the releases we will need ref-counted object_t.
         ## See unified-runtime github issue #1784
@@ -294,7 +291,7 @@ namespace ur_loader
                             for (size_t i = 0; i < nelements; ++i) {
                                 if (handles[i] != nullptr) {
                                     handles[i] = reinterpret_cast<${etor['type']}>(
-                                        ${etor['factory']}.getInstance( handles[i], dditable ) );
+                                        context->factories.${etor['factory']}.getInstance( handles[i], dditable ) );
                                 }
                             }
                         } break;
@@ -306,16 +303,16 @@ namespace ur_loader
             // convert platform handles to loader handles
             for( size_t i = ${item['range'][0]}; ( nullptr != ${item['name']} ) && ( i < ${item['range'][1]} ); ++i )
                 ${item['name']}[ i ] = reinterpret_cast<${item['type']}>(
-                    ${item['factory']}.getInstance( ${item['name']}[ i ], dditable ) );
+                    context->factories.${item['factory']}.getInstance( ${item['name']}[ i ], dditable ) );
             %else:
             // convert platform handle to loader handle
             %if item['optional'] or th.always_wrap_outputs(obj):
             if( nullptr != ${item['name']} )
                 *${item['name']} = reinterpret_cast<${item['type']}>(
-                    ${item['factory']}.getInstance( *${item['name']}, dditable ) );
+                    context->factories.${item['factory']}.getInstance( *${item['name']}, dditable ) );
             %else:
             *${item['name']} = reinterpret_cast<${item['type']}>(
-                ${item['factory']}.getInstance( *${item['name']}, dditable ) );
+                context->factories.${item['factory']}.getInstance( *${item['name']}, dditable ) );
             %endif
             %endif
         }
@@ -360,13 +357,13 @@ ${tbl['export']['name']}(
     if( nullptr == pDdiTable )
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if( ur_loader::context->version < version )
+    if( ur_loader::getContext()->version < version )
         return ${X}_RESULT_ERROR_UNSUPPORTED_VERSION;
 
     ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
     // Load the device-platform DDI tables
-    for( auto& platform : ur_loader::context->platforms )
+    for( auto& platform : ur_loader::getContext()->platforms )
     {
         if(platform.initStatus != ${X}_RESULT_SUCCESS)
             continue;
@@ -379,7 +376,7 @@ ${tbl['export']['name']}(
 
     if( ${X}_RESULT_SUCCESS == result )
     {
-        if( ur_loader::context->platforms.size() != 1 || ur_loader::context->forceIntercept )
+        if( ur_loader::getContext()->platforms.size() != 1 || ur_loader::getContext()->forceIntercept )
         {
             // return pointers to loader's DDIs
             %for obj in tbl['functions']:
@@ -397,7 +394,7 @@ ${tbl['export']['name']}(
         else
         {
             // return pointers directly to platform's DDIs
-            *pDdiTable = ur_loader::context->platforms.front().dditable.${n}.${tbl['name']};
+            *pDdiTable = ur_loader::getContext()->platforms.front().dditable.${n}.${tbl['name']};
         }
     }
 
