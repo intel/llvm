@@ -99,7 +99,7 @@ private:
   /// \returns A map of kernel functions to corresponding metadata nodes.
   DenseMap<Function *, MDNode *>
   generateKernelMDNodeMap(Module &M,
-                          SmallVectorImpl<KernelPayload> &KernelPayloads);
+                          const std::vector<KernelPayload> &KernelPayloads);
 
 private:
   /// Keep track of all cloned offset functions to avoid processing them.

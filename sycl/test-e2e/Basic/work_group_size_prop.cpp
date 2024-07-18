@@ -1,8 +1,5 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} --gcc-toolchain=/opt/slurm/gcc/13.2.0 -o %t.out
 // RUN: %{run} %t.out
-//
-// Failing negative test with HIP. Temporarily disabled for CUDA.
-// XFAIL: hip, cuda
 
 #include <sycl/detail/core.hpp>
 

@@ -600,6 +600,19 @@ VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
   return ::getFunctionalOpcodeForVP(ID);
 }
 
+static Intrinsic::ID getForIntrinsic(Intrinsic::ID Id) {
+  switch (Id) {
+  default:
+    break;
+
+#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) break;
+#define VP_PROPERTY_FUNCTIONAL_INTRINSIC(INTRIN) case Intrinsic::INTRIN:
+#define END_REGISTER_VP_INTRINSIC(VPID) return Intrinsic::VPID;
+#include "llvm/IR/VPIntrinsics.def"
+  }
+  return Intrinsic::not_intrinsic;
+}
+
 // Equivalent non-predicated intrinsic ID
 constexpr static std::optional<Intrinsic::ID>
 getFunctionalIntrinsicIDForVP(Intrinsic::ID ID) {

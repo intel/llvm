@@ -35,8 +35,13 @@ ArchType getArchType(const Module &M);
 
 std::string getAnnotationString(ArchType AT);
 
-void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
-                     TargetHelpers::ArchType AT);
+/// Returns a set of kernels as determined by the target-specific annotation
+/// metadata.
+SmallPtrSet<Function *, 4> getKernels(Module &M);
+
+std::vector<KernelPayload>
+populateKernels(Module &M,
+                std::optional<TargetHelpers::ArchType> AT = std::nullopt);
 
 } // end namespace TargetHelpers
 } // end namespace llvm

@@ -13,6 +13,7 @@
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Metadata.h"
 
 using namespace llvm;
@@ -46,15 +47,74 @@ std::string getAnnotationString(ArchType AT) {
   return std::string();
 }
 
-void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
-                     ArchType AT) {
+SmallPtrSet<Function *, 4> getKernels(Module &M) {
+  ArchType AT = getArchType(M);
+  if (AT == ArchType::Unsupported)
+    return {};
+
   // Access `{amdgcn|nvvm}.annotations` to determine which functions are kernel
   // entry points.
   std::string Annotation = getAnnotationString(AT);
   auto *AnnotationMetadata = M.getNamedMetadata(Annotation);
   // No kernels in the module, early exit.
   if (!AnnotationMetadata)
-    return;
+    return {};
+
+  SmallPtrSet<Function *, 4> Kernels;
+
+  // It is possible that the annotations node contains multiple pointers to the
+  // same metadata, recognise visited ones.
+  SmallSet<MDNode *, 4> Visited;
+  for (auto *MDN : AnnotationMetadata->operands()) {
+    if (Visited.contains(MDN) || MDN->getNumOperands() % 2 != 1)
+      continue;
+
+    Visited.insert(MDN);
+
+    // Kernel entry points are identified using metadata nodes of the form:
+    //   !X = !{<function>[, !"kind", i32 X]+}
+    // Where "kind" == "kernel" and X == 1.
+    bool IsKernel = false;
+    for (size_t I = 1, E = MDN->getNumOperands(); I != E && !IsKernel; I += 2) {
+      if (auto *Type = dyn_cast<MDString>(MDN->getOperand(I)))
+        if (Type->getString() == "kernel") {
+          if (auto *Val =
+                  mdconst::dyn_extract<ConstantInt>(MDN->getOperand(I + 1)))
+            IsKernel = Val->getZExtValue() == 1;
+        }
+    }
+
+    if (!IsKernel)
+      continue;
+    // Get a pointer to the entry point function from the metadata.
+    const MDOperand &FuncOperand = MDN->getOperand(0);
+    if (!FuncOperand)
+      continue;
+    if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
+      if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
+        Kernels.insert(Func);
+  }
+
+  return Kernels;
+}
+
+std::vector<KernelPayload> populateKernels(Module &M,
+                                           std::optional<ArchType> AT) {
+  if (!AT)
+    AT = getArchType(M);
+
+  if (AT == ArchType::Unsupported)
+    return {};
+
+  // Access `{amdgcn|nvvm}.annotations` to determine which functions are kernel
+  // entry points.
+  std::string Annotation = getAnnotationString(*AT);
+  auto *AnnotationMetadata = M.getNamedMetadata(Annotation);
+  // No kernels in the module, early exit.
+  if (!AnnotationMetadata)
+    return {};
+
+  std::vector<KernelPayload> Kernels;
 
   SmallVector<MDNode *, 4> PossibleDependencies;
   // It is possible that the annotations node contains multiple pointers to the
@@ -112,6 +172,8 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
           }
     }
   }
+
+  return Kernels;
 }
 
 } // namespace TargetHelpers

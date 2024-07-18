@@ -75,6 +75,8 @@ static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   AT = TargetHelpers::getArchType(M);
+  assert((AT == ArchType::Cuda || AT == ArchType::AMDHSA) &&
+         "Unsupported arch type!");
   Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
       AT == ArchType::Cuda
           ? static_cast<unsigned>(Intrinsic::nvvm_implicit_offset)
@@ -97,8 +99,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
         (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
         "Implicit offset intrinsic does not return the expected type");
 
-    SmallVector<KernelPayload, 4> KernelPayloads;
-    TargetHelpers::populateKernels(M, KernelPayloads, AT);
+    auto KernelPayloads = TargetHelpers::populateKernels(M, AT);
 
     // Validate kernels and populate entry map
     EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
@@ -383,7 +384,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
 }
 
 DenseMap<Function *, MDNode *> GlobalOffsetPass::generateKernelMDNodeMap(
-    Module &M, SmallVectorImpl<KernelPayload> &KernelPayloads) {
+    Module &M, const std::vector<KernelPayload> &KernelPayloads) {
   SmallPtrSet<GlobalValue *, 8u> Used;
   SmallVector<GlobalValue *, 4> Vec;
   collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);

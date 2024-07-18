@@ -53,16 +53,10 @@ ModulePass *llvm::createLocalAccessorToSharedMemoryPassLegacy() {
 // New PM implementation.
 PreservedAnalyses
 LocalAccessorToSharedMemoryPass::run(Module &M, ModuleAnalysisManager &) {
-  const auto AT = TargetHelpers::getArchType(M);
-
   // Invariant: This pass is only intended to operate on SYCL kernels being
   // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
   // triples.
-  if (ArchType::Unsupported == AT)
-    return PreservedAnalyses::all();
-
-  SmallVector<KernelPayload, 4> Kernels;
-  TargetHelpers::populateKernels(M, Kernels, AT);
+  auto Kernels = TargetHelpers::populateKernels(M);
   SmallVector<std::pair<Function *, KernelPayload>, 4> NewToOldKernels;
   if (Kernels.empty())
     return PreservedAnalyses::all();
