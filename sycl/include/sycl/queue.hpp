@@ -23,7 +23,6 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_mem_advice
 #include <sycl/device.hpp>                    // for device
 #include <sycl/device_selector.hpp>           // for device_selector
 #include <sycl/event.hpp>                     // for event
@@ -686,18 +685,6 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
-
-  /// Provides additional information to the underlying runtime about how
-  /// different allocations are used.
-  ///
-  /// \param Ptr is a USM pointer to the allocation.
-  /// \param Length is a number of bytes in the allocation.
-  /// \param Advice is a device-defined advice for the specified allocation.
-  /// \return an event representing advice operation.
-  __SYCL2020_DEPRECATED("use the overload with int Advice instead")
-  event mem_advise(
-      const void *Ptr, size_t Length, pi_mem_advice Advice,
-      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.

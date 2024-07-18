@@ -14,10 +14,6 @@
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@@Z
-??$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
-??$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
-??$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
-??$getPlugin@$05@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@event@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -4137,7 +4133,6 @@
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBUcode_location@detail@23@@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHV423@AEBUcode_location@detail@23@@Z
-?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KW4_pi_mem_advice@@AEBUcode_location@detail@23@@Z
 ?memcpy@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@PEAXPEBX_KAEBUcode_location@detail@45@@Z
 ?memcpy@handler@_V1@sycl@@QEAAXPEAXPEBX_K@Z
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KAEBUcode_location@detail@23@@Z
