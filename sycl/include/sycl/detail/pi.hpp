@@ -192,7 +192,7 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+template <backend BE> const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
