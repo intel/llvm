@@ -3,13 +3,13 @@
 ///
 
 // RUN: touch %tfoo.o
-// RUN: %clangxx -fsycl -Xspirv-to-ir-wrapper "foo" -### %tfoo.o 2>&1 | \
+// RUN: %clangxx -fsycl --no-offload-new-driver -Xspirv-to-ir-wrapper "foo" -### %tfoo.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET
 
-// RUN: %clangxx -fsycl -Xspirv-to-ir-wrapper=spir64_gen "foo" -### %tfoo.o 2>&1 | \
+// RUN: %clangxx -fsycl --no-offload-new-driver -Xspirv-to-ir-wrapper=spir64_gen "foo" -### %tfoo.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET-UNUSED --implicit-check-not 'spirv-to-ir-wrapper{{.*}} "foo"'
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xspirv-to-ir-wrapper=spir64_gen "foo" -Xspirv-to-ir-wrapper=spir64 "bar" -### %tfoo.o 2>&1 | \
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen -Xspirv-to-ir-wrapper=spir64_gen "foo" -Xspirv-to-ir-wrapper=spir64 "bar" -### %tfoo.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-MULTIPLE-TARGET --implicit-check-not 'spirv-to-ir-wrapper{{.*}} "foo" "bar"'
 
 // CHECK-SINGLE-TARGET: spirv-to-ir-wrapper{{.*}} "foo"
