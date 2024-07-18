@@ -148,6 +148,20 @@ protected:
   friend exception detail::set_pi_error(exception &&e, pi_int32 pi_err);
 };
 
+namespace detail {
+// Even though at the moment those functions are only used in library and not
+// in headers, they were put here in case we will need them to implement some
+// of OpenCL (and other backends) interop APIs to query native backend error
+// from an exception.
+// And we don't want them to be part of our library ABI, because of future
+// underlying changes (PI -> UR -> Offload).
+inline pi_int32 get_pi_error(const exception &e) { return e.MPIErr; }
+inline exception set_pi_error(exception &&e, pi_int32 pi_err) {
+  e.MPIErr = pi_err;
+  return std::move(e);
+}
+} // namespace detail
+
 } // namespace _V1
 } // namespace sycl
 
