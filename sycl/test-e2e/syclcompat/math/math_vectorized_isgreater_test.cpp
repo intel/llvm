@@ -131,6 +131,15 @@ void test_vec_gt_2() {
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
   sycl::queue *q_ct1 = dev_ct1.default_queue();
 
+  // This test uses vector of sycl::half, which requires support for fp16 on
+  // the corresponding device.
+  if (!dev_ct1.has(sycl::aspect::fp16)) {
+    std::cout
+        << "Test case skipped as the device does not support aspect::fp16."
+        << std::endl;
+    return;
+  }
+
   const unsigned int num_data = 7;
   unsigned int mem_size = sizeof(unsigned int) * num_data;
 
