@@ -71,6 +71,11 @@ template <typename singleton_tn, typename key_tn> class singleton_factory_t {
         std::lock_guard<std::mutex> lk(mut);
         map.erase(getKey(key));
     }
+
+    void clear() {
+        std::lock_guard<std::mutex> lk(mut);
+        map.clear();
+    }
 };
 
 #endif /* UR_SINGLETON_H */

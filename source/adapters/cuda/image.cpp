@@ -634,7 +634,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
+    ur_queue_handle_t hQueue, void *pDst, const void *pSrc,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
     ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
@@ -676,18 +676,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                   (CUdeviceptr)pDst) != CUDA_SUCCESS;
 
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
-        char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
+        const char *SrcWithOffset =
+            static_cast<const char *>(pSrc) + (srcOffset.x * PixelSizeBytes);
 
         if (isCudaArray) {
-          UR_CHECK_ERROR(cuMemcpyHtoAAsync(
-              (CUarray)pDst, dstOffset.x * PixelSizeBytes,
-              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+          UR_CHECK_ERROR(
+              cuMemcpyHtoAAsync((CUarray)pDst, dstOffset.x * PixelSizeBytes,
+                                static_cast<const void *>(SrcWithOffset),
+                                CopyExtentBytes, Stream));
         } else if (memType == CU_MEMORYTYPE_DEVICE) {
-          void *DstWithOffset =
-              (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
-          UR_CHECK_ERROR(cuMemcpyHtoDAsync((CUdeviceptr)DstWithOffset,
-                                           (void *)SrcWithOffset,
-                                           CopyExtentBytes, Stream));
+          void *DstWithOffset = static_cast<void *>(
+              static_cast<char *>(pDst) + (PixelSizeBytes * dstOffset.x));
+          UR_CHECK_ERROR(
+              cuMemcpyHtoDAsync((CUdeviceptr)DstWithOffset,
+                                static_cast<const void *>(SrcWithOffset),
+                                CopyExtentBytes, Stream));
         } else {
           // This should be unreachable.
           return UR_RESULT_ERROR_INVALID_VALUE;
@@ -763,15 +766,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                   (CUdeviceptr)pSrc) != CUDA_SUCCESS;
 
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
-        void *DstWithOffset =
-            (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
+        void *DstWithOffset = static_cast<void *>(
+            static_cast<char *>(pDst) + (PixelSizeBytes * dstOffset.x));
 
         if (isCudaArray) {
           UR_CHECK_ERROR(cuMemcpyAtoHAsync(DstWithOffset, (CUarray)pSrc,
                                            PixelSizeBytes * srcOffset.x,
                                            CopyExtentBytes, Stream));
         } else if (memType == CU_MEMORYTYPE_DEVICE) {
-          char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
+          const char *SrcWithOffset =
+              static_cast<const char *>(pSrc) + (srcOffset.x * PixelSizeBytes);
           UR_CHECK_ERROR(cuMemcpyDtoHAsync(DstWithOffset,
                                            (CUdeviceptr)SrcWithOffset,
                                            CopyExtentBytes, Stream));
@@ -1222,7 +1226,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),

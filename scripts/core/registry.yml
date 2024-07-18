@@ -406,8 +406,8 @@ etors:
 - name: BINDLESS_IMAGES_RELEASE_INTEROP_EXP
   desc: Enumerator for $xBindlessImagesReleaseInteropExp
   value: '145'
-- name: BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
-  desc: Enumerator for $xBindlessImagesDestroyExternalSemaphoreExp
+- name: BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesReleaseExternalSemaphoreExp
   value: '147'
 - name: BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesWaitExternalSemaphoreExp
