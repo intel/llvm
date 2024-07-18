@@ -75,6 +75,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         return UR_RESULT_SUCCESS;
     }
 
+    std::scoped_lock<ur_shared_mutex> Guard(Mutex);
     auto &Allocation = Allocations[Device];
     ur_result_t URes = UR_RESULT_SUCCESS;
     if (!Allocation) {
@@ -104,9 +105,16 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         }
     }
 
+    Handle = Allocation;
+
+    if (!LastSyncedDevice.hDevice) {
+        LastSyncedDevice = MemBuffer::Device_t{Device, Handle};
+        return URes;
+    }
+
     // If the device required to allocate memory is not the previous one, we
     // need to do data migration.
-    if (Device != LastSyncedDevice && LastSyncedDevice != nullptr) {
+    if (Device != LastSyncedDevice.hDevice) {
         auto &HostAllocation = Allocations[nullptr];
         if (!HostAllocation) {
             ur_usm_desc_t USMDesc{};
@@ -125,11 +133,10 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
         // Copy data from last synced device to host
         {
-            ManagedQueue Queue(Context, LastSyncedDevice);
-            char *Handle;
-            UR_CALL(getHandle(LastSyncedDevice, Handle));
+            ManagedQueue Queue(Context, LastSyncedDevice.hDevice);
             URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-                Queue, true, HostAllocation, Handle, Size, 0, nullptr, nullptr);
+                Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size,
+                0, nullptr, nullptr);
             if (URes != UR_RESULT_SUCCESS) {
                 getContext()->logger.error(
                     "Failed to migrate memory buffer data");
@@ -151,8 +158,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         }
     }
 
-    LastSyncedDevice = Device;
-    Handle = Allocation;
+    LastSyncedDevice = MemBuffer::Device_t{Device, Handle};
 
     return URes;
 }
