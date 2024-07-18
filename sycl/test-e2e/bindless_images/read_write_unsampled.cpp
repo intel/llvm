@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 
-// RUN: %{build} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include "helpers/common.hpp"

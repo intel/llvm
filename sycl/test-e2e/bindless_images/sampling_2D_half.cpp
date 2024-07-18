@@ -1,7 +1,7 @@
 // REQUIRES: cuda
 // REQUIRES: aspect-fp16
 
-// RUN: %{build} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include <iostream>
