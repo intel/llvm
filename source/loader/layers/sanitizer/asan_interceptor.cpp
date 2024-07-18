@@ -146,6 +146,8 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 
 } // namespace
 
+bool SanitizerInterceptor::AbnormalExit = false;
+
 SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
     : logger(logger) {
     if (Options(logger).MaxQuarantineSizeMB) {
@@ -159,15 +161,7 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
 
-    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    bool HasLeak = false;
-    for (const auto &[_, AI] : m_AllocationMap) {
-        if (!AI->IsReleased) {
-            HasLeak = true;
-            ReportMemoryLeak(AI);
-        }
-    }
-    if (HasLeak) {
+    if (AbnormalExit) {
         exit(1);
     }
 }
@@ -885,6 +879,40 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
            Address < It->second->AllocBegin + It->second->AllocSize &&
            "Wrong AllocInfo for the address");
     return It;
+}
+
+std::vector<AllocationIterator>
+SanitizerInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    std::vector<AllocationIterator> AllocInfos;
+    for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end(); It++) {
+        const auto &[_, AI] = *It;
+        if (AI->Context == Context) {
+            AllocInfos.emplace_back(It);
+        }
+    }
+    return AllocInfos;
+}
+
+ContextInfo::~ContextInfo() {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Context.pfnRelease(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+
+    bool HasLeak = false;
+    std::vector<AllocationIterator> AllocInfos =
+        getContext()->interceptor->findAllocInfoByContext(Handle);
+    for (const auto &It : AllocInfos) {
+        const auto &[_, AI] = *It;
+        if (AI->IsReleased) {
+            ReportMemoryLeak(AI);
+            HasLeak = true;
+        }
+    }
+
+    if (HasLeak) {
+        SanitizerInterceptor::AbnormalExit = true;
+    }
 }
 
 ur_result_t USMLaunchInfo::initialize() {
