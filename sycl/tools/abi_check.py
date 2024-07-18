@@ -61,35 +61,6 @@ def parse_readobj_output(output):
     # See: https://github.com/bminor/glibc/commit/035c012e32c11e84d64905efaf55e74f704d3668
     ignore_symbols += ["__libc_csu_fini", "__libc_csu_init"]
 
-    # In some scenarios MSVC and clang-cl exhibit differences in regards to the exported symbols they generate.
-    # Some of them happen in the SYCL RT library and we think clang-cl's behavior is more reasonable.
-    #
-    # Case 1:
-    # pi.hpp:
-    #   template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
-    #
-    # pi.cpp:
-    #   template <backend BE> const PluginPtr &getPlugin() {
-    #     static const plugin *Plugin = nullptr;
-    #     ...
-    #   }
-    #   // explicit dllexport instantiations.
-    #
-    # clang-cl generates exported symbols for the static variables Plugin. These are never referenced
-    # in the user's headers so cannot be used outside DLL and not exporting them should not affect any
-    # usage scenario.
-    #
-    # In general, the compiler doesn't know if the definition is in the DLL or in the header and inline
-    # dllexport/dllimport functions have to be supported, hence clang-cl's behavior.
-    #
-    # See also https://devblogs.microsoft.com/oldnewthing/20140109-00/?p=2123.
-    ignore_symbols += [
-        "?Plugin@?1???$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-        "?Plugin@?1???$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-        "?Plugin@?1???$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-        "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-        "?Plugin@?1???$getPlugin@$05@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-    ]
     parsed_symbols = [s for s in parsed_symbols if s not in ignore_symbols]
     return parsed_symbols
 
