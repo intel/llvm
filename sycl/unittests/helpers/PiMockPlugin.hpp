@@ -512,15 +512,6 @@ inline pi_result mock_piextMemUnsampledImageCreate(
   return PI_SUCCESS;
 }
 
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalMemory`")]]
-inline pi_result
-mock_piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
-                            int file_descriptor,
-                            pi_interop_mem_handle *ret_handle) {
-  return PI_SUCCESS;
-}
-
 inline pi_result mock_piextMemMapExternalArray(pi_context context,
                                                pi_device device,
                                                pi_image_format *image_format,
@@ -533,14 +524,6 @@ inline pi_result mock_piextMemMapExternalArray(pi_context context,
 inline pi_result mock_piextMemReleaseInterop(pi_context context,
                                              pi_device device,
                                              pi_interop_mem_handle ext_mem) {
-  return PI_SUCCESS;
-}
-
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalSemaphore`")]]
-inline pi_result mock_piextImportExternalSemaphoreOpaqueFD(
-    pi_context context, pi_device device, int file_descriptor,
-    pi_interop_semaphore_handle *ret_handle) {
   return PI_SUCCESS;
 }
 
@@ -609,7 +592,7 @@ inline pi_result mock_piextBindlessImageSamplerCreate(
 }
 
 inline pi_result mock_piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
     const pi_image_format *image_format, const pi_image_desc *image_desc,
     const pi_image_copy_flags flags, pi_image_offset src_offset,
     pi_image_offset dst_offset, pi_image_region copy_extent,
