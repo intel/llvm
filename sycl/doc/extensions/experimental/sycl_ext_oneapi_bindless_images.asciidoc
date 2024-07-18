@@ -750,13 +750,13 @@ public:
 
   // Simple host to device copy
   void ext_oneapi_copy(
-      void *Src,
+      const void *Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental:image_descriptor &DestImgDesc);
 
   // Host to device copy with offsets and extent
   void ext_oneapi_copy(
-      void *Src,
+      const void *Src,
       sycl::range<3> SrcOffset,
       sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
@@ -766,13 +766,13 @@ public:
 
   // Simple device to host copy
   void ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
 
   // Device to host copy with offsets and extent
   void ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     void *Dest,
@@ -781,14 +781,14 @@ public:
     sycl::range<3> CopyExtent);
 
   // Simple HtoD or DtoH copy with USM device memory
-  void ext_oneapi_copy(void *Src,
+  void ext_oneapi_copy(const void *Src,
                        void *Dest,
                        const ext::oneapi::experimental::image_descriptor &Desc,
                        size_t DeviceRowPitch);
 
   // HtoD or DtoH copy with USM device memory, using offsets, extent
   void ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     sycl::range<3> SrcOffset,
     void *Dest,
     sycl::range<3> DestOffset,
@@ -799,7 +799,7 @@ public:
 
   // Simple device to device copy
   void ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc);
 };
@@ -808,21 +808,21 @@ class queue {
 public:
 
   // Simple host to device copy
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc);
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                         event DepEvent);
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                         const std::vector<event> &DepEvents);
 
   // Host to device copy with offsets and extent
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -830,7 +830,7 @@ public:
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     range<3> CopyExtent);
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -838,7 +838,7 @@ public:
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     range<3> Extent, event DepEvent);
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -848,23 +848,23 @@ public:
 
   // Simple device to host copy
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc,
       event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc,
       const std::vector<event> &DepEvents);
 
   // Device to host copy with offsets and extent
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest,
@@ -872,7 +872,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest,
@@ -880,7 +880,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent, event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest, 
@@ -890,16 +890,16 @@ public:
 
   // Host to device OR device to host using USM device memory
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       event DepEvent);
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       const std::vector<event> &DepEvents);
@@ -907,21 +907,21 @@ public:
   // Host to device OR device to host using USM device memory, 
   // with control over sub-region
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
@@ -930,16 +930,16 @@ public:
   
   // Simple device to device copy
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const std::vector<event> &DepEvents);
@@ -1903,17 +1903,18 @@ the `ext_oneapi_signal_external_semaphore` call complete.
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
 
-The user must ensure to destroy all external semaphore objects once they are no 
-longer required through `destroy_external_semaphore`.
+The user must ensure to destroy all SYCL external semaphore objects used to 
+access the external semaphore once they are no longer required through 
+`release_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                                 const sycl::device &syclDevice,
                                 const sycl::context &syclContext);
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                                 const sycl::queue &syclQueue);
 
 }
@@ -2579,9 +2580,9 @@ try {
       input_interop_mem_handle, queue);
   sycl::ext::oneapi::experimental::release_external_memory(
       output_interop_mem_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       wait_interop_semaphore_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       done_interop_semaphore_handle, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
@@ -2806,4 +2807,8 @@ These features still need to be handled:
 |5.12|2024-06-19| - Add support for sampled image arrays.
                   - Sample image arrays with `sample_image_array` API.
                   - Fetch sampled image arrays with `fetch_image_array` API.
+|5.13|2024-07-10| - Added const-qualifiers to `Src` param in `ext_oneapi_copy`
+                    funcs.
+|5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
+                    `release_external_semaphore`.
 |======================
