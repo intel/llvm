@@ -162,13 +162,13 @@ The call to `interopCallable` may submit one or more asynchronous tasks to the
 native backend object obtained from `interop_handle::get_native_queue`, and
 these tasks become encapsulated in a SYCL command that is added to the queue.
 If the enclosing command group has any dependencies, these dependencies will be
-propagated to the native API during the command submission, meaning no further
-dependency analysis is needed within the native API. This happens, for example,
-if the command group calls `handler::depends_on` or if it constructs an
-accessor. Note, however, that the SYCL command is associated with the
-_asynchronous tasks submitted by_ `interopCallable`, not the call to
-`interopCallable`. The call to `interopCallable` may happen even before the
-dependencies are satisfied.
+propagated to the native API by the SYCL implementation during the command
+submission, meaning no further dependency analysis is needed within the user
+submitted `interopCallable` in the native API. This happens, for example, if
+the command group calls `handler::depends_on` or if it constructs an accessor.
+Note, however, that the SYCL command is associated with the _asynchronous tasks
+submitted by_ `interopCallable`, not the call to `interopCallable`. The call to
+`interopCallable` may happen even before the dependencies are satisfied.
 
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
