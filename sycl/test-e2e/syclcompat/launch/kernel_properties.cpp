@@ -20,6 +20,9 @@
  *     launch<F> with kernel_properties tests
  **************************************************************************/
 
+// We need hardware which can support at least 2 sub-group sizes, since that
+// hardware (presumably) supports the `intel_reqd_sub_group_size` attribute.
+// REQUIRES: sg-32 && sg-16
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -S -emit-llvm %s -o - | FileCheck %s
 
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
