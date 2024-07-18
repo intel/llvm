@@ -4151,7 +4151,6 @@
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBUcode_location@detail@23@@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHV423@AEBUcode_location@detail@23@@Z
-?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KW4_pi_mem_advice@@AEBUcode_location@detail@23@@Z
 ?memcpy@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@PEAXPEBX_KAEBUcode_location@detail@45@@Z
 ?memcpy@handler@_V1@sycl@@QEAAXPEAXPEBX_K@Z
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KAEBUcode_location@detail@23@@Z
