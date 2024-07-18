@@ -136,7 +136,7 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackDefaultQueue) {
 
   try {
     sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-    ASSERT_TRUE(false) << "Exception was not thrown.";
+    FAIL() << "Exception was not thrown.";
   } catch (sycl::exception &E) {
     ASSERT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
   }
