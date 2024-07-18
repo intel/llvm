@@ -18,6 +18,7 @@
 #include <type_traits> // for enable_if_t
 #include <utility>     // for move
 #include <vector>      // for vector
+#include <map>         // for multimap
 
 namespace sycl {
 inline namespace _V1 {
@@ -124,6 +125,18 @@ protected:
     if (It != MPropsWithData.end()) {
       std::iter_swap(It, MPropsWithData.end() - 1);
       MPropsWithData.pop_back();
+    }
+  }
+
+  void convertPropertiesToKinds(std::multimap<int, bool>& PropKinds) const{
+    for (size_t it = 0; it < MDataLessProps.size(); it++)
+    {
+      if (MDataLessProps[it])
+        PropKinds.insert(std::pair{ int(it), false});
+    }
+    for (auto & Prop: MPropsWithData)
+    {
+      PropKinds.insert(std::pair{Prop->getKind(), true});
     }
   }
 

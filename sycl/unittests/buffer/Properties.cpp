@@ -1,0 +1,68 @@
+//==-------- Properties.cpp --- check properties handling in RT --- --------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
+
+TEST(BufferProps, ValidPropsHostPtr) {
+  int HostPtr[1];
+  sycl::buffer<int, 1> Buf{HostPtr, 1, sycl::property::buffer::use_host_ptr{}};
+  // no explicit checks, we expect no exception to be thrown
+}
+
+TEST(BufferProps, ValidPropsContextBound) {
+  sycl::unittest::PiMock Mock;
+  sycl::context Context;
+  sycl::buffer<int, 1> Buf{1, sycl::property::buffer::context_bound{Context}};
+  // no explicit checks, we expect no exception to be thrown
+}
+
+TEST(BufferProps, ValidPropsMutex) {
+  std::mutex Mutex;
+  sycl::buffer<int, 1> Buf{1, sycl::property::buffer::use_mutex{Mutex}};
+  // no explicit checks, we expect no exception to be thrown
+}
+
+TEST(BufferProps, SetAndQueryMatch) {
+  sycl::unittest::PiMock Mock;
+  std::mutex Mutex;
+  sycl::context Context;
+  int HostPtr[1];
+
+  sycl::buffer<int, 1> buf{HostPtr,
+                           1,
+                           {sycl::property::buffer::use_host_ptr{},
+                            sycl::property::buffer::context_bound{Context},
+                            sycl::property::buffer::use_mutex{Mutex}}};
+
+  ASSERT_TRUE(buf.has_property<sycl::property::buffer::context_bound>());
+  EXPECT_EQ(
+      buf.get_property<sycl::property::buffer::context_bound>().get_context(),
+      Context);
+  ASSERT_TRUE(buf.has_property<sycl::property::buffer::use_mutex>());
+  EXPECT_EQ(
+      buf.get_property<sycl::property::buffer::use_mutex>().get_mutex_ptr(),
+      &Mutex);
+  EXPECT_TRUE(buf.has_property<sycl::property::buffer::use_host_ptr>());
+  // check some random not supported and not sent param
+  EXPECT_FALSE(buf.has_property<sycl::property::image::use_host_ptr>());
+}
+
+TEST(BufferProps, SetUnsupportedParam) {
+  try {
+    sycl::buffer<int, 1> buf{1, {sycl::property::image::use_host_ptr{}}};
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}

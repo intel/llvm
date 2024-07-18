@@ -65,6 +65,7 @@ public:
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
+  using PropertyListBase::convertPropertiesToKinds;
 private:
   property_list(
       std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
