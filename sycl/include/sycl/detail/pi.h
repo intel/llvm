@@ -3098,7 +3098,7 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue queue,  void *dst_ptr, const void *src_ptr,
+    pi_queue queue, void *dst_ptr, const void *src_ptr,
     const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
     const pi_image_format *src_image_format,
     const pi_image_format *dst_image_format, const pi_image_copy_flags flags,
