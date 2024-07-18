@@ -137,7 +137,6 @@ public:
 
     return CommandGroup;
   }
-  
 };
 
 const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(

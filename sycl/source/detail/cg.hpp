@@ -72,8 +72,7 @@ class NDRDescT {
     }
   }
 
-  template <int Dims>
-  static sycl::range<3> padRange(sycl::range<Dims> Range) {
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
@@ -107,21 +106,23 @@ public:
     setNDRangeLeftover();
   }
 
-        NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
+  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
 
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
         Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();}
+    setNDRangeLeftover();
+  }
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
       : NDRDescT(padRange(ExecutionRange.get_global_range()),
                  padRange(ExecutionRange.get_local_range()),
                  padId(ExecutionRange.get_offset()), size_t(DimsArg)) {
-    setNDRangeLeftover();}
+    setNDRangeLeftover();
+  }
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
@@ -358,8 +359,8 @@ class CGCopyUSM : public CG {
 public:
   CGCopyUSM(void *Src, void *Dst, size_t Length, CG::StorageInitHelper CGData,
             detail::code_location loc = {})
-      : CG(CGType::CopyUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
-        MLength(Length) {}
+      : CG(CGType::CopyUSM, std::move(CGData), std::move(loc)), MSrc(Src),
+        MDst(Dst), MLength(Length) {}
 
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
@@ -390,8 +391,8 @@ class CGPrefetchUSM : public CG {
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
                 detail::code_location loc = {})
-      : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)), MDst(DstPtr),
-        MLength(Length) {}
+      : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
 };
@@ -443,8 +444,8 @@ public:
   CGCopy2DUSM(void *Src, void *Dst, size_t SrcPitch, size_t DstPitch,
               size_t Width, size_t Height, CG::StorageInitHelper CGData,
               detail::code_location loc = {})
-      : CG(CGType::Copy2DUSM, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
-        MSrcPitch(SrcPitch), MDstPitch(DstPitch), MWidth(Width),
+      : CG(CGType::Copy2DUSM, std::move(CGData), std::move(loc)), MSrc(Src),
+        MDst(Dst), MSrcPitch(SrcPitch), MDstPitch(DstPitch), MWidth(Width),
         MHeight(Height) {}
 
   void *getSrc() const { return MSrc; }
@@ -489,8 +490,9 @@ public:
   CGMemset2DUSM(char Value, void *DstPtr, size_t Pitch, size_t Width,
                 size_t Height, CG::StorageInitHelper CGData,
                 detail::code_location loc = {})
-      : CG(CGType::Memset2DUSM, std::move(CGData), std::move(loc)), MValue(Value),
-        MDst(DstPtr), MPitch(Pitch), MWidth(Width), MHeight(Height) {}
+      : CG(CGType::Memset2DUSM, std::move(CGData), std::move(loc)),
+        MValue(Value), MDst(DstPtr), MPitch(Pitch), MWidth(Width),
+        MHeight(Height) {}
   void *getDst() const { return MDst; }
   size_t getPitch() const { return MPitch; }
   size_t getWidth() const { return MWidth; }
@@ -534,8 +536,8 @@ public:
                        bool IsDeviceImageScoped, size_t NumBytes, size_t Offset,
                        CG::StorageInitHelper CGData,
                        detail::code_location loc = {})
-      : CG(CGType::CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
-        MDeviceGlobalPtr(DeviceGlobalPtr),
+      : CG(CGType::CopyToDeviceGlobal, std::move(CGData), std::move(loc)),
+        MSrc(Src), MDeviceGlobalPtr(DeviceGlobalPtr),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
         MOffset(Offset) {}
 
@@ -589,8 +591,8 @@ public:
               ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
               ur_rect_region_t HostExtent, ur_rect_region_t CopyExtent,
               CG::StorageInitHelper CGData, detail::code_location loc = {})
-      : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
-        MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+      : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
+        MDst(Dst), MImageDesc(ImageDesc), MImageFormat(ImageFormat),
         MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
         MDstOffset(DstOffset), MHostExtent(HostExtent),
         MCopyExtent(CopyExtent) {}

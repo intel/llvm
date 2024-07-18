@@ -5,7 +5,7 @@
 // UNSUPPORTED: windows, linux
 
 // https://github.com/intel/llvm/issues/10682
-// UNSUPPORTED: gpu-intel-gen12
+// REQUIRES: TEMPORARY_DISABLED
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //

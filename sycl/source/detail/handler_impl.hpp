@@ -9,8 +9,8 @@
 #pragma once
 
 #include "sycl/handler.hpp"
-#include <detail/kernel_bundle_impl.hpp>
 #include <detail/cg.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
@@ -154,7 +154,7 @@ public:
   // Track whether an NDRange was used when submitting a kernel (as opposed to a
   // range), needed for graph update
   bool MNDRangeUsed = false;
-  
+
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
@@ -187,7 +187,7 @@ public:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
-  
+
   /// Storage for lambda/function when using HostTask
   std::shared_ptr<detail::HostTask> MHostTask;
   /// The list of valid SYCL events that need to complete

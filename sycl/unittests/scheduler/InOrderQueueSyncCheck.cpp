@@ -8,8 +8,8 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <detail/queue_impl.hpp>
 #include <detail/handler_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
@@ -82,15 +82,13 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   // previous task, this is needed to properly sync blocking & blocked tasks.
   sycl::event Event;
   {
-    LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask,
-                                     Queue};
+    LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(0);
     Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
   {
-    LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask,
-                                     Queue};
+    LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
     Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);

@@ -230,8 +230,8 @@ public:
       : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
-  using sycl::handler::impl;
   using sycl::handler::getType;
+  using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;
 
   sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
@@ -265,9 +265,7 @@ public:
   }
   std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
-  void setType(sycl::detail::CGType Type) {
-    impl->MCGType = Type;
-  }
+  void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
   template <typename KernelType, typename ArgType, int Dims,
             typename KernelName>

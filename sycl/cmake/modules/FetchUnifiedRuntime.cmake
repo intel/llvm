@@ -114,12 +114,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6c2329edef40cdacb8e28704eb02172c4c17a903
+  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 16 21:04:25 2024 +0100
-  #     Merge pull request #1743 from Seanst98/sean/copy-const-qualifiers
-  #     [Bindless][Exp] Add const-qualifier to Src param in urBindlessImagesImageCopyExp
-  set(UNIFIED_RUNTIME_TAG 6c2329edef40cdacb8e28704eb02172c4c17a903)
+  # Date:   Wed Jul 17 19:12:31 2024 +0100
+  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
+  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
+  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
