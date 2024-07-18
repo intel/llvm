@@ -956,7 +956,7 @@ __SYCL_EXPORT kernel_bundle<bundle_state::executable> build_from_source(
     sycl::detail::string *LogPtr,
     const std::vector<sycl::detail::string_view> &RegisteredKernelNames);
 
-__SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
+inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
