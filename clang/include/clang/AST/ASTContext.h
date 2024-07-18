@@ -643,6 +643,9 @@ private:
   /// address spaces (e.g. OpenCL/CUDA)
   bool AddrSpaceMapMangling;
 
+  /// For performance, track whether any function effects are in use.
+  mutable bool AnyFunctionEffects = false;
+
   const TargetInfo *Target = nullptr;
   const TargetInfo *AuxTarget = nullptr;
   clang::PrintingPolicy PrintingPolicy;
@@ -2658,6 +2661,10 @@ public:
   /// \returns if this is an array type, the completely unqualified array type
   /// that corresponds to it. Otherwise, returns T.getUnqualifiedType().
   QualType getUnqualifiedArrayType(QualType T, Qualifiers &Quals) const;
+  QualType getUnqualifiedArrayType(QualType T) const {
+    Qualifiers Quals;
+    return getUnqualifiedArrayType(T, Quals);
+  }
 
   /// Determine whether the given types are equivalent after
   /// cvr-qualifiers have been removed.
@@ -2909,6 +2916,8 @@ public:
   bool addressSpaceMapManglingFor(LangAS AS) const {
     return AddrSpaceMapMangling || isTargetAddressSpace(AS);
   }
+
+  bool hasAnyFunctionEffects() const { return AnyFunctionEffects; }
 
   // Merges two exception specifications, such that the resulting
   // exception spec is the union of both. For example, if either
