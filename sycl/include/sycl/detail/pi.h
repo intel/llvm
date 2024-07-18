@@ -201,9 +201,11 @@
 // (piextEnqueueKernelLaunchCustom)
 // 17.58 Added context parameter to piextMemImageGetInfo
 // 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
+// 18.60 Remove deprecated functions piextMemImportOpaqueFD and
+//       piextImportExternalSemaphoreOpaqueFD
 
-#define _PI_H_VERSION_MAJOR 17
-#define _PI_H_VERSION_MINOR 59
+#define _PI_H_VERSION_MAJOR 18
+#define _PI_H_VERSION_MINOR 60
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3115,23 +3117,6 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
                                              void *param_value,
                                              size_t *param_value_size_ret);
 
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalMemory`
-///
-/// API to import external memory in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param size is the size of the external memory
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop memory handle to the external
-/// memory
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalMemory`")
-pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
-                                 size_t size, int file_descriptor,
-                                 pi_interop_mem_handle *ret_handle);
-
 /// API to import external memory
 ///
 /// \param context is the pi_context
@@ -3165,23 +3150,6 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 /// \param memory_handle is the handle to interop memory to be freed
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
-
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalSemaphore`
-///
-/// API to import an external semaphore in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop semaphore handle to the external
-/// semaphore
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalSemaphore`")
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
-                                     int file_descriptor,
-                                     pi_interop_semaphore_handle *ret_handle);
 
 /// API to import an external semaphore
 ///
