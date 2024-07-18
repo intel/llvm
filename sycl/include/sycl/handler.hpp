@@ -997,11 +997,9 @@ private:
       auto Config = Props.template get_property<
           sycl::ext::intel::experimental::cache_config_key>();
       if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelCacheConfig(
-            static_cast<int32_t>(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM));
+        setKernelCacheConfig(StableKernelCacheConfig::LargeSLM);
       } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelCacheConfig(
-            static_cast<int32_t>(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA));
+        setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
       std::ignore = Props;
@@ -3604,8 +3602,15 @@ private:
                             "handler::require() before it can be used.");
   }
 
+  // Changing values in this will break ABI/API.
+  enum class StableKernelCacheConfig : int32_t {
+    Default = 0,
+    LargeSLM = 1,
+    LargeData = 2
+  };
+
   // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(int32_t);
+  void setKernelCacheConfig(StableKernelCacheConfig);
   // Set value of the kernel is cooperative flag
   void setKernelIsCooperative(bool);
 
