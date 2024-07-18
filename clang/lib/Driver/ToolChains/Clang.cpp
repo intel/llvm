@@ -5447,6 +5447,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
+                    options::OPT_fno_sycl_decompose_functor);
+
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR/SPIR-V based targets.
     if (Triple.isSPIROrSPIRV())

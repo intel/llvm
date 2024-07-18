@@ -462,15 +462,6 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context Context,
                                      ParamValueSizeRet);
 }
 
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalMemory`")
-pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
-                                 size_t Size, int FileDescriptor,
-                                 pi_external_mem *RetExtMem) {
-  return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
-                                       RetExtMem);
-}
-
 __SYCL_EXPORT pi_result piextImportExternalMemory(
     pi_context Context, pi_device Device, pi_external_mem_descriptor *MemDesc,
     pi_external_mem *RetExtMem) {
@@ -493,16 +484,6 @@ __SYCL_EXPORT pi_result piextMemReleaseExternalMemory(pi_context Context,
   return pi2ur::piextMemReleaseExternalMemory(Context, Device, ExtMem);
 }
 
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalSemaphore`")
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
-                                     int FileDescriptor,
-                                     pi_external_semaphore *RetExtSem) {
-  return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
-                                                     FileDescriptor, RetExtSem);
-}
-
 __SYCL_EXPORT pi_result
 piextImportExternalSemaphore(pi_context Context, pi_device Device,
                              pi_external_semaphore_descriptor *SemDesc,
@@ -511,9 +492,9 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
                                              RetExtSem);
 }
 
-__SYCL_EXPORT pi_result piextDestroyExternalSemaphore(
+__SYCL_EXPORT pi_result piextReleaseExternalSemaphore(
     pi_context Context, pi_device Device, pi_external_semaphore ExtSem) {
-  return pi2ur::piextDestroyExternalSemaphore(Context, Device, ExtSem);
+  return pi2ur::piextReleaseExternalSemaphore(Context, Device, ExtSem);
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(

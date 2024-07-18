@@ -71,24 +71,6 @@ template <typename ResourceType> struct external_semaphore_descriptor {
   external_semaphore_handle_type handle_type;
 };
 
-/// EVERYTHING BELOW IS DEPRECATED
-
-/// External memory file descriptor type
-struct external_mem_fd {
-  int file_descriptor;
-};
-
-/// Windows external memory type
-struct external_mem_win32 {
-  void *handle;
-  const void *name;
-};
-
-/// External semaphore file descriptor type
-struct external_semaphore_fd {
-  int file_descriptor;
-};
-
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

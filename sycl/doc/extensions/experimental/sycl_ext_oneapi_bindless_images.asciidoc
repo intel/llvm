@@ -1903,17 +1903,18 @@ the `ext_oneapi_signal_external_semaphore` call complete.
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
 
-The user must ensure to destroy all external semaphore objects once they are no 
-longer required through `destroy_external_semaphore`.
+The user must ensure to destroy all SYCL external semaphore objects used to 
+access the external semaphore once they are no longer required through 
+`release_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_semaphore(external_semaphore_handle semaphoreHandle,
+void release_external_semaphore(external_semaphore semaphoreHandle,
                                 const sycl::device &syclDevice,
                                 const sycl::context &syclContext);
 
-void destroy_external_semaphore(external_semaphore_handle semaphoreHandle,
+void release_external_semaphore(external_semaphore semaphoreHandle,
                                 const sycl::queue &syclQueue);
 
 }
@@ -2579,9 +2580,9 @@ try {
       input_external_mem, queue);
   sycl::ext::oneapi::experimental::release_external_memory(
       output_external_mem, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       wait_external_semaphore_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+  sycl::ext::oneapi::experimental::release_external_semaphore(
       done_external_semaphore_handle, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
@@ -2808,7 +2809,9 @@ These features still need to be handled:
                   - Fetch sampled image arrays with `fetch_image_array` API.
 |5.13|2024-07-10| - Added const-qualifiers to `Src` param in `ext_oneapi_copy`
                     funcs.
-|5.14|2024-07-17| - Renamed interop aspect queries, handles, semaphore wait and 
+|5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
+                    `release_external_semaphore`.
+|5.15|2024-07-18| - Renamed interop aspect queries, handles, semaphore wait and 
                     signal functions, by replacing `interop` with `external` for 
                     consistency with other interop related structs/funcs and 
                     3rd party interop API naming.

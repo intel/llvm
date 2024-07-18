@@ -5444,33 +5444,6 @@ inline pi_result piextMemImageGetInfo(pi_context Context,
   return PI_SUCCESS;
 }
 
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalMemory`")]] inline pi_result
-piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
-                       int FileDescriptor, pi_external_mem *RetExtMem) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetExtMem =
-      reinterpret_cast<ur_exp_external_mem_handle_t *>(RetExtMem);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_external_mem_desc_t ExtMemDesc{};
-  ExtMemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
-  ExtMemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalMemoryExp(
-      UrContext, UrDevice, Size, UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
-      &ExtMemDesc, UrRetExtMem));
-
-  return PI_SUCCESS;
-}
-
 inline pi_result
 piextImportExternalMemory(pi_context Context, pi_device Device,
                           pi_external_mem_descriptor *MemDescriptor,
@@ -5578,34 +5551,6 @@ inline pi_result piextMemReleaseExternalMemory(pi_context Context,
   return PI_SUCCESS;
 }
 
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalSemaphore`")]] inline pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
-                                     int FileDescriptor,
-                                     pi_external_semaphore *RetExtSem) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetExtSem =
-      reinterpret_cast<ur_exp_external_semaphore_handle_t *>(RetExtSem);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_external_semaphore_desc_t ExtSemDesc{};
-  ExtSemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC;
-  ExtSemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreExp(
-      UrContext, UrDevice, UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
-      &ExtSemDesc, UrRetExtSem));
-
-  return PI_SUCCESS;
-}
-
 inline pi_result
 piextImportExternalSemaphore(pi_context Context, pi_device Device,
                              pi_external_semaphore_descriptor *SemDescriptor,
@@ -5672,7 +5617,7 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
-inline pi_result piextDestroyExternalSemaphore(pi_context Context,
+inline pi_result piextReleaseExternalSemaphore(pi_context Context,
                                                pi_device Device,
                                                pi_external_semaphore ExtSem) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -5682,7 +5627,7 @@ inline pi_result piextDestroyExternalSemaphore(pi_context Context,
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrExtSem = reinterpret_cast<ur_exp_external_semaphore_handle_t>(ExtSem);
 
-  HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
+  HANDLE_ERRORS(urBindlessImagesReleaseExternalSemaphoreExp(UrContext, UrDevice,
                                                             UrExtSem));
 
   return PI_SUCCESS;

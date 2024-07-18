@@ -201,7 +201,10 @@
 // (piextEnqueueKernelLaunchCustom)
 // 17.58 Added context parameter to piextMemImageGetInfo
 // 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
-// 19.60 Renamed interop related structs/funcs/enums:
+// 18.60 Remove deprecated functions piextMemImportOpaqueFD and
+//       piextImportExternalSemaphoreOpaqueFD
+// 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
+// 20.62 Renamed interop related structs/funcs/enums:
 //       - with keyword "external" over "interop":
 //         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT to
 //           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT
@@ -223,8 +226,8 @@
 //           ext_oneapi_external_semaphore_export
 //       - piextMemReleaseInterop to piextMemReleaseExternalMemory
 
-#define _PI_H_VERSION_MAJOR 19
-#define _PI_H_VERSION_MINOR 60
+#define _PI_H_VERSION_MAJOR 20
+#define _PI_H_VERSION_MINOR 62
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3136,22 +3139,6 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
                                              void *param_value,
                                              size_t *param_value_size_ret);
 
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalMemory`
-///
-/// API to import external memory in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param size is the size of the external memory
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned handle to the external memory
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalMemory`")
-pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
-                                 size_t size, int file_descriptor,
-                                 pi_external_mem *ret_handle);
-
 /// API to import external memory
 ///
 /// \param context is the pi_context
@@ -3186,22 +3173,6 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(pi_context context,
 __SYCL_EXPORT pi_result piextMemReleaseExternalMemory(
     pi_context context, pi_device device, pi_external_mem memory_handle);
 
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalSemaphore`
-///
-/// API to import an external semaphore in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param file_descriptor is the file descriptor
-/// \param ret_ext_sem is the returned external semaphore object
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalSemaphore`")
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
-                                     int file_descriptor,
-                                     pi_external_semaphore *ret_ext_sem);
-
 /// API to import an external semaphore
 ///
 /// \param context is the pi_context
@@ -3213,12 +3184,13 @@ piextImportExternalSemaphore(pi_context context, pi_device device,
                              pi_external_semaphore_descriptor *sem_descriptor,
                              pi_external_semaphore *ret_ext_sem);
 
-/// API to destroy the external semaphore.
+/// API to release the external semaphore.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
-/// \param ext_sem is external semaphore object to be destroyed
-__SYCL_EXPORT pi_result piextDestroyExternalSemaphore(
+/// \param ext_sem is external semaphore handle to the external semaphore
+/// to be destroyed
+__SYCL_EXPORT pi_result piextReleaseExternalSemaphore(
     pi_context context, pi_device device, pi_external_semaphore ext_sem);
 
 /// API to instruct the queue with a non-blocking wait on an external semaphore.
