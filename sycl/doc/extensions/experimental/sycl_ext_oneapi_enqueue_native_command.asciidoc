@@ -181,7 +181,7 @@ call also must not add tasks to backend objects that underly any other queue,
 aside from the queue that is associated with this handler. If it does any of
 these things, the behavior is undefined.
 
-=== Example
+== Example
 
 ```c++
 sycl::queue q;
