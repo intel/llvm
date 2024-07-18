@@ -122,7 +122,6 @@ piextGetDeviceFunctionPointer
 piextGetGlobalVariablePointer
 piextImportExternalMemory
 piextImportExternalSemaphore
-piextImportExternalSemaphoreOpaqueFD
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj
@@ -136,7 +135,6 @@ piextMemImageCopy
 piextMemImageCreateWithNativeHandle
 piextMemImageFree
 piextMemImageGetInfo
-piextMemImportOpaqueFD
 piextMemMapExternalArray
 piextMemMipmapFree
 piextMemMipmapGetLevel

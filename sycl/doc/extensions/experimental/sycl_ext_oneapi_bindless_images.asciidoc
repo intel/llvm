@@ -2809,6 +2809,6 @@ These features still need to be handled:
                   - Fetch sampled image arrays with `fetch_image_array` API.
 |5.13|2024-07-10| - Added const-qualifiers to `Src` param in `ext_oneapi_copy`
                     funcs.
-|5.13|2024-07-17| - Rename `destroy_external_semaphore` to 
+|5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
                     `release_external_semaphore`.
 |======================
