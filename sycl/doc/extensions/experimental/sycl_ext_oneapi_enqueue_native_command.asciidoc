@@ -152,9 +152,7 @@ class handler {
 ```
 
 _Constraints_: The `Func` must a C++ callable object which takes a single
-parameter of type `interop_handle`. `interopCallable` must only submit
-asynchronous interop work to the backend, through the native backend object
-obtained from `interop_handle::get_native_queue`.
+parameter of type `interop_handle`.
 
 _Effects_: The `interopCallable` object is called exactly once, and this call
 may be made asynchronously even after the calling thread returns from
