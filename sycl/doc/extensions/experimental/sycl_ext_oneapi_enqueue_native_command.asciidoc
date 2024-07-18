@@ -194,8 +194,7 @@ q.submit([&](sycl::handler &cgh) {
       // Can extract stream (note: get_native_queue() may not be 
       // supported on CPU backends)
       hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
-      // Can extract HIP device (note: get_native_device() may not be
-      // supported on CPU backends)
+      // Can extract HIP device
       int dev = h.get_native_device<sycl::backend::hip>();
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc
