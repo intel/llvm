@@ -1,6 +1,8 @@
 // REQUIRES: accelerator
 // https://github.com/intel/llvm/issues/14308
-// Temporarily re-enabled for testing purposes
+// Temporarily re-enabled for testing purposes.
+// If you are facing issues with this test, please leave a comment in:
+// https://github.com/intel/llvm/pull/14627
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
