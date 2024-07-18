@@ -2280,10 +2280,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
     }
-    return mapValue(V, BM->addVariable(TranslatedTy, false,
-                                       spv::internal::LinkageTypeInternal,
-                                       nullptr, Alc->getName().str(),
-                                       StorageClassFunction, BB));
+    SPIRVType *VarTy =
+        V->getType()->getPointerAddressSpace() == SPIRAS_Generic
+            ? BM->addPointerType(StorageClassFunction,
+                                 TranslatedTy->getPointerElementType())
+            : TranslatedTy;
+    SPIRVValue *Var = BM->addVariable(
+        VarTy, false, spv::internal::LinkageTypeInternal, nullptr,
+        Alc->getName().str(), StorageClassFunction, BB);
+    if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
+      SPIRVValue *Cast =
+          BM->addUnaryInst(OpPtrCastToGeneric, TranslatedTy, Var, BB);
+      return mapValue(V, Cast);
+    }
+    return mapValue(V, Var);
   }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
@@ -4549,7 +4559,21 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
     if (Size == -1)
       Size = 0;
-    return BM->addLifetimeInst(OC, transValue(II->getOperand(1), BB), Size, BB);
+    Value *LLVMPtrOp = II->getOperand(1);
+    unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
+    auto *PtrOp = transValue(LLVMPtrOp, BB);
+    if (PtrAS == SPIRAS_Private)
+      return BM->addLifetimeInst(OC, PtrOp, Size, BB);
+    // If pointer address space is Generic - cast to private first
+    BM->getErrorLog().checkError(
+        PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
+        "lifetime intrinsic pointer operand must be in private or generic AS");
+    auto *SrcTy = PtrOp->getType();
+    auto *DstTy = BM->addPointerType(StorageClassFunction,
+                                     SrcTy->getPointerElementType());
+    PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
+    ValueMap[LLVMPtrOp] = PtrOp;
+    return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
