@@ -253,6 +253,9 @@ if sp[0] == 0:
     config.available_features.add("level_zero_dev_kit")
     config.substitutions.append(("%level_zero_options", level_zero_options))
 else:
+    lit_config.warning("Could not find L0 library and/or header files. Disabling level_zero_dev_kit LIT feature.")
+    lit.config.warning("L0 options: " + level_zero_options)
+    lit.config.warning("config.level_zero_libs_dir: " + config.level_zero_libs_dir)
     config.substitutions.append(("%level_zero_options", ""))
 
 # Check for sycl-preview library
@@ -334,6 +337,9 @@ if config.opencl_libs_dir:
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
         )
     config.available_features.add("opencl_icd")
+else:
+  lit.config.warning("OpenCL libraries not found. Disabling opencl_icd feature.")
+
 config.substitutions.append(("%opencl_include_dir", config.opencl_include_dir))
 
 if cl_options:
