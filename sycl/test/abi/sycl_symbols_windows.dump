@@ -3753,7 +3753,6 @@
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVqueue@45@@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
-?die@pi@detail@_V1@sycl@@YAXPEBD@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
 ?end@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ

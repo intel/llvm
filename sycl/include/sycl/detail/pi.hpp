@@ -99,7 +99,7 @@ bool trace(TraceLevel level);
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
+[[noreturn]] void die(const char *Message);
 
 __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
