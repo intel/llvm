@@ -264,7 +264,7 @@ std::vector<PluginPtr> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+template <backend BE> const PluginPtr &getPlugin();
 
 /// Tries to determine the device binary image foramat. Returns
 /// UR_DEVICE_BINARY_TYPE_NONE if unsuccessful.

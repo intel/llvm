@@ -233,11 +233,10 @@ template <backend BE> const PluginPtr &getPlugin() {
   throw exception(errc::runtime, "pi::getPlugin couldn't find plugin");
 }
 
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
+template const PluginPtr &getPlugin<backend::opencl>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_level_zero>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

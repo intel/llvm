@@ -694,18 +694,6 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \return an event representing advice operation.
-  __SYCL2020_DEPRECATED("use the overload with int Advice instead")
-  event mem_advise(
-      const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Provides additional information to the underlying runtime about how
-  /// different allocations are used.
-  ///
-  /// \param Ptr is a USM pointer to the allocation.
-  /// \param Length is a number of bytes in the allocation.
-  /// \param Advice is a device-defined advice for the specified allocation.
-  /// \return an event representing advice operation.
   event mem_advise(
       const void *Ptr, size_t Length, int Advice,
       const detail::code_location &CodeLoc = detail::code_location::current());
