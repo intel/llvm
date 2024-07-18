@@ -7,7 +7,7 @@
 
 // REQUIRES: aspect-usm_host_allocations
 
-// USM fill command not supported for OpenCL
+// Intended - USM fill command not supported for OpenCL
 // UNSUPPORTED: opencl
 
 #define GRAPH_E2E_RECORD_REPLAY

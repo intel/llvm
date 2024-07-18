@@ -75,23 +75,6 @@ public:
 
   ~context_impl();
 
-  /// Checks if this context_impl has a property of type propertyT.
-  ///
-  /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this context_impl.
-  ///
-  /// Throws invalid_object_error if this context_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
-
   /// Gets OpenCL interoperability context handle.
   ///
   /// \return an instance of OpenCL cl_context.
@@ -259,6 +242,8 @@ public:
   bool isOwnedByRuntime() { return MOwnedByRuntime; };
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
+
+  const property_list &getPropList() const { return MPropList; }
 
 private:
   bool MOwnedByRuntime;

@@ -9,7 +9,6 @@
 // REQUIRES: aspect-usm_shared_allocations
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/usm.hpp>
 
 int main() {

@@ -1,4 +1,4 @@
-// REQUIRES: opencl || level_zero, gpu
+// REQUIRES: opencl || level_zero, gpu, ocloc
 // UNSUPPORTED: gpu-intel-dg1 || windows
 //
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg1" %s -o %t.out

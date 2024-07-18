@@ -5606,7 +5606,6 @@ constexpr void check_atomic() {
 
   if constexpr (Op == __ESIMD_NS::atomic_op::xchg ||
                 Op == __ESIMD_NS::atomic_op::cmpxchg ||
-                Op == __ESIMD_NS::atomic_op::predec ||
                 Op == __ESIMD_NS::atomic_op::inc ||
                 Op == __ESIMD_NS::atomic_op::dec) {
 

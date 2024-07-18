@@ -44,12 +44,12 @@ void test_default_context_disabled() {
   bool catchException = false;
   try {
     (void)Plt.ext_oneapi_get_default_context();
-  } catch (const std::runtime_error &) {
+  } catch (const std::exception &) {
     catchException = true;
   }
 
   ASSERT_TRUE(catchException)
-      << "ext_oneapi_get_default_context did not throw and exception";
+      << "ext_oneapi_get_default_context did not throw an exception";
 }
 
 TEST(DefaultContextTest, DefaultContextTest) {

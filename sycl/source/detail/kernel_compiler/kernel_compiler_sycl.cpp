@@ -138,6 +138,7 @@ void outputIncludeFiles(const std::filesystem::path &Dirpath,
   using pairStrings = std::pair<std::string, std::string>;
   for (pairStrings p : IncludePairs) {
     std::filesystem::path FilePath = Dirpath / p.first;
+    std::filesystem::create_directories(FilePath.parent_path());
     std::ofstream outfile(FilePath, std::ios::out | std::ios::trunc);
     if (outfile.is_open()) {
       outfile << p.second << std::endl;

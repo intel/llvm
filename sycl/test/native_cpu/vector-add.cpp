@@ -2,6 +2,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
+// Same test with -O0 to ensure unremoved builtins link
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 %s -o %t
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
+
 // Same test but with -g
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -g -o %t-debug
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-debug

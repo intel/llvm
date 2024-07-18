@@ -28,8 +28,8 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
                            [=](ReqToMem Elem) { return (Elem.first == Req); });
 
   if (Iter == std::end(MMemObjs)) {
-    throw invalid_object_error("Invalid memory object used inside interop",
-                               PI_ERROR_INVALID_MEM_OBJECT);
+    throw exception(make_error_code(errc::invalid),
+                    "Invalid memory object used inside interop");
   }
 
   auto Plugin = MQueue->getPlugin();

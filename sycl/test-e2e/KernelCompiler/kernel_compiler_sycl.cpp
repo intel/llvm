@@ -21,10 +21,17 @@ auto constexpr AddEmH = R"===(
   }
 )===";
 
+auto constexpr PlusEmH = R"===(
+  int PlusEm(int a, int b){
+    return a + b + 6;
+  }
+)===";
+
 // TODO: remove SYCL_EXTERNAL once it is no longer needed.
 auto constexpr SYCLSource = R"===(
 #include <sycl/sycl.hpp>
-#include "AddEm.h"
+#include "intermediate/AddEm.h"
+#include "intermediate/PlusEm.h"
 
 // use extern "C" to avoid name mangling
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
@@ -45,7 +52,7 @@ void ff_templated(T *ptr) {
   sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
 
   sycl::id<1> GId = Item.get_global_id();
-  ptr[GId.get(0)] = GId.get(0) + 39;
+  ptr[GId.get(0)] = PlusEm(GId.get(0), 38);
 }
 )===";
 
@@ -100,8 +107,8 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   Queue.wait();
 
   for (int i = 0; i < Range; i++) {
-    std::cout << usmPtr[i] << " ";
-    assert(usmPtr[i] = i + seed);
+    std::cout << usmPtr[i] << "=" << (i + seed) << " ";
+    assert(usmPtr[i] == i + seed);
   }
   std::cout << std::endl;
 
@@ -127,9 +134,11 @@ void test_build_and_run() {
   }
 
   // Create from source.
+  syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
+  incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource,
-      syclex::properties{syclex::include_files{"AddEm.h", AddEmH}});
+      syclex::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().
   sycl::context ctxRes = kbSrc.get_context();
@@ -146,8 +155,7 @@ void test_build_and_run() {
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
-      syclex::properties{// syclex::build_options{flags},
-                         syclex::save_log{&log},
+      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
@@ -168,8 +176,8 @@ void test_build_and_run() {
   // clang-format on
 
   // Test the kernels.
-  test_1(q, k, 37 + 5); // AddEm will add 5 more.
-  test_1(q, k2, 39);
+  test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
+  test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 }
 
 void test_error() {

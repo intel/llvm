@@ -643,16 +643,33 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
     {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
     {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
-    {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10},
-    {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
-    {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
-    {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
-    {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
-    {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},
-    {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},
-    {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},
-    {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21},
-    {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},
+    {0x030dc000, oneapi_exp_arch::intel_gpu_acm_g10}, // A0
+    {0x030dc001, oneapi_exp_arch::intel_gpu_acm_g10}, // A1
+    {0x030dc004, oneapi_exp_arch::intel_gpu_acm_g10}, // B0
+    {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10}, // C0
+    {0x030e0000, oneapi_exp_arch::intel_gpu_acm_g11}, // A0
+    {0x030e0004, oneapi_exp_arch::intel_gpu_acm_g11}, // B0
+    {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11}, // B1
+    {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12}, // A0
+    {0x030f0000, oneapi_exp_arch::intel_gpu_pvc},     // XL-A0
+    {0x030f0001, oneapi_exp_arch::intel_gpu_pvc},     // XL-AOP
+    {0x030f0003, oneapi_exp_arch::intel_gpu_pvc},     // XT-A0
+    {0x030f0005, oneapi_exp_arch::intel_gpu_pvc},     // XT-B0
+    {0x030f0006, oneapi_exp_arch::intel_gpu_pvc},     // XT-B1
+    {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},     // XT-C0
+    {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},  // C0
+    {0x03118000, oneapi_exp_arch::intel_gpu_mtl_u},   // A0
+    {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},   // B0
+    {0x0311c000, oneapi_exp_arch::intel_gpu_mtl_h},   // A0
+    {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},   // B0
+    {0x03128000, oneapi_exp_arch::intel_gpu_arl_h},   // A0
+    {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},   // B0
+    {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
+    {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
+    {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+    {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
+    {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
+    {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
 };
 
 // Only for Intel CPU architectures
@@ -1050,9 +1067,8 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
         Dev->getHandleRef(), PiInfoCode<info::device::parent_device>::value,
         sizeof(result), &result, nullptr);
     if (result == nullptr)
-      throw invalid_object_error(
-          "No parent for device because it is not a subdevice",
-          PI_ERROR_INVALID_DEVICE);
+      throw exception(make_error_code(errc::invalid),
+                      "No parent for device because it is not a subdevice");
 
     const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
@@ -1260,9 +1276,9 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   if (std::is_same<Param,
                    sycl::_V1::ext::intel::info::device::free_memory>::value) {
     if (!Dev->has(aspect::ext_intel_free_memory))
-      throw invalid_object_error(
-          "The device does not have the ext_intel_free_memory aspect",
-          PI_ERROR_INVALID_DEVICE);
+      throw exception(
+          make_error_code(errc::invalid),
+          "The device does not have the ext_intel_free_memory aspect");
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }

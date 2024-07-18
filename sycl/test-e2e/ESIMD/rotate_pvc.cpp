@@ -10,7 +10,7 @@
 // RUN: %{run} %t.out
 // RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t1.out -DEXP
 // RUN: %{run} %t1.out
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 
 // This is a basic test to validate the ror/rol functions on PVC.
 

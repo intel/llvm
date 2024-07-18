@@ -44,9 +44,10 @@
 
 #define CHECK(S, REF)                                                          \
   {                                                                            \
+    ++test_id;                                                                 \
     auto ret = S;                                                              \
     if (ret != REF) {                                                          \
-      return {#S, REF};                                                        \
+      errc = test_id;                                                          \
     }                                                                          \
   }
 
@@ -56,7 +57,9 @@ const auto UINT32MAX = std::numeric_limits<uint32_t>::max();
 const auto UINT32MIN = std::numeric_limits<uint32_t>::min();
 const int b = 4, c = 5, d = 6;
 
-std::pair<const char *, int> vadd() {
+int vadd() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_add<int32_t>(3, 4), 7);
   CHECK(syclcompat::extend_add<uint32_t>(b, c), 9);
   CHECK(syclcompat::extend_add_sat<int32_t>(b, INT32MAX), INT32MAX);
@@ -65,10 +68,12 @@ std::pair<const char *, int> vadd() {
   CHECK(syclcompat::extend_add_sat<int32_t>(b, c, -20, sycl::minimum<>()), -20);
   CHECK(syclcompat::extend_add_sat<int32_t>(b, (-33), 9, sycl::maximum<>()), 9);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vsub() {
+int vsub() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_sub<int32_t>(3, 4), -1);
   CHECK(syclcompat::extend_sub<uint32_t>(c, b), 1);
   CHECK(syclcompat::extend_sub_sat<int32_t>(10, INT32MIN), INT32MAX);
@@ -78,10 +83,12 @@ std::pair<const char *, int> vsub() {
   CHECK(syclcompat::extend_sub_sat<int32_t>(b, (-33), 9, sycl::maximum<>()),
         37);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vabsdiff() {
+int vabsdiff() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_absdiff<int32_t>(3, 4), 1);
   CHECK(syclcompat::extend_absdiff<uint32_t>(c, b), 1);
   CHECK(syclcompat::extend_absdiff_sat<int32_t>(10, INT32MIN), INT32MAX);
@@ -92,10 +99,12 @@ std::pair<const char *, int> vabsdiff() {
   CHECK(syclcompat::extend_absdiff_sat<int32_t>(b, (-33), 9, sycl::maximum<>()),
         37);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vmin() {
+int vmin() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_min<int32_t>(3, 4), 3);
   CHECK(syclcompat::extend_min<uint32_t>(c, b), 4);
   CHECK(syclcompat::extend_min_sat<int32_t>(UINT32MAX, 1), 1);
@@ -104,10 +113,12 @@ std::pair<const char *, int> vmin() {
   CHECK(syclcompat::extend_min_sat<int32_t>(b, c, -20, sycl::minimum<>()), -20);
   CHECK(syclcompat::extend_min_sat<int32_t>(b, (-33), 9, sycl::maximum<>()), 9);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vmax() {
+int vmax() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_max<int32_t>(3, 4), 4);
   CHECK(syclcompat::extend_max<uint32_t>(c, b), 5);
   CHECK(syclcompat::extend_max_sat<int32_t>(UINT32MAX, 1), INT32MAX);
@@ -116,7 +127,7 @@ std::pair<const char *, int> vmax() {
   CHECK(syclcompat::extend_max_sat<int32_t>(b, c, -20, sycl::minimum<>()), -20);
   CHECK(syclcompat::extend_max_sat<int32_t>(b, (-33), 9, sycl::maximum<>()), 9);
 
-  return {nullptr, 0};
+  return errc;
 }
 
 template <typename Tp> struct scale {
@@ -127,7 +138,9 @@ template <typename Tp> struct noop {
   Tp operator()(Tp val, Tp /*scaler*/) { return val; }
 };
 
-std::pair<const char *, int> shl_clamp() {
+int shl_clamp() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_shl_clamp<int32_t>(3, 4), 48);
   CHECK(syclcompat::extend_shl_clamp<int32_t>(6, 33), 0);
   CHECK(syclcompat::extend_shl_clamp<int32_t>(3, 4, 4, scale<int32_t>()), 192);
@@ -139,10 +152,12 @@ std::pair<const char *, int> shl_clamp() {
   CHECK(syclcompat::extend_shl_sat_clamp<int8_t>(9, 5, -1, noop<int8_t>()),
         127);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> shl_wrap() {
+int shl_wrap() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_shl_wrap<int32_t>(3, 4), 48);
   CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 32), 6);
   CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 33), 12);
@@ -155,10 +170,12 @@ std::pair<const char *, int> shl_wrap() {
         -127);
   CHECK(syclcompat::extend_shl_sat_wrap<int8_t>(9, 5, -1, noop<int8_t>()), 127);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> shr_clamp() {
+int shr_clamp() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_shr_clamp<int32_t>(128, 5), 4);
   CHECK(syclcompat::extend_shr_clamp<int32_t>(INT32MAX, 33), 0);
   CHECK(syclcompat::extend_shr_clamp<int32_t>(128, 5, 4, scale<int32_t>()), 16);
@@ -170,10 +187,12 @@ std::pair<const char *, int> shr_clamp() {
   CHECK(syclcompat::extend_shr_sat_clamp<int8_t>(512, 1, -1, noop<int8_t>()),
         127);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> shr_wrap() {
+int shr_wrap() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 5), 4);
   CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 32), 128);
   CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 33), 64);
@@ -187,106 +206,43 @@ std::pair<const char *, int> shr_wrap() {
   CHECK(syclcompat::extend_shr_sat_wrap<int8_t>(512, 1, -1, noop<int8_t>()),
         127);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-void test(const sycl::stream &s, int *ec) {
-  {
-    auto res = vadd();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 1;
-      return;
-    }
-    s << "vadd check passed!\n";
+template <auto F> void test_fn(sycl::queue q, int *ec) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=]() {
+      auto res = F();
+      if(res != 0) *ec = res;
+    });
+  });
+  int ec_h{};
+  syclcompat::memcpy<int>(&ec_h, ec, 1, q);
+  q.wait_and_throw();
+
+  if (ec_h != 0) {
+    std::cout << "Test " << ec_h << " failed." << std::endl;
+    syclcompat::free(ec, q);
+    assert(false);
   }
-  {
-    auto res = vsub();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 2;
-      return;
-    }
-    s << "vsub check passed!\n";
-  }
-  {
-    auto res = vabsdiff();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 3;
-      return;
-    }
-    s << "vabsdiff check passed!\n";
-  }
-  {
-    auto res = vmin();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 4;
-      return;
-    }
-    s << "vmin check passed!\n";
-  }
-  {
-    auto res = vmax();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 5;
-      return;
-    }
-    s << "vmax check passed!\n";
-  }
-  {
-    auto res = shl_clamp();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 6;
-      return;
-    }
-    s << "shl_clamp check passed!\n";
-  }
-  {
-    auto res = shl_wrap();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 7;
-      return;
-    }
-    s << "shl_wrap check passed!\n";
-  }
-  {
-    auto res = shr_clamp();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 8;
-      return;
-    }
-    s << "shr_clamp check passed!\n";
-  }
-  {
-    auto res = shr_wrap();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 9;
-      return;
-    }
-    s << "shr_wrap check passed!\n";
-  }
-  *ec = 0;
 }
 
 int main() {
   sycl::queue q = syclcompat::get_default_queue();
-  int *ec = syclcompat::malloc<int>(1);
-  syclcompat::fill<int>(ec, 0, 1);
-  q.submit([&](sycl::handler &cgh) {
-    sycl::stream out(1024, 256, cgh);
-    cgh.parallel_for(1, [=](sycl::item<1> it) { test(out, ec); });
-  });
-  q.wait_and_throw();
+  int *ec = syclcompat::malloc<int>(1, q);
+  syclcompat::fill<int>(ec, 0, 1, q);
 
-  int ec_h;
-  syclcompat::memcpy<int>(&ec_h, ec, 1);
+  test_fn<vadd>(q, ec);
+  test_fn<vsub>(q, ec);
+  test_fn<vabsdiff>(q, ec);
+  test_fn<vmin>(q, ec);
+  test_fn<vmax>(q, ec);
+  test_fn<shl_clamp>(q, ec);
+  test_fn<shl_wrap>(q, ec);
+  test_fn<shr_clamp>(q, ec);
+  test_fn<shr_wrap>(q, ec);
 
-  return ec_h;
+  syclcompat::free(ec, q);
 }

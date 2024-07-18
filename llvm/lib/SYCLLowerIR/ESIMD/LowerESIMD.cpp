@@ -908,9 +908,6 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
     case 0x14:
       Suff = ".fsub";
       break;
-    case 0xff:
-      Suff = ".predec";
-      break;
     default:
       llvm_unreachable("unknown atomic OP");
     };

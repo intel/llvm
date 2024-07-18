@@ -18,10 +18,10 @@
 #include <vector>
 
 #include <detail/accessor_impl.hpp>
+#include <detail/cg.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
-#include <sycl/detail/cg.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -624,7 +624,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          const detail::EventImplPtr &OutEventImpl, bool read);
 
-pi_int32 enqueueImpKernel(
+void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,

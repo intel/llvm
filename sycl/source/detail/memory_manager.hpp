@@ -271,7 +271,7 @@ public:
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
   static void
-  copy_image_bindless(void *Src, QueueImplPtr Queue, void *Dst,
+  copy_image_bindless(const void *Src, QueueImplPtr Queue, void *Dst,
                       const sycl::detail::pi::PiMemImageDesc &Desc,
                       const sycl::detail::pi::PiMemImageFormat &Format,
                       const sycl::detail::pi::PiImageCopyFlags Flags,

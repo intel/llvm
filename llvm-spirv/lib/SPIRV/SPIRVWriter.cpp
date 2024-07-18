@@ -2113,55 +2113,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       BM->addExtension(ExtensionID::SPV_INTEL_hw_thread_queries);
     }
 
-    // TODO: it's W/A for intel/llvm to prevent not fixed SPIR-V consumers
-    // see https://github.com/intel/llvm/issues/7592
-    // from crashing. Need to remove, when we have the fixed drivers
-    // to remove: begin
-    {
-      std::vector<Instruction *> GEPs;
-      std::vector<Instruction *> Loads;
-      auto *GVTy = GV->getType();
-      auto *VecTy = GVTy->isOpaquePointerTy()
-                        ? nullptr
-                        : dyn_cast<FixedVectorType>(
-                              GVTy->getNonOpaquePointerElementType());
-      auto ReplaceIfLoad = [&](User *I, ConstantInt *Idx) -> void {
-        auto *LD = dyn_cast<LoadInst>(I);
-        if (!LD)
-          return;
-        Loads.push_back(LD);
-        const DebugLoc &DLoc = LD->getDebugLoc();
-        LoadInst *Load = new LoadInst(VecTy, GV, "", LD);
-        ExtractElementInst *Extract = ExtractElementInst::Create(Load, Idx);
-        if (DLoc)
-          Extract->setDebugLoc(DLoc);
-        Extract->insertAfter(cast<Instruction>(Load));
-        LD->replaceAllUsesWith(Extract);
-      };
-      for (auto *UI : GV->users()) {
-        if (!VecTy)
-          break;
-        if (auto *GEP = dyn_cast<GetElementPtrInst>(UI)) {
-          GEPs.push_back(GEP);
-          for (auto *GEPUser : GEP->users()) {
-            assert(GEP->getNumIndices() == 2 &&
-                   "GEP to ID vector is expected to have exactly 2 indices");
-            auto *Idx = cast<ConstantInt>(GEP->getOperand(2));
-            ReplaceIfLoad(GEPUser, Idx);
-          }
-        }
-      }
-      auto Erase = [](std::vector<Instruction *> &ToErase) {
-        for (Instruction *I : ToErase) {
-          assert(I->user_empty());
-          I->eraseFromParent();
-        }
-      };
-      Erase(Loads);
-      Erase(GEPs);
-    }
-    // to remove: end
-
     BVar->setBuiltin(Builtin);
     return BVar;
   }

@@ -34,8 +34,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <limits>
-#include <stdio.h>
 #include <sycl/detail/core.hpp>
 
 #include <syclcompat/device.hpp>
@@ -44,13 +42,16 @@
 
 #define CHECK(S, REF)                                                          \
   {                                                                            \
+    ++test_id;                                                                 \
     auto ret = S;                                                              \
     if (ret != REF) {                                                          \
-      return {#S, REF};                                                        \
+      errc = test_id;                                                          \
     }                                                                          \
   }
 
-std::pair<const char *, int> vadd2() {
+int vadd2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vadd2<int32_t>(0x0001FFFF, 0x00010005, 0),
         0x00020004);
   CHECK(syclcompat::extend_vadd2<int32_t>(0x7FFF7FFF, 0x00010001, 0),
@@ -65,11 +66,12 @@ std::pair<const char *, int> vadd2() {
   CHECK(syclcompat::extend_vadd2_sat<uint32_t>((uint32_t)0xFFFEFFFF,
                                                (uint32_t)0x00030003, 0),
         0xFFFFFFFF);
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vsub2() {
-
+int vsub2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vsub2<int32_t>(0x0001FFFF, 0xFFFF0001, 0),
         0x0002FFFE);
   // Testing API & Saturated API with mixed types
@@ -113,11 +115,12 @@ std::pair<const char *, int> vsub2() {
                                                (int32_t)0x0002FFFF, 0),
         0x00000002);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vadd2_add() {
-
+int vadd2_add() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vadd2_add<int32_t>(0x00010002, 0x00030004, 1),
         0x0000000B);
   CHECK(syclcompat::extend_vadd2_add<int32_t>(0x0001FFFF, 0x0002FFFE, -1),
@@ -133,11 +136,12 @@ std::pair<const char *, int> vadd2_add() {
   CHECK(syclcompat::extend_vadd2_add<uint32_t>(0x0001FFFF, 0x0002FFFF, 1),
         0x00000002);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vsub2_add() {
-
+int vsub2_add() {
+  int errc{};
+  int test_id{};
   // Testing API with mixed types
   CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x0001FFFF,
                                               (int32_t)0xFFFF0001, 1),
@@ -160,11 +164,12 @@ std::pair<const char *, int> vsub2_add() {
   CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x00010001, 0x0002FFFF, 3),
         0x00000004);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vabsdiff2() {
-
+int vabsdiff2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vabsdiff2<int32_t>((int32_t)0xFFFF0001,
                                               (int32_t)0x0003FFFF, 0),
         0x00040002);
@@ -184,11 +189,12 @@ std::pair<const char *, int> vabsdiff2() {
                                                    (int32_t)0xFFFE0003, 0),
         0xFFFF0002);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vabsdiff2_add() {
-
+int vabsdiff2_add() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vabsdiff2_add<int32_t>((int32_t)0xFFFF0001,
                                                   (int32_t)0x0003FFFF, -2),
         0x00000004);
@@ -196,11 +202,12 @@ std::pair<const char *, int> vabsdiff2_add() {
   CHECK(syclcompat::extend_vabsdiff2_add<uint32_t>(0x000A000C, 0x000B000A, 1),
         0x00000004);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vmin2() {
-
+int vmin2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vmin2<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
         (int32_t)0xFFFF0001);
   CHECK(syclcompat::extend_vmin2_sat<int32_t>(0x0002FFF1, 0x0001FFF2, 0),
@@ -211,11 +218,12 @@ std::pair<const char *, int> vmin2() {
   CHECK(syclcompat::extend_vmin2_sat<uint32_t>(0x0002FFF1, 0x0001FFF2, 0),
         0x00010000);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vmax2() {
-
+int vmax2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vmax2<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
         0x00010002);
   CHECK(syclcompat::extend_vmax2_sat<int32_t>(0x80008000, 0x00018001, 0),
@@ -226,11 +234,12 @@ std::pair<const char *, int> vmax2() {
   CHECK(syclcompat::extend_vmax2_sat<uint32_t>(0x0002FFF1, 0x0001FFF2, 0),
         0x00020000);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vmin2_vmax2_add() {
-
+int vmin2_vmax2_add() {
+  int errc{};
+  int test_id{};
   CHECK(
       syclcompat::extend_vmin2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 2),
       0x00000002);
@@ -243,11 +252,12 @@ std::pair<const char *, int> vmin2_vmax2_add() {
   CHECK(syclcompat::extend_vmax2_add<uint32_t>(0x000A000D, 0x000B000C, 2),
         0x0000001A);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vavrg2() {
-
+int vavrg2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vavrg2<int32_t>((int32_t)0xFFFFFFF6, 0x0005FFFA, 0),
         0x0002FFF8);
   CHECK(syclcompat::extend_vavrg2_sat<int32_t>((int32_t)0xFFFFFFF6, 0x0005FFFA,
@@ -259,11 +269,12 @@ std::pair<const char *, int> vavrg2() {
   CHECK(syclcompat::extend_vavrg2_sat<uint32_t>(0x00010006, 0x00030001, 0),
         0x00020004);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vavrg2_add() {
-
+int vavrg2_add() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vavrg2_add<int32_t>((int32_t)0xFFFFFFF6, 0x0005FFFA,
                                                -2),
         0xFFFFFFF8);
@@ -271,11 +282,12 @@ std::pair<const char *, int> vavrg2_add() {
   CHECK(syclcompat::extend_vavrg2_add<uint32_t>(0x00010006, 0x00030002, 2),
         0x00000008);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vcompare2() {
-
+int vcompare2() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::greater<>()),
         (unsigned)0x00010000);
   CHECK(syclcompat::extend_vcompare2((uint32_t)0x0002FFFF, (int32_t)0x0001FFFF,
@@ -299,11 +311,12 @@ std::pair<const char *, int> vcompare2() {
                                      std::not_equal_to<>()),
         (unsigned)0x00010000);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-std::pair<const char *, int> vcompare2_add() {
-
+int vcompare2_add() {
+  int errc{};
+  int test_id{};
   CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 1,
                                          std::greater<>()),
         (unsigned)0x00000002);
@@ -323,142 +336,48 @@ std::pair<const char *, int> vcompare2_add() {
                                          std::not_equal_to<>()),
         (unsigned)0x00000100);
 
-  return {nullptr, 0};
+  return errc;
 }
 
-void test(const sycl::stream &s, int *ec) {
-  {
-    auto res = vadd2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 1;
-      return;
-    }
-    s << "vadd2 check passed!\n";
+
+template <auto F> void test_fn(sycl::queue q, int *ec) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=]() {
+      auto res = F();
+      if(res != 0) *ec = res;
+    });
+  });
+  int ec_h{};
+  syclcompat::memcpy<int>(&ec_h, ec, 1, q);
+  q.wait_and_throw();
+
+  if (ec_h != 0) {
+    std::cout << "Test " << ec_h << " failed." << std::endl;
+    syclcompat::free(ec, q);
+    assert(false);
   }
-  {
-    auto res = vsub2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 2;
-      return;
-    }
-    s << "vsub2 check passed!\n";
-  }
-  {
-    auto res = vadd2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 3;
-      return;
-    }
-    s << "vadd2_add check passed!\n";
-  }
-  {
-    auto res = vsub2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 4;
-      return;
-    }
-    s << "vsub2_add check passed!\n";
-  }
-  {
-    auto res = vabsdiff2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 5;
-      return;
-    }
-    s << "vabsdiff2 check passed!\n";
-  }
-  {
-    auto res = vmin2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 6;
-      return;
-    }
-    s << "vmin2 check passed!\n";
-  }
-  {
-    auto res = vmax2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 7;
-      return;
-    }
-    s << "vmax2 check passed!\n";
-  }
-  {
-    auto res = vmin2_vmax2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 8;
-      return;
-    }
-    s << "vmin2_add/vmax2_add check passed!\n";
-  }
-  {
-    auto res = vavrg2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 9;
-      return;
-    }
-    s << "vavrg2 check passed!\n";
-  }
-  {
-    auto res = vavrg2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 10;
-      return;
-    }
-    s << "vavrg2_add check passed!\n";
-  }
-  {
-    auto res = vabsdiff2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 11;
-      return;
-    }
-    s << "vabsdiff2_add check passed!\n";
-  }
-  {
-    auto res = vcompare2();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 12;
-      return;
-    }
-    s << "vcompare2 check passed!\n";
-  }
-  {
-    auto res = vcompare2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 13;
-      return;
-    }
-    s << "vcompare2_add check passed!\n";
-  }
-  *ec = 0;
 }
 
 int main() {
   sycl::queue q = syclcompat::get_default_queue();
-  int *ec = syclcompat::malloc<int>(1);
-  syclcompat::fill<int>(ec, 0, 1);
-  q.submit([&](sycl::handler &cgh) {
-    sycl::stream out(1024, 256, cgh);
-    cgh.parallel_for(1, [=](sycl::item<1> it) { test(out, ec); });
-  });
-  q.wait_and_throw();
+  int *ec = syclcompat::malloc<int>(1, q);
+  syclcompat::fill<int>(ec, 0, 1, q);
 
-  int ec_h;
-  syclcompat::memcpy<int>(&ec_h, ec, 1);
+  test_fn<vadd2>(q, ec);
+  test_fn<vsub2>(q, ec);
+  test_fn<vadd2_add>(q, ec);
+  test_fn<vsub2_add>(q, ec);
+  test_fn<vabsdiff2>(q, ec);
+  test_fn<vabsdiff2_add>(q, ec);
+  test_fn<vmin2>(q, ec);
+  test_fn<vmax2>(q, ec);
+  test_fn<vmin2_vmax2_add>(q, ec);
+  test_fn<vavrg2>(q, ec);
+  test_fn<vavrg2_add>(q, ec);
+  test_fn<vcompare2>(q, ec);
+  test_fn<vcompare2_add>(q, ec);
 
-  return ec_h;
+  syclcompat::free(ec, q);
 }

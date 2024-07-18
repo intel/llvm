@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include <detail/cg.hpp>
 #include <detail/device_impl.hpp>
-#include <sycl/detail/cg.hpp>
 #include <sycl/detail/pi.h>
 
 namespace sycl {

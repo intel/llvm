@@ -1,4 +1,4 @@
-// REQUIRES: linux, gpu-intel-pvc, level_zero, level_zero_dev_kit
+// REQUIRES: linux, arch-intel_gpu_pvc, level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s

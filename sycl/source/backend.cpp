@@ -61,8 +61,8 @@ backend convertBackend(pi_platform_backend PiBackend) {
   case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   }
-  throw sycl::runtime_error{"convertBackend: Unsupported backend",
-                            PI_ERROR_INVALID_OPERATION};
+  throw exception(make_error_code(errc::runtime),
+                  "convertBackend: Unsupported backend");
 }
 
 platform make_platform(pi_native_handle NativeHandle, backend Backend) {

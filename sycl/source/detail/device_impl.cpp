@@ -644,7 +644,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_matrix: {
     using arch = sycl::ext::oneapi::experimental::architecture;
     const std::vector<arch> supported_archs = {
-        arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
+        arch::intel_cpu_spr,     arch::intel_cpu_gnr,
+        arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
         arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
     try {
       return std::any_of(
@@ -698,9 +699,6 @@ bool device_impl::has(aspect Aspect) const {
     }
 
     return SupportsCommandBuffers;
-  }
-  case aspect::ext_intel_fpga_task_sequence: {
-    return is_accelerator();
   }
   case aspect::ext_oneapi_private_alloca: {
     // Extension only supported on SPIR-V targets.
