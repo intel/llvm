@@ -907,7 +907,7 @@ make_kernel_bundle_from_source(
     std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
         IncludePairsVec);
 
-__SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
+inline kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::string &Source,
