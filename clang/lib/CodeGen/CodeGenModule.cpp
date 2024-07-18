@@ -4141,10 +4141,7 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
             !Global->hasAttr<CUDAHostAttr>()))
         return;
       // Device-only functions are the only things we skip.
-    } else if (!Global->hasAttr<CUDAHostAttr>() &&
-               Global->hasAttr<CUDADeviceAttr>())
-      return;
-    else {
+    } else {
       // We need to emit host-side 'shadows' for all global
       // device-side variables because the CUDA runtime needs their
       // size and host-side address in order to provide access to
