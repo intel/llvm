@@ -1582,7 +1582,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
     ur_queue_handle_t,
     void *,
-    void *,
+    const void *,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_copy_flags_t,
@@ -1656,8 +1656,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreExp_t
     ur_exp_interop_semaphore_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesDestroyExternalSemaphoreExp_t)(
+/// @brief Function-pointer for urBindlessImagesReleaseExternalSemaphoreExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t)(
     ur_context_handle_t,
     ur_device_handle_t,
     ur_exp_interop_semaphore_handle_t);
@@ -1701,7 +1701,7 @@ typedef struct ur_bindless_images_exp_dditable_t {
     ur_pfnBindlessImagesMapExternalArrayExp_t pfnMapExternalArrayExp;
     ur_pfnBindlessImagesReleaseInteropExp_t pfnReleaseInteropExp;
     ur_pfnBindlessImagesImportExternalSemaphoreExp_t pfnImportExternalSemaphoreExp;
-    ur_pfnBindlessImagesDestroyExternalSemaphoreExp_t pfnDestroyExternalSemaphoreExp;
+    ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t pfnReleaseExternalSemaphoreExp;
     ur_pfnBindlessImagesWaitExternalSemaphoreExp_t pfnWaitExternalSemaphoreExp;
     ur_pfnBindlessImagesSignalExternalSemaphoreExp_t pfnSignalExternalSemaphoreExp;
 } ur_bindless_images_exp_dditable_t;

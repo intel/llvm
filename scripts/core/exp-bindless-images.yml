@@ -527,7 +527,7 @@ params:
     - type: void*
       name: pDst
       desc: "[in] location the data will be copied to"
-    - type: void*
+    - type: const void*
       name: pSrc
       desc: "[in] location the data will be copied from"
     - type: "const $x_image_format_t*"
@@ -717,7 +717,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy interop memory"
+desc: "Release interop memory"
 class: $xBindlessImages
 name: ReleaseInteropExp
 ordinal: "0"
@@ -732,7 +732,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
-      desc: "[in][release] handle of interop memory to be freed"
+      desc: "[in][release] handle of interop memory to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -765,9 +765,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy the external semaphore handle"
+desc: "Release the external semaphore"
 class: $xBindlessImages
-name: DestroyExternalSemaphoreExp
+name: ReleaseExternalSemaphoreExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalSemaphore**"

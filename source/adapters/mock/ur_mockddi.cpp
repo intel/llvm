@@ -7454,7 +7454,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     void *pDst,               ///< [in] location the data will be copied to
-    void *pSrc,               ///< [in] location the data will be copied from
+    const void *pSrc,         ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -7813,7 +7813,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be destroyed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7914,8 +7914,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
@@ -7923,12 +7923,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    ur_bindless_images_destroy_external_semaphore_exp_params_t params = {
+    ur_bindless_images_release_external_semaphore_exp_params_t params = {
         &hContext, &hDevice, &hInteropSemaphore};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
-            "urBindlessImagesDestroyExternalSemaphoreExp"));
+            "urBindlessImagesReleaseExternalSemaphoreExp"));
     if (beforeCallback) {
         result = beforeCallback(&params);
         if (result != UR_RESULT_SUCCESS) {
@@ -7938,7 +7938,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
     auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_replace_callback(
-            "urBindlessImagesDestroyExternalSemaphoreExp"));
+            "urBindlessImagesReleaseExternalSemaphoreExp"));
     if (replaceCallback) {
         result = replaceCallback(&params);
     } else {
@@ -7953,7 +7953,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
     auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_after_callback(
-            "urBindlessImagesDestroyExternalSemaphoreExp"));
+            "urBindlessImagesReleaseExternalSemaphoreExp"));
     if (afterCallback) {
         return afterCallback(&params);
     }
@@ -10279,8 +10279,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnImportExternalSemaphoreExp =
         driver::urBindlessImagesImportExternalSemaphoreExp;
 
-    pDdiTable->pfnDestroyExternalSemaphoreExp =
-        driver::urBindlessImagesDestroyExternalSemaphoreExp;
+    pDdiTable->pfnReleaseExternalSemaphoreExp =
+        driver::urBindlessImagesReleaseExternalSemaphoreExp;
 
     pDdiTable->pfnWaitExternalSemaphoreExp =
         driver::urBindlessImagesWaitExternalSemaphoreExp;

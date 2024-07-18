@@ -162,7 +162,7 @@ struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesImageCopyExp(
-      void *pDst, void *pSrc, const ur_image_format_t *pImageFormat,
+      void *pDst, const void *pSrc, const ur_image_format_t *pImageFormat,
       const ur_image_desc_t *pImageDesc,
       ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
       ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,

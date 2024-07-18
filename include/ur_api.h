@@ -164,7 +164,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                    ///< Enumerator for ::urBindlessImagesMipmapFreeExp
     UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,             ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                ///< Enumerator for ::urBindlessImagesReleaseInteropExp
-    UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,     ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
+    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP = 147,     ///< Enumerator for ::urBindlessImagesReleaseExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,        ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,      ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
     UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                ///< Enumerator for ::urEnqueueUSMFill2D
@@ -7773,7 +7773,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     void *pDst,                               ///< [in] location the data will be copied to
-    void *pSrc,                               ///< [in] location the data will be copied from
+    const void *pSrc,                         ///< [in] location the data will be copied from
     const ur_image_format_t *pImageFormat,    ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,        ///< [in] pointer to image description
     ur_exp_image_copy_flags_t imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
@@ -7944,7 +7944,7 @@ urBindlessImagesMapExternalArrayExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy interop memory
+/// @brief Release interop memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -7965,7 +7965,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext,           ///< [in] handle of the context object
     ur_device_handle_t hDevice,             ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t hInteropMem ///< [in][release] handle of interop memory to be freed
+    ur_exp_interop_mem_handle_t hInteropMem ///< [in][release] handle of interop memory to be destroyed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8000,7 +8000,7 @@ urBindlessImagesImportExternalSemaphoreExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy the external semaphore handle
+/// @brief Release the external semaphore
 ///
 /// @remarks
 ///   _Analogues_
@@ -8018,7 +8018,7 @@ urBindlessImagesImportExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesDestroyExternalSemaphoreExp(
+urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext,                       ///< [in] handle of the context object
     ur_device_handle_t hDevice,                         ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
@@ -11139,7 +11139,7 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
 typedef struct ur_bindless_images_image_copy_exp_params_t {
     ur_queue_handle_t *phQueue;
     void **ppDst;
-    void **ppSrc;
+    const void **ppSrc;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_image_copy_flags_t *pimageCopyFlags;
@@ -11235,14 +11235,14 @@ typedef struct ur_bindless_images_import_external_semaphore_exp_params_t {
 } ur_bindless_images_import_external_semaphore_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urBindlessImagesDestroyExternalSemaphoreExp
+/// @brief Function parameters for urBindlessImagesReleaseExternalSemaphoreExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_bindless_images_destroy_external_semaphore_exp_params_t {
+typedef struct ur_bindless_images_release_external_semaphore_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
     ur_exp_interop_semaphore_handle_t *phInteropSemaphore;
-} ur_bindless_images_destroy_external_semaphore_exp_params_t;
+} ur_bindless_images_release_external_semaphore_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesWaitExternalSemaphoreExp

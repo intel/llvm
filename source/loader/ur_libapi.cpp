@@ -6856,7 +6856,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     void *pDst,               ///< [in] location the data will be copied to
-    void *pSrc,               ///< [in] location the data will be copied from
+    const void *pSrc,         ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -7109,7 +7109,7 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy interop memory
+/// @brief Release interop memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -7130,7 +7130,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be destroyed
     ) try {
     auto pfnReleaseInteropExp =
         ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
@@ -7190,7 +7190,7 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy the external semaphore handle
+/// @brief Release the external semaphore
 ///
 /// @remarks
 ///   _Analogues_
@@ -7207,20 +7207,20 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 ///         + `NULL == hInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
     ) try {
-    auto pfnDestroyExternalSemaphoreExp =
+    auto pfnReleaseExternalSemaphoreExp =
         ur_lib::getContext()
-            ->urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
-    if (nullptr == pfnDestroyExternalSemaphoreExp) {
+            ->urDdiTable.BindlessImagesExp.pfnReleaseExternalSemaphoreExp;
+    if (nullptr == pfnReleaseExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+    return pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
