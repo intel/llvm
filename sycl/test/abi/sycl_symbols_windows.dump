@@ -4039,7 +4039,6 @@
 ?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
-?get_pi_error@detail@_V1@sycl@@YAHAEBVexception@23@@Z
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
 ?get_pitch@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$01@34@XZ
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
@@ -4244,7 +4243,6 @@
 ?set_flag@stream@_V1@sycl@@AEBAXI@Z
 ?set_flag@stream@_V1@sycl@@AEBAXII@Z
 ?set_manipulator@stream@_V1@sycl@@AEBAXW4stream_manipulator@23@@Z
-?set_pi_error@detail@_V1@sycl@@YA?AVexception@23@$$QEAV423@H@Z
 ?set_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEAAXPEBDPEAX_K@Z
 ?set_write_back@buffer_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?set_write_back@image_plain@detail@_V1@sycl@@IEAAX_N@Z

@@ -67,9 +67,8 @@ public:
 };
 
 // Forward declare to declare as a friend in sycl::excepton.
-__SYCL_EXPORT pi_int32 get_pi_error(const exception &e);
-// TODO: Should it be exported at all?
-__SYCL_EXPORT exception set_pi_error(exception &&e, pi_int32 pi_err);
+pi_int32 get_pi_error(const exception &e);
+exception set_pi_error(exception &&e, pi_int32 pi_err);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -140,14 +139,13 @@ protected:
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
 
-  friend __SYCL_EXPORT pi_int32 detail::get_pi_error(const exception &);
+  friend pi_int32 detail::get_pi_error(const exception &);
   // To be used like this:
   //   throw/return detail::set_pi_error(exception(...), some_pi_error);
   // *only* when such a error is coming from the PI/UR level. Otherwise it
   // *should be left unset/default-initialized and exception should be thrown
   // as-is using public ctors.
-  friend __SYCL_EXPORT exception detail::set_pi_error(exception &&e,
-                                                      pi_int32 pi_err);
+  friend exception detail::set_pi_error(exception &&e, pi_int32 pi_err);
 };
 
 } // namespace _V1
