@@ -1722,9 +1722,9 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(
-    sycl::detail::pi::PiKernelCacheConfig Config) {
-  impl->MKernelCacheConfig = Config;
+void handler::setKernelCacheConfig(int32_t Config) {
+  impl->MKernelCacheConfig =
+      static_cast<sycl::detail::pi::PiKernelCacheConfig>(Config);
 }
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {

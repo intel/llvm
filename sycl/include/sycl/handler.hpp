@@ -997,9 +997,11 @@ private:
       auto Config = Props.template get_property<
           sycl::ext::intel::experimental::cache_config_key>();
       if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
+        setKernelCacheConfig(
+            static_cast<int32_t>(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM));
       } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
+        setKernelCacheConfig(
+            static_cast<int32_t>(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA));
       }
     } else {
       std::ignore = Props;
@@ -3603,7 +3605,7 @@ private:
   }
 
   // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  void setKernelCacheConfig(int32_t);
   // Set value of the kernel is cooperative flag
   void setKernelIsCooperative(bool);
 
