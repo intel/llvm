@@ -19,7 +19,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/properties/context_properties.hpp>
 #include <sycl/property_list.hpp>
 
 #include <algorithm>
@@ -61,21 +60,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  if (getBackend() == backend::ext_oneapi_cuda) {
-    const bool UseCUDAPrimaryContext = MPropList.has_property<
-        ext::oneapi::cuda::property::context::use_primary_context>();
-    const pi_context_properties Props[] = {
-        static_cast<pi_context_properties>(
-            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
-        static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
-
-    getPlugin()->call<PiApiKind::piContextCreate>(
-        Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
-  } else {
-    getPlugin()->call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
-                                                  DeviceIds.data(), nullptr,
-                                                  nullptr, &MContext);
-  }
+  getPlugin()->call<PiApiKind::piContextCreate>(
+      nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 
   MKernelProgramCache.setContextPtr(this);
 }
@@ -103,19 +89,18 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
         sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0],
         nullptr);
 
-    if (!DeviceIds.empty()) {
-      std::shared_ptr<detail::platform_impl> Platform =
-          platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
-      for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
-        MDevices.emplace_back(createSyclObjFromImpl<device>(
-            Platform->getOrMakeDeviceImpl(Dev, Platform)));
-      }
-      MPlatform = Platform;
-    } else {
-      throw invalid_parameter_error(
-          "No devices in the provided device list and native context.",
-          PI_ERROR_INVALID_VALUE);
+    if (DeviceIds.empty())
+      throw exception(
+          make_error_code(errc::invalid),
+          "No devices in the provided device list and native context.");
+
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+    for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
+      MDevices.emplace_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Dev, Platform)));
     }
+    MPlatform = Platform;
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
@@ -526,7 +511,9 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
   using BuildState = KernelProgramCache::BuildState;
   BuildState NewState = BuildRes->waitUntilTransition();
   if (NewState == BuildState::BS_Failed)
-    throw compile_program_error(BuildRes->Error.Msg, BuildRes->Error.Code);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::build), BuildRes->Error.Msg),
+        BuildRes->Error.Code);
 
   assert(NewState == BuildState::BS_Done);
   return BuildRes->Val;

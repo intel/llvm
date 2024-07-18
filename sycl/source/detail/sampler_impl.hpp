@@ -41,24 +41,9 @@ public:
 
   sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
 
-  /// Checks if this sampler_impl has a property of type propertyT.
-  ///
-  /// \return true if this sampler_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this sampler_impl.
-  ///
-  /// Throws invalid_object_error if this sampler_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
-
   ~sampler_impl();
+
+  const property_list &getPropList() const { return MPropList; }
 
 private:
   /// Protects all the fields that can be changed by class' methods.

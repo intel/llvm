@@ -144,20 +144,85 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
   return Result;
 }
 
-namespace host_half_impl {
+namespace half_impl {
+class half;
 
-// The main host half class
-class __SYCL_EXPORT half {
+// Several aliases are defined below:
+// - StorageT: actual representation of half data type. It is used by scalar
+//   half values. On device side, it points to some native half data type, while
+//   on host it is represented by a 16-bit integer that the implementation
+//   manipulates to emulate half-precision floating-point behavior.
+//
+// - BIsRepresentationT: data type which is used by built-in functions. It is
+//   distinguished from StorageT, because on host, we can still operate on the
+//   wrapper itself and there is no sense in direct usage of underlying data
+//   type (too many changes required for BIs implementation without any
+//   foreseeable profits)
+//
+// - VecElemT: representation of each element in the vector. On device it is
+//   the same as StorageT to carry a native vector representation, while on
+//   host it stores the sycl::half implementation directly.
+//
+// - VecNStorageT: representation of N-element vector of halfs. Follows the
+//   same logic as VecElemT.
+#ifdef __SYCL_DEVICE_ONLY__
+using StorageT = _Float16;
+using BIsRepresentationT = _Float16;
+using VecElemT = _Float16;
+#else // SYCL_DEVICE_ONLY
+using StorageT = uint16_t;
+// No need to extract underlying data type for built-in functions operating on
+// host
+using BIsRepresentationT = half;
+using VecElemT = half;
+#endif // SYCL_DEVICE_ONLY
+
+// Creation token to disambiguate constructors.
+struct RawHostHalfToken {
+  constexpr explicit RawHostHalfToken(uint16_t Val) : Value{Val} {}
+  uint16_t Value;
+};
+
+#ifndef __SYCL_DEVICE_ONLY__
+class half {
+#else
+class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
+#endif
 public:
   half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  __SYCL_CONSTEXPR_HALF half(const float &rhs) : Buf(float2Half(rhs)) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  __SYCL_CONSTEXPR_HALF half(const float &rhs) : Data(rhs) {}
+#else
+  __SYCL_CONSTEXPR_HALF half(const float &rhs) : Data(float2Half(rhs)) {}
+#endif // __SYCL_DEVICE_ONLY__
 
   constexpr half &operator=(const half &rhs) = default;
 
   // Operator +=, -=, *=, /=
+#ifdef __SYCL_DEVICE_ONLY__
+  __SYCL_CONSTEXPR_HALF half &operator+=(const half &rhs) {
+    Data += rhs.Data;
+    return *this;
+  }
+
+  __SYCL_CONSTEXPR_HALF half &operator-=(const half &rhs) {
+    Data -= rhs.Data;
+    return *this;
+  }
+
+  __SYCL_CONSTEXPR_HALF half &operator*=(const half &rhs) {
+    Data *= rhs.Data;
+    return *this;
+  }
+
+  __SYCL_CONSTEXPR_HALF half &operator/=(const half &rhs) {
+    Data /= rhs.Data;
+    return *this;
+  }
+#else
   __SYCL_CONSTEXPR_HALF half &operator+=(const half &rhs) {
     *this = operator float() + static_cast<float>(rhs);
     return *this;
@@ -177,6 +242,7 @@ public:
     *this = operator float() / static_cast<float>(rhs);
     return *this;
   }
+#endif // __SYCL_DEVICE_ONLY__
 
   // Operator ++, --
   __SYCL_CONSTEXPR_HALF half &operator++() {
@@ -202,149 +268,15 @@ public:
   }
 
   // Operator neg
-  constexpr half &operator-() {
-    Buf ^= 0x8000;
-    return *this;
-  }
-
-  // Operator float
-  __SYCL_CONSTEXPR_HALF operator float() const { return half2Float(Buf); }
-
-  template <typename Key> friend struct std::hash;
-
-  // Initialize underlying data
-  constexpr explicit half(uint16_t x) : Buf(x) {}
-
-  friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
-
-private:
-  uint16_t Buf;
-};
-
-} // namespace host_half_impl
-
-namespace half_impl {
-class half;
-
-// Several aliases are defined below:
-// - StorageT: actual representation of half data type. It is used by scalar
-//   half values. On device side, it points to some native half data type, while
-//   on host some custom data type is used to emulate operations of 16-bit
-//   floating-point values
-//
-// - BIsRepresentationT: data type which is used by built-in functions. It is
-//   distinguished from StorageT, because on host, we can still operate on the
-//   wrapper itself and there is no sense in direct usage of underlying data
-//   type (too many changes required for BIs implementation without any
-//   foreseeable profits)
-//
-// - VecElemT: representation of each element in the vector. On device it is
-//   the same as StorageT to carry a native vector representation, while on
-//   host it stores the sycl::half implementation directly.
-//
-// - VecNStorageT: representation of N-element vector of halfs. Follows the
-//   same logic as VecElemT.
 #ifdef __SYCL_DEVICE_ONLY__
-using StorageT = _Float16;
-using BIsRepresentationT = _Float16;
-using VecElemT = _Float16;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using Vec2StorageT = VecElemT __attribute__((ext_vector_type(2)));
-using Vec3StorageT = VecElemT __attribute__((ext_vector_type(3)));
-using Vec4StorageT = VecElemT __attribute__((ext_vector_type(4)));
-using Vec8StorageT = VecElemT __attribute__((ext_vector_type(8)));
-using Vec16StorageT = VecElemT __attribute__((ext_vector_type(16)));
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#else // SYCL_DEVICE_ONLY
-using StorageT = detail::host_half_impl::half;
-// No need to extract underlying data type for built-in functions operating on
-// host
-using BIsRepresentationT = half;
-using VecElemT = half;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// On the host side we cannot use OpenCL cl_half# types as an underlying type
-// for vec because they are actually defined as an integer type under the
-// hood. As a result half values will be converted to the integer and passed
-// as a kernel argument which is expected to be floating point number.
-using Vec2StorageT = std::array<VecElemT, 2>;
-using Vec3StorageT = std::array<VecElemT, 3>;
-using Vec4StorageT = std::array<VecElemT, 4>;
-using Vec8StorageT = std::array<VecElemT, 8>;
-using Vec16StorageT = std::array<VecElemT, 16>;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#endif // SYCL_DEVICE_ONLY
-
-#ifndef __SYCL_DEVICE_ONLY__
-class half {
-#else
-class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
-#endif
-public:
-  half() = default;
-  constexpr half(const half &) = default;
-  constexpr half(half &&) = default;
-
-  __SYCL_CONSTEXPR_HALF half(const float &rhs) : Data(rhs) {}
-
-  constexpr half &operator=(const half &rhs) = default;
-
-#ifndef __SYCL_DEVICE_ONLY__
-  // Since StorageT and BIsRepresentationT are different on host, these two
-  // helpers are required for 'vec' class
-  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs) {}
-  constexpr operator detail::host_half_impl::half() const { return Data; }
-#endif // __SYCL_DEVICE_ONLY__
-
-  // Operator +=, -=, *=, /=
-  __SYCL_CONSTEXPR_HALF half &operator+=(const half &rhs) {
-    Data += rhs.Data;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half &operator-=(const half &rhs) {
-    Data -= rhs.Data;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half &operator*=(const half &rhs) {
-    Data *= rhs.Data;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half &operator/=(const half &rhs) {
-    Data /= rhs.Data;
-    return *this;
-  }
-
-  // Operator ++, --
-  __SYCL_CONSTEXPR_HALF half &operator++() {
-    *this += 1;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half operator++(int) {
-    half ret(*this);
-    operator++();
-    return ret;
-  }
-
-  __SYCL_CONSTEXPR_HALF half &operator--() {
-    *this -= 1;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half operator--(int) {
-    half ret(*this);
-    operator--();
-    return ret;
-  }
   __SYCL_CONSTEXPR_HALF friend half operator-(const half other) {
     return half(-other.Data);
   }
+#else
+  __SYCL_CONSTEXPR_HALF friend half operator-(const half other) {
+    return half(RawHostHalfToken(other.Data ^ 0x8000));
+  }
+#endif // __SYCL_DEVICE_ONLY__
 
 // Operator +, -, *, /
 #define OP(op, op_eq)                                                          \
@@ -461,71 +393,71 @@ public:
 #define OP(op)                                                                 \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const half &rhs) {             \
-    return lhs.Data op rhs.Data;                                               \
+    return lhs.getFPRep() op rhs.getFPRep();                                   \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const double &rhs) {           \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const double &lhs,             \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const float &rhs) {            \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const float &lhs,              \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const int &rhs) {              \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const int &lhs,                \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long &rhs) {             \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long &lhs,               \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long long &rhs) {        \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long long &lhs,          \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned int &rhs) {     \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned int &lhs,       \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned long &rhs) {    \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long &lhs,      \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(                               \
       const half &lhs, const unsigned long long &rhs) {                        \
-    return lhs.Data op rhs;                                                    \
+    return lhs.getFPRep() op rhs;                                              \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long long &lhs, \
                                                 const half &rhs) {             \
-    return lhs op rhs.Data;                                                    \
+    return lhs op rhs.getFPRep();                                              \
   }
   OP(==)
   OP(!=)
@@ -537,9 +469,13 @@ public:
 #undef OP
 
   // Operator float
+#ifdef __SYCL_DEVICE_ONLY__
   __SYCL_CONSTEXPR_HALF operator float() const {
     return static_cast<float>(Data);
   }
+#else
+  __SYCL_CONSTEXPR_HALF operator float() const { return half2Float(Data); }
+#endif // __SYCL_DEVICE_ONLY__
 
   // Operator << and >>
   inline friend std::ostream &operator<<(std::ostream &O,
@@ -560,8 +496,32 @@ public:
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
 private:
+  // When doing operations, we cannot simply work with Data on host as
+  // it is an integer. Instead, convert it to float. On device we can work with
+  // Data as it is already a floating point representation.
+#ifdef __SYCL_DEVICE_ONLY__
+  __SYCL_CONSTEXPR_HALF StorageT getFPRep() const { return Data; }
+#else
+  __SYCL_CONSTEXPR_HALF float getFPRep() const { return operator float(); }
+#endif
+
+#ifndef __SYCL_DEVICE_ONLY__
+  // Because sycl::bit_cast might not be constexpr on certain systems,
+  // implementation needs shortcut for creating a host sycl::half directly from
+  // a uint16_t representation.
+  constexpr explicit half(RawHostHalfToken X) : Data(X.Value) {}
+
+  friend constexpr inline half CreateHostHalfRaw(uint16_t X);
+#endif // __SYCL_DEVICE_ONLY__
+
   StorageT Data;
 };
+
+#ifndef __SYCL_DEVICE_ONLY__
+constexpr inline half CreateHostHalfRaw(uint16_t X) {
+  return half(RawHostHalfToken(X));
+}
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace half_impl
 
 // According to the C++ standard, math functions from cmath/math.h should work
@@ -644,7 +604,8 @@ template <> struct numeric_limits<sycl::half> {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
 #else
-    return sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x7C00));
+    return sycl::detail::half_impl::CreateHostHalfRaw(
+        static_cast<uint16_t>(0x7C00));
 #endif
   }
 

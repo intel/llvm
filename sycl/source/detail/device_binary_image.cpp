@@ -74,9 +74,13 @@ ByteArray DeviceBinaryProperty::asByteArray() const {
 }
 
 const char *DeviceBinaryProperty::asCString() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
+  assert((Prop->Type == PI_PROPERTY_TYPE_STRING ||
+          Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) &&
+         "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  return pi::cast<const char *>(Prop->ValAddr);
+  // Byte array stores its size in first 8 bytes
+  size_t Shift = Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
+  return pi::cast<const char *>(Prop->ValAddr) + Shift;
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
@@ -177,6 +181,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+  VirtualFunctions.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
   ImageId = ImageCounter++;
 }

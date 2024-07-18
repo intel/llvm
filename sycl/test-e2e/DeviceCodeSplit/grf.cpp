@@ -13,8 +13,7 @@
 // - SYCL device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu && gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR

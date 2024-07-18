@@ -16,7 +16,7 @@ int main() {
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
   Q.wait();
-  // CHECK: kernel <typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::MyKernel>
+  // CHECK: kernel <typeinfo name for main::{{.*\(sycl::_V1::handler&\).*}}::operator()(sycl::_V1::handler&) const::MyKernel>
 
   sycl::free(array, Q);
   return 0;

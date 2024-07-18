@@ -37,7 +37,8 @@ pi_result redefinedQueueCreateEx(pi_context context, pi_device device,
   return PI_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
+pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr,
+                                    const void *Pattern, size_t PatternSize,
                                     size_t Count,
                                     pi_uint32 Num_events_in_waitlist,
                                     const pi_event *Events_waitlist,
@@ -88,7 +89,7 @@ TEST(QueueWait, QueueWaitTest) {
   Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
       redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
       redefinedUSMEnqueueMemset);
   Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferFill>(

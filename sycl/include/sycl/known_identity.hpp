@@ -187,7 +187,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0));
+      sycl::detail::half_impl::CreateHostHalfRaw(static_cast<uint16_t>(0));
 #endif
 };
 
@@ -227,7 +227,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x3C00));
+      sycl::detail::half_impl::CreateHostHalfRaw(static_cast<uint16_t>(0x3C00));
 #endif
 };
 

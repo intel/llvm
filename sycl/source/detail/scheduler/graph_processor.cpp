@@ -36,7 +36,7 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
       enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
   assert(Cmd->getEvent() == Event);
 

@@ -129,7 +129,7 @@ _PI_API(piextUSMHostAlloc)
 _PI_API(piextUSMDeviceAlloc)
 _PI_API(piextUSMSharedAlloc)
 _PI_API(piextUSMFree)
-_PI_API(piextUSMEnqueueMemset)
+_PI_API(piextUSMEnqueueFill)
 _PI_API(piextUSMEnqueueMemcpy)
 _PI_API(piextUSMEnqueuePrefetch)
 _PI_API(piextUSMEnqueueMemAdvise)
@@ -229,5 +229,8 @@ _PI_API(piextVirtualMemGetInfo)
 
 // Enqueue native command
 _PI_API(piextEnqueueNativeCommand)
+
+// Kernel Launch Properties
+_PI_API(piextEnqueueKernelLaunchCustom)
 
 #undef _PI_API

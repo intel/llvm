@@ -145,7 +145,8 @@ private:
   bool removeDeadArgumentsFromCallers(Function &F);
   void propagateVirtMustcallLiveness(const Module &M);
 
-  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
+  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF,
+                           const SmallVectorImpl<bool> &ArgAlive);
   llvm::DenseSet<Function *> NVPTXKernelSet;
 
   bool IsNVPTXKernel(const Function *F) { return NVPTXKernelSet.contains(F); };

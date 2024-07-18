@@ -5528,7 +5528,8 @@ class OffloadingActionBuilder final {
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
-        if (IsSPIR || IsNVPTX) {
+        Action *NativeCPULib = nullptr;
+        if (IsSPIR || IsNVPTX || IsSYCLNativeCPU) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5536,10 +5537,8 @@ class OffloadingActionBuilder final {
           bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, SYCLDeviceLibs, UseAOTLink,
-              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
-        }
-        if (IsSYCLNativeCPU) {
-          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, SYCLDeviceLibs);
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
+              IsSYCLNativeCPU, NativeCPULib);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(SYCLDeviceLibs, types::TY_LLVM_BC);
@@ -5622,6 +5621,15 @@ class OffloadingActionBuilder final {
           };
           Action *PostLinkAction = createPostLinkAction();
           if (IsSYCLNativeCPU) {
+            if (NativeCPULib) {
+              // The native cpu device lib is linked without --only-needed
+              // as it contains builtins not referenced in source code but
+              // needed by the native cpu backend.
+              clang::driver::ActionList AllLibs = {FullDeviceLinkAction,
+                                                   NativeCPULib};
+              FullDeviceLinkAction =
+                  C.MakeAction<LinkJobAction>(AllLibs, types::TY_LLVM_BC);
+            }
             // for SYCL Native CPU, we just take the linked device
             // modules, lower them to an object file , and link it to the host
             // object file.
@@ -5806,60 +5814,9 @@ class OffloadingActionBuilder final {
       }
     }
 
-    bool addSYCLNativeCPULibs(const ToolChain *TC,
-                              ActionList &DeviceLinkObjects) {
-      std::string LibSpirvFile;
-      if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
-        auto ProvidedPath =
-            Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
-        if (llvm::sys::fs::exists(ProvidedPath))
-          LibSpirvFile = ProvidedPath;
-      } else {
-        SmallVector<StringRef, 8> LibraryPaths;
-
-        // Expected path w/out install.
-        SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
-        llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-        LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-        // Expected path w/ install.
-        SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
-        llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-        LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-        // Select libclc variant based on target triple.
-        // On Windows long is 32 bits, so we have to select the right remangled
-        // libclc version.
-        std::string LibSpirvTargetName =
-            (TC->getAuxTriple()->isOSWindows())
-                ? "remangled-l32-signed_char.libspirv-"
-                : "remangled-l64-signed_char.libspirv-";
-        LibSpirvTargetName.append(TC->getTripleString() + ".bc");
-
-        for (StringRef LibraryPath : LibraryPaths) {
-          SmallString<128> LibSpirvTargetFile(LibraryPath);
-          llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-          if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
-              Args.hasArg(options::OPT__HASH_HASH_HASH)) {
-            LibSpirvFile = std::string(LibSpirvTargetFile.str());
-            break;
-          }
-        }
-      }
-
-      if (!LibSpirvFile.empty()) {
-        Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                           Args.MakeArgString(LibSpirvFile));
-        auto *SYCLLibClcInputAction =
-            C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
-        DeviceLinkObjects.push_back(SYCLLibClcInputAction);
-        return true;
-      }
-      return false;
-    }
-
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
-                           bool isSpirvAOT, bool isMSVCEnv) {
+                           bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
+                           Action *&NativeCPULib) {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
@@ -5876,6 +5833,14 @@ class OffloadingActionBuilder final {
           SmallString<128> LibName(LLCandidate);
           llvm::sys::path::append(LibName, DeviceLib);
           if (llvm::sys::fs::exists(LibName)) {
+
+            // NativeCPU currently only needs libsycl-nativecpu_utils and
+            // libclc, so temporarily skip other device libs in invocation.
+            // Todo: remove once NativeCPU tests the other libraries.
+            if (isNativeCPU &&
+                !LibName.str().contains("libsycl-nativecpu_utils"))
+              continue;
+
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
@@ -5909,6 +5874,16 @@ class OffloadingActionBuilder final {
             }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
+
+            // The device link stage may remove symbols not referenced in the
+            // source code. Since libsycl-nativecpu_utils contains such symbols
+            // which are later needed by the NativeCPU backend passes we link
+            // that library separately afterwards without --only-needed.
+            if (isNativeCPU) {
+              assert(!NativeCPULib);
+              NativeCPULib = DeviceLinkObjects.back();
+              DeviceLinkObjects.pop_back();
+            }
           }
         }
       }
@@ -5916,7 +5891,7 @@ class OffloadingActionBuilder final {
       // For NVPTX backend we need to also link libclc and CUDA libdevice
       // at the same stage that we link all of the unbundled SYCL libdevice
       // objects together.
-      if (TC->getTriple().isNVPTX() && NumOfDeviceLibLinked) {
+      if ((TC->getTriple().isNVPTX() || isNativeCPU) && NumOfDeviceLibLinked) {
         std::string LibSpirvFile;
         if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
           auto ProvidedPath =
@@ -5936,13 +5911,18 @@ class OffloadingActionBuilder final {
           llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
           LibraryPaths.emplace_back(WithInstallPath.c_str());
 
+          // TODO: check if the isNVPTX() path can also use
+          // TC->getTripleString() so that the conditional could be removed
+          const std::string TrStr =
+              isNativeCPU ? TC->getTripleString() : "nvptx64-nvidia-cuda";
+
           // Select remangled libclc variant
-          std::string LibSpirvTargetName =
-              (TC->getAuxTriple()->isOSWindows())
-                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
-                    "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
-                    "bc";
+          StringRef LibSpirvTargetNamePref =
+              TC->getAuxTriple()->isOSWindows()
+                  ? "remangled-l32-signed_char.libspirv-"
+                  : "remangled-l64-signed_char.libspirv-";
+          llvm::Twine LibSpirvTargetNameTemp = LibSpirvTargetNamePref + TrStr;
+          llvm::Twine LibSpirvTargetName = LibSpirvTargetNameTemp + ".bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
             SmallString<128> LibSpirvTargetFile(LibraryPath);
@@ -5954,13 +5934,17 @@ class OffloadingActionBuilder final {
             }
           }
         }
-
         if (!LibSpirvFile.empty()) {
           Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                              Args.MakeArgString(LibSpirvFile));
           auto *SYCLLibClcInputAction =
               C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
           DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+        }
+
+        if (isNativeCPU) {
+          // return here to not generate cuda actions
+          return NumOfDeviceLibLinked != 0;
         }
 
         const toolchains::CudaToolChain *CudaTC =
@@ -9238,7 +9222,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
           TargetDeviceOffloadKind == Action::OFK_None &&
-          !(isSYCLNativeCPU(Args) &&  isSYCLNativeCPU(C.getDefaultToolChain().getTriple(), TC->getTriple())))
+          !(isSYCLNativeCPU(Args) &&
+            isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                            TC->getTriple()) &&
+            UA->getDependentActionsInfo().size() > 1))
         DependentOffloadKind = Action::OFK_Host;
       else
         DependentOffloadKind = UI.DependentOffloadKind;

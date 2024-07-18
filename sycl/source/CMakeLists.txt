@@ -223,7 +223,6 @@ set(SYCL_COMMON_SOURCES
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"
-    "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"

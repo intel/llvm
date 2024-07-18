@@ -32,7 +32,7 @@
 
 // UNSUPPORTED: hip || (windows && level_zero)
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_70 %} %s -o %t.out
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %} %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

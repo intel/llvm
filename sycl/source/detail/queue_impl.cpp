@@ -172,12 +172,12 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-
+  const std::vector<unsigned char> Pattern{static_cast<unsigned char>(Value)};
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count, Value);
+      Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
@@ -214,7 +214,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-  // Notify XPTI about the memset submission
+  // Notify XPTI about the memcpy submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
@@ -222,8 +222,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
   }
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
@@ -365,15 +365,15 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CG::CGTYPE Type = Handler.getType();
+  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
-  if (Type == CG::Kernel)
+  if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
   if (PostProcess) {
-    bool IsKernel = Type == CG::Kernel;
+    bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)

@@ -210,6 +210,11 @@ REQUIRES:sycl-ls specified, test will run only if sycl-ls tool is available.
 If UNSUPPORTED:sycl-ls specified, test will run only if sycl-ls tool is
 unavailable.
 
+### Auto-detected features
+
+The following features are automatically detected by `llvm-lit` by scanning the
+environment:
+
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **accelerator** - target device;
  * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
@@ -221,6 +226,21 @@ unavailable.
  * **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
  * **cuda_dev_kit** - CUDA SDK headers and libraries availability;
+ * **dump_ir**: - compiler can / cannot dump IR;
+ * **llvm-spirv** - llvm-spirv tool availability;
+ * **llvm-link** - llvm-link tool availability;
+ * **fusion**: - Runtime supports kernel fusion;
+ * **aspect-\<name\>**: - SYCL aspects supported by a device;
+ * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you
+   can pass into `-fsycl-targets` compiler flag);
+
+### Manually-set features
+
+The following features are only set if you pass an argument to `llvm-lit` (see
+section below). All these features are related to HW detection and they should
+be considered deprecated, because we have HW auto-detection functionality in
+place. No new tests should use these features:
+
  * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
  * **gpu-intel-gen12** - Intel GPU Gen12 availability;
@@ -228,12 +248,11 @@ unavailable.
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
- * **dump_ir**: - compiler can / cannot dump IR;
- * **llvm-spirv** - llvm-spirv tool availability;
- * **llvm-link** - llvm-link tool availability;
- * **fusion**: - Runtime supports kernel fusion;
- * **aspect-\<name\>**: - SYCL aspects supported by a device;
- * **architecture-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. architecture-intel_gpu_pvc);
+
+Note: some of those features describing whole GPU families and auto-detection
+of HW does not provide this functionality at the moment. As an improvement, we
+could add those features even with auto-detection, because the only alternative
+at the moment is to explicitly list every architecture from a family.
 
 ## llvm-lit parameters
 

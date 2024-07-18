@@ -47,7 +47,7 @@ TEST(ParseAllowListTests, CheckUnsupportedKeyNameIsHandledInSingleDeviceDesc) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "BackendName:level_zero,SomeUnsupportedKey:gpu");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
@@ -66,7 +66,7 @@ TEST(
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DriverVersion:{{value}}|SomeUnsupportedKey:gpu");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
@@ -85,7 +85,7 @@ TEST(
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "BackendName:level_zero|SomeUnsupportedKey:gpu");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
@@ -103,7 +103,7 @@ TEST(ParseAllowListTests,
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DriverVersion:{{value1}}|SomeUnsupportedKey:{{value2}}");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
@@ -131,7 +131,7 @@ TEST(ParseAllowListTests, CheckMissingOpenDoubleCurlyBracesAreHandled) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DeviceName:regex1}},DriverVersion:{{regex1|regex2}}");
-    throw std::logic_error("sycl::exception didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(std::string("Key DeviceName of SYCL_DEVICE_ALLOWLIST "
                           "should have value which starts with {{ -30 "
@@ -146,7 +146,7 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DeviceName:{{regex1}},DriverVersion:{{regex1|regex2");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(std::string("Key DriverVersion of SYCL_DEVICE_ALLOWLIST "
                           "should have value which ends with }} -30 "
@@ -195,7 +195,7 @@ TEST(ParseAllowListTests, CheckIncorrectBackendNameValueIsHandled) {
   try {
     sycl::detail::AllowListParsedT ActualValue =
         sycl::detail::parseAllowList("BackendName:blablabla");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Value blablabla for key BackendName is not valid in "
@@ -212,7 +212,7 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceTypeValueIsHandled) {
   try {
     sycl::detail::AllowListParsedT ActualValue =
         sycl::detail::parseAllowList("DeviceType:blablabla");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Value blablabla for key DeviceType is not valid in "
@@ -229,7 +229,7 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceVendorIdValueIsHandled) {
   try {
     sycl::detail::AllowListParsedT ActualValue =
         sycl::detail::parseAllowList("DeviceVendorId:blablabla");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("Value blablabla for key DeviceVendorId is not valid in "
@@ -261,7 +261,7 @@ TEST(ParseAllowListTests, CheckExceptionIsThrownForValueWOColonDelim) {
   try {
     sycl::detail::AllowListParsedT ActualValue =
         sycl::detail::parseAllowList("SomeValueWOColonDelimiter");
-    throw std::logic_error("sycl::runtime_error didn't throw");
+    FAIL() << "Expected an exception";
   } catch (sycl::exception const &e) {
     EXPECT_EQ(
         std::string("SYCL_DEVICE_ALLOWLIST has incorrect format. For "

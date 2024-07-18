@@ -416,7 +416,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
-    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -429,7 +428,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
-    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -438,20 +436,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
     return std::pair<std::string, MDNode *>("ip_interface",
                                             MDNode::get(Ctx, MD));
-  }
-
-  if (AttrKindStr == "sycl-fpga-cluster") {
-    // generate either:
-    //   !stall_free !N
-    //   !N = !{i32 1} or
-    //   !stall_enable !N
-    //   !N = !{i32 1}
-    std::string ClusterType =
-        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
-    Metadata *ClusterMDArgs[] = {
-        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
-    return std::pair<std::string, MDNode *>(ClusterType,
-                                            MDNode::get(Ctx, ClusterMDArgs));
   }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||

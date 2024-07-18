@@ -17,7 +17,7 @@
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/detail/pi.h>           // for _pi_mem, pi_native_...
 #include <sycl/device.hpp>            // for device, device_impl
-#include <sycl/exception.hpp>         // for invalid_object_error
+#include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>    // for queue_impl
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/image.hpp>                             // for image
@@ -71,8 +71,8 @@ public:
                   "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, DataT, Dims>(
         detail::getSyclObjImpl(*AccBase).get());
@@ -97,8 +97,8 @@ public:
                                    IsPlh /*, PropertyListT */> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, Dims>(detail::getSyclObjImpl(*AccBase).get());
 #else
@@ -127,8 +127,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     int32_t NativeHandleDesc;
     return reinterpret_cast<backend_return_t<Backend, queue>>(
         getNativeQueue(NativeHandleDesc));
@@ -150,8 +150,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     // C-style cast required to allow various native types
     return (backend_return_t<Backend, device>)getNativeDevice();
 #else
@@ -172,8 +172,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     return reinterpret_cast<backend_return_t<Backend, context>>(
         getNativeContext());
 #else

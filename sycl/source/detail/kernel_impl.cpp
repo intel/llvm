@@ -9,7 +9,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <memory>
 
@@ -18,44 +17,29 @@ inline namespace _V1 {
 namespace detail {
 
 kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask)
-    : kernel_impl(Kernel, Context,
-                  std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
-  // Enable USM indirect access for interoperability kernels.
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm())
-    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
-        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-
-  // This constructor is only called in the interoperability kernel constructor.
-  MIsInterop = true;
-}
-
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl, ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource,
+                         ContextImplPtr ContextImpl,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramImpl->getHandleRef()),
-      MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask} {
-
+      MProgram(ProgramManager::getInstance().getPiProgramFromPiKernel(
+          Kernel, ContextImpl)),
+      MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   sycl::detail::pi::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin()->call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_kernel",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_kernel");
 
-  MIsInterop = ProgramImpl->isInterop();
+  // Enable USM indirect access for interoperability kernels.
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  if (ContextImpl->getPlatformImpl()->supports_usm())
+    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
+        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 }
 
 kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
@@ -70,9 +54,6 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
 }
-
-kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
 
 kernel_impl::~kernel_impl() {
   try {

@@ -452,13 +452,16 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
       pi::cast<sycl::detail::pi::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
-    throw invalid_object_error(
-        "Specified offset of the sub-buffer being constructed is not a "
-        "multiple of the memory base address alignment",
-        PI_ERROR_INVALID_VALUE);
+    throw detail::set_pi_error(
+        exception(make_error_code(errc::invalid),
+                  "Specified offset of the sub-buffer being constructed is not "
+                  "a multiple of the memory base address alignment"),
+        Error);
 
   if (Error != PI_SUCCESS) {
-    Plugin->reportPiError(Error, "allocateMemSubBuffer()");
+    throw set_pi_error(exception(make_error_code(errc::runtime),
+                                 "allocateMemSubBuffer() failed"),
+                       Error);
   }
 
   return NewMem;
@@ -749,8 +752,8 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
-    throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "Not supported configuration of memcpy requested");
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -807,7 +810,7 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
+                         size_t PatternSize, const unsigned char *Pattern,
                          unsigned int Dim, sycl::range<3> MemRange,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
@@ -841,8 +844,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     }
     // The sycl::handler uses a parallel_for kernel in the case of unusable
     // Range or Offset, not CG:Fill. So we should not be here.
-    throw runtime_error("Not supported configuration of fill requested",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of fill requested");
   } else {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
@@ -862,8 +865,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent) {
   if (!Queue) {
-    throw runtime_error("Not supported configuration of map requested",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of map requested");
   }
 
   pi_map_flags Flags = 0;
@@ -908,8 +911,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 
   // Execution on host is not supported here.
   if (!Queue) {
-    throw runtime_error("Not supported configuration of unmap requested",
-                        PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime),
+                    "Not supported configuration of unmap requested");
   }
   // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
@@ -938,8 +941,8 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   }
 
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
@@ -951,7 +954,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<unsigned char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -967,14 +970,14 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   }
 
   if (!Mem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  Plugin->call<PiApiKind::piextUSMEnqueueFill>(
+      Queue->getHandleRef(), Mem, Pattern.data(), Pattern.size(), Length,
+      DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(
@@ -1082,7 +1085,7 @@ void MemoryManager::copy_2d_usm(
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<char> &Pattern,
+    const std::vector<unsigned char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
@@ -1550,8 +1553,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
     void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   if (!SrcMem || !DstMem)
-    throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
   pi_result Result =
@@ -1570,27 +1573,27 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    size_t Len, const std::vector<unsigned char> &Pattern,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
 
   if (!DstMem)
-    throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory fill operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
-  // Pattern is interpreted as an unsigned char so pattern size is always 1.
-  size_t PatternSize = 1;
+
   Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
-      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
       Deps.data(), OutSyncPoint);
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
-    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
-    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
-    unsigned int ElementSize,
+    void *Mem, size_t PatternSize, const unsigned char *Pattern,
+    unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
+    sycl::id<3> AccessOffset, unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
@@ -1618,8 +1621,8 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   }
   // The sycl::handler uses a parallel_for kernel in the case of unusable
   // Range or Offset, not CG:Fill. So we should not be here.
-  throw runtime_error("Not supported configuration of fill requested",
-                      PI_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "Not supported configuration of fill requested");
 }
 
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
@@ -1646,7 +1649,7 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
 }
 
 void MemoryManager::copy_image_bindless(
-    void *Src, QueueImplPtr Queue, void *Dst,
+    const void *Src, QueueImplPtr Queue, void *Dst,
     const sycl::detail::pi::PiMemImageDesc &Desc,
     const sycl::detail::pi::PiMemImageFormat &Format,
     const sycl::detail::pi::PiImageCopyFlags Flags,

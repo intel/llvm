@@ -149,9 +149,9 @@ void parallel_for(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for<KernelName>(ConfigAccess.getRange(),
-                               std::forward<ReductionsT>(Reductions)...,
-                               KernelObj);
+  CGH.parallel_for<KernelName>(
+      ConfigAccess.getRange(), ConfigAccess.getProperties(),
+      std::forward<ReductionsT>(Reductions)..., KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -225,9 +225,9 @@ void nd_launch(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for<KernelName>(ConfigAccess.getRange(),
-                               std::forward<ReductionsT>(Reductions)...,
-                               KernelObj);
+  CGH.parallel_for<KernelName>(
+      ConfigAccess.getRange(), ConfigAccess.getProperties(),
+      std::forward<ReductionsT>(Reductions)..., KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,

@@ -43,7 +43,7 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
     auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto BarrierNode = Node->MSuccessors.front().lock();
-    ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
+    ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CGType::Barrier);
     ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
               sycl::detail::getSyclObjImpl(Barrier));
     ASSERT_EQ(BarrierNode->MPredecessors.size(), 3lu);
@@ -151,7 +151,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
     auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
-    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+    if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
@@ -208,7 +208,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
     auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
-    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+    if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
@@ -271,14 +271,14 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
     auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
-    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+    if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
       for (auto Succ1 : SuccNode->MSuccessors) {
         auto SuccBarrier1 = Succ1.lock();
-        if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
+        if (SuccBarrier1->MCGType == sycl::detail::CGType::Barrier) {
           ASSERT_EQ(GraphImpl->getEventForNode(SuccBarrier1),
                     sycl::detail::getSyclObjImpl(Barrier2));
           ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 3lu);
@@ -338,7 +338,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousCommand) {
   for (auto Root : GraphImpl->MRoots) {
     auto RootNode = Root.lock();
     ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
-    ASSERT_TRUE(RootNode->MCGType == sycl::detail::CG::Barrier);
+    ASSERT_TRUE(RootNode->MCGType == sycl::detail::CGType::Barrier);
   }
 }
 
@@ -378,7 +378,7 @@ TEST_F(CommandGraphTest, InOrderQueuesWithBarrier) {
       ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
 
       auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_TRUE(SuccNode->MCGType == sycl::detail::CG::Barrier);
+      ASSERT_TRUE(SuccNode->MCGType == sycl::detail::CGType::Barrier);
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);

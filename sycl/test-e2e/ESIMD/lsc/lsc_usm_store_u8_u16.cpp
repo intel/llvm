@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // TODO: GPU Driver fails with "add3 src operand only supports integer D/W type"
 // error. Enable the test when it is fixed.
 // UNSUPPORTED: gpu

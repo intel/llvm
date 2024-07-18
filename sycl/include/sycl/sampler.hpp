@@ -92,15 +92,19 @@ public:
   /// Checks if this sampler has a property of type propertyT.
   ///
   /// \return true if this sampler has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
   /// Gets the specified property of this sampler.
   ///
-  /// Throws invalid_object_error if this sampler does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid if this sampler does not have a
+  /// property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   addressing_mode get_addressing_mode() const;
 
@@ -127,6 +131,8 @@ private:
             sycl::access::target AccessTarget,
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
+
+  const property_list &getPropList() const;
 };
 
 // SYCL 2020 image_sampler struct

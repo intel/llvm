@@ -2,8 +2,8 @@
 //
 // RUN: %{run} %t.out
 
-// FIXME: enable opaque pointers support
-// REQUIRES: TEMPORARY_DISABLED
+// https://github.com/intel/llvm/issues/10682
+// UNSUPPORTED: gpu-intel-gen12
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
@@ -16,6 +16,7 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 

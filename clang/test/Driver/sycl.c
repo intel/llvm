@@ -1,18 +1,12 @@
 // RUN: %clang -### -fsycl -c %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=121 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=2020 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
+// RUN: %clang -### %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clangxx -### -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### -fsycl -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -sycl-std=some-std %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
-// RUN: %clang_cl -### -fsycl -sycl-std=2017 -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang_cl -### -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clang_cl -### -sycl-std=some-std -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED

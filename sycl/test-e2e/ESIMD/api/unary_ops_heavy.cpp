@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 

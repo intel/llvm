@@ -399,21 +399,3 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   GraphExec.update(UpdateGraph);
 }
-
-TEST_F(WholeGraphUpdateTest, BarrierNode) {
-  // Test that updating a graph that has a barrier node is not an error
-  Graph.begin_recording(Queue);
-  auto NodeKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-  Queue.ext_oneapi_submit_barrier({NodeKernel});
-  Graph.end_recording(Queue);
-
-  UpdateGraph.begin_recording(Queue);
-  auto UpdateNodeKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-  Queue.ext_oneapi_submit_barrier({UpdateNodeKernel});
-  UpdateGraph.end_recording(Queue);
-
-  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
-  GraphExec.update(UpdateGraph);
-}

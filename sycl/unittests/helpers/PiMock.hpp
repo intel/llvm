@@ -34,6 +34,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
@@ -237,7 +238,11 @@ public:
       return;
 
     MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
-    detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
+    // calling drainThreadPool and releaseResources explicitly due to win
+    // related WA in shutdown process
+    detail::GlobalHandler::instance().drainThreadPool();
+    detail::GlobalHandler::instance().getScheduler().releaseResources(
+        detail::BlockingT::BLOCKING);
     detail::GlobalHandler::instance().releaseDefaultContexts();
   }
 

@@ -13,7 +13,7 @@
 // - ESIMD device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //             invokes 'piProgramBuild'/'piKernelCreate'
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR

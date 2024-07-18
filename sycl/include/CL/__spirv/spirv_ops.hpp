@@ -1119,6 +1119,14 @@ __spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT);
 
 template <typename ValueT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
 __spirv_GroupNonUniformSMin(__spv::Scope::Flag, unsigned int, ValueT,
                             unsigned int);
 
@@ -1180,6 +1188,16 @@ __spirv_GroupNonUniformBitwiseXor(__spv::Scope::Flag, unsigned int, ValueT,
 template <typename ValueT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
 __spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT,
+                                  unsigned int);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT,
+                                 unsigned int);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT,
                                   unsigned int);
 
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
@@ -1299,25 +1317,6 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
-
-template <typename RetT, typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
-__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
-                                int ClusterMode = -1,
-                                unsigned int ResponseCapacity = 0,
-                                unsigned int InvocationCapacity = 0) noexcept;
-
-template <typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
-                               ArgsT... Args) noexcept;
-
-template <typename RetT>
-extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
-
-extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

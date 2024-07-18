@@ -1,5 +1,5 @@
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -42,7 +42,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
                                         int *o) SYCL_ESIMD_FUNCTION {
   // Threads - 1 named barriers required
   // but id 0 reserved for unnamed
-  experimental_esimd::named_barrier_init<Threads>();
+  esimd::named_barrier_init<Threads>();
 
   int flag = 0; // producer-consumer mode
   int producers = 2;
@@ -72,8 +72,8 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
    */
   if (local_id > 0) {
     int barrier_id = local_id;
-    __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
-    __ESIMD_ENS::named_barrier_wait(barrier_id);
+    __ESIMD_NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+    __ESIMD_NS::named_barrier_wait(barrier_id);
   }
 
   /* This is the payload store with overlapping offset. Since threads are
@@ -85,7 +85,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   else
     experimental_esimd::lsc_block_store<int, VL>(o + off, val);
 
-  experimental_esimd::lsc_fence();
+  esimd::fence();
 
   /* local_id == 0 arrives here first and signals barrier 1
    * local_id == 1 arrives here next and signals barrier 2
@@ -94,8 +94,8 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
    */
   if (local_id < Threads - 1) {
     int barrier_id = local_id + 1;
-    __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
-    __ESIMD_ENS::named_barrier_wait(barrier_id);
+    __ESIMD_NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+    __ESIMD_NS::named_barrier_wait(barrier_id);
   }
 
   esimd::barrier();

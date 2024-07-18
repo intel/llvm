@@ -149,7 +149,6 @@ if lit_config.params.get("gpu-intel-dg1", False):
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
 if lit_config.params.get("gpu-intel-pvc", False):
-    config.available_features.add("gpu-intel-pvc")
     config.available_features.add(
         "matrix-fp16"
     )  # PVC implies the support of FP16 matrix
@@ -191,10 +190,13 @@ if lit_config.params.get("ur_l0_leaks_debug"):
 
 if lit_config.params.get("enable-perf-tests", False):
     config.available_features.add("enable-perf-tests")
-# Make sure that any dynamic checks below are done in the build directory and
-# not where the sources are located. This is important for the in-tree
-# configuration (as opposite to the standalone one).
-os.chdir(config.sycl_obj_root)
+
+
+# Use this to make sure that any dynamic checks below are done in the build
+# directory and not where the sources are located. This is important for the
+# in-tree configuration (as opposite to the standalone one).
+def open_check_file(file_name):
+    return open(os.path.join(config.sycl_obj_root, file_name), "w")
 
 # check if compiler supports CL command line options
 cl_options = False
@@ -205,7 +207,7 @@ if sp[0] == 0:
 
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"
-with open(check_l0_file, "w") as fp:
+with open_check_file(check_l0_file) as fp:
     print(
         textwrap.dedent(
             """
@@ -255,7 +257,7 @@ else:
 
 # Check for sycl-preview library
 check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
-with open(check_preview_breaking_changes_file, "w") as fp:
+with open_check_file(check_preview_breaking_changes_file) as fp:
     print(
         textwrap.dedent(
             """
@@ -279,7 +281,7 @@ if sp[0] == 0:
 
 # Check for CUDA SDK
 check_cuda_file = "cuda_include.cpp"
-with open(check_cuda_file, "w") as fp:
+with open_check_file(check_cuda_file) as fp:
     print(
         textwrap.dedent(
             """
@@ -638,7 +640,7 @@ for aot_tool in aot_tools:
 # be ill-formed (compilation stops with non-zero exit code) if the feature
 # test macro for kernel fusion is not defined.
 check_fusion_file = "check_fusion.cpp"
-with open(check_fusion_file, "w") as ff:
+with open_check_file(check_fusion_file) as ff:
     ff.write("#include <sycl/sycl.hpp>\n")
     ff.write("#ifndef SYCL_EXT_CODEPLAY_KERNEL_FUSION\n")
     ff.write('#error "Feature test for fusion failed"\n')
@@ -763,7 +765,7 @@ for sycl_device in config.sycl_devices:
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
-    architecture_feature = set("architecture-" + s for s in architectures)
+    architecture_feature = set("arch-" + s for s in architectures)
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)

@@ -32,8 +32,10 @@ https://github.com/intel/llvm/issues
 
 == Contributors
 
+Jessica Davies, Intel +
 Joe Garvey, Intel +
-Abhishek Tiwari, Intel
+Abhishek Tiwari, Intel +
+Bowen Xue, Intel
 
 == Dependencies
 
@@ -54,8 +56,14 @@ rely on APIs defined in this specification.*
 == Overview
 
 This extension introduces kernel properties to specify how or when control and
-data signals can be passed into or out of an FPGA kernel. These properties are
-meaningless on non-FPGA devices and can be ignored on such devices.
+data signals can be passed into or out of an FPGA kernel.
+
+On FPGA targets, regions of the circuit called clusters may be statically
+scheduled. This extension also introduces kernel properties that specify how
+statically-scheduled clusters should be implemented for an FPGA target.
+
+These properties are meaningless on non-FPGA devices and can be ignored on such
+devices.
 
 == Specification
 
@@ -91,16 +99,16 @@ enum class streaming_interface_options_enum {
   remove_downstream_stall
 };
 
-enum class register_map_interface_options_enum {
-  wait_for_done_write,
-  do_not_wait_for_done_write
-};
-
 struct streaming_interface_key {
   template <streaming_interface_options_enum option>
   using value_t = sycl::ext::oneapi::properties::property_value<
     streaming_interface_key,
     std::integral_constant<streaming_interface_options_enum, option>>;
+};
+
+enum class register_map_interface_options_enum {
+  wait_for_done_write,
+  do_not_wait_for_done_write
 };
 
 struct register_map_interface_key {
@@ -117,13 +125,23 @@ struct pipelined_key {
     std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
 };
 
+enum class fpga_cluster_options_enum : /* unspecified */ {
+  stall_enable,
+  stall_free
+};
+
+struct fpga_cluster_key {
+  template <fpga_cluster_options_enum option>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    fpga_cluster_key,
+    std::integral_constant<fpga_cluster_options_enum, option>>;
+};
+
 template <streaming_interface_options_enum option>
 inline constexpr streaming_interface_key::value_t<option> streaming_interface;
-
 inline constexpr streaming_interface_key::value_t<
   streaming_interface_options_enum::accept_downstream_stall>
     streaming_interface_accept_downstream_stall;
-
 inline constexpr streaming_interface_key::value_t<
   streaming_interface_options_enum::remove_downstream_stall>
     streaming_interface_remove_downstream_stall;
@@ -131,11 +149,9 @@ inline constexpr streaming_interface_key::value_t<
 template <register_map_interface_options_enum option>
 inline constexpr register_map_interface_key::value_t<option>
   register_map_interface;
-
 inline constexpr register_map_interface_key::value_t<
   register_map_interface_options_enum::wait_for_done_write>
     register_map_interface_wait_for_done_write;
-
 inline constexpr register_map_interface_key::value_t<
   register_map_interface_options_enum::do_not_wait_for_done_write>
     register_map_interface_do_not_wait_for_done_write;
@@ -143,6 +159,17 @@ inline constexpr register_map_interface_key::value_t<
 template<int pipeline_directive_or_initiation_interval>
 inline constexpr pipelined_key::value_t<
   pipeline_directive_or_initiation_interval> pipelined;
+
+template<fpga_cluster_options_enum option>
+inline constexpr fpga_cluster_key::value_t<option> fpga_cluster;
+inline constexpr fpga_cluster_key::value_t<
+  fpga_cluster_options_enum::stall_enable_clusters> stall_enable_clusters;
+inline constexpr fpga_cluster_key::value_t<
+  fpga_cluster_options_enum::stall_free_clusters> stall_free_clusters;
+
+template <> struct is_property_key<streaming_interface_key> : std::true_type {};
+template <> struct is_property_key<register_map_interface_key> : std::true_type {};
+template <> struct is_property_key<fpga_cluster_key> : std::true_type {};
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -218,6 +245,27 @@ inline constexpr pipelined_key::value_t<
 
  If the property parameter (N) is not specified, the default value is `-1`.
  Valid values for `N` are values greater than or equal to `-1`.
+
+|`fpga_cluster`
+|The `fpga_cluster` property is a request for the
+ compiler to implement statically-scheduled clusters using the specified
+ clustering method for all clusters in the annotated kernel, when possible. The 
+ following values are supported:
+
+ * `stall_enable`: Directs the compiler to prefer generating an enable signal to
+    freeze the cluster when the cluster is stalled whenever possible.
+
+ * `stall_free`: Directs the compiler to prefer using an exit FIFO to hold
+    output data from clusters when the cluster is stalled whenever possible.
+
+ *Note*: Some clusters cannot be implemented with some cluster types so the 
+ request isn't guaranteed to be followed. 
+
+ The following properties have been provided for convenience:
+ `stall_enable_clusters`,
+ `stall_free_clusters`.
+
+=======
 |===
 
 Device compilers that do not support this extension may accept and ignore these
@@ -298,4 +346,5 @@ q.single_task(KernelFunctor{a, b, c}).wait();
 |Rev|Date|Author|Changes
 |1|2022-03-01|Abhishek Tiwari|*Initial public working draft*
 |2|2022-12-05|Abhishek Tiwari|*Make pipelined property parameter a signed int*
+|3|2024-01-05|Bowen Xue|*Add fpga_cluster property*
 |========================================

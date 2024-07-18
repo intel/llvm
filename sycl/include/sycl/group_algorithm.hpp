@@ -28,6 +28,7 @@
 #include <sycl/ext/oneapi/functional.hpp>
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #endif
 #endif
 
@@ -767,25 +768,6 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 // four argument version of exclusive_scan_over_group is specialized twice
 // once for vector_arithmetic, once for (scalar_arithmetic || complex)
 template <typename Group, typename V, typename T, class BinaryOperation>
-std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_vector_arithmetic_or_complex<V>::value &&
-                  detail::is_vector_arithmetic_or_complex<T>::value &&
-                  detail::is_native_op<V, BinaryOperation>::value &&
-                  detail::is_native_op<T, BinaryOperation>::value),
-                 T>
-exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
-                "Result type of binary_op must match scan accumulation type.");
-  T result;
-  typename detail::get_scalar_binary_op<BinaryOperation>::type
-      scalar_binary_op{};
-  for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
-  }
-  return result;
-}
-
-template <typename Group, typename V, typename T, class BinaryOperation>
 std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
@@ -814,6 +796,25 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
+}
+
+template <typename Group, typename V, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<V, BinaryOperation>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
+                "Result type of binary_op must match scan accumulation type.");
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  for (int s = 0; s < x.size(); ++s) {
+    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
+  }
+  return result;
 }
 
 // ---- joint_exclusive_scan
@@ -898,23 +899,6 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 //   complex
 template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_vector_arithmetic_or_complex<T>::value &&
-                  detail::is_native_op<T, BinaryOperation>::value),
-                 T>
-inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
-                "Result type of binary_op must match scan accumulation type.");
-  T result;
-  typename detail::get_scalar_binary_op<BinaryOperation>::type
-      scalar_binary_op{};
-  for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
-  }
-  return result;
-}
-
-template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   (detail::is_scalar_arithmetic<T>::value ||
                    (detail::is_complex<T>::value &&
                     detail::is_multiplies<T, BinaryOperation>::value)) &&
@@ -938,6 +922,23 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
+}
+
+template <typename Group, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
+                "Result type of binary_op must match scan accumulation type.");
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  for (int s = 0; s < x.size(); ++s) {
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
+  }
+  return result;
 }
 
 // complex specializaiton

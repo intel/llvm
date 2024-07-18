@@ -13,7 +13,7 @@
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp>    // for DataLessPropKind, Prop...
 #include <sycl/detail/property_list_base.hpp> // for PropertyListBase
-#include <sycl/exception.hpp>                 // for invalid_object_error
+#include <sycl/exception.hpp>
 #include <sycl/property_list.hpp>             // for property_list
 
 #include <bitset>      // for bitset
@@ -184,8 +184,8 @@ public:
                                 !is_compile_time_property<PropT>::value>>
   PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The property is not found");
 
     return get_property_helper<PropT>();
   }
