@@ -1428,7 +1428,7 @@ private:
     processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
-      setType(detail::CGType::Kernel);
+    setType(detail::CGType::Kernel);
     setNDRangeUsed(true);
 #endif
   }
