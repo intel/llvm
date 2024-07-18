@@ -108,12 +108,12 @@ private:
     check_variadic_args(ts...);
   }
 
-  template <typename... Ts> void check_variadic_args(Ts... ts) {
+  template <typename... Ts> void check_variadic_args(Ts...) {
     static_assert(
         std::conjunction_v<std::disjunction<detail::is_kernel_properties<Ts>,
                                             detail::is_launch_properties<Ts>,
                                             detail::is_local_mem_size<Ts>>...>,
-        "\nReceived an unexpected argument to ctor. Did you forget to wrap "
+        "Received an unexpected argument to ctor. Did you forget to wrap "
         "in "
         "compat::kernel_properties, launch_properties, local_mem_size?");
   }
