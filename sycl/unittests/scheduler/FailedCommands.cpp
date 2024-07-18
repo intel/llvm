@@ -44,18 +44,18 @@ TEST_F(SchedulerTest, FailedDependency) {
       << "MDep should be marked as failed\n";
 }
 
-inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                           const size_t *, const size_t *,
-                                           const size_t *,
-                                           pi_uint32 EventsCount,
-                                           const pi_event *, pi_event *) {
+inline pi_result failingEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
+                                            const size_t *, const size_t *,
+                                            const size_t *,
+                                            pi_uint32 EventsCount,
+                                            const pi_event *, pi_event *) {
   return PI_ERROR_UNKNOWN;
 }
 
 TEST_F(SchedulerTest, FailedKernelException) {
   unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
-      customEnqueueKernelLaunch);
+      failingEnqueueKernelLaunch);
   platform Plt = Mock.getPlatform();
   int ExceptionListSize = 0;
   sycl::async_handler AsyncHandler =
