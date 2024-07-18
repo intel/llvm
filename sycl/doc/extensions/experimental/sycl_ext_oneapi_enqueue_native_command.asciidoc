@@ -179,7 +179,12 @@ call also must not add tasks to backend objects that underly any other queue,
 aside from the queue that is associated with this handler. If it does any of
 these things, the behavior is undefined.
 
-== Example
+== Examples
+
+=== Correct usage
+
+This example demonstrates how to use this extension to enqueue asynchronous
+native tasks on the HIP backend.
 
 ```c++
 sycl::queue q;
@@ -191,12 +196,35 @@ q.submit([&](sycl::handler &cgh) {
       void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
       // Can extract stream
       hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
-      // Can extract HIP device
-      int dev = h.get_native_device<sycl::backend::hip>();
+
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
+    });
+  });
+q.wait();
+```
+
+=== Incorrect usage
+
+This example submits synchronous work within the
+`ext_oneapi_enqueue_native_command` callable. Instead work must be submitted
+asynchronously to the native queue obtained from
+`interop_handle::get_native_queue`.
+
+```c++
+q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{buf, cgh};
+
+    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
+      // Can extract device pointers from accessors
+      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
+
+     // Undefined behaviour! Only async work submitted to ih.get_native_queue()
+     // is allowed.
+     hipMemcpy(target_ptr, native_mem, test_size * sizeof(int),
+                      hipMemcpyDeviceToHost);
     });
   });
 q.wait();
