@@ -116,6 +116,11 @@ public:
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
 
+  template <typename Param>
+  typename Param::return_type
+  ext_oneapi_get_info(const queue &Queue, const range<3> &MaxWorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
   /// Get a reference to a raw kernel object.
   ///
   /// \return a reference to a valid PiKernel instance with raw kernel object.
@@ -220,20 +225,74 @@ kernel_impl::get_info(const device &Device,
       getPlugin());
 }
 
+namespace syclex = ext::oneapi::experimental;
+
 template <>
-inline typename ext::oneapi::experimental::info::kernel_queue_specific::
-    max_num_work_group_sync::return_type
+inline typename syclex::info::kernel_queue_specific::
+    recommended_num_work_groups::return_type
     kernel_impl::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &Queue) const {
+        syclex::info::kernel_queue_specific::recommended_num_work_groups>(
+        const queue &Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  if (WorkGroupSize.size() == 0) {
+    throw runtime_error("The launch work-group size cannot be zero.",
+                        PI_ERROR_INVALID_WORK_GROUP_SIZE);
+  }
+
   const auto &Plugin = getPlugin();
   const auto &Handle = getHandleRef();
-  const auto MaxWorkGroupSize =
-      Queue.get_device().get_info<info::device::max_work_group_size>();
+  const auto &Device = Queue.get_device();
+
+  // Calculate max number of work-groups per compute unit
+  const auto NumCUs = Device.get_info<info::device::max_compute_units>();
+  assert(NumCUs > 0 && "Attempted division by 0. 'NumCUs' cannot be 0.");
+
+  pi_uint32 GroupCount{0};
+  Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
+      Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
+  if (GroupCount == 0) {
+    // A kernel cannot be submitted with 0 work-groups, hence return 0.
+    return 0;
+  }
+  // This is a round-down division for safety of not exceeding work-group sizes.
+  const auto GroupCountPerCU = GroupCount >= NumCUs ? GroupCount / NumCUs : 1;
+  return GroupCountPerCU;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+        [[maybe_unused]] const queue &Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  if (WorkGroupSize.size() == 0) {
+    throw runtime_error("The launch work-group size cannot be zero.",
+                        PI_ERROR_INVALID_WORK_GROUP_SIZE);
+  }
+
+  const auto &Plugin = getPlugin();
+  const auto &Handle = getHandleRef();
+
   pi_uint32 GroupCount = 0;
   Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
-      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
+      Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
   return GroupCount;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+        const queue &Queue) const {
+  const auto &Device = Queue.get_device();
+  const auto MaxWorkGroupSize =
+      get_info<info::kernel_device_specific::work_group_size>(Device);
+  return ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+      Queue, sycl::range{MaxWorkGroupSize, 1, 1},
+      /* DynamicLocalMemorySize */ 0);
 }
 
 } // namespace detail
