@@ -11066,7 +11066,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   // Pass the CUDA path to the linker wrapper tool.
-  for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP}) {
+  for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP, Action::OFK_SYCL}) {
     auto TCRange = C.getOffloadToolChains(Kind);
     for (auto &I : llvm::make_range(TCRange.first, TCRange.second)) {
       const ToolChain *TC = I.second;
