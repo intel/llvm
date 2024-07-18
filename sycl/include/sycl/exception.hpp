@@ -14,8 +14,7 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/string.hpp>
-#include <ur_api.h>                           // for ur_result_t
-#include <ur_print.hpp>                       // to print ur_result_t
+#include <ur_api.h> // for ur_result_t
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -55,9 +54,11 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
+__SYCL_EXPORT const char *stringifyErrorCode(int32_t error);
+
 inline std::string codeToString(int32_t code) {
   std::stringstream ss;
-  ss << static_cast<ur_result_t>(code);
+  ss << stringifyErrorCode(code);
   return std::to_string(code) + " (" + ss.str() + ")";
 }
 

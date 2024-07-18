@@ -2,9 +2,8 @@
 // RUN: %{run-unfiltered-devices} %t.out
 //
 // See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: hip_nvidia, windows
-// was formerly "hip_nvidia" because:
 // Hip is missing some of the parameters tested here so it fails with NVIDIA
+// XFAIL: hip_nvidia
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
