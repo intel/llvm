@@ -376,7 +376,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 5: compiler, {4}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 6: backend, {5}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: input, "/localdisk2/zahiraam/my-sycl/llvm/clang/test/Driver/sycl-offload.c", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: compiler, {9}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: backend, {10}, ir, (device-sycl, sm_50)
