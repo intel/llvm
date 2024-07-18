@@ -205,7 +205,6 @@
 //       piextImportExternalSemaphoreOpaqueFD
 // 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
 
-
 #define _PI_H_VERSION_MAJOR 19
 #define _PI_H_VERSION_MINOR 61
 

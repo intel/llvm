@@ -99,14 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit 9d3bce6ad92e6f0a4af0139f9744584b5a402827
-  # Merge: e0775441 1c9c2d0b
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 9 15:57:44 2024 +0100
-  #     Merge pull request #1822 from JackAKirk/cuda-cubemap-driver-fix
-  #     [cuda][bindless_images][2025.0 req] Fix for cuda < 11.6 support.
-  set(UNIFIED_RUNTIME_TAG 037d3b57d9c7c62f5989ba9950d926f800f8d84c)
+  # Date:   Wed Jul 17 19:12:31 2024 +0100
+  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
+  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
+  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
