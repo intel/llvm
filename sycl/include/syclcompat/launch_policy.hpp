@@ -125,14 +125,6 @@ public:
     check_variadic_args(ts...);
   }
 
-  template <int Dim, typename... Ts>
-  launch_policy(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
-                Ts... ts)
-      : launch_policy(ts...) {
-    _range = {global_range, local_range};
-    check_variadic_args(ts...);
-  }
-
   template <typename... Ts>
   launch_policy(dim3 global_range, Ts... ts) : launch_policy(ts...) {
     _range = Range{global_range};

@@ -285,10 +285,6 @@ public:
   template <typename... Ts>
   launch_policy(Range range, Ts... ts);
 
-  template <int Dim, typename... Ts>
-  launch_policy(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
-                Ts... ts);
-
   template <typename... Ts>
   launch_policy(dim3 global_range, Ts... ts);
 

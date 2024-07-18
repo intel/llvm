@@ -98,15 +98,15 @@ int test_variadic_config_ctor() {
                            empty_properties_t, false>>);
   }
 
-  // range,range and kernel_properties
+  // range and kernel_properties
   {
     compat_exp::launch_policy my_config(
-        sycl::range<3>{1, 1, 32}, sycl::range<3>{1, 1, 32},
+        sycl::range<3>{1, 1, 32},
         compat_exp::kernel_properties{sycl_exp::sub_group_size<32>});
     static_assert(
         std::is_same_v<decltype(my_config),
                        compat_exp::launch_policy<
-                           sycl::nd_range<3>,
+                           sycl::range<3>,
                            decltype(sycl::ext::oneapi::experimental::properties{
                                sycl_exp::sub_group_size<32>}),
                            empty_properties_t, false>>);
