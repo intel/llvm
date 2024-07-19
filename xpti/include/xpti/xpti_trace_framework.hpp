@@ -1374,8 +1374,8 @@ public:
                  uint16_t traceType = (uint16_t)
                      xpti::trace_point_type_t::function_begin)
       : MTraceEvent(traceEvent), MUserData(UserData), MStreamId(streamId),
-        MTraceType(traceType), MScopedNotify(false), MTraceEnabled(false),
-        MCorrelationId(0) {
+        MTraceType(traceType), MCorrelationId(0), MScopedNotify(false),
+        MTraceEnabled(false) {
     // Reduce calls to xptiCheckTraceENabled() by caching it
     MTraceEnabled = xptiCheckTraceEnabled(MStreamId, MTraceType);
     if (!MTraceEnabled)
@@ -1447,9 +1447,9 @@ private:
   /// The type of the trace event: function_begin, signal, etc
   uint16_t MTraceType;
   /// The correlation ID for the notification begin/end scope calls
-  uint64_t MCorrelationId;
+  uint64_t MCorrelationId = 0;
   /// If scoped notification is desired
-  bool MScopedNotify;
+  bool MScopedNotify = false;
   /// Flag to indicate it is okay to send out trace events
   bool MTraceEnabled = false;
 };
