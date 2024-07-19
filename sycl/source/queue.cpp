@@ -140,12 +140,6 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                       /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
-                        const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return mem_advise(Ptr, Length, int(Advice));
-}
-
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -166,14 +160,6 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents,
                           /*CallerNeedsEvent=*/true);
-}
-
-event queue::discard_or_return(const event &Event) {
-  if (!(impl->MDiscardEvents))
-    return Event;
-  using detail::event_impl;
-  auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return detail::createSyclObjFromImpl<event>(Impl);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
@@ -298,27 +284,8 @@ queue::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename PropertyT> bool queue::has_property() const noexcept {
-  return impl->has_property<PropertyT>();
-}
-
-template <typename PropertyT> PropertyT queue::get_property() const {
-  return impl->get_property<PropertyT>();
-}
-
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
-  template __SYCL_EXPORT bool queue::has_property<NS_QUALIFIER::PROP_NAME>()   \
-      const noexcept;                                                          \
-  template __SYCL_EXPORT NS_QUALIFIER::PROP_NAME                               \
-  queue::get_property<NS_QUALIFIER::PROP_NAME>() const;
-
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
-  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
-
-#include <sycl/properties/queue_properties.def>
-
 bool queue::is_in_order() const {
-  return impl->has_property<property::queue::in_order>();
+  return has_property<property::queue::in_order>();
 }
 
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
@@ -355,7 +322,7 @@ bool queue::device_has(aspect Aspect) const {
 }
 
 bool queue::ext_codeplay_supports_fusion() const {
-  return impl->has_property<
+  return has_property<
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
@@ -384,6 +351,8 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
         "ext::oneapi::property::queue::discard_events property.");
   return impl->setExternalEvent(external_event);
 }
+
+const property_list &queue::getPropList() const { return impl->getPropList(); }
 
 } // namespace _V1
 } // namespace sycl

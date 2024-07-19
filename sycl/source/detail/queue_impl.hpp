@@ -777,6 +777,8 @@ public:
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
           &Graph);
 
+  const property_list &getPropList() const { return MPropList; }
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -815,7 +817,7 @@ protected:
         // Note that host_task events can never be discarded, so this will not
         // insert barriers between host_task enqueues.
         if (EventToBuildDeps->isDiscarded() &&
-            Handler.getType() == CG::CodeplayHostTask)
+            getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
           EventToBuildDeps = insertHelperBarrier(Handler);
 
         if (!EventToBuildDeps->isDiscarded())
@@ -832,7 +834,7 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
-      const CG::CGTYPE Type = Handler.getType();
+      const CGType Type = getSyclObjImpl(Handler)->MCGType;
       std::lock_guard<std::mutex> Lock{MMutex};
       // The following code supports barrier synchronization if host task is
       // involved in the scenario. Native barriers cannot handle host task
@@ -846,17 +848,17 @@ protected:
         MMissedCleanupRequests.clear();
       }
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
-      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+      if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
       if (Deps.LastBarrier)
         Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
-      if (Type == CG::CodeplayHostTask)
+      if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
           Deps.LastBarrier = EventRetImpl;
           Deps.UnenqueuedCmdEvents.clear();
         } else

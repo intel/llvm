@@ -100,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 658393fa28837ecc3dbe2901368ff91f526e8ff5
-  # Merge: 5be5aa49 649c5f04
+  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 9 11:20:06 2024 +0100
-  #     Merge pull request #1814 from nrspruit/fix_l0_queue_cts
-  #     [L0] Fix Queue get info and fix Queue release decrement
-  set(UNIFIED_RUNTIME_TAG 658393fa28837ecc3dbe2901368ff91f526e8ff5)
+  # Date:   Wed Jul 17 19:12:31 2024 +0100
+  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
+  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
+  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
