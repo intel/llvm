@@ -43,6 +43,17 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+namespace pi {
+void contextSetExtendedDeleter(const sycl::context &context,
+                               pi_context_extended_deleter func,
+                               void *user_data) {
+  auto impl = getSyclObjImpl(context);
+  const auto &Plugin = impl->getPlugin();
+  Plugin->call(urContextSetExtendedDeleter, impl->getHandleRef(),
+               reinterpret_cast<ur_context_extended_deleter_t>(func),
+               user_data);
+}
+} // namespace pi
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -70,15 +81,6 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
-
-void contextSetExtendedDeleter(const sycl::context &context,
-                               ur_context_extended_deleter_t func,
-                               void *user_data) {
-  auto impl = getSyclObjImpl(context);
-  auto contextHandle = impl->getHandleRef();
-  const auto &Plugin = impl->getPlugin();
-  Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
-}
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {

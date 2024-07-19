@@ -123,7 +123,6 @@
 ??$get_info_impl@Udriver_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uerror_correction_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uexecution_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4execution_capability@info@_V1@sycl@@V?$allocator@W4execution_capability@info@_V1@sycl@@@std@@@std@@XZ
-??$get_info_impl@Uext_codeplay_num_regs@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uext_intel_device_info_uuid@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$array@E$0BA@@std@@XZ
 ??$get_info_impl@Uext_intel_gpu_eu_count@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uext_intel_gpu_eu_count_per_subslice@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -3727,7 +3726,7 @@
 ?constructorNotification@buffer_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBX2IIQEA_K@Z
 ?constructorNotification@detail@_V1@sycl@@YAXPEAX0W4target@access@23@W4mode@523@AEBUcode_location@123@@Z
 ?contains_specialization_constants@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
-?contextSetExtendedDeleter@ur@detail@_V1@sycl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
+contextSetExtendedDeleter@pi@detail@_V1@sycl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
@@ -3750,7 +3749,6 @@
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVqueue@45@@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
-?die@ur@detail@_V1@sycl@@YAXPEBD@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
 ?end@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
@@ -4048,7 +4046,6 @@
 ?get_successors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_type@23456@XZ
 ?get_type@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4node_type@23456@XZ
-?get_ur_error@detail@_V1@sycl@@YAHAEBVexception@23@@Z
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
@@ -4230,7 +4227,6 @@
 ?set_flag@stream@_V1@sycl@@AEBAXII@Z
 ?set_manipulator@stream@_V1@sycl@@AEBAXW4stream_manipulator@23@@Z
 ?set_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEAAXPEBDPEAX_K@Z
-?set_ur_error@detail@_V1@sycl@@YA?AVexception@23@$$QEAV423@H@Z
 ?set_write_back@buffer_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?set_write_back@image_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?sincos_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAV45123@@Z

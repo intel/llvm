@@ -22,6 +22,8 @@
 #include <type_traits>
 #include <vector>
 
+typedef void (*pi_context_extended_deleter)(void *user_data);
+
 // Entry type, matches OpenMP for compatibility
 struct _ur_offload_entry_struct {
   void *addr;
@@ -235,6 +237,14 @@ class context;
 
 namespace detail {
 
+namespace pi {
+// This function is deprecated and it should be removed in the next release
+// cycle (along with the definition for pi_context_extended_deleter).
+__SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
+                                             pi_context_extended_deleter func,
+                                             void *user_data);
+}
+
 class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
@@ -242,11 +252,6 @@ template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace ur {
-
-__SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
-                                             ur_context_extended_deleter_t func,
-                                             void *user_data);
-
 // Function to load a shared library
 // Implementation is OS dependent
 void *loadOsLibrary(const std::string &Library);
