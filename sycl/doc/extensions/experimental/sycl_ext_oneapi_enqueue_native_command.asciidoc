@@ -199,32 +199,11 @@ q.submit([&](sycl::handler &cgh) {
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc
+      //
+      // Important: Enqueuing a *synchronous* backend operation results in
+      // undefined behavior.
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
-    });
-  });
-q.wait();
-```
-
-=== Incorrect usage
-
-This example submits synchronous work within the
-`ext_oneapi_enqueue_native_command` callable. Instead work must be submitted
-asynchronously to the native queue obtained from
-`interop_handle::get_native_queue`.
-
-```c++
-q.submit([&](sycl::handler &cgh) {
-    sycl::accessor acc{buf, cgh};
-
-    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
-      // Can extract device pointers from accessors
-      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
-
-     // Undefined behaviour! Only async work submitted to ih.get_native_queue()
-     // is allowed.
-     hipMemcpy(target_ptr, native_mem, test_size * sizeof(int),
-                      hipMemcpyDeviceToHost);
     });
   });
 q.wait();
