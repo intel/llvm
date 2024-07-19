@@ -8,7 +8,9 @@
 
 #include <detail/config.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/property_check.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/properties/reduction_properties.hpp>
 #include <sycl/reduction.hpp>
 
 namespace sycl {
@@ -175,6 +177,12 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {},
                           &EventImpl->getHandleRef(), EventImpl);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
+}
+
+__SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
+  static const auto AllowedPropList =
+      GenerateAllowedProps<sycl::property::reduction::initialize_to_identity>();
+  checkPropsAndThrow(Props, AllowedPropList);
 }
 
 } // namespace detail
