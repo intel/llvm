@@ -11,63 +11,149 @@
 #include <sycl/sycl.hpp>
 
 TEST(BufferProps, ValidPropsHostPtr) {
-  int HostPtr[1];
-  sycl::buffer<int, 1> Buf{HostPtr, 1, sycl::property::buffer::use_host_ptr{}};
-  // no explicit checks, we expect no exception to be thrown
+  try {
+    int HostPtr[1];
+    sycl::buffer<int, 1> Buf{HostPtr, 1,
+                             sycl::property::buffer::use_host_ptr{}};
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, ValidPropsContextBound) {
-  sycl::unittest::PiMock Mock;
-  sycl::context Context;
-  sycl::buffer<int, 1> Buf{1, sycl::property::buffer::context_bound{Context}};
-  // no explicit checks, we expect no exception to be thrown
+  try {
+    sycl::unittest::PiMock Mock;
+    sycl::context Context;
+    sycl::buffer<int, 1> Buf{1, sycl::property::buffer::context_bound{Context}};
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, ValidPropsMutex) {
-  std::mutex Mutex;
-  sycl::buffer<int, 1> Buf{1, sycl::property::buffer::use_mutex{Mutex}};
-  // no explicit checks, we expect no exception to be thrown
+  try {
+    std::mutex Mutex;
+    sycl::buffer<int, 1> Buf{1, sycl::property::buffer::use_mutex{Mutex}};
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, ValidPropsPinnedHostMem) {
-  sycl::buffer<int, 1> Buf(
-      1, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
-  // no explicit checks, we expect no exception to be thrown
+  try {
+    sycl::buffer<int, 1> Buf(
+        1, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, ValidPropsMemChannel) {
-  sycl::buffer<int, 1> Buf(1, sycl::property::buffer::mem_channel{1});
-  // no explicit checks, we expect no exception to be thrown
+  try {
+    sycl::buffer<int, 1> Buf(1, sycl::property::buffer::mem_channel{1});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, SetAndQueryMatch) {
-  sycl::unittest::PiMock Mock;
-  std::mutex Mutex;
-  sycl::context Context;
-  int HostPtr[1];
+  try {
+    sycl::unittest::PiMock Mock;
+    std::mutex Mutex;
+    sycl::context Context;
+    int HostPtr[1];
 
-  sycl::buffer<int, 1> buf{HostPtr,
-                           1,
-                           {sycl::property::buffer::use_host_ptr{},
-                            sycl::property::buffer::context_bound{Context},
-                            sycl::property::buffer::use_mutex{Mutex}}};
+    sycl::buffer<int, 1> buf{HostPtr,
+                             1,
+                             {sycl::property::buffer::use_host_ptr{},
+                              sycl::property::buffer::context_bound{Context},
+                              sycl::property::buffer::use_mutex{Mutex}}};
 
-  ASSERT_TRUE(buf.has_property<sycl::property::buffer::context_bound>());
-  EXPECT_EQ(
-      buf.get_property<sycl::property::buffer::context_bound>().get_context(),
-      Context);
-  ASSERT_TRUE(buf.has_property<sycl::property::buffer::use_mutex>());
-  EXPECT_EQ(
-      buf.get_property<sycl::property::buffer::use_mutex>().get_mutex_ptr(),
-      &Mutex);
-  EXPECT_TRUE(buf.has_property<sycl::property::buffer::use_host_ptr>());
-  // check some random not supported and not sent param
-  EXPECT_FALSE(buf.has_property<sycl::property::image::use_host_ptr>());
+    ASSERT_TRUE(buf.has_property<sycl::property::buffer::context_bound>());
+    EXPECT_EQ(
+        buf.get_property<sycl::property::buffer::context_bound>().get_context(),
+        Context);
+    ASSERT_TRUE(buf.has_property<sycl::property::buffer::use_mutex>());
+    EXPECT_EQ(
+        buf.get_property<sycl::property::buffer::use_mutex>().get_mutex_ptr(),
+        &Mutex);
+    EXPECT_TRUE(buf.has_property<sycl::property::buffer::use_host_ptr>());
+    // check some random not supported and not sent param
+    EXPECT_FALSE(buf.has_property<sycl::property::image::use_host_ptr>());
+  } catch (...) {
+    FAIL();
+  }
 }
 
 TEST(BufferProps, SetUnsupportedParam) {
   try {
     sycl::buffer<int, 1> buf{1, {sycl::property::image::use_host_ptr{}}};
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}
+
+TEST(ImageProps, ValidPropsHostPtr) {
+  try {
+    constexpr size_t ElementsCount = 4;
+    constexpr size_t ChannelsCount = 4;
+    float InitValue[ElementsCount * ChannelsCount];
+    sycl::image<1> Image(&InitValue, sycl::image_channel_order::rgba,
+                         sycl::image_channel_type::fp32,
+                         sycl::range<1>(ElementsCount),
+                         sycl::property::image::use_host_ptr{});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
+}
+
+TEST(ImageProps, ValidPropsContextBound) {
+  try {
+    sycl::unittest::PiMock Mock;
+    sycl::context Context;
+    constexpr size_t ElementsCount = 4;
+    sycl::image<1> Image(sycl::image_channel_order::rgba,
+                         sycl::image_channel_type::fp32,
+                         sycl::range<1>(ElementsCount),
+                         sycl::property::image::context_bound{Context});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
+}
+
+TEST(ImageProps, ValidPropsMutex) {
+  try {
+    std::mutex Mutex;
+    constexpr size_t ElementsCount = 4;
+    sycl::image<1> Image(
+        sycl::image_channel_order::rgba, sycl::image_channel_type::fp32,
+        sycl::range<1>(ElementsCount), sycl::property::image::use_mutex{Mutex});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
+}
+
+TEST(ImageProps, SetUnsupportedParam) {
+  try {
+    std::mutex Mutex;
+    constexpr size_t ElementsCount = 4;
+    sycl::image<1> Image(sycl::image_channel_order::rgba,
+                         sycl::image_channel_type::fp32,
+                         sycl::range<1>(ElementsCount),
+                         sycl::property::buffer::use_mutex{Mutex});
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::invalid);
     EXPECT_STREQ(e.what(), "The property list contains property unsupported "

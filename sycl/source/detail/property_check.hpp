@@ -29,15 +29,7 @@ std::set<std::pair<int, bool>> GenerateAllowedProps() {
 }
 
 void checkPropsAndThrow(const sycl::property_list &CreationProps,
-                        const std::set<std::pair<int, bool>> &AllowedProps) {
-  std::set<std::pair<int, bool>> Props;
-  CreationProps.convertPropertiesToKinds(Props);
-  if (!std::includes(AllowedProps.begin(), AllowedProps.end(), Props.begin(),
-                     Props.end()))
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "The property list contains property unsupported for "
-                          "the current object");
-}
+                        const std::set<std::pair<int, bool>> &AllowedProps);
 
 } // namespace detail
 } // namespace _V1

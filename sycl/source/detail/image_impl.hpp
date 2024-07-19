@@ -106,6 +106,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -118,6 +119,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -130,6 +132,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -143,6 +146,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize), IsConstPtr);
@@ -157,6 +161,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize), IsConstPtr);
@@ -172,6 +177,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -186,6 +192,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -200,6 +207,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize),
@@ -217,6 +225,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize),
@@ -346,6 +355,8 @@ private:
 
   // Image may carry a 2020 sampler.
   std::optional<image_sampler> MSampler = std::nullopt;
+
+  void verifyProps(const property_list &Props) const;
 };
 } // namespace detail
 } // namespace _V1

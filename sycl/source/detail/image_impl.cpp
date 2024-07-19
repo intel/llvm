@@ -9,7 +9,9 @@
 #include <detail/context_impl.hpp>
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/property_check.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/properties/image_properties.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -488,6 +490,14 @@ void image_impl::unsampledImageConstructorNotification(
 
 void image_impl::unsampledImageDestructorNotification(void *UserObj) {
   XPTIRegistry::unsampledImageDestructorNotification(UserObj);
+}
+
+void image_impl::verifyProps(const property_list &Props) const {
+  static const auto AllowedPropList =
+      GenerateAllowedProps<sycl::property::image::use_host_ptr,
+                           sycl::property::image::use_mutex,
+                           sycl::property::image::context_bound>();
+  checkPropsAndThrow(Props, AllowedPropList);
 }
 
 } // namespace detail
