@@ -361,35 +361,35 @@ public:
   }
 
   std::string trimXsFlags(std::string &str) {
-    // trim first and last quote if they exist, but no others.
-    char encounteredQuote = '\0';
-    auto start = std::find_if(str.begin(), str.end(), [&](char c) {
-      if (!encounteredQuote && (c == '\'' || c == '"')) {
-        encounteredQuote = c;
+    // Trim first and last quote if they exist, but no others.
+    char EncounteredQuote = '\0';
+    auto Start = std::find_if(str.begin(), str.end(), [&](char c) {
+      if (!EncounteredQuote && (c == '\'' || c == '"')) {
+        EncounteredQuote = c;
         return false;
       }
       return !std::isspace(c);
     });
-    auto end = std::find_if(str.rbegin(), str.rend(), [&](char c) {
-                 if (c == encounteredQuote) {
-                   encounteredQuote = '\0';
+    auto End = std::find_if(str.rbegin(), str.rend(), [&](char c) {
+                 if (c == EncounteredQuote) {
+                   EncounteredQuote = '\0';
                    return false;
                  }
                  return !std::isspace(c);
                }).base();
-    if (start != std::end(str) && end != std::begin(str) && start < end) {
-      return std::string(start, end);
+    if (Start != std::end(str) && End != std::begin(str) && Start < End) {
+      return std::string(Start, End);
     }
-    // else
+
     return "";
   }
 
   std::string extractXsFlags(const std::vector<std::string> &BuildOptions) {
     std::stringstream SS;
     for (std::string Option : BuildOptions) {
-      auto Where = Option.find("-Xs ");
+      auto Where = Option.find("-Xs");
       if (Where != std::string::npos) {
-        Where += 4;
+        Where += 3;
         std::string flags = Option.substr(Where);
         SS << trimXsFlags(flags) << " ";
       }

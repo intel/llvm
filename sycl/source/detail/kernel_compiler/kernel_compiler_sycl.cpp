@@ -170,14 +170,21 @@ void invokeCompiler(const std::filesystem::path &FPath,
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerName();
+#ifdef __WIN32
+  std::string PipeStr{" > "};
+  std::string PipeStrTail{" 2>&1"};
+#else
+  std::string PipeStr{" &> "};
+  std::string PipeStrTail{""};
+#endif
 
   std::string Command =
       Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
       userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
       ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + " > " +
-      LogPath.make_preferred().string();
+      FilePath.make_preferred().string() + PipeStr +
+      LogPath.make_preferred().string() + PipeStrTail;
 
   int Result = std::system(Command.c_str());
 
