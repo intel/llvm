@@ -532,8 +532,10 @@ void Command::waitForEvents(QueueImplPtr Queue,
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
         std::vector<ur_event_handle_t> RawEvents =
             getUrEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin()->call(urEventWait, RawEvents.size(),
-                                               RawEvents.data());
+        if (!RawEvents.empty()) {
+          CtxWithEvents.first->getPlugin()->call(urEventWait, RawEvents.size(),
+                                                 RawEvents.data());
+        }
       }
     } else {
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);

@@ -128,7 +128,9 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
                    [](const EventImplPtr &EventImpl) {
                      return EventImpl->getHandleRef();
                    });
-    Plugin->call(urEventWait, UrEvents.size(), &UrEvents[0]);
+    if (!UrEvents.empty() && UrEvents[0]) {
+      Plugin->call(urEventWait, UrEvents.size(), &UrEvents[0]);
+    }
   }
 }
 
