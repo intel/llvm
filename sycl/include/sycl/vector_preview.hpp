@@ -125,7 +125,7 @@ struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class vec
+class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
                                                    DataT, NumElements> {
