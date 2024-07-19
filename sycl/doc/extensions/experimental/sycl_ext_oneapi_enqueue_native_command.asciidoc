@@ -80,7 +80,7 @@ on its dependent events to execute. The dependencies passed to an
 `ext_oneapi_enqueue_native_command` submission will result in dependencies being
 implicitly handled in the backend API, using the native queue object associated
 with the SYCL queue that the `sycl_ext_oneapi_enqueue_native_command` is
-submitted to. This gives different sychronization guarantees from normal SYCL
+submitted to. This gives different synchronization guarantees from normal SYCL
 `host_task` s, which guarantee that the `host_task` callable will only begin
 execution once all of its dependent events have completed.
 
