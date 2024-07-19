@@ -217,8 +217,8 @@ std::string platformInfoToString(pi_platform_info info) {
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
-  assertion(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
-            "More than one bit set");
+  assert(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
+         "More than one bit set");
 
   std::stringstream Sstream;
 
@@ -508,11 +508,10 @@ template <backend BE> const PluginPtr &getPlugin() {
                   "pi::getPlugin couldn't find plugin");
 }
 
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
+template const PluginPtr &getPlugin<backend::opencl>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_level_zero>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
@@ -521,11 +520,6 @@ template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 [[noreturn]] void die(const char *Message) {
   std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
-}
-
-void assertion(bool Condition, const char *Message) {
-  if (!Condition)
-    die(Message);
 }
 
 // Reads an integer value from ELF data.
