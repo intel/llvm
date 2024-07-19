@@ -709,7 +709,10 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         // Write debug
         // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-        uint64_t Debug = Options(logger).Debug ? 1 : 0;
+        // Because EnqueueWriteGlobal is a async write, so
+        // we need to extend its lifetime
+        static uint64_t Debug;
+        Debug = Options(logger).Debug ? 1 : 0;
         EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
 
         // Write shadow memory offset for global memory
