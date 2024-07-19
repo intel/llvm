@@ -3467,10 +3467,12 @@ bool AddressSanitizer::instrumentFunction(Function &F,
         NumInsnsPerBB++;
       } else {
         if (auto *CB = dyn_cast<CallBase>(&Inst)) {
-          // A call inside BB.
-          TempsToInstrument.clear();
-          if (CB->doesNotReturn())
-            NoReturnCalls.push_back(CB);
+          if (!TargetTriple.isSPIROrSPIRV()) {
+            // A call inside BB.
+            TempsToInstrument.clear();
+            if (CB->doesNotReturn())
+              NoReturnCalls.push_back(CB);
+          }
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&
