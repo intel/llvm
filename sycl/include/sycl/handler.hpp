@@ -3394,7 +3394,7 @@ private:
   friend class ext::intel::experimental::pipe;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Read from a host pipe given a host address and

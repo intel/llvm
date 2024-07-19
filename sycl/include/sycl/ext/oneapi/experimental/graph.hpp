@@ -136,7 +136,7 @@ private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -345,7 +345,7 @@ protected:
   void addGraphLeafDependencies(node Node);
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -383,7 +383,7 @@ protected:
                            const property_list &PropList = {});
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
@@ -445,7 +445,7 @@ protected:
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 } // namespace detail
