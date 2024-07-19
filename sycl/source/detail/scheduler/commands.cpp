@@ -3152,7 +3152,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
       default:
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Unsupported arg type "));
+                              "Unsupported arg type ");
       }
     }
 
@@ -3184,7 +3184,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available "));
+            "Can't get memory object due to no allocation available ");
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
