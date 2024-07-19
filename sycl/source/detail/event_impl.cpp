@@ -194,7 +194,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     // If queue.wait() is used, we want to make sure the information about the
     // queue is available with the wait events. We check to see if the
     // TraceEvent is available in the Queue object.
-    void *TraceEvent;
+    void *TraceEvent = nullptr;
     if (QueueImplPtr Queue = MQueue.lock()) {
       TraceEvent = Queue->getTraceEvent();
       WaitEvent =
