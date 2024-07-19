@@ -1895,6 +1895,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
       T, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
       __ESIMD_DNS::block_2d_op::load>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
                                  PropertyListT>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
@@ -1920,48 +1921,25 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
       __ESIMD_DNS::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
   constexpr uint32_t DstLength =
       (DstBlockSize / GrfBytes) > 31 ? 31 : (DstBlockSize / GrfBytes);
-  constexpr uint32_t DstLengthMask = DstLength << 20;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
-  constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L2H>()
-                                  << 17;
-  constexpr uint32_t base_desc = 0x2000003;
-  constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
-  constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
-  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
   __ESIMD_NS::simd<T, N> oldDst;
-  constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc = base_desc | cache_mask | transformMask |
-                            transposeMask | dataSizeMask | DstLengthMask;
-  constexpr uint8_t execSize = 1;
-  constexpr uint8_t sfid = 0xF;
-  constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  __ESIMD_NS::simd<T, ActualN> Raw =
-      __ESIMD_NS::raw_send<execSize, sfid, numSrc0, numDst>(
-          oldDst, payload.get_raw_data(), exDesc, desc);
+  __ESIMD_NS::simd_mask<1> Mask = 1;
 
-  if constexpr (ActualN == N) {
-    return Raw;
-  } else {
-    // HW restrictions force data which is read to contain padding filled with
-    // zeros for 2d lsc loads. This code eliminates such padding.
+  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
-    __ESIMD_NS::simd<T, DstElements> Dst;
-
-    for (auto i = 0; i < NBlocks; i++) {
-      auto DstBlock =
-          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
-
-      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
-      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
-                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
-                     .template bit_cast_view<T>();
-    }
-
-    return Dst;
-  }
+  if constexpr (Transposed)
+    return __esimd_lsc_load2d_descriptor_transpose<
+        T, CacheVectorT, Cache, NBlocks, BlockWidth, BlockHeight, 0, 0>(
+        Mask.data(), payload.get_raw_data(), oldDst.data());
+  if constexpr (Transformed)
+    return __esimd_lsc_load2d_descriptor_transform<
+        T, CacheVectorT, Cache, NBlocks, BlockWidth, BlockHeight, 0, 0>(
+        Mask.data(), payload.get_raw_data(), oldDst.data());
+  return __esimd_lsc_load2d_descriptor<T, CacheVectorT, Cache, NBlocks,
+                                       BlockWidth, BlockHeight, 0, 0>(
+      Mask.data(), payload.get_raw_data(), oldDst.data());
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -1988,6 +1966,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
                                  PropertyListT>();
   __ESIMD_DNS::check_lsc_block_2d_restrictions<
@@ -1995,20 +1974,15 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
       __ESIMD_DNS::block_2d_op::prefetch>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
-  constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L2H>()
-                                  << 17;
-  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
-  constexpr uint32_t base_desc = 0x2000003;
-  constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
-  constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
-  constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc =
-      base_desc | cache_mask | transformMask | transposeMask | dataSizeMask;
-  constexpr uint8_t execSize = 1;
-  constexpr uint8_t sfid = 0xF;
-  constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  __ESIMD_NS::raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc,
-                                               desc);
+
+  __ESIMD_NS::simd<T, N> oldDst;
+  __ESIMD_NS::simd_mask<1> Mask = 1;
+
+  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
+
+  __esimd_lsc_prefetch_descriptor<T, CacheVectorT, Cache, NBlocks, BlockWidth,
+                                  BlockHeight, 0, 0>(
+      Mask.data(), payload.get_raw_data(), oldDst.data());
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2037,23 +2011,17 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
       T, BlockWidth, BlockHeight, NBlocks, false, false,
       __ESIMD_DNS::block_2d_op::store>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
                                  PropertyListT>();
 
-  constexpr uint32_t cache_mask = detail::get_lsc_store_cache_mask<L1H, L2H>()
-                                  << 17;
-  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
-  constexpr uint32_t base_desc = 0x2000007;
+  __ESIMD_NS::simd_mask<1> Mask = 1;
 
-  constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc = base_desc | cache_mask | dataSizeMask;
-  constexpr uint8_t execSize = 1;
-  constexpr uint8_t sfid = 0xF;
-  constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
+  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
-  __ESIMD_NS::raw_sends<execSize, sfid, numSrc0, numSrc1>(
-      payload.get_raw_data(), Data, exDesc, desc);
+  __esimd_lsc_prefetch_descriptor<T, CacheVectorT, Cache, NBlocks, BlockWidth,
+                                  BlockHeight, 0, 0>(
+      Mask.data(), payload.get_raw_data(), Data.data());
 }
 
 namespace detail {

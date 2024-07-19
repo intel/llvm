@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: 08 May 2024
-    # Fix warning from switch
-    set(LLVMGenXIntrinsics_GIT_TAG b2565a03eb3cac07f5e8000fde971f95dc782c75)
+    # Date: 05 Jul 2024
+    # Add intrinsic for efficient matrix load/store/prefetch
+    set(LLVMGenXIntrinsics_GIT_TAG 8d2e809368443305155370573f3c6db8279ed87d)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
