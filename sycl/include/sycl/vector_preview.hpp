@@ -33,6 +33,7 @@
 #include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
+#include <sycl/detail/named_swizzles_mixin.hpp>
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
@@ -128,7 +129,9 @@ template <typename DataT, int NumElements>
 class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
-                                                   DataT, NumElements> {
+                                                   DataT, NumElements>,
+      public detail::NamedSwizzlesMixInBoth<vec<DataT, NumElements>,
+                                            NumElements> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -537,26 +540,6 @@ public:
   const DataT &operator[](int i) const { return m_Data[i]; }
 
   DataT &operator[](int i) { return m_Data[i]; }
-
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles. @{
-private:
-  // Indexer used in the swizzles.def
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int value = Index;
-  };
-
-public:
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN this
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // }@ End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
