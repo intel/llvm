@@ -84,14 +84,19 @@ struct IsSubGroupInfo<info::kernel_device_specific::max_sub_group_size>
 template <>
 struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
     : std::true_type {};
+template <typename Param> struct IsKernelInfo : std::false_type {};
+template <>
+struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
+    : std::true_type {};
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <> struct UrInfoCode<info::DescType::Desc> {                        \
-    static constexpr                                                           \
-        typename std::conditional<IsSubGroupInfo<info::DescType::Desc>::value, \
-                                  ur_kernel_sub_group_info_t,                  \
-                                  ur_kernel_group_info_t>::type value =        \
-            UrCode;                                                            \
+    static constexpr typename std::conditional<                                \
+        IsSubGroupInfo<info::DescType::Desc>::value,                           \
+        ur_kernel_sub_group_info_t,                                            \
+        std::conditional<IsKernelInfo<info::DescType::Desc>::value,            \
+                         ur_kernel_info_t,                                     \
+                         ur_kernel_group_info_t>::type>::type value = UrCode;  \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \

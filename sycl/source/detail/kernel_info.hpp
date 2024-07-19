@@ -67,7 +67,17 @@ get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
 }
 
 template <typename Param>
-typename std::enable_if<!IsSubGroupInfo<Param>::value>::type
+typename std::enable_if<IsKernelInfo<Param>::value>::type
+get_kernel_device_specific_info_helper(
+    ur_kernel_handle_t Kernel, [[maybe_unused]] ur_device_handle_t Device,
+    const PluginPtr &Plugin, void *Result, size_t Size) {
+  Plugin->call(urKernelGetInfo, Kernel, UrInfoCode<Param>::value, Size, Result,
+               nullptr);
+}
+
+template <typename Param>
+typename std::enable_if<!IsSubGroupInfo<Param>::value &&
+                        !IsKernelInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
                                        const PluginPtr &Plugin, void *Result,

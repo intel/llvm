@@ -14,6 +14,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// See github issue https://github.com/intel/llvm/issues/14598
+// XFAIL: cuda
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
