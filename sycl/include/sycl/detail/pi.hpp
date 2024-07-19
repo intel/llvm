@@ -101,8 +101,6 @@ bool trace(TraceLevel level);
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);
 
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
-
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
@@ -260,9 +258,7 @@ namespace pi {
 // Want all the needed casts be explicit, do not define conversion
 // operators.
 template <class To, class From> inline To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
-                              "assert: cast failed size check");
+  static_assert(sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 

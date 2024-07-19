@@ -217,8 +217,8 @@ std::string platformInfoToString(pi_platform_info info) {
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
-  assertion(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
-            "More than one bit set");
+  assert(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
+         "More than one bit set");
 
   std::stringstream Sstream;
 
@@ -520,11 +520,6 @@ template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 [[noreturn]] void die(const char *Message) {
   std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
-}
-
-void assertion(bool Condition, const char *Message) {
-  if (!Condition)
-    die(Message);
 }
 
 // Reads an integer value from ELF data.
