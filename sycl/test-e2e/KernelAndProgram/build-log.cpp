@@ -1,5 +1,6 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
 // UNSUPPORTED: cuda || hip || ze_debug
+// TODO: rewrite this into a unit-test
 
 // RUN: %{build} -DGPU -o %t_gpu.out
 // RUN: %{build} -o %t.out
@@ -47,7 +48,6 @@ void test() {
 
     assert(e.code() == sycl::errc::build &&
            "Caught exception was not a compilation error");
-    assert(sycl::detail::get_ur_error(e) == UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE);
   } catch (...) {
     assert(false && "Caught exception was not a compilation error");
   }

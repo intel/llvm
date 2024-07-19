@@ -75,7 +75,8 @@ private:
   std::shared_ptr<detail::kernel_id_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -110,7 +111,8 @@ protected:
   detail::DeviceImageImplPtr impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -141,7 +143,8 @@ private:
       : device_image_plain(std::move(Impl)) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -183,9 +186,13 @@ public:
 
   bool native_specialization_constant() const noexcept;
 
-  bool ext_oneapi_has_kernel(const std::string &name);
+  bool ext_oneapi_has_kernel(const std::string &name) {
+    return ext_oneapi_has_kernel(detail::string_view{name});
+  }
 
-  kernel ext_oneapi_get_kernel(const std::string &name);
+  kernel ext_oneapi_get_kernel(const std::string &name) {
+    return ext_oneapi_get_kernel(detail::string_view{name});
+  }
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -211,6 +218,10 @@ protected:
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
+
+private:
+  bool ext_oneapi_has_kernel(detail::string_view name);
+  kernel ext_oneapi_get_kernel(detail::string_view name);
 };
 
 } // namespace detail
@@ -415,7 +426,8 @@ private:
       : kernel_bundle_plain(std::move(Impl)) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -895,24 +907,82 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
+    sycl::detail::string_view Source,
+    std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+        IncludePairsVec);
+
+inline kernel_bundle<bundle_state::ext_oneapi_source>
+make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
     const std::string &Source,
-    std::vector<std::pair<std::string, std::string>> IncludePairsVec);
+    std::vector<std::pair<std::string, std::string>> IncludePairsVec) {
+  size_t n = IncludePairsVec.size();
+  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+      PairVec;
+  PairVec.reserve(n);
+  for (auto &Pair : IncludePairsVec)
+    PairVec.push_back({sycl::detail::string_view{Pair.first},
+                       sycl::detail::string_view{Pair.second}});
+
+  return make_kernel_bundle_from_source(
+      SyclContext, Language, sycl::detail::string_view{Source}, PairVec);
+}
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes,
-    std::vector<std::pair<std::string, std::string>> IncludePairsVec);
+    std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+        IncludePairsVec);
+
+inline kernel_bundle<bundle_state::ext_oneapi_source>
+make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::vector<std::byte> &Bytes,
+    std::vector<std::pair<std::string, std::string>> IncludePairsVec) {
+  size_t n = IncludePairsVec.size();
+  std::vector<std::pair<sycl::detail::string_view, sycl::detail::string_view>>
+      PairVec;
+  PairVec.reserve(n);
+  for (auto &Pair : IncludePairsVec)
+    PairVec.push_back({sycl::detail::string_view{Pair.first},
+                       sycl::detail::string_view{Pair.second}});
+
+  return make_kernel_bundle_from_source(SyclContext, Language, Bytes, PairVec);
+}
 #endif
 
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+__SYCL_EXPORT kernel_bundle<bundle_state::executable> build_from_source(
+    kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+    const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &BuildOptions,
+    sycl::detail::string *LogPtr,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames);
+
+inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames);
+                  const std::vector<std::string> &RegisteredKernelNames) {
+  std::vector<sycl::detail::string_view> Options;
+  for (const std::string &opt : BuildOptions)
+    Options.push_back(sycl::detail::string_view{opt});
 
+  std::vector<sycl::detail::string_view> KernelNames;
+  for (const std::string &name : RegisteredKernelNames)
+    KernelNames.push_back(sycl::detail::string_view{name});
+
+  if (LogPtr) {
+    sycl::detail::string Log;
+    auto result =
+        build_from_source(SourceKB, Devices, Options, &Log, KernelNames);
+    *LogPtr = Log.c_str();
+    return result;
+  }
+  return build_from_source(SourceKB, Devices, Options, nullptr, KernelNames);
+}
 } // namespace detail
 
 /////////////////////////

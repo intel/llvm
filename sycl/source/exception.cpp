@@ -68,13 +68,6 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
 }
 
 namespace detail {
-int32_t get_ur_error(const exception &e) { return e.MErr; }
-
-exception set_ur_error(exception &&e, int32_t ur_err) {
-  e.MErr = ur_err;
-  return std::move(e);
-}
-
 __SYCL_EXPORT const char *stringifyErrorCode(int32_t error) {
   switch (error) {
 #define _UR_ERRC(NAME)                                                         \

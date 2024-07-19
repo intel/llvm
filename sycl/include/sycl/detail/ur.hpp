@@ -277,8 +277,6 @@ bool trace();
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] __SYCL_EXPORT void die(const char *Message);
 
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
-
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);
 
@@ -286,7 +284,7 @@ template <class To, class From> To cast(From value);
 // operators.
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
-  assertion(sizeof(From) == sizeof(To), "assert: cast failed size check");
+  static_assert(sizeof(From) == sizeof(To), "assert: cast failed size check");
   return reinterpret_cast<To>(value);
 }
 

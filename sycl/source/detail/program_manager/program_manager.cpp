@@ -178,8 +178,8 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ")\n";
   const ur_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -348,7 +348,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+  const auto PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -716,7 +716,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     }
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
+              getSyclObjImpl(Device).get()->getHandleRef(), DeviceLibReqMask,
               ProgramsToLink);
     // Those extra programs won't be used anymore, just the final linked result
     for (ur_program_handle_t Prg : ProgramsToLink)
@@ -1192,8 +1192,9 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1242,8 +1243,9 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -2237,7 +2239,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   appendCompileEnvironmentVariablesThatAppend(CompileOptions);
   ur_result_t Error = doCompile(
       Plugin, ObjectImpl->get_ur_program_ref(), Devs.size(), URDevices.data(),
-      getRawSyclObjImpl(InputImpl->get_context())->getHandleRef(),
+      getSyclObjImpl(InputImpl->get_context()).get()->getHandleRef(),
       CompileOptions.c_str());
   if (Error != UR_RESULT_SUCCESS)
     throw sycl::exception(
@@ -2433,7 +2435,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     std::vector<ur_program_handle_t> ExtraProgramsToLink;
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask,
+              getSyclObjImpl(Devs[0]).get()->getHandleRef(), DeviceLibReqMask,
               ExtraProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
@@ -2465,7 +2467,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   }
 
   uint32_t ImgId = Img.getImageID();
-  ur_device_handle_t UrDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  ur_device_handle_t UrDevice = getSyclObjImpl(Devs[0]).get()->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), UrDevice);
 
@@ -2494,7 +2496,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // call to getOrBuild, so starting with "1"
   for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const ur_device_handle_t UrDeviceAdd =
-        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
+        getSyclObjImpl(Devs[Idx]).get()->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = UrDeviceAdd;

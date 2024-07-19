@@ -2666,7 +2666,7 @@ private:
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 

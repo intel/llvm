@@ -92,7 +92,7 @@ protected:
   std::shared_ptr<detail::image_mem_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 

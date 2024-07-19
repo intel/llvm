@@ -383,12 +383,6 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   std::terminate();
 }
 
-void assertion(bool Condition, const char *Message) {
-  if (!Condition) {
-    die(Message);
-  }
-}
-
 } // namespace ur
 } // namespace detail
 } // namespace _V1
