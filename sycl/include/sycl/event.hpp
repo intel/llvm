@@ -70,13 +70,6 @@ public:
 
   bool operator!=(const event &rhs) const;
 
-  /// Checks if this event is a SYCL host event.
-  ///
-  /// \return true if this event is a SYCL host event.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Return the list of events that this event waits for.
   ///
   /// Only direct dependencies are returned. Already completed events are not
@@ -129,8 +122,8 @@ public:
   /// call to this member function will block until the requested info is
   /// available. If the queue which submitted the command group this event is
   /// associated with was not constructed with the
-  /// property::queue::enable_profiling property, an invalid_object_error SYCL
-  /// exception is thrown.
+  /// property::queue::enable_profiling property, an a SYCL exception with
+  /// errc::invalid error code is thrown.
   ///
   /// \return depends on template parameter.
   template <typename Param>
@@ -152,7 +145,8 @@ private:
   std::shared_ptr<detail::event_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

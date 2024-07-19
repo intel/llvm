@@ -237,6 +237,41 @@ TEST_F(CommandGraphTest, ExplicitBarrierException) {
   ASSERT_EQ(Success, false);
 }
 
+TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph2{
+      Queue};
+
+  Graph2.begin_recording({Queue});
+
+  auto Node = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph2.end_recording();
+
+  auto Event = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.begin_recording(Queue);
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Node});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Event});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  Graph2.end_recording();
+}
+
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   device D;
   if (!D.get_info<
@@ -570,4 +605,26 @@ TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
     Success = false;
   }
   ASSERT_EQ(Success, false);
+}
+
+TEST_F(CommandGraphTest, ClusterLaunchException) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+
+  syclex::properties cluster_launch_property{
+      syclex::cuda::cluster_size<1>(sycl::range<1>{4})};
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Graph.begin_recording(Queue);
+    auto Event1 = Queue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
+                                     cluster_launch_property,
+                                     [&](sycl::nd_item<1> it) {});
+    });
+    Queue.wait();
+    Graph.end_recording(Queue);
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }

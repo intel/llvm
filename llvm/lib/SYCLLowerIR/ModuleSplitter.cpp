@@ -20,14 +20,19 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -46,6 +51,11 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+
+cl::opt<bool> SupportDynamicLinking{
+    "support-dynamic-linking",
+    cl::desc("Generate device images that are suitable for dynamic linking"),
+    cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
@@ -129,10 +139,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   return false;
 }
 
-bool isESIMDFunction(const Function &F) {
-  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
 // Represents "dependency" or "use" graph of global objects (functions and
 // global variables) in a module. It is used during device code split to
 // understand which global variables and functions (other than entry points)
@@ -159,7 +165,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M, bool SupportDynamicLinking) {
+  DependencyGraph(const Module &M) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -422,10 +428,9 @@ public:
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
-                 bool SupportDynamicLinking)
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule(), SupportDynamicLinking) {}
+        CG(Input.getModule()) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -438,6 +443,28 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
+  static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
+                                                {"source", SPLIT_PER_TU},
+                                                {"auto", SPLIT_AUTO},
+                                                {"none", SPLIT_NONE}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
+
+bool isESIMDFunction(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
+cl::OptionCategory &getModuleSplitCategory() {
+  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
+  return ModuleSplitCategory;
+}
 
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
@@ -633,6 +660,14 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
+// Predicate for Internalize pass.
+bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV))
+    if (!canBeImportedFunction(*F))
+      return false;
+  return true;
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -640,6 +675,8 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
+  if (SupportDynamicLinking)
+    MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -997,8 +1034,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints,
-                      bool SupportDynamicLinking) {
+                      bool EmitOnlyKernelsAsEntryPoints) {
   FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
@@ -1071,8 +1107,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
-                                            SupportDynamicLinking);
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
@@ -1097,8 +1132,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // avoid undefined behavior at later stages. That is done at higher level,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints,
-                                        bool SupportDynamicLinking) {
+                                        bool EmitOnlyKernelsAsEntryPoints) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1136,18 +1170,17 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD.releaseModulePtr()),
-                        std::move(EntryPointGroups[0]), MD.Props);
+    Result.emplace_back(MD.releaseModulePtr(), std::move(EntryPointGroups[0]),
+                        MD.Props);
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule(), SupportDynamicLinking);
+  DependencyGraph CG(MD.getModule());
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(
-          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1155,9 +1188,9 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // modules are expected to be linked back together after ESIMD functions
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
-      Result.emplace_back(std::move(extractCallGraph(
+      Result.emplace_back(extractCallGraph(
           MD, std::move(Group), CG,
-          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
 
@@ -1196,14 +1229,69 @@ static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
   return SM;
 }
 
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
+  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
+
+  if (!EntriesMBOrErr)
+    return createFileError(File, EntriesMBOrErr.getError());
+
+  line_iterator LI(**EntriesMBOrErr);
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
+  std::vector<module_split::SplitModule> Modules;
+  while (!LI.is_at_eof()) {
+    StringRef Line = *LI;
+    if (Line.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL table row.");
+
+    SmallVector<StringRef, 3> Parts;
+    Line.split(Parts, "|");
+    if (Parts.size() != 3)
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
+        std::tie(Parts[0], Parts[1], Parts[2]);
+    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
+    if (!MBOrErr)
+      return createFileError(PropertyFilePath, MBOrErr.getError());
+
+    auto &MB = **MBOrErr;
+    auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
+    if (!PropSetOrErr)
+      return PropSetOrErr.takeError();
+
+    llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
+    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
+    if (!MBOrErr)
+      return createFileError(SymbolsFilePath, MBOrErr.getError());
+
+    auto &MB2 = *MBOrErr;
+    std::string Symbols =
+        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
+    ++LI;
+  }
+
+  return Modules;
+}
+
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
-                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
-                                        /*SupportDynamicLinking=*/false);
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {

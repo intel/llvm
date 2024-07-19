@@ -53,7 +53,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_enqueue_barrier = 4,
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
-  sycl_ext_oneapi_bindless_images = 7
+  sycl_ext_oneapi_bindless_images = 7,
+  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8
 };
 
 inline const char *
@@ -76,6 +77,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
+  case UGF::sycl_ext_oneapi_experimental_cuda_cluster_launch:
+    return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -130,7 +133,7 @@ private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -339,7 +342,7 @@ protected:
   void addGraphLeafDependencies(node Node);
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -377,7 +380,7 @@ protected:
                            const property_list &PropList = {});
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
@@ -439,7 +442,7 @@ protected:
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 } // namespace detail

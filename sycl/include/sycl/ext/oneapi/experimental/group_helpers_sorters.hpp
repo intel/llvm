@@ -37,22 +37,22 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class group_algorithm_data_placement { blocked, striped };
+enum class group_algorithm_data_placement : std::uint8_t { blocked, striped };
 
 struct input_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::InputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<input_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      input_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 struct output_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::OutputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<output_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      output_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 template <group_algorithm_data_placement Placement>
@@ -97,158 +97,8 @@ public:
   sycl::span<std::byte, Extent> get_memory() const { return scratch; }
 };
 
-// Default sorter provided by the first version of the extension specification.
-template <typename Compare = std::less<>> class default_sorter {
-  Compare comp;
-  sycl::span<std::byte> scratch;
-
-public:
-  template <size_t Extent>
-  default_sorter(sycl::span<std::byte, Extent> scratch_,
-                 Compare comp_ = Compare())
-      : comp(comp_), scratch(scratch_) {}
-
-  template <typename Group, typename Ptr>
-  void operator()([[maybe_unused]] Group g, [[maybe_unused]] Ptr first,
-                  [[maybe_unused]] Ptr last) {
-#ifdef __SYCL_DEVICE_ONLY__
-    using T = typename sycl::detail::GetValueType<Ptr>::type;
-    size_t n = last - first;
-    T *scratch_begin = sycl::detail::align_scratch<T>(scratch, g, n);
-    sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter constructor is not supported on host device.");
-#endif
-  }
-
-  template <typename Group, typename T>
-  T operator()([[maybe_unused]] Group g, T val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    std::size_t local_id = g.get_local_linear_id();
-    auto range_size = g.get_local_range().size();
-    T *scratch_begin = sycl::detail::align_scratch<T>(
-        scratch, g, /* output storage and temporary storage */ 2 * range_size);
-    scratch_begin[local_id] = val;
-    sycl::detail::merge_sort(g, scratch_begin, range_size, comp,
-                             scratch_begin + range_size);
-    val = scratch_begin[local_id];
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter operator() is not supported on host device.");
-#endif
-    return val;
-  }
-
-  template <typename T>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
-    return range_size * sizeof(T) + alignof(T);
-  }
-
-  template <typename T, int dim = 1>
-  static constexpr size_t memory_required(sycl::memory_scope scope,
-                                          sycl::range<dim> r) {
-    return 2 * memory_required<T>(scope, r.size());
-  }
-};
-
 enum class sorting_order { ascending, descending };
 
-namespace detail {
-
-template <typename T, sorting_order = sorting_order::ascending>
-struct ConvertToComp {
-  using Type = std::less<T>;
-};
-
-template <typename T> struct ConvertToComp<T, sorting_order::descending> {
-  using Type = std::greater<T>;
-};
-} // namespace detail
-
-// Radix sorter provided by the first version of the extension specification.
-template <typename ValT, sorting_order OrderT = sorting_order::ascending,
-          unsigned int BitsPerPass = 4>
-class radix_sorter {
-
-  sycl::span<std::byte> scratch;
-  uint32_t first_bit = 0;
-  uint32_t last_bit = 0;
-
-  static constexpr uint32_t bits = BitsPerPass;
-  using bitset_t = std::bitset<sizeof(ValT) * CHAR_BIT>;
-
-public:
-  template <size_t Extent>
-  radix_sorter(sycl::span<std::byte, Extent> scratch_,
-               const bitset_t mask = bitset_t{}.set())
-      : scratch(scratch_) {
-    static_assert((std::is_arithmetic<ValT>::value ||
-                   std::is_same<ValT, sycl::half>::value ||
-                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
-                  "radix sort is not usable");
-
-    for (first_bit = 0; first_bit < mask.size() && !mask[first_bit];
-         ++first_bit)
-      ;
-    for (last_bit = first_bit; last_bit < mask.size() && mask[last_bit];
-         ++last_bit)
-      ;
-  }
-
-  template <typename GroupT, typename PtrT>
-  void operator()([[maybe_unused]] GroupT g, [[maybe_unused]] PtrT first,
-                  [[maybe_unused]] PtrT last) {
-#ifdef __SYCL_DEVICE_ONLY__
-    sycl::detail::privateDynamicSort</*is_key_value=*/false,
-                                     OrderT == sorting_order::ascending,
-                                     /*empty*/ 1, BitsPerPass>(
-        g, first, /*empty*/ first, last - first, scratch.data(), first_bit,
-        last_bit);
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
-#endif
-  }
-
-  template <typename GroupT>
-  ValT operator()([[maybe_unused]] GroupT g, [[maybe_unused]] ValT val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    ValT result[]{val};
-    sycl::detail::privateStaticSort</*is_key_value=*/false,
-                                    /*is_blocked=*/true,
-                                    OrderT == sorting_order::ascending,
-                                    /*items_per_work_item=*/1, bits>(
-        g, result, /*empty*/ result, scratch.data(), first_bit, last_bit);
-    return result[0];
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
-#endif
-  }
-
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
-    return range_size * sizeof(ValT) +
-           (1 << bits) * range_size * sizeof(uint32_t) + alignof(uint32_t);
-  }
-
-  // memory_helpers
-  template <int dimensions = 1>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          sycl::range<dimensions> local_range) {
-    return (std::max)(local_range.size() * sizeof(ValT),
-                      local_range.size() * (1 << bits) * sizeof(uint32_t));
-  }
-};
-
-// Default sorters provided by the second version of the extension
-// specification.
 namespace default_sorters {
 
 template <typename CompareT = std::less<>> class joint_sorter {
@@ -266,7 +116,7 @@ public:
                   [[maybe_unused]] Ptr last) {
 #ifdef __SYCL_DEVICE_ONLY__
     using T = typename sycl::detail::GetValueType<Ptr>::type;
-    size_t n = last - first;
+    size_t n = std::distance(first, last);
     T *scratch_begin = sycl::detail::align_scratch<T>(scratch, g, n);
     sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
 #else
@@ -340,10 +190,13 @@ public:
 #endif
   }
 
-  static std::size_t memory_required(sycl::memory_scope scope,
+  static std::size_t memory_required([[maybe_unused]] sycl::memory_scope scope,
                                      size_t range_size) {
-    return 2 * joint_sorter<>::template memory_required<T>(
-                   scope, range_size * ElementsPerWorkItem);
+    // We need a space (in bytes) for the buffer of output values and the
+    // temporary buffer. Where number of elements in each buffer is range_size
+    // (group size) multiplied by elements per work item. Also we have to align
+    // these two buffers, so need an additional space of size alignof(T).
+    return 2 * range_size * ElementsPerWorkItem * sizeof(T) + alignof(T);
   }
 };
 
@@ -360,30 +213,110 @@ public:
       : comp(comp_), scratch(scratch_) {}
 
   template <typename Group>
-  std::tuple<KeyTy, ValueTy> operator()(Group g, KeyTy key, ValueTy value) {
+  std::tuple<KeyTy, ValueTy> operator()([[maybe_unused]] Group g, KeyTy key,
+                                        ValueTy value) {
     static_assert(ElementsPerWorkItem == 1,
                   "ElementsPerWorkItem must be equal 1");
+#ifdef __SYCL_DEVICE_ONLY__
+    auto range_size = g.get_local_linear_range();
+    std::size_t local_id = g.get_local_linear_id();
+    auto [keys_scratch_begin, values_scratch_begin] =
+        sycl::detail::align_key_value_scratch<KeyTy, ValueTy>(scratch, g,
+                                                              2 * range_size);
 
-    using KeyValue = std::tuple<KeyTy, ValueTy>;
-    auto comp_key_value = [this_comp = this->comp](const KeyValue &lhs,
-                                                   const KeyValue &rhs) {
-      return this_comp(std::get<0>(lhs), std::get<0>(rhs));
-    };
-    return group_sorter<KeyValue, decltype(comp_key_value),
-                        ElementsPerWorkItem>(scratch, comp_key_value)(
-        g, KeyValue(key, value));
+    keys_scratch_begin[local_id] = key;
+    values_scratch_begin[local_id] = value;
+
+    auto scratch_begin = sycl::detail::key_value_iterator(keys_scratch_begin,
+                                                          values_scratch_begin);
+    auto scratch_temp_begin = sycl::detail::key_value_iterator(
+        keys_scratch_begin + range_size, values_scratch_begin + range_size);
+    sycl::detail::merge_sort(
+        g, scratch_begin, range_size,
+        [this](auto x, auto y) { return comp(std::get<0>(x), std::get<0>(y)); },
+        scratch_temp_begin);
+
+    key = keys_scratch_begin[local_id];
+    value = values_scratch_begin[local_id];
+#endif
+    return std::make_tuple(key, value);
   }
 
-  static std::size_t memory_required(sycl::memory_scope scope,
+  template <typename Group, typename Properties>
+  void
+  operator()([[maybe_unused]] Group g,
+             [[maybe_unused]] sycl::span<KeyTy, ElementsPerWorkItem> keys,
+             [[maybe_unused]] sycl::span<ValueTy, ElementsPerWorkItem> values,
+             [[maybe_unused]] Properties property) {
+#ifdef __SYCL_DEVICE_ONLY__
+    auto range_size = g.get_local_linear_range();
+    std::size_t local_id = g.get_local_linear_id();
+    auto number_of_elements = range_size * ElementsPerWorkItem;
+    auto [keys_scratch_begin, values_scratch_begin] =
+        sycl::detail::align_key_value_scratch<KeyTy, ValueTy>(
+            scratch, g, 2 * number_of_elements);
+
+    std::size_t shift{};
+    for (std::uint32_t i = 0; i < ElementsPerWorkItem; ++i) {
+      if constexpr (detail::isInputBlocked(property)) {
+        shift = local_id * ElementsPerWorkItem + i;
+      } else {
+        shift = i * range_size + local_id;
+      }
+      keys_scratch_begin[shift] = keys[i];
+      values_scratch_begin[shift] = values[i];
+    }
+
+    // We need a barrier here if input is striped.
+    // When input is blocked, each work item initializes elements which it is
+    // going to process, so we can start bubble sort (the first step in
+    // merge_sort function) without any barrier because it sorts elements within
+    // work item. When input is striped, work item initializes elements which
+    // can possibly be processed by another work items, so we have to put a
+    // barrier.
+    if constexpr (!detail::isInputBlocked(property))
+      sycl::group_barrier(g);
+
+    auto scratch_begin = sycl::detail::key_value_iterator(keys_scratch_begin,
+                                                          values_scratch_begin);
+    auto scratch_temp_begin = sycl::detail::key_value_iterator(
+        keys_scratch_begin + number_of_elements,
+        values_scratch_begin + number_of_elements);
+    sycl::detail::merge_sort(
+        g, scratch_begin, number_of_elements,
+        [this](auto x, auto y) { return comp(std::get<0>(x), std::get<0>(y)); },
+        scratch_temp_begin);
+
+    // from temp
+    for (std::uint32_t i = 0; i < ElementsPerWorkItem; ++i) {
+      if constexpr (detail::isOutputBlocked(property)) {
+        shift = local_id * ElementsPerWorkItem + i;
+      } else {
+        shift = i * range_size + local_id;
+      }
+
+      keys[i] = std::get<0>(scratch_begin[shift]);
+      values[i] = std::get<1>(scratch_begin[shift]);
+    }
+#endif
+  }
+
+  static std::size_t memory_required([[maybe_unused]] sycl::memory_scope scope,
                                      std::size_t range_size) {
-    return group_sorter<std::tuple<KeyTy, ValueTy>, CompareT,
-                        ElementsPerWorkItem>::memory_required(scope,
-                                                              range_size);
+    // We need a space (in bytes) for the following buffers:
+    // 1. Output buffer for keys and temporary buffer for keys.
+    // 2. Output buffer for values and temporary buffer for values.
+    // Where number of elements in each buffer is range_size (group size)
+    // multiplied by elements per work item. We have to align buffers of keys
+    // and buffers of values, so need an additional space equal to maximum
+    // between alignment requirements of types KeyTy and ValueTy.
+    return 2 * range_size * ElementsPerWorkItem *
+               (sizeof(KeyTy) + sizeof(ValueTy)) +
+           (std::max)(alignof(KeyTy), alignof(ValueTy));
   }
 };
 } // namespace default_sorters
 
-// Radix sorters provided by the second version of the extension specification.
 namespace radix_sorters {
 
 template <typename ValT, sorting_order OrderT = sorting_order::ascending,
@@ -422,8 +355,8 @@ public:
     sycl::detail::privateDynamicSort</*is_key_value=*/false,
                                      OrderT == sorting_order::ascending,
                                      /*empty*/ 1, BitsPerPass>(
-        g, first, /*empty*/ first, last - first, scratch.data(), first_bit,
-        last_bit);
+        g, first, /*empty*/ first, std::distance(first, last), scratch.data(),
+        first_bit, last_bit);
 #else
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
@@ -473,7 +406,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     ValT result[]{val};
     sycl::detail::privateStaticSort</*is_key_value=*/false,
-                                    /*is_blocked=*/true,
+                                    /*is_input_blocked=*/true,
+                                    /*is_output_blocked=*/true,
                                     OrderT == sorting_order::ascending,
                                     /*items_per_work_item=*/1, bits>(
         g, result, /*empty*/ result, scratch.data(), first_bit, last_bit);
@@ -491,10 +425,10 @@ public:
                   [[maybe_unused]] Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateStaticSort<
-        /*is_key_value=*/false, detail::isOutputBlocked(properties),
-        OrderT == sorting_order::ascending, ElementsPerWorkItem, bits>(
-        g, values.data(), /*empty*/ values.data(), scratch.data(), first_bit,
-        last_bit);
+        /*is_key_value=*/false, /*is_input_blocked=*/true,
+        detail::isOutputBlocked(properties), OrderT == sorting_order::ascending,
+        ElementsPerWorkItem, bits>(g, values.data(), /*empty*/ values.data(),
+                                   scratch.data(), first_bit, last_bit);
 #endif
   }
 
@@ -542,12 +476,28 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true,
-        /*is_blocked=*/true, Order == sorting_order::ascending, 1, bits>(
+        /*is_input_blocked=*/true,
+        /*is_output_blocked=*/true, Order == sorting_order::ascending, 1, bits>(
         g, key_result, val_result, scratch.data(), first_bit, last_bit);
 #endif
     key = key_result[0];
     val = val_result[0];
     return {key, val};
+  }
+
+  template <typename Group, typename Properties>
+  void
+  operator()([[maybe_unused]] Group g,
+             [[maybe_unused]] sycl::span<KeyTy, ElementsPerWorkItem> keys,
+             [[maybe_unused]] sycl::span<ValueTy, ElementsPerWorkItem> vals,
+             [[maybe_unused]] Properties properties) {
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::detail::privateStaticSort<
+        /*is_key_value=*/true, detail::isInputBlocked(properties),
+        detail::isOutputBlocked(properties), Order == sorting_order::ascending,
+        ElementsPerWorkItem, bits>(g, keys.data(), vals.data(), scratch.data(),
+                                   first_bit, last_bit);
+#endif
   }
 
   static constexpr std::size_t memory_required(sycl::memory_scope,
