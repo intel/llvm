@@ -1428,7 +1428,7 @@ private:
     processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
-      setType(detail::CGType::Kernel);
+    setType(detail::CGType::Kernel);
     setNDRangeUsed(true);
 #endif
   }
@@ -3118,7 +3118,7 @@ public:
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestImgDesc is the image descriptor
   void ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc);
 
   /// Copies data from one memory region to another, where \p Src is a USM
@@ -3142,7 +3142,7 @@ public:
   /// \param CopyExtent is the width, height, and depth of the region to copy
   ///               measured in pixels as determined by \p DestImgDesc
   void ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -3158,7 +3158,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param SrcImgDesc is the source image descriptor
   void ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
 
   /// Copies data from one memory region to another, where \p Src is an opaque
@@ -3183,7 +3183,7 @@ public:
   ///               measured in pixels (pixel size determined by
   ///               \p SrcImgDesc )
   void
-  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+  ext_oneapi_copy(const ext::oneapi::experimental::image_mem_handle Src,
                   sycl::range<3> SrcOffset,
                   const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                   void *Dest, sycl::range<3> DestOffset,
@@ -3200,7 +3200,7 @@ public:
   /// \param DeviceImgDesc is the image descriptor (format, order, dimensions).
   /// \param DeviceRowPitch is the pitch of the rows on the device.
   void ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
 
@@ -3212,7 +3212,7 @@ public:
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param ImageDesc is the source image descriptor
   void
-  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+  ext_oneapi_copy(const ext::oneapi::experimental::image_mem_handle Src,
                   ext::oneapi::experimental::image_mem_handle Dest,
                   const ext::oneapi::experimental::image_descriptor &ImageDesc);
 
@@ -3239,7 +3239,7 @@ public:
   ///               measured in pixels (pixel size determined by
   ///               \p DeviceImgDesc )
   void ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -3369,7 +3369,7 @@ private:
   friend class ext::intel::experimental::pipe;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Read from a host pipe given a host address and

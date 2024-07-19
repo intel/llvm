@@ -177,8 +177,8 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ")\n";
   const pi_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -349,7 +349,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+  const auto PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -716,7 +716,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     }
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask,
+              getSyclObjImpl(Device).get()->getHandleRef(), DeviceLibReqMask,
               ProgramsToLink);
     // Those extra programs won't be used anymore, just the final linked result
     for (sycl::detail::pi::PiProgram Prg : ProgramsToLink)
@@ -1155,8 +1155,9 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1205,8 +1206,9 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Context).get() << ", "
+              << getSyclObjImpl(Device).get() << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -2373,7 +2375,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     std::vector<sycl::detail::pi::PiProgram> ExtraProgramsToLink;
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask,
+              getSyclObjImpl(Devs[0]).get()->getHandleRef(), DeviceLibReqMask,
               ExtraProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
@@ -2406,7 +2408,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
-      getRawSyclObjImpl(Devs[0])->getHandleRef();
+      getSyclObjImpl(Devs[0]).get()->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
@@ -2435,7 +2437,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // call to getOrBuild, so starting with "1"
   for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const sycl::detail::pi::PiDevice PiDeviceAdd =
-        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
+        getSyclObjImpl(Devs[Idx]).get()->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = PiDeviceAdd;
