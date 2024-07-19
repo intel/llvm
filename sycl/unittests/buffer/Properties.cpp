@@ -29,6 +29,17 @@ TEST(BufferProps, ValidPropsMutex) {
   // no explicit checks, we expect no exception to be thrown
 }
 
+TEST(BufferProps, ValidPropsPinnedHostMem) {
+  sycl::buffer<int, 1> Buf(
+      1, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
+  // no explicit checks, we expect no exception to be thrown
+}
+
+TEST(BufferProps, ValidPropsMemChannel) {
+  sycl::buffer<int, 1> Buf(1, sycl::property::buffer::mem_channel{1});
+  // no explicit checks, we expect no exception to be thrown
+}
+
 TEST(BufferProps, SetAndQueryMatch) {
   sycl::unittest::PiMock Mock;
   std::mutex Mutex;

@@ -19,8 +19,8 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename... PropType>
-std::multimap<int, bool> GenerateAllowedProps() {
-  std::multimap<int, bool> AllowedProps;
+std::set<std::pair<int, bool>> GenerateAllowedProps() {
+  std::set<std::pair<int, bool>> AllowedProps;
   (AllowedProps.insert(
        {PropType::getKind(),
         std::is_base_of_v<detail::PropertyWithDataBase, PropType>}),
@@ -29,8 +29,8 @@ std::multimap<int, bool> GenerateAllowedProps() {
 }
 
 void checkPropsAndThrow(const sycl::property_list &CreationProps,
-                        const std::multimap<int, bool> AllowedProps) {
-  std::multimap<int, bool> Props;
+                        const std::set<std::pair<int, bool>> &AllowedProps) {
+  std::set<std::pair<int, bool>> Props;
   CreationProps.convertPropertiesToKinds(Props);
   if (!std::includes(AllowedProps.begin(), AllowedProps.end(), Props.begin(),
                      Props.end()))

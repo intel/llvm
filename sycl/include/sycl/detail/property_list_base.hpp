@@ -15,10 +15,10 @@
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
 #include <memory>      // for shared_ptr, __shared_ptr_...
+#include <set>         // for set
 #include <type_traits> // for enable_if_t
 #include <utility>     // for move
 #include <vector>      // for vector
-#include <map>         // for multimap
 
 namespace sycl {
 inline namespace _V1 {
@@ -128,7 +128,8 @@ protected:
     }
   }
 
-  void convertPropertiesToKinds(std::multimap<int, bool>& PropKinds) const{
+  void
+  convertPropertiesToKinds(std::set<std::pair<int, bool>> &PropKinds) const {
     for (size_t it = 0; it < MDataLessProps.size(); it++)
     {
       if (MDataLessProps[it])
