@@ -5,6 +5,7 @@
 // Helper holder for all the data we want to capture from mocked APIs
 struct LinkingCapturesHolder {
   unsigned NumOfPiProgramCreateCalls = 0;
+  unsigned NumOfPiProgramCreateWithBinaryCalls = 0;
   unsigned NumOfPiProgramLinkCalls = 0;
   unsigned ProgramUsedToCreateKernel = 0;
   std::vector<unsigned> LinkedPrograms;
@@ -33,6 +34,18 @@ static pi_result redefined_piProgramCreate(pi_context, const void *il,
   *res = createDummyHandle<pi_program>(sizeof(unsigned));
   reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(*Magic);
   ++CapturedLinkingData.NumOfPiProgramCreateCalls;
+  return PI_SUCCESS;
+}
+
+static pi_result redefined_piProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *ret_program) {
+  auto *Magic = reinterpret_cast<const unsigned char *>(*binaries);
+  *ret_program = createDummyHandle<pi_program>(sizeof(unsigned));
+  reinterpret_cast<DummyHandlePtrT>(*ret_program)->setDataAs<unsigned>(*Magic);
+  ++CapturedLinkingData.NumOfPiProgramCreateWithBinaryCalls;
   return PI_SUCCESS;
 }
 
@@ -73,6 +86,8 @@ static sycl::unittest::PiMock setupRuntimeLinkingMock() {
 
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefined_piProgramCreate);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreateWithBinary>(
+      redefined_piProgramCreateWithBinary);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
       redefined_piProgramLink);
   Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(

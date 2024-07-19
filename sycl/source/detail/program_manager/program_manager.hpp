@@ -307,7 +307,8 @@ private:
   build(ProgramPtr Program, const ContextImplPtr Context,
         const std::string &CompileOptions, const std::string &LinkOptions,
         const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
-        const std::vector<sycl::detail::pi::PiProgram> &ProgramsToLink);
+        const std::vector<sycl::detail::pi::PiProgram> &ProgramsToLink,
+        bool CreatedFromBinary = false);
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 

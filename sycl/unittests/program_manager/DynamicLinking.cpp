@@ -54,13 +54,12 @@ createPropertySet(const std::vector<std::string> &Symbols) {
   return Props;
 }
 
-sycl::unittest::PiImage
-generateImage(std::initializer_list<std::string> KernelNames,
-              const std::vector<std::string> &ExportedSymbols,
-              const std::vector<std::string> &ImportedSymbols,
-              unsigned char Magic,
-              sycl::detail::pi::PiDeviceBinaryType BinType =
-                  PI_DEVICE_BINARY_TYPE_SPIRV) {
+sycl::unittest::PiImage generateImage(
+    std::initializer_list<std::string> KernelNames,
+    const std::vector<std::string> &ExportedSymbols,
+    const std::vector<std::string> &ImportedSymbols, unsigned char Magic,
+    sycl::detail::pi::PiDeviceBinaryType BinType = PI_DEVICE_BINARY_TYPE_SPIRV,
+    const char *DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) {
   sycl::unittest::PiPropertySet PropSet;
   if (!ExportedSymbols.empty())
     PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
@@ -73,14 +72,13 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::PiImage Img{
-      BinType,
-      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
-      std::move(Bin),
-      std::move(Entries),
-      std::move(PropSet)};
+  sycl::unittest::PiImage Img{BinType,
+                              DeviceTargetSpec,
+                              "", // Compile options
+                              "", // Link options
+                              std::move(Bin),
+                              std::move(Entries),
+                              std::move(PropSet)};
 
   return Img;
 }
@@ -102,7 +100,8 @@ static sycl::unittest::PiImage Imgs[] = {
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP_NATIVE,
-                  PI_DEVICE_BINARY_TYPE_NATIVE),
+                  PI_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"BasicCaseKernelDepDep"}, {"BasicCaseKernelDepDep"}, {},
                   BASIC_CASE_PRG_DEP_DEP),
     generateImage({"UnresolvedDepKernel"}, {},
@@ -114,9 +113,11 @@ static sycl::unittest::PiImage Imgs[] = {
                   {"MutualDepKernelADep"}, {"MutualDepKernelBDep"},
                   MUTUAL_DEP_PRG_B),
     generateImage({"AOTCaseKernel"}, {}, {"AOTCaseKernelDep"},
-                  AOT_CASE_PRG_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE),
+                  AOT_CASE_PRG_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
-                  AOT_CASE_PRG_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE)};
+                  AOT_CASE_PRG_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::PiImageArray<9> ImgArray{Imgs};
@@ -181,16 +182,35 @@ TEST(DynamicLinking, MutualDependency) {
 }
 
 TEST(DynamicLinking, AheadOfTime) {
+  auto Mock = setupRuntimeLinkingMock();
+
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateWithBinaryCalls, 2u);
+  // Both programs should be linked together.
+  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {AOT_CASE_PRG_NATIVE, AOT_CASE_PRG_DEP_NATIVE}));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            AOT_CASE_PRG_NATIVE * AOT_CASE_PRG_DEP_NATIVE);
+}
+
+TEST(DynamicLinking, AheadOfTimeUnsupported) {
   try {
-    sycl::unittest::PiMock Mock;
+    sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
     sycl::platform Plt = Mock.getPlatform();
     sycl::queue Q(Plt.get_devices()[0]);
     Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
     FAIL();
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(),
-                 "Dynamic linking is not supported for AOT compilation yet");
+    EXPECT_STREQ(e.what(), "Cannot resolve external symbols, linking is "
+                           "unsupported for the backend");
   }
 }
 

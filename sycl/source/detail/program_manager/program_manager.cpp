@@ -551,6 +551,18 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+static bool checkLinkingSupport(device Dev, const RTDeviceBinaryImage &Img) {
+  const char *Target = Img.getRawData().DeviceTargetSpec;
+  // TODO replace with extension checks once implemented in UR.
+  if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+    return true;
+  }
+  if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
+    return Dev.is_gpu() && Dev.get_backend() == backend::opencl;
+  }
+  return false;
+}
+
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDepsForImportedSymbols(
     const RTDeviceBinaryImage &MainImg, device Dev) {
@@ -562,9 +574,11 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     HandledSymbols.insert(ISProp->Name);
   }
   sycl::detail::pi::PiDeviceBinaryType Format = MainImg.getFormat();
-  if (!WorkList.empty() && Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (!WorkList.empty() && !checkLinkingSupport(Dev, MainImg)) {
     throw exception(make_error_code(errc::feature_not_supported),
-                    "Dynamic linking is not supported for AOT compilation yet");
+                    "Cannot resolve external symbols, linking is unsupported "
+                    "for the backend");
+  }
   while (!WorkList.empty()) {
     std::string Symbol = WorkList.front();
     WorkList.pop();
@@ -800,7 +814,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getSyclObjImpl(Device).get()->getHandleRef(), DeviceLibReqMask,
-              ProgramsToLink);
+              ProgramsToLink, /*CreatedFromBinary*/ Img.getFormat() !=
+                                  PI_DEVICE_BINARY_TYPE_SPIRV);
     // Those extra programs won't be used anymore, just the final linked result
     for (sycl::detail::pi::PiProgram Prg : ProgramsToLink)
       Plugin->call<PiApiKind::piProgramRelease>(Prg);
@@ -1402,7 +1417,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
-    const std::vector<sycl::detail::pi::PiProgram> &ExtraProgramsToLink) {
+    const std::vector<sycl::detail::pi::PiProgram> &ExtraProgramsToLink,
+    bool CreatedFromBinary) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1444,16 +1460,20 @@ ProgramManager::ProgramPtr ProgramManager::build(
     return Program;
   }
 
-  // Include the main program and compile/link everything together
-  Plugin->call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
-                                            &Device, CompileOptions.c_str(), 0,
-                                            nullptr, nullptr, nullptr, nullptr);
+  if (!CreatedFromBinary) {
+    // Include the main program and compile/link everything together
+    Plugin->call<PiApiKind::piProgramCompile>(
+        Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(), 0,
+        nullptr, nullptr, nullptr, nullptr);
+  }
   LinkPrograms.push_back(Program.get());
 
   for (sycl::detail::pi::PiProgram Prg : ExtraProgramsToLink) {
-    Plugin->call<PiApiKind::piProgramCompile>(
-        Prg, /*num devices =*/1, &Device, CompileOptions.c_str(), 0, nullptr,
-        nullptr, nullptr, nullptr);
+    if (!CreatedFromBinary) {
+      Plugin->call<PiApiKind::piProgramCompile>(
+          Prg, /*num devices =*/1, &Device, CompileOptions.c_str(), 0, nullptr,
+          nullptr, nullptr, nullptr);
+    }
     LinkPrograms.push_back(Prg);
   }
 
