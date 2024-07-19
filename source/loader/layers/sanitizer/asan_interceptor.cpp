@@ -670,13 +670,18 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         auto KernelInfo = getKernelInfo(Kernel);
 
         // Validate pointer arguments
-        for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
-            auto Ptr = PtrPair.first;
-            if (auto ValidateResult = ValidateUSMPointer(
-                    Context, DeviceInfo->Handle, (uptr)Ptr)) {
-                ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
-                                            ValidateResult, PtrPair.second);
-                exit(1);
+        if (Options(logger).DetectKernelArguments) {
+            for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
+                auto Ptr = PtrPair.first;
+                if (Ptr == nullptr) {
+                    continue;
+                }
+                if (auto ValidateResult = ValidateUSMPointer(
+                        Context, DeviceInfo->Handle, (uptr)Ptr)) {
+                    ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
+                                                ValidateResult, PtrPair.second);
+                    exit(1);
+                }
             }
         }
 

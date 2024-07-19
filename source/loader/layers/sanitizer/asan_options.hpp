@@ -38,6 +38,7 @@ struct AsanOptions {
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
     bool DetectPrivates = true;
+    bool DetectKernelArguments = true;
 
   private:
     AsanOptions(logger::Logger &logger) {
@@ -93,6 +94,7 @@ struct AsanOptions {
         SetBoolOption("debug", Debug);
         SetBoolOption("detect_locals", DetectLocals);
         SetBoolOption("detect_privates", DetectPrivates);
+        SetBoolOption("detect_kernel_arguments", DetectKernelArguments);
 
         auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
