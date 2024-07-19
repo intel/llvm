@@ -5322,7 +5322,7 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
 }
 
 inline pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
+piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
                   const pi_image_format *ImageFormat,
                   const pi_image_desc *ImageDesc,
                   const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
@@ -5444,34 +5444,6 @@ inline pi_result piextMemImageGetInfo(pi_context Context,
   return PI_SUCCESS;
 }
 
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalMemory`")]]
-inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
-                                        size_t Size, int FileDescriptor,
-                                        pi_interop_mem_handle *RetHandle) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetHandle =
-      reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_interop_mem_desc_t InteropMemDesc{};
-  InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
-  InteropMemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalMemoryExp(
-      UrContext, UrDevice, Size, UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
-      &InteropMemDesc, UrRetHandle));
-
-  return PI_SUCCESS;
-}
-
 inline pi_result
 piextImportExternalMemory(pi_context Context, pi_device Device,
                           pi_external_mem_descriptor *MemDescriptor,
@@ -5578,35 +5550,6 @@ inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalSemaphore`")]]
-inline pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
-                                     int FileDescriptor,
-                                     pi_interop_semaphore_handle *RetHandle) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetHandle =
-      reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_interop_semaphore_desc_t InteropSemDesc{};
-  InteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
-  InteropSemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreExp(
-      UrContext, UrDevice, UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
-      &InteropSemDesc, UrRetHandle));
-
-  return PI_SUCCESS;
-}
-
 inline pi_result
 piextImportExternalSemaphore(pi_context Context, pi_device Device,
                              pi_external_semaphore_descriptor *SemDescriptor,
@@ -5675,7 +5618,7 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 inline pi_result
-piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+piextReleaseExternalSemaphore(pi_context Context, pi_device Device,
                               pi_interop_semaphore_handle SemHandle) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
@@ -5685,7 +5628,7 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
   auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
 
-  HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
+  HANDLE_ERRORS(urBindlessImagesReleaseExternalSemaphoreExp(UrContext, UrDevice,
                                                             UrSemHandle));
 
   return PI_SUCCESS;
