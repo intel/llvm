@@ -437,7 +437,10 @@ ptxas(StringRef InputFile, const ArgList &Args, StringRef Arch) {
   if (Args.hasArg(OPT_verbose))
     CmdArgs.push_back("-v");
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
-  CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
+  if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-g");
+  else
+    CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Arch);
   CmdArgs.push_back("--output-file");
