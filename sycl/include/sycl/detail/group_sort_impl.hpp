@@ -72,7 +72,7 @@ align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
     scratch_ptr =
         std::align(alignof(KeyTy), KeysSize, scratch_ptr, KeysScratchSpace);
     keys_scratch_begin = ::new (scratch_ptr) KeyTy[number_of_elements];
-    scratch_ptr = scratch.data() + KeysScratchSpace;
+    scratch_ptr = scratch.data() + KeysSize + alignof(KeyTy);
     scratch_ptr = std::align(alignof(ValueTy), ValuesSize, scratch_ptr,
                              ValuesScratchSpace);
     values_scratch_begin = ::new (scratch_ptr) ValueTy[number_of_elements];
