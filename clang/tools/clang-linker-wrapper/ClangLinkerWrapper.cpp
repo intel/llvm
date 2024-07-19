@@ -2142,15 +2142,15 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
           auto BundledFileOrErr = nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
-          if (!DryRun)
-            SplitModules[I].ModuleFilePath = *BundledFileOrErr;
-        } else {
+          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+        } else if (Triple.isAMDGCN()) {
           BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
           auto BundledFileOrErr = amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
-          if (!DryRun)
-            SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+        } else {
+          SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
         }
       }
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
