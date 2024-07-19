@@ -3184,8 +3184,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available " +
-                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
+            "Can't get memory object due to no allocation available "));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
