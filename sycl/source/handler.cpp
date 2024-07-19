@@ -390,7 +390,7 @@ event handler::finalize() {
         MPattern[0], MDstPtr, impl->MDstPitch, impl->MWidth, impl->MHeight,
         std::move(impl->CGData), MCodeLoc));
     break;
-  case detail::CGType::ACPPCustomOperation:
+  case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
     auto context = impl->MGraph
                        ? detail::getSyclObjImpl(impl->MGraph->getContext())

@@ -3137,7 +3137,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return PI_SUCCESS;
   }
-  case CGType::ACPPCustomOperation: {
+  case CGType::EnqueueNativeCommand: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {

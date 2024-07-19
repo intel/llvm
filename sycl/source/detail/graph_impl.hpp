@@ -257,7 +257,7 @@ public:
       return createCGCopy<sycl::detail::CGFill2DUSM>();
     case sycl::detail::CGType::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
-    case sycl::detail::CGType::ACPPCustomOperation:
+    case sycl::detail::CGType::EnqueueNativeCommand:
     case sycl::detail::CGType::CodeplayHostTask: {
       // The unique_ptr to the `sycl::detail::HostTask` in the HostTask CG
       // prevents from copying the CG.
