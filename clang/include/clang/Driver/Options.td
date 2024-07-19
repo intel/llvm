@@ -4028,6 +4028,13 @@ defm sycl_instrument_device_code
           BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " Instrumentation and Tracing "
                     "Technology (ITT) instrumentation intrinsics calls "
                     "(experimental)">>;
+defm sycl_decompose_functor
+    : BoolFOption<"sycl-decompose-functor",
+          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
+          PosFlag<SetTrue, [], [ClangOption], "Do">,
+          NegFlag<SetFalse, [], [ClangOption], "Do not">,
+          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option],
+           " decompose SYCL functor if possible (experimental, CUDA only)">>;
 def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
   Group<Link_Group>, HelpText<"Generate and use a custom linker script for huge"
   " device code sections">;
@@ -8461,7 +8468,7 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
   Flags<[NoArgumentUnused]>,
   Visibility<[ClangOption, CC1Option, CLOption]>,
   HelpText<"SYCL language standard to compile for.">,
-  Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
+  Values<"2020">,
   ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 
 def fsycl_default_sub_group_size

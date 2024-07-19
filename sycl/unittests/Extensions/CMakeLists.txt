@@ -12,6 +12,8 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
   DiscardEvent.cpp
+  ProfilingTag.cpp
 )
 
 add_subdirectory(CommandGraph)
+add_subdirectory(VirtualFunctions)
