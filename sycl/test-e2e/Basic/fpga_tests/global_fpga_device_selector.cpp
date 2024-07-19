@@ -1,6 +1,6 @@
 // REQUIRES: opencl-aot, accelerator
 
-// RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
+// RUN: %{basic-build} -fintelfpga %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

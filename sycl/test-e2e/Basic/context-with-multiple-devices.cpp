@@ -1,6 +1,6 @@
 // REQUIRES: accelerator, opencl-aot
 
-// RUN: %clangxx -fsycl -fintelfpga %s -o %t2.out
+// RUN: %{basic-build} -fintelfpga %s -o %t2.out
 // RUN: env CL_CONFIG_CPU_EMULATE_DEVICES=2 %t2.out
 
 #include <sycl/detail/core.hpp>

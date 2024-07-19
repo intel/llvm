@@ -13,14 +13,14 @@
 // leftover archives, remove one if exists.
 
 // RUN: rm %t_image.a || true
-// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.a
+// RUN: %{basic-build} -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.a
 // Produce a host object
-// RUN: %clangxx -fsycl -fintelfpga %S/Inputs/fpga_host.cpp -c -o %t.o
+// RUN: %{basic-build} -fintelfpga %S/Inputs/fpga_host.cpp -c -o %t.o
 
 // AOCX with source
-// RUN: %clangxx -fsycl -fintelfpga %S/Inputs/fpga_host.cpp %t_image.a -o %t_aocx_src.out
+// RUN: %{basic-build} -fintelfpga %S/Inputs/fpga_host.cpp %t_image.a -o %t_aocx_src.out
 // AOCX with object
-// RUN: %clangxx -fsycl -fintelfpga %t.o %t_image.a -o %t_aocx_obj.out
+// RUN: %{basic-build} -fintelfpga %t.o %t_image.a -o %t_aocx_obj.out
 //
 // RUN: %{run} %t_aocx_src.out
 // RUN: %{run} %t_aocx_obj.out
