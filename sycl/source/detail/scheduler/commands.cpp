@@ -3152,8 +3152,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
       default:
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Unsupported arg type " +
-                                  codeToString(PI_ERROR_INVALID_VALUE));
+                              "Unsupported arg type "));
       }
     }
 
