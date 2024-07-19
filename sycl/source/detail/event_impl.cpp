@@ -192,7 +192,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                  : GSYCLGraphEvent;
   } else {
     // If queue.wait() is used, we want to make sure the information about the
-    // queue is available with the eait events. We check to see if the
+    // queue is available with the wait events. We check to see if the
     // TraceEvent is available in the Queue object.
     void *TraceEvent;
     if (QueueImplPtr Queue = MQueue.lock()) {

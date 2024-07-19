@@ -725,7 +725,7 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
   if (CmdTraceEvent) {
     MTraceEvent = (void *)CmdTraceEvent;
     // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in the previosu implementation, we would skip sending a
+    // than 1; in the previous implementation, we would skip sending a
     // notifications for subsequent instances. With the new implementation, we
     // will send a notification for each instance as this allows for mutable
     // metadata entries for multiple visits to the same code location and
@@ -3361,7 +3361,9 @@ void KernelFusionCommand::emitInstrumentationData() {
     // If we are seeing this event again, then the instance ID
     // will be greater than 1; Previous implementations had the trace event be
     // invariant during multiple visits to a tracepoint defined by its payload.
-    // Current imlementa See makeTraceEventProlog.
+    // Current imlementation allows metadata associated with the trace event to
+    // be mutable and this requires the framework to notify again as we have a
+    // new trace event for each instance.
 
     // This function is called in the constructor of the command. At this point
     // the kernel fusion list is still empty, so we don't have a terrible lot of

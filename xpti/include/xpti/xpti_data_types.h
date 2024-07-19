@@ -65,7 +65,7 @@ struct universal_id_t {
   ///
   uint64_t instance = 0;
 
-  /// @brief Unique 64-bit identifier thaht maps to the 128-bit key in p1,p2.
+  /// @brief Unique 64-bit identifier that maps to the 128-bit key in p1,p2.
   ///
   /// This variable represents a 64-bit hash value used as a unique identifier
   /// within the tracing framework. The hash is a 64-bit mapping of the 128-bit
@@ -86,6 +86,42 @@ struct universal_id_t {
 /// structure.
 ///
 using uid128_t = xpti::universal_id_t;
+
+/// @brief Creates a unique 128-bit identifier (UID) for tracking entities.
+///
+/// This function combines file and function identifiers with line and column
+/// information to generate a unique identifier. The UID is composed of two
+/// 64-bit parts: the first part (p1) combines the file and function IDs, and
+/// the second part (p2) combines the column and line numbers. An initial
+/// instance count of 1 is set, indicating the creation of a new UID.
+///
+/// @param FileID The unique identifier for the file.
+/// @param FuncID The unique identifier for the function.
+/// @param Line The line number where the entity is located.
+/// @param Col The column number where the entity is located.
+/// @return A `xpti::uid128_t` structure representing the unique identifier.
+///
+inline xpti::uid128_t make_uid128(uint64_t FileID, uint64_t FuncID, int Line,
+                                  int Col) {
+  xpti::uid128_t UID;
+  UID.p1 = (FileID << 32) | FuncID;
+  UID.p2 = ((uint64_t)Col << 32) | Line;
+  UID.instance = 0;
+  return UID;
+}
+
+/// @brief Checks if a given 128-bit UID is valid.
+///
+/// A 128-bit UID is considered valid if neither of its parts (p1, p2) are zero
+/// and its instance number is greater than 0. This function evaluates these
+/// conditions and returns true if all are met, indicating the UID is valid.
+///
+/// @param UID The 128-bit UID to be checked.
+/// @return True if the UID is valid, false otherwise.
+///
+inline bool is_valid_uid(const xpti::uid128_t &UID) {
+  return (UID.p1 != 0 || UID.p2 != 0) && UID.instance > 0;
+}
 
 /// @brief Hash generation helper
 /// @details The Universal ID concept in XPTI requires a good hashing function
@@ -853,20 +889,20 @@ struct trace_event_data_t {
   uint16_t activity_type;
 
   /// @var trace_event_data_t::unused
-  /// A 32-bit field reserved for fpadding to align the structure.
+  /// A 32-bit field reserved for padding to align the structure.
   uint32_t unused;
 
   /// @var trace_event_data_t::source_id
   /// An identifier for the source node of the current edge event. This is
   /// primarily used to represent relationships between entities in the trace
-  /// data. Initialized to `invalid_id` to indicate no source by default. Will
+  /// data. Initialized to `invalid_uid` to indicate no source by default. Will
   /// be deprecated when the 128-bit UID is fully adopted.
   uint64_t source_id = invalid_uid;
 
   /// @var trace_event_data_t::target_id
   /// An identifier for the target node of the current edge or relationship
   /// event event. Similar to `source_id`, but represents the entity that is the
-  /// recipient or focus of the event. Initialized to `invalid_id` to indicate
+  /// recipient or focus of the event. Initialized to `invalid_uid` to indicate
   /// no target by default.Will be deprecated when the 128-bit UID is fully
   /// adopted.
   uint64_t target_id = invalid_uid;
@@ -901,7 +937,8 @@ struct trace_event_data_t {
 struct tracepoint_data_t {
   /// @brief This is a unique identifier for the trace point.
   ///
-  /// It is a 64-bit unsigned integer, which represents the payload information.
+  /// It is a 128-bit unsigned integer, which represents the payload
+  /// information.
   ///
   xpti::universal_id_t uid128;
 
@@ -941,10 +978,7 @@ struct tracepoint_data_t {
   ///
   /// @return True if data is valid, false otherwise.
   ///
-  bool isValid() {
-    return ((((uid128.p1 != 0) || (uid128.p2 != 0)) && uid128.instance > 0) &&
-            payload && event);
-  }
+  bool isValid() { return (xpti::is_valid_uid(uid128) && payload && event); }
 };
 
 /// Describes offload buffer

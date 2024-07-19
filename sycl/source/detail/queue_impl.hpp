@@ -93,7 +93,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -255,9 +255,6 @@ public:
 
   ~queue_impl() {
     try {
-      // The trace event created in the constructor should be active through the
-      // lifetime of the queue object as member variables when ABI breakage is
-      // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
       // lifetime of the queue object as member variable. We will send a

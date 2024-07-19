@@ -63,6 +63,12 @@ typedef void *xpti_plugin_function_t;
 #define __XPTI_INSERT_IF_MSVC(x)
 #endif
 
+#if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
+#define XPTI_BUILTIN_FUNCTION __builtin_FUNCTION()
+#else
+#define XPTI_BUILTIN_FUNCTION "<unknown>"
+#endif
+
 namespace xpti {
 namespace utils {
 /// @class StringHelper
@@ -559,42 +565,6 @@ inline std::string readMetadata(const metadata_t::value_type &MD) {
          std::to_string(RawData.size);
 }
 
-/// @brief Creates a unique 128-bit identifier (UID) for tracking entities.
-///
-/// This function combines file and function identifiers with line and column
-/// information to generate a unique identifier. The UID is composed of two
-/// 64-bit parts: the first part (p1) combines the file and function IDs, and
-/// the second part (p2) combines the column and line numbers. An initial
-/// instance count of 1 is set, indicating the creation of a new UID.
-///
-/// @param FileID The unique identifier for the file.
-/// @param FuncID The unique identifier for the function.
-/// @param Line The line number where the entity is located.
-/// @param Col The column number where the entity is located.
-/// @return A `xpti::uid128_t` structure representing the unique identifier.
-///
-inline xpti::uid128_t make_uid128(uint64_t FileID, uint64_t FuncID, int Line,
-                                  int Col) {
-  xpti::uid128_t UID;
-  UID.p1 = (FileID << 32) | FuncID;
-  UID.p2 = ((uint64_t)Col << 32) | Line;
-  UID.instance = 0;
-  return UID;
-}
-
-/// @brief Checks if a given 128-bit UID is valid.
-///
-/// A 128-bit UID is considered valid if neither of its parts (p1, p2) are zero
-/// and its instance number is greater than 0. This function evaluates these
-/// conditions and returns true if all are met, indicating the UID is valid.
-///
-/// @param UID The 128-bit UID to be checked.
-/// @return True if the UID is valid, false otherwise.
-///
-inline bool is_valid_uid(const xpti::uid128_t &UID) {
-  return (UID.p1 != 0 || UID.p2 != 0) && UID.instance > 0;
-}
-
 /// @brief Checks if a given payload is valid.
 ///
 /// A payload is considered valid if it is not a null pointer, its flags are not
@@ -871,9 +841,7 @@ public:
   /// @return Returns true if the uid_t object is valid (i.e., if any of the
   /// hash parts and the `instance` member is not zero), and false otherwise.
   ///
-  bool isValid() const {
-    return ((MUId.p1 != 0 || MUId.p2 != 0) && (MUId.instance != 0));
-  }
+  bool isValid() const { return (xpti::is_valid_uid(MUId)); }
 
   /// @brief Returns the file ID from the uid_t object.
   ///
@@ -978,7 +946,7 @@ public:
   ///
   tracepoint_scope_t(const char *fileName, const char *funcName, int line,
                      int column, bool selfNotify = false,
-                     const char *callerFuncName = __builtin_FUNCTION())
+                     const char *callerFuncName = XPTI_BUILTIN_FUNCTION)
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
@@ -1010,7 +978,7 @@ public:
   /// constructor.
   ///
   tracepoint_scope_t(bool selfNotify = false,
-                     const char *callerFuncName = __builtin_FUNCTION())
+                     const char *callerFuncName = XPTI_BUILTIN_FUNCTION)
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
@@ -1311,9 +1279,9 @@ public:
 
 private:
   void selfNotifyEnd() {
-    // selfNotify() is supposed to capture the scope of all the tracepoints we
-    // have enbled; if we need to limit the notifications only to when the trace
-    // scope has valid TLS data, we can add the follwoing IF block if
+    // selfNotifyEnd() is supposed to capture the scope of all the tracepoints
+    // we have enabled; if we need to limit the notifications only to when the
+    // trace scope has valid TLS data, we can add the following IF block if
     // (!m_data.isValid())
     //   return;
     uint16_t traceType = (uint16_t)xpti::trace_point_type_t::function_end;
@@ -1326,9 +1294,9 @@ private:
   }
 
   void selfNotifyBegin() {
-    // selfNotify() is supposed to capture the scope of all the tracepoints we
-    // have enbled; if we need to limit the notifications only to when the trace
-    // scope has valid TLS data, we can add the follwoing IF block if
+    // selfNotifyBegin() is supposed to capture the scope of all the tracepoints
+    // we have enabled; if we need to limit the notifications only to when the
+    // trace scope has valid TLS data, we can add the following IF block if
     // (!m_data.isValid())
     //   return;
     uint16_t traceType = (uint16_t)xpti::trace_point_type_t::function_begin;
@@ -1349,15 +1317,15 @@ private:
   bool MScopedNotify = false;
   /// Stores the tracepoint data from creating the tracepoint or from
   /// inheritance
-  xpti_tracepoint_t *MData;
+  xpti_tracepoint_t *MData = nullptr;
   /// Stores the name of the function that contains the tracepoint and self
   /// notification will use this information during notification.
   const char *MCallerFuncName;
   /// Stores the correlation ID for the tracepoint's scope notification.
-  uint64_t MCorrelationId;
+  uint64_t MCorrelationId = 0;
   /// Stores the correlation ID for the scoped tracepoint which is different
   /// from self notification
-  uint64_t MScopedCorrelationId;
+  uint64_t MScopedCorrelationId = 0;
   /// Stores the ID of the stream
   uint8_t MStreamId = 0;
   /// Stores the ID of the default stream use for self notification; the
@@ -1406,7 +1374,8 @@ public:
                  uint16_t traceType = (uint16_t)
                      xpti::trace_point_type_t::function_begin)
       : MTraceEvent(traceEvent), MUserData(UserData), MStreamId(streamId),
-        MTraceType(traceType), MScopedNotify(false), MTraceEnabled(false) {
+        MTraceType(traceType), MScopedNotify(false), MTraceEnabled(false),
+        MCorrelationId(0) {
     // Reduce calls to xptiCheckTraceENabled() by caching it
     MTraceEnabled = xptiCheckTraceEnabled(MStreamId, MTraceType);
     if (!MTraceEnabled)
@@ -1769,7 +1738,7 @@ private:
 ///
 #define XPTI_LW_TRACE(streamId, traceEvent)                                    \
   xpti::framework::notify_scope_t LWTrace(streamId, traceEvent,                \
-                                          __builtin_FUNCTION())                \
+                                          XPTI_BUILTIN_FUNCTION)               \
       .scopedNotify();
 
 /// @def XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType, traceEv)
