@@ -23,10 +23,10 @@ static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) noexcept {
   static std::once_flag ReleaseFlag{};
   try {
     std::call_once(ReleaseFlag, [&]() {
+      urLoaderTearDown();
       for (auto Adapter : Vec) {
         urAdapterRelease(Adapter);
       }
-      urLoaderTearDown();
     });
   } catch (...) {
     // Ignore any potential exceptions on teardown. Worst case scenario
