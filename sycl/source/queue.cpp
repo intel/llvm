@@ -140,12 +140,6 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                       /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
-                        const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return mem_advise(Ptr, Length, int(Advice));
-}
-
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
