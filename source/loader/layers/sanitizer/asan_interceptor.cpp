@@ -146,8 +146,6 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 
 } // namespace
 
-bool SanitizerInterceptor::AbnormalExit = false;
-
 SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
     : logger(logger) {
     if (Options(logger).MaxQuarantineSizeMB) {
@@ -160,10 +158,6 @@ SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
 SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
-
-    if (AbnormalExit) {
-        exit(1);
-    }
 }
 
 /// The memory chunk allocated from the underlying allocator looks like this:
@@ -899,19 +893,13 @@ ContextInfo::~ContextInfo() {
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
 
-    bool HasLeak = false;
     std::vector<AllocationIterator> AllocInfos =
         getContext()->interceptor->findAllocInfoByContext(Handle);
     for (const auto &It : AllocInfos) {
         const auto &[_, AI] = *It;
-        if (AI->IsReleased) {
+        if (!AI->IsReleased) {
             ReportMemoryLeak(AI);
-            HasLeak = true;
         }
-    }
-
-    if (HasLeak) {
-        SanitizerInterceptor::AbnormalExit = true;
     }
 }
 
