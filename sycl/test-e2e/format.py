@@ -176,6 +176,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
             )
         )
+        # Barebone build expansion for tests that require more specific compilation
+        substitutions.append(
+            (
+                "%{basic-build}",
+                "%clangxx -fsycl %verbose_print",
+            )
+        )
         if platform.system() == "Windows":
             substitutions.append(
                 (
