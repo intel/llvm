@@ -165,8 +165,6 @@ struct DeviceGlobalInfo {
 
 class SanitizerInterceptor {
   public:
-    static bool AbnormalExit;
-
     explicit SanitizerInterceptor(logger::Logger &logger);
 
     ~SanitizerInterceptor();
