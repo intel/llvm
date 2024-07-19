@@ -63,8 +63,10 @@ typedef void *xpti_plugin_function_t;
 #define __XPTI_INSERT_IF_MSVC(x)
 #endif
 
-#if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
+#if defined(__unix__) && __has_builtin(__builtin_FUNCTION)
 #define XPTI_BUILTIN_FUNCTION __builtin_FUNCTION()
+#elif _MSC_VER
+#define XPTI_BUILTIN_FUNCTION __FUNCTION__
 #else
 #define XPTI_BUILTIN_FUNCTION "<unknown>"
 #endif
