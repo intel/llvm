@@ -317,6 +317,11 @@ bool setEnvVar(const char *name, const char *value);
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
 
+/// Checks the version of the level-zero driver.
+bool isDriverVersionNewerOrSimilar(ze_driver_handle_t ZeDriver,
+                                   uint32_t VersionMajor, uint32_t VersionMinor,
+                                   uint32_t VersionBuild);
+
 // Trace a call to Level-Zero RT
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
@@ -506,3 +511,5 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode);
+
+#define L0_DRIVER_INORDER_MIN_VERSION 29534
