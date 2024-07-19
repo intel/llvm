@@ -4208,7 +4208,7 @@
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
-?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4_pi_kernel_cache_config@@@Z
+?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
