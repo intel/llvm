@@ -1833,7 +1833,7 @@ private:
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  ext_oneapi_enqueue_native_command_impl(FuncT &&Func) {
+  ext_codeplay_enqueue_native_command_impl(FuncT &&Func) {
     throwIfActionIsCreated();
 
     // Need to copy these rather than move so that we can check associated
@@ -2056,11 +2056,11 @@ public:
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  ext_oneapi_enqueue_native_command(FuncT &&Func) {
+  ext_codeplay_enqueue_native_command(FuncT &&Func) {
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_enqueue_native_command>();
-    ext_oneapi_enqueue_native_command_impl(Func);
+            sycl_ext_codeplay_enqueue_native_command>();
+    ext_codeplay_enqueue_native_command_impl(Func);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and

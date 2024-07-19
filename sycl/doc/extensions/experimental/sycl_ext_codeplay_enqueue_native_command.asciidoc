@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_enqueue_native_command
+= sycl_ext_codeplay_enqueue_native_command
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -66,7 +66,7 @@ This extension is derived from the experimental AdaptiveCpp extension,
 `enqueue_custom_operation` which is documented
 https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here].
 
-The goal of `ext_oneapi_enqueue_native_command` is to integrate interop
+The goal of `ext_codeplay_enqueue_native_command` is to integrate interop
 work within the SYCL runtime's creation of the asynchronous SYCL DAG. As such,
 the user defined lambda must only enqueue asynchronous, as opposed to
 synchronous, backend work within the user lambda. Asynchronous work must only
@@ -75,11 +75,11 @@ be submitted to the native queue obtained from
 
 === Differences with `host_task`
 
-A callable submitted to `ext_oneapi_enqueue_native_command` won't wait
+A callable submitted to `ext_codeplay_enqueue_native_command` won't wait
 on its dependent events to execute. The dependencies passed to an
-`ext_oneapi_enqueue_native_command` submission will result in dependencies being
+`ext_codeplay_enqueue_native_command` submission will result in dependencies being
 implicitly handled in the backend API, using the native queue object associated
-with the SYCL queue that the `sycl_ext_oneapi_enqueue_native_command` is
+with the SYCL queue that the `sycl_ext_codeplay_enqueue_native_command` is
 submitted to. This gives different synchronization guarantees from normal SYCL
 `host_task` s, which guarantee that the `host_task` callable will only begin
 execution once all of its dependent events have completed.
@@ -89,7 +89,7 @@ In this example:
 ```
 q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(dep_event);
-    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
       printf("This will print before dep_event has completed.\n");
       // This stream has been synchronized with dep_event's underlying
       // hipEvent_t
@@ -112,7 +112,7 @@ will only happen once the host task's dependent events are observed to be
 complete on the host.
 
 A SYCL event returned by a submission of a
-`ext_oneapi_enqueue_native_command` command is only complete once the
+`ext_codeplay_enqueue_native_command` command is only complete once the
 asynchronous work enqueued to the native queue obtained through
 `interop_handle::get_native_queue()` has completed.
 
@@ -147,7 +147,7 @@ class:
 ```c++
 class handler {
   template <typename Func>
-  void ext_oneapi_enqueue_native_command(Func&& interopCallable);
+  void ext_codeplay_enqueue_native_command(Func&& interopCallable);
 };
 ```
 
@@ -156,7 +156,7 @@ parameter of type `interop_handle`.
 
 _Effects_: The `interopCallable` object is called exactly once, and this call
 may be made asynchronously even after the calling thread returns from
-`ext_oneapi_enqueue_native_command`.
+`ext_codeplay_enqueue_native_command`.
 
 The call to `interopCallable` may submit one or more asynchronous tasks to the
 native backend object obtained from `interop_handle::get_native_queue`, and
@@ -189,7 +189,7 @@ sycl::queue q;
 q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{buf, cgh};
 
-    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
       // Can extract device pointers from accessors
       void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
       // Can extract stream
@@ -211,7 +211,7 @@ q.wait();
 
 === sycl_ext_oneapi_graph
 
-`ext_oneapi_enqueue_native_command`
+`ext_codeplay_enqueue_native_command`
 cannot be used in graph nodes. A synchronous exception will be thrown with error
 code `invalid` if a user tries to add them to a graph.
 

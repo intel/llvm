@@ -3201,7 +3201,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
         PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
         sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
-    assert(NativeCommandSupport && "ext_oneapi_enqueue_native_command is not "
+    assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "
                                    "supported on this device");
     MQueue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
         MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData, ReqMems.size(),

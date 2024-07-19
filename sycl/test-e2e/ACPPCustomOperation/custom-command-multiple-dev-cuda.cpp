@@ -31,7 +31,7 @@ int main() {
 
     Q.submit([&](handler &CGH) {
       accessor Acc{Buf, CGH, read_write};
-      CGH.ext_oneapi_enqueue_native_command([=](interop_handle IH) {
+      CGH.ext_codeplay_enqueue_native_command([=](interop_handle IH) {
         auto Ptr = IH.get_native_mem<backend::ext_oneapi_cuda>(Acc);
         auto Stream = IH.get_native_queue<backend::ext_oneapi_cuda>();
         int Tmp = 0;

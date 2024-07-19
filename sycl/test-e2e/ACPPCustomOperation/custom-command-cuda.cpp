@@ -48,7 +48,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       if (Q.get_backend() != IH.get_backend())
         throw;
     };
-    CGH.ext_oneapi_enqueue_native_command(Func);
+    CGH.ext_codeplay_enqueue_native_command(Func);
   });
 }
 
@@ -82,7 +82,7 @@ void test_ht_buffer(queue &Q) {
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
-    CGH.ext_oneapi_enqueue_native_command(Func);
+    CGH.ext_codeplay_enqueue_native_command(Func);
   });
 }
 
