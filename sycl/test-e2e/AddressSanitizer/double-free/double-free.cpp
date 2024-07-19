@@ -29,5 +29,5 @@ int main() {
 // CHECK-HOST:   [[ADDR]] is located inside of Host USM region {{\[0x.*, 0x.*\)}}
 // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}
 // CHECK-DEVICE: [[ADDR]] is located inside of Device USM region {{\[0x.*, 0x.*\)}}
+// CHECK: allocated here
 // CHECK: freed here
-// CHECK: previously allocated here
