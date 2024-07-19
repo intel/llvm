@@ -134,9 +134,9 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
-  syclexp::destroy_external_semaphore(
+  syclexp::release_external_semaphore(
       handles.sycl_wait_interop_semaphore_handle, dev, ctxt);
-  syclexp::destroy_external_semaphore(
+  syclexp::release_external_semaphore(
       handles.sycl_done_interop_semaphore_handle, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);

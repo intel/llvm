@@ -620,7 +620,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
 }
 
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -632,14 +632,14 @@ destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
   pi_device Device = DevImpl->getHandleRef();
 
   Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextDestroyExternalSemaphore>(
+               sycl::detail::PiApiKind::piextReleaseExternalSemaphore>(
       C, Device, (pi_interop_semaphore_handle)semaphoreHandle.raw_handle);
 }
 
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::queue &syclQueue) {
-  destroy_external_semaphore(semaphoreHandle, syclQueue.get_device(),
+  release_external_semaphore(semaphoreHandle, syclQueue.get_device(),
                              syclQueue.get_context());
 }
 
