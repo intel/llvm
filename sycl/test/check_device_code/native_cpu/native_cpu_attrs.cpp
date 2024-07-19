@@ -7,10 +7,7 @@ using namespace sycl;
 class Test;
 int main() {
   sycl::queue deviceQueue;
-  sycl::nd_range<2> r({1, 1}, {
-                                   1,
-                                   1,
-                               });
+  sycl::nd_range<2> r({1, 1}, {1,1});
   deviceQueue.submit([&](handler &h) {
     h.parallel_for<Test>(
         r, [=](nd_item<2> it) { 
