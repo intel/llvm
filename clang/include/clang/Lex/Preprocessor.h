@@ -293,6 +293,7 @@ class Preprocessor {
 public:
   /// The kind of translation unit we are processing.
   const TranslationUnitKind TUKind;
+  bool IncludeFooterProcessed;
 
   /// Returns a pointer into the given file's buffer that's guaranteed
   /// to be between tokens. The returned pointer is always before \p Start.

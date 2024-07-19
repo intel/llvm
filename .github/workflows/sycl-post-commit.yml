@@ -19,6 +19,11 @@ on:
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR or commit hash.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 permissions: read-all
 
 jobs:

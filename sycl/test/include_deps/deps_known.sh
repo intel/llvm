@@ -14,7 +14,7 @@ function deps() {
     # Also, <detail/plugins/.*/features.hpp> is dependent on what plugins were
     # enabled, so ignore them.
 
-    clang++ -fsycl -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
+    clang++ -fsycl -fsycl-device-only -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
         | sed 's@: /dev/null@: /dev/null\n@' \
         | grep 'include/sycl\|/dev/null\|:' \
         | grep -v 'detail/plugins/.*/features.hpp' \

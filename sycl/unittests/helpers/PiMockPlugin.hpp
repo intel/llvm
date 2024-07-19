@@ -542,7 +542,7 @@ mock_piextImportExternalMemory(pi_context context, pi_device device,
 }
 
 inline pi_result
-mock_piextDestroyExternalSemaphore(pi_context context, pi_device device,
+mock_piextReleaseExternalSemaphore(pi_context context, pi_device device,
                                    pi_interop_semaphore_handle sem_handle) {
   return PI_SUCCESS;
 }

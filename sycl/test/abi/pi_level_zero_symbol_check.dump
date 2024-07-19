@@ -105,7 +105,6 @@ piextCommandBufferUpdateKernelLaunch
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle
 piextContextSetExtendedDeleter
-piextDestroyExternalSemaphore
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
@@ -113,6 +112,7 @@ piextDisablePeerAccess
 piextEnablePeerAccess
 piextEnqueueCommandBuffer
 piextEnqueueCooperativeKernelLaunch
+piextEnqueueKernelLaunchCustom
 piextEnqueueNativeCommand
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
@@ -156,6 +156,7 @@ piextProgramSetSpecializationConstant
 piextQueueCreate
 piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
+piextReleaseExternalSemaphore
 piextSignalExternalSemaphore
 piextUSMDeviceAlloc
 piextUSMEnqueueFill
@@ -180,4 +181,3 @@ piextVirtualMemReserve
 piextVirtualMemSetAccess
 piextVirtualMemUnmap
 piextWaitExternalSemaphore
-piextEnqueueKernelLaunchCustom

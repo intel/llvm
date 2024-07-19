@@ -42,4 +42,3 @@
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-code-split=auto %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
 // CHK-AUTO: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options=-split=auto
-
