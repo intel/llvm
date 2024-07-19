@@ -56,7 +56,7 @@ ValidateUSMResult ValidateUSMPointer(ur_context_handle_t Context,
                                        AllocInfo);
     }
 
-    if (!IsSameDevice(AllocInfo->Device, Device)) {
+    if (AllocInfo->Device && !IsSameDevice(AllocInfo->Device, Device)) {
         return ValidateUSMResult::fail(ValidateUSMResult::BAD_DEVICE,
                                        AllocInfo);
     }
