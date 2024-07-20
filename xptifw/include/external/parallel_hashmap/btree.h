@@ -93,7 +93,7 @@ namespace type_traits_internal {
 #pragma warning(disable : 4624)
 #endif // defined(_MSC_VER) && !defined(__GNUC__)
 
-template <class T> union SingleMemberUnion { 
+template <class T> union SingleMemberUnion {
   T t;
 };
 
@@ -2456,7 +2456,7 @@ btree<P>::btree(const btree &x) : btree(x.key_comp(), x.allocator()) {
 
 template <typename P>
 template <typename... Args>
-auto btree<P>::insert_unique(const key_type &key, 
+auto btree<P>::insert_unique(const key_type &key,
                              Args &&...args) -> std::pair<iterator, bool> {
   if (empty()) {
     mutable_root() = rightmost_ = new_leaf_root_node(1);
@@ -2482,7 +2482,7 @@ auto btree<P>::insert_unique(const key_type &key,
 
 template <typename P>
 template <typename... Args>
-inline auto 
+inline auto
 btree<P>::insert_hint_unique(iterator position, const key_type &key,
                              Args &&...args) -> std::pair<iterator, bool> {
   if (!empty()) {
@@ -3062,10 +3062,9 @@ inline auto btree<P>::internal_locate(const K &key) const
 
 template <typename P>
 template <typename K>
-inline auto
-btree<P>::internal_locate_impl(const K &key,
-                               std::false_type /* IsCompareTo */) const
-    -> SearchResult<iterator, false> {
+inline auto btree<P>::internal_locate_impl(
+    const K &key,
+    std::false_type /* IsCompareTo */) const -> SearchResult<iterator, false> {
   iterator iter(const_cast<node_type *>(root()), 0);
   for (;;) {
     iter.position = iter.node->lower_bound(key, key_comp()).value;

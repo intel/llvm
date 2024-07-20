@@ -1346,7 +1346,7 @@ public:
     using no = std::false_type;
 
     template <typename U>
-    static auto 
+    static auto
     test(int) -> decltype(std::declval<U>() - std::declval<U>() == 1, yes());
     template <typename> static no test(...);
 
@@ -2760,7 +2760,7 @@ public:
   parallel_hash_set() noexcept(
       std::is_nothrow_default_constructible<hasher>::value &&
       std::is_nothrow_default_constructible<key_equal>::value &&
-      std::is_nothrow_default_constructible<allocator_type>::value) {}
+      std::is_nothrow_default_constructible<allocator_type>::value){}
 
 #if (__cplusplus >= 201703L || _MSVC_LANG >= 201402) &&                        \
     (defined(_MSC_VER) || defined(__clang__) ||                                \

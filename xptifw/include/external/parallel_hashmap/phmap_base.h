@@ -546,7 +546,8 @@ private:
   }
 
   template <class Alloc>
-  static void transfer_impl(Alloc *alloc, slot_type *new_slot, slot_type *old_slot, char) {
+  static void transfer_impl(Alloc *alloc, slot_type *new_slot,
+                            slot_type *old_slot, char) {
     construct(alloc, new_slot, std::move(element(old_slot)));
     destroy(alloc, old_slot);
   }
