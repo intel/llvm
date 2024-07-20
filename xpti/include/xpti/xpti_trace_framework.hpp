@@ -63,14 +63,6 @@ typedef void *xpti_plugin_function_t;
 #define __XPTI_INSERT_IF_MSVC(x)
 #endif
 
-#if defined(__unix__) && __has_builtin(__builtin_FUNCTION)
-#define XPTI_BUILTIN_FUNCTION __builtin_FUNCTION()
-#elif _MSC_VER
-#define XPTI_BUILTIN_FUNCTION __FUNCTION__
-#else
-#define XPTI_BUILTIN_FUNCTION "<unknown>"
-#endif
-
 namespace xpti {
 namespace utils {
 /// @class StringHelper
@@ -946,9 +938,11 @@ public:
   /// @param callerFuncName The name of the function that is calling this
   /// constructor.
   ///
+  /// @note MSFT compiler 2019/2022 support __builtin_FUNCTION() macro
+  ///
   tracepoint_scope_t(const char *fileName, const char *funcName, int line,
                      int column, bool selfNotify = false,
-                     const char *callerFuncName = XPTI_BUILTIN_FUNCTION)
+                     const char *callerFuncName = __builtin_FUNCTION())
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
@@ -979,8 +973,10 @@ public:
   /// @param callerFuncName The name of the function that is calling this
   /// constructor.
   ///
+  /// @note MSFT compiler 2019/2022 support __builtin_FUNCTION() macro
+  ///
   tracepoint_scope_t(bool selfNotify = false,
-                     const char *callerFuncName = XPTI_BUILTIN_FUNCTION)
+                     const char *callerFuncName = __builtin_FUNCTION())
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
@@ -1738,9 +1734,11 @@ private:
 /// @param streamId The ID of the stream.
 /// @param traceEvent The trace event for which notifications are desired.
 ///
+/// @note MSFT compiler 2019/2022 support __builtin_FUNCTION() macro
+///
 #define XPTI_LW_TRACE(streamId, traceEvent)                                    \
   xpti::framework::notify_scope_t LWTrace(streamId, traceEvent,                \
-                                          XPTI_BUILTIN_FUNCTION)               \
+                                          __builtin_FUNCTION())                \
       .scopedNotify();
 
 /// @def XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType, traceEv)
