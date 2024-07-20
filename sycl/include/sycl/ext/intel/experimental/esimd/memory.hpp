@@ -1891,8 +1891,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
               T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
 ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
+  using RawT = __ESIMD_DNS::__raw_t<T>;
   __ESIMD_DNS::check_lsc_block_2d_restrictions<
-      T, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
+      RawT, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
       __ESIMD_DNS::block_2d_op::load>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
@@ -1924,22 +1925,22 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
-  __ESIMD_NS::simd<T, N> oldDst;
+  __ESIMD_NS::simd<RawT, N> oldDst;
   __ESIMD_NS::simd_mask<1> Mask = 1;
 
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
   if constexpr (Transposed)
-    return __esimd_lsc_load2d_descriptor_transpose<
-        T, CacheVectorT, Cache, NBlocks, BlockWidth, BlockHeight, 0, 0>(
-        Mask.data(), payload.get_raw_data(), oldDst.data());
+    return __esimd_lsc_load2d_descriptor_transpose<RawT, NBlocks, BlockWidth,
+                                                   BlockHeight, 0, 0, N>(
+        Mask.data(), payload.get_raw_data().data(), oldDst.data(), Cache);
   if constexpr (Transformed)
-    return __esimd_lsc_load2d_descriptor_transform<
-        T, CacheVectorT, Cache, NBlocks, BlockWidth, BlockHeight, 0, 0>(
-        Mask.data(), payload.get_raw_data(), oldDst.data());
-  return __esimd_lsc_load2d_descriptor<T, CacheVectorT, Cache, NBlocks,
-                                       BlockWidth, BlockHeight, 0, 0>(
-      Mask.data(), payload.get_raw_data(), oldDst.data());
+    return __esimd_lsc_load2d_descriptor_transform<RawT, NBlocks, BlockWidth,
+                                                   BlockHeight, 0, 0, N>(
+        Mask.data(), payload.get_raw_data().data(), oldDst.data(), Cache);
+  return __esimd_lsc_load2d_descriptor<RawT, NBlocks, BlockWidth, BlockHeight,
+                                       0, 0, N>(
+      Mask.data(), payload.get_raw_data().data(), oldDst.data(), Cache);
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -1967,22 +1968,23 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
+  using RawT = __ESIMD_DNS::__raw_t<T>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
                                  PropertyListT>();
   __ESIMD_DNS::check_lsc_block_2d_restrictions<
-      T, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
+      RawT, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
       __ESIMD_DNS::block_2d_op::prefetch>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
 
-  __ESIMD_NS::simd<T, N> oldDst;
+  __ESIMD_NS::simd<RawT, N> oldDst;
   __ESIMD_NS::simd_mask<1> Mask = 1;
 
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
-  __esimd_lsc_prefetch_descriptor<T, CacheVectorT, Cache, NBlocks, BlockWidth,
-                                  BlockHeight, 0, 0>(
-      Mask.data(), payload.get_raw_data(), oldDst.data());
+  __esimd_lsc_prefetch_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0,
+                                  N>(Mask.data(), payload.get_raw_data().data(),
+                                     oldDst.data(), Cache);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2007,8 +2009,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
              __ESIMD_NS::simd<T, N> Data) {
+  using RawT = __ESIMD_DNS::__raw_t<T>;
   __ESIMD_DNS::check_lsc_block_2d_restrictions<
-      T, BlockWidth, BlockHeight, NBlocks, false, false,
+      RawT, BlockWidth, BlockHeight, NBlocks, false, false,
       __ESIMD_DNS::block_2d_op::store>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   using CacheVectorT = __ESIMD_DNS::vector_type_t<uint8_t, 2>;
@@ -2016,12 +2019,13 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
                                  PropertyListT>();
 
   __ESIMD_NS::simd_mask<1> Mask = 1;
+  __ESIMD_NS::simd<RawT, N> Raw = Data;
 
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
-  __esimd_lsc_prefetch_descriptor<T, CacheVectorT, Cache, NBlocks, BlockWidth,
-                                  BlockHeight, 0, 0>(
-      Mask.data(), payload.get_raw_data(), Data.data());
+  __esimd_lsc_prefetch_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0,
+                                  N>(Mask.data(), payload.get_raw_data().data(),
+                                     Raw.data(), Cache);
 }
 
 namespace detail {

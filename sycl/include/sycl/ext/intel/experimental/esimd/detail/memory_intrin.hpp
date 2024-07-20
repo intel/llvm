@@ -58,13 +58,13 @@ __ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @return is a vector of type T
-template <typename Ty, typename CacheType, CacheType Cache, uint8_t NBlocks,
-          uint8_t BlockWidth, uint8_t BlockHeight, uint32_t BlockXOffset,
-          uint32_t BlockYOffset, int N>
+template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
+          uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
     __ESIMD_DNS::simd_mask_storage_t<1> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
-    __ESIMD_DNS::vector_type_t<Ty, N> PassThru) __ESIMD_INTRIN_END;
+    __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
+    __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
 /// Collects elements located as described in descriptor, performs transposition
 /// and returns them as a single \ref simd object.
@@ -80,14 +80,14 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @return is a vector of type T
-template <typename Ty, typename CacheType, CacheType Cache, uint8_t NBlocks,
-          uint8_t BlockWidth, uint8_t BlockHeight, uint32_t BlockXOffset,
-          uint32_t BlockYOffset, int N>
+template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
+          uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_descriptor_transpose(
     __ESIMD_DNS::simd_mask_storage_t<1> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
-    __ESIMD_DNS::vector_type_t<Ty, N> PassThru) __ESIMD_INTRIN_END;
+    __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
+    __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
 /// Collects elements located as described in descriptor, performs vnni
 /// transform and returns them as a single \ref simd object.
@@ -103,14 +103,14 @@ __esimd_lsc_load2d_descriptor_transpose(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @return is a vector of type T
-template <typename Ty, typename CacheType, CacheType Cache, uint8_t NBlocks,
-          uint8_t BlockWidth, uint8_t BlockHeight, uint32_t BlockXOffset,
-          uint32_t BlockYOffset, int N>
+template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
+          uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_descriptor_transform(
     __ESIMD_DNS::simd_mask_storage_t<1> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
-    __ESIMD_DNS::vector_type_t<Ty, N> PassThru) __ESIMD_INTRIN_END;
+    __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
+    __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block prefetch.
 /// Supported platforms: PVC
@@ -128,13 +128,13 @@ __esimd_lsc_load2d_descriptor_transform(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is dummy value to obtain type of the elements.
 /// @return is a vector of type T
-template <typename Ty, typename CacheType, CacheType Cache, uint8_t NBlocks,
-          uint8_t BlockWidth, uint8_t BlockHeight, uint32_t BlockXOffset,
-          uint32_t BlockYOffset, int N>
+template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
+          uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
     __ESIMD_DNS::simd_mask_storage_t<1> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
-    __ESIMD_DNS::vector_type_t<Ty, N> PassThru) __ESIMD_INTRIN_END;
+    __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
+    __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block store.
 /// Supported platforms: PVC
@@ -152,12 +152,12 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param Values is value to to store.
 /// @return is a vector of type T
-template <typename Ty, typename CacheType, CacheType Cache, uint8_t NBlocks,
-          uint8_t BlockWidth, uint8_t BlockHeight, uint32_t BlockXOffset,
-          uint32_t BlockYOffset, int N>
+template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
+          uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_store_descriptor(
     __ESIMD_DNS::simd_mask_storage_t<1> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
-    __ESIMD_DNS::vector_type_t<Ty, N> Values) __ESIMD_INTRIN_END;
+    __ESIMD_DNS::vector_type_t<Ty, N> Values,
+    __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL
