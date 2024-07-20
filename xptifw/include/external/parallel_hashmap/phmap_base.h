@@ -565,7 +565,7 @@ namespace phmap {
 namespace internal {
 
 template <typename T> struct identity {
-  typedef T type
+  typedef T type;
 };
 
 template <typename T> using identity_t = typename identity<T>::type;
@@ -3535,7 +3535,7 @@ template <class T> struct Type : NotAligned<T> {
   using type = T;
 };
 
-template <class T, size_t N> struct Type<Aligned<T, N>> (
+template <class T, size_t N> struct Type<Aligned<T, N>> {
   using type = T;
 };
 
