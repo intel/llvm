@@ -61,8 +61,7 @@ __ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
-    __ESIMD_DNS::simd_mask_storage_t<1> Pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
+    uint16_t Pred, __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
@@ -84,8 +83,7 @@ template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_descriptor_transpose(
-    __ESIMD_DNS::simd_mask_storage_t<1> Pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
+    uint16_t Pred, __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
@@ -107,8 +105,7 @@ template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_descriptor_transform(
-    __ESIMD_DNS::simd_mask_storage_t<1> Pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
+    uint16_t Pred, __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
@@ -131,8 +128,7 @@ __esimd_lsc_load2d_descriptor_transform(
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
-    __ESIMD_DNS::simd_mask_storage_t<1> Pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
+    uint16_t Pred, __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
@@ -155,8 +151,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_store_descriptor(
-    __ESIMD_DNS::simd_mask_storage_t<1> Pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
+    uint16_t Pred, __ESIMD_DNS::vector_type_t<uint32_t, 16> Desc,
     __ESIMD_DNS::vector_type_t<Ty, N> Values,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
