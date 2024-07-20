@@ -6134,7 +6134,7 @@ void CodeGenFunction::SetSqrtFPAccuracy(llvm::Value *Val) {
   if (!EltTy->isFloatTy())
     return;
 
-  if ((getLangOpts().OpenCL &&
+  if (((getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) &&
        !CGM.getCodeGenOpts().OpenCLCorrectlyRoundedDivSqrt) ||
       (getLangOpts().HIP && getLangOpts().CUDAIsDevice &&
        !CGM.getCodeGenOpts().HIPCorrectlyRoundedDivSqrt)) {
@@ -6155,7 +6155,7 @@ void CodeGenFunction::SetDivFPAccuracy(llvm::Value *Val) {
   if (!EltTy->isFloatTy())
     return;
 
-  if ((getLangOpts().OpenCL &&
+  if (((getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) &&
        !CGM.getCodeGenOpts().OpenCLCorrectlyRoundedDivSqrt) ||
       (getLangOpts().HIP && getLangOpts().CUDAIsDevice &&
        !CGM.getCodeGenOpts().HIPCorrectlyRoundedDivSqrt)) {
