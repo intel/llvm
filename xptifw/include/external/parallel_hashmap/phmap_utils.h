@@ -47,7 +47,9 @@ namespace phmap {
 
 // ---------------------------------------------------------------
 // ---------------------------------------------------------------
-template <int n> struct phmap_mix { inline size_t operator()(size_t) const; };
+template <int n> struct phmap_mix {
+  inline size_t operator()(size_t) const;
+};
 
 template <> struct phmap_mix<4> {
   inline size_t operator()(size_t a) const {
@@ -106,8 +108,8 @@ private:
   typedef std::false_type no;
 
   template <typename U>
-  static auto test(int)
-      -> decltype(hash_value(std::declval<const U &>()) == 1, yes());
+  static auto test(int) -> decltype(hash_value(std::declval<const U &>()) == 1,
+                                    yes());
 
   template <typename> static no test(...);
 

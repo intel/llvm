@@ -86,7 +86,9 @@ template <class T> struct Less {
 
 namespace type_traits_internal {
 
-template <typename... Ts> struct VoidTImpl { using type = void; };
+template <typename... Ts> struct VoidTImpl {
+  using type = void;
+};
 
 // NOTE: The `is_detected` family of templates here differ from the library
 // fundamentals specification in that for library fundamentals, `Op<Args...>` is
@@ -522,8 +524,8 @@ public:
   // Returns the "key" portion of the slot.
   // Used for node handle manipulation.
   template <class P = Policy>
-  static auto key(slot_type *slot)
-      -> decltype(P::apply(ReturnKey(), element(slot))) {
+  static auto key(slot_type *slot) -> decltype(P::apply(ReturnKey(),
+                                                        element(slot))) {
     return P::apply(ReturnKey(), element(slot));
   }
 
@@ -537,15 +539,14 @@ public:
 private:
   // Use auto -> decltype as an enabler.
   template <class Alloc, class P = Policy>
-  static auto transfer_impl(Alloc *alloc, slot_type *new_slot,
-                            slot_type *old_slot, int)
-      -> decltype((void)P::transfer(alloc, new_slot, old_slot)) {
+  static auto
+  transfer_impl(Alloc *alloc, slot_type *new_slot, slot_type *old_slot,
+                int) -> decltype((void)P::transfer(alloc, new_slot, old_slot)) {
     P::transfer(alloc, new_slot, old_slot);
   }
 
   template <class Alloc>
-  static void transfer_impl(Alloc *alloc, slot_type *new_slot,
-                            slot_type *old_slot, char) {
+  static void transfer_impl(Alloc *alloc, slot_type *new_slot, slot_type *old_slot, char) {
     construct(alloc, new_slot, std::move(element(old_slot)));
     destroy(alloc, old_slot);
   }
@@ -562,7 +563,9 @@ private:
 namespace phmap {
 namespace internal {
 
-template <typename T> struct identity { typedef T type; };
+template <typename T> struct identity {
+  typedef T type
+};
 
 template <typename T> using identity_t = typename identity<T>::type;
 
@@ -893,7 +896,9 @@ template <typename T, size_t N> struct Gen {
       typename Extend<typename Gen<T, N / 2>::type, N / 2, N % 2>::type;
 };
 
-template <typename T> struct Gen<T, 0> { using type = integer_sequence<T>; };
+template <typename T> struct Gen<T, 0> {
+  using type = integer_sequence<T>;
+};
 
 } // namespace utility_internal
 
@@ -1433,9 +1438,10 @@ template <typename Alloc> struct allocator_traits {
 
 private:
   template <typename A>
-  static auto allocate_impl(int, A &a, // NOLINT(runtime/references)
-                            size_type n, const_void_pointer hint)
-      -> decltype(a.allocate(n, hint)) {
+  static auto
+  allocate_impl(int, A &a, // NOLINT(runtime/references)
+                size_type n,
+                const_void_pointer hint) -> decltype(a.allocate(n, hint)) {
     return a.allocate(n, hint);
   }
   static pointer allocate_impl(char, Alloc &a, // NOLINT(runtime/references)
@@ -1457,9 +1463,9 @@ private:
   }
 
   template <typename A, typename T>
-  static auto destroy_impl(int, A &a, // NOLINT(runtime/references)
-                           T *p)
-      -> decltype(std::allocator_traits<A>::destroy(a, p)) {
+  static auto
+  destroy_impl(int, A &a, // NOLINT(runtime/references)
+               T *p) -> decltype(std::allocator_traits<A>::destroy(a, p)) {
     std::allocator_traits<A>::destroy(a, p);
   }
   template <typename T> static void destroy_impl(char, Alloc &, T *p) {
@@ -1721,9 +1727,10 @@ protected:
 // Also, we should be checking is_trivially_copyable here, which is not
 // supported now, so we use is_trivially_* traits instead.
 template <typename T,
-          bool unused = phmap::is_trivially_copy_constructible<T>::value
-              &&phmap::is_trivially_copy_assignable<typename std::remove_cv<
-                  T>::type>::value &&std::is_trivially_destructible<T>::value>
+          bool unused = phmap::is_trivially_copy_constructible<T>::value &&
+                        phmap::is_trivially_copy_assignable<
+                            typename std::remove_cv<T>::type>::value &&
+                        std::is_trivially_destructible<T>::value>
 class optional_data;
 
 // Trivially copyable types
@@ -1779,8 +1786,8 @@ protected:
   }
 
   optional_data &operator=(optional_data &&rhs) noexcept(
-      std::is_nothrow_move_assignable<T>::value
-          &&std::is_nothrow_move_constructible<T>::value) {
+      std::is_nothrow_move_assignable<T>::value &&
+      std::is_nothrow_move_constructible<T>::value) {
     if (rhs.engaged_) {
       this->assign(std::move(rhs.data_));
     } else {
@@ -2202,8 +2209,9 @@ public:
   // Swaps
 
   // Swap, standard semantics
-  void swap(optional &rhs) noexcept(std::is_nothrow_move_constructible<T>::value
-                                        &&std::is_trivial<T>::value) {
+  void
+  swap(optional &rhs) noexcept(std::is_nothrow_move_constructible<T>::value &&
+                               std::is_trivial<T>::value) {
     if (*this) {
       if (rhs) {
         using std::swap;
@@ -3522,9 +3530,13 @@ template <size_t> using IntToSize = size_t;
 
 template <class> using TypeToSize = size_t;
 
-template <class T> struct Type : NotAligned<T> { using type = T; };
+template <class T> struct Type : NotAligned<T> {
+  using type = T;
+};
 
-template <class T, size_t N> struct Type<Aligned<T, N>> { using type = T; };
+template <class T, size_t N> struct Type<Aligned<T, N>> (
+  using type = T;
+};
 
 template <class T>
 struct SizeOf : NotAligned<T>, std::integral_constant<size_t, sizeof(T)> {};

@@ -133,7 +133,8 @@ template <typename First, typename Second> struct entry {
   uint32_t bucket;
   uint32_t timeout;
   First first; // long
-};             // __attribute__ ((packed));
+
+}; // __attribute__ ((packed));
 
 /// A cache-friendly hash table with open addressing, linear/qua probing and
 /// power-of-two capacity

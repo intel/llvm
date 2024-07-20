@@ -724,10 +724,11 @@ auto TupleRefImpl(T &&t, phmap::index_sequence<Is...>)
 // tuple.
 // ----------------------------------------------------------------------------
 template <class T>
-auto TupleRef(T &&t) -> decltype(TupleRefImpl(
-    std::forward<T>(t),
-    phmap::make_index_sequence<
-        std::tuple_size<typename std::decay<T>::type>::value>())) {
+auto TupleRef(T &&t)
+    -> decltype(TupleRefImpl(
+        std::forward<T>(t),
+        phmap::make_index_sequence<
+            std::tuple_size<typename std::decay<T>::type>::value>())) {
   return TupleRefImpl(
       std::forward<T>(t),
       phmap::make_index_sequence<
@@ -1035,9 +1036,9 @@ public:
   using insert_return_type = InsertReturnType<iterator, node_type>;
 
   raw_hash_set() noexcept(
-      std::is_nothrow_default_constructible<hasher>::value
-          &&std::is_nothrow_default_constructible<key_equal>::value
-              &&std::is_nothrow_default_constructible<allocator_type>::value) {}
+      std::is_nothrow_default_constructible<hasher>::value &&
+      std::is_nothrow_default_constructible<key_equal>::value &&
+      std::is_nothrow_default_constructible<allocator_type>::value) {}
 
   explicit raw_hash_set(size_t bucket_cnt, const hasher &hashfn = hasher(),
                         const key_equal &eq = key_equal(),
@@ -1165,9 +1166,9 @@ public:
   }
 
   raw_hash_set(raw_hash_set &&that) noexcept(
-      std::is_nothrow_copy_constructible<hasher>::value
-          &&std::is_nothrow_copy_constructible<key_equal>::value
-              &&std::is_nothrow_copy_constructible<allocator_type>::value)
+      std::is_nothrow_copy_constructible<hasher>::value &&
+      std::is_nothrow_copy_constructible<key_equal>::value &&
+      std::is_nothrow_copy_constructible<allocator_type>::value)
       : ctrl_(phmap::exchange(that.ctrl_, EmptyGroup())),
         slots_(phmap::exchange(that.slots_, nullptr)),
         size_(phmap::exchange(that.size_, 0)),
@@ -1210,9 +1211,9 @@ public:
   }
 
   raw_hash_set &operator=(raw_hash_set &&that) noexcept(
-      phmap::allocator_traits<allocator_type>::is_always_equal::value
-          &&std::is_nothrow_move_assignable<hasher>::value
-              &&std::is_nothrow_move_assignable<key_equal>::value) {
+      phmap::allocator_traits<allocator_type>::is_always_equal::value &&
+      std::is_nothrow_move_assignable<hasher>::value &&
+      std::is_nothrow_move_assignable<key_equal>::value) {
     // TODO(sbenza): We should only use the operations from the noexcept clause
     // to make sure we actually adhere to that contract.
     return move_assign(
@@ -1345,8 +1346,8 @@ public:
     using no = std::false_type;
 
     template <typename U>
-    static auto test(int)
-        -> decltype(std::declval<U>() - std::declval<U>() == 1, yes());
+    static auto 
+    test(int) -> decltype(std::declval<U>() - std::declval<U>() == 1, yes());
     template <typename> static no test(...);
 
   public:
@@ -2757,9 +2758,9 @@ public:
   // ------------------------- c o n s t r u c t o r s ------------------
 
   parallel_hash_set() noexcept(
-      std::is_nothrow_default_constructible<hasher>::value
-          &&std::is_nothrow_default_constructible<key_equal>::value
-              &&std::is_nothrow_default_constructible<allocator_type>::value) {}
+      std::is_nothrow_default_constructible<hasher>::value &&
+      std::is_nothrow_default_constructible<key_equal>::value &&
+      std::is_nothrow_default_constructible<allocator_type>::value) {}
 
 #if (__cplusplus >= 201703L || _MSVC_LANG >= 201402) &&                        \
     (defined(_MSC_VER) || defined(__clang__) ||                                \
@@ -2770,7 +2771,8 @@ public:
                              const allocator_type &alloc = allocator_type())
       : parallel_hash_set(
             typename Inner::Params{bucket_cnt, hash_param, eq, alloc},
-            phmap::make_index_sequence<num_tables>{}) {}
+            phmap::make_index_sequence<num_tables>{}) {
+  }
 
   template <std::size_t... i>
   parallel_hash_set(typename Inner::Params const &p,
@@ -2898,9 +2900,9 @@ public:
   }
 
   parallel_hash_set(parallel_hash_set &&that) noexcept(
-      std::is_nothrow_copy_constructible<hasher>::value
-          &&std::is_nothrow_copy_constructible<key_equal>::value
-              &&std::is_nothrow_copy_constructible<allocator_type>::value)
+      std::is_nothrow_copy_constructible<hasher>::value &&
+      std::is_nothrow_copy_constructible<key_equal>::value &&
+      std::is_nothrow_copy_constructible<allocator_type>::value)
       : parallel_hash_set(std::move(that), that.alloc_ref()) {}
 
   parallel_hash_set(parallel_hash_set &&that, const allocator_type &a) {
@@ -2915,9 +2917,9 @@ public:
   }
 
   parallel_hash_set &operator=(parallel_hash_set &&that) noexcept(
-      phmap::allocator_traits<allocator_type>::is_always_equal::value
-          &&std::is_nothrow_move_assignable<hasher>::value
-              &&std::is_nothrow_move_assignable<key_equal>::value) {
+      phmap::allocator_traits<allocator_type>::is_always_equal::value &&
+      std::is_nothrow_move_assignable<hasher>::value &&
+      std::is_nothrow_move_assignable<key_equal>::value) {
     for (size_t i = 0; i < num_tables; ++i)
       sets_[i].set_ = std::move(that.sets_[i].set_);
     return *this;

@@ -93,7 +93,9 @@ namespace type_traits_internal {
 #pragma warning(disable : 4624)
 #endif // defined(_MSC_VER) && !defined(__GNUC__)
 
-template <class T> union SingleMemberUnion { T t; };
+template <class T> union SingleMemberUnion { 
+  T t;
+};
 
 // Restore the state of the destructor warning that was silenced above.
 #if defined(_MSC_VER) && !defined(__GNUC__)
@@ -2454,8 +2456,8 @@ btree<P>::btree(const btree &x) : btree(x.key_comp(), x.allocator()) {
 
 template <typename P>
 template <typename... Args>
-auto btree<P>::insert_unique(const key_type &key, Args &&...args)
-    -> std::pair<iterator, bool> {
+auto btree<P>::insert_unique(const key_type &key, 
+                             Args &&...args) -> std::pair<iterator, bool> {
   if (empty()) {
     mutable_root() = rightmost_ = new_leaf_root_node(1);
   }
@@ -2480,9 +2482,9 @@ auto btree<P>::insert_unique(const key_type &key, Args &&...args)
 
 template <typename P>
 template <typename... Args>
-inline auto btree<P>::insert_hint_unique(iterator position, const key_type &key,
-                                         Args &&...args)
-    -> std::pair<iterator, bool> {
+inline auto 
+btree<P>::insert_hint_unique(iterator position, const key_type &key,
+                             Args &&...args) -> std::pair<iterator, bool> {
   if (!empty()) {
     if (position == end() || compare_keys(key, position.key())) {
       iterator prev = position;
@@ -2678,8 +2680,8 @@ auto btree<P>::rebalance_after_delete(iterator iter) -> iterator {
 }
 
 template <typename P>
-auto btree<P>::erase(iterator _begin, iterator _end)
-    -> std::pair<size_type, iterator> {
+auto btree<P>::erase(iterator _begin,
+                     iterator _end) -> std::pair<size_type, iterator> {
   difference_type count = std::distance(_begin, _end);
   assert(count >= 0);
 
@@ -2744,8 +2746,8 @@ void btree<P>::erase_same_node(iterator _begin, iterator _end) {
 }
 
 template <typename P>
-auto btree<P>::erase_from_leaf_node(iterator _begin, size_type to_erase)
-    -> iterator {
+auto btree<P>::erase_from_leaf_node(iterator _begin,
+                                    size_type to_erase) -> iterator {
   node_type *node = _begin.node;
   assert(node->leaf());
   assert(node->count() > _begin.position);
@@ -3020,8 +3022,8 @@ inline IterType btree<P>::internal_last(IterType iter) {
 
 template <typename P>
 template <typename... Args>
-inline auto btree<P>::internal_emplace(iterator iter, Args &&...args)
-    -> iterator {
+inline auto btree<P>::internal_emplace(iterator iter,
+                                       Args &&...args) -> iterator {
   if (!iter.node->leaf()) {
     // We can't insert on an internal node. Instead, we'll insert after the
     // previous value which is guaranteed to be on a leaf node.
@@ -3081,10 +3083,9 @@ btree<P>::internal_locate_impl(const K &key,
 
 template <typename P>
 template <typename K>
-inline auto
-btree<P>::internal_locate_impl(const K &key,
-                               std::true_type /* IsCompareTo */) const
-    -> SearchResult<iterator, true> {
+inline auto btree<P>::internal_locate_impl(
+    const K &key,
+    std::true_type /* IsCompareTo */) const -> SearchResult<iterator, true> {
   iterator iter(const_cast<node_type *>(root()), 0);
   for (;;) {
     SearchResult<int, true> res = iter.node->lower_bound(key, key_comp());
