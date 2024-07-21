@@ -37,7 +37,7 @@ float __devicelib_copysignf(float x, float y) {
 }
 
 DEVICE_EXTERN_C_INLINE
-long int __devicelib_lroundf(float x) { return __spirv_ocl_lround(x); }
+long int __devicelib_lroundf(float x) { return static_cast<long int>(__spirv_ocl_round(x)); }//__spirv_ocl_lround(x); }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_cospif(float x) { return __spirv_ocl_cospi(x); }

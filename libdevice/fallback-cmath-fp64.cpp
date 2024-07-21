@@ -72,7 +72,7 @@ double __devicelib_modf(double x, double *intpart) {
 }
 
 DEVICE_EXTERN_C_INLINE
-long int __devicelib_lround(double x) { return __spirv_ocl_lround(x); }
+long int __devicelib_lround(double x) { return static_cast<long int>(__spirv_ocl_round(x)); }//__spirv_ocl_lround(x); }
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_round(double x) { return __spirv_ocl_round(x); }
