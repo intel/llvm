@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include <sycl/stream.hpp>
 
 template <typename T, size_t TM, size_t TN, size_t TK> class imatrix;
 
@@ -14,13 +15,14 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
   queue q;
   size_t sg_size = get_sg_size<imatrix<T1, TM, TN, TK>>(q);
-  std::cout << "sg_size" << sg_size << std::endl;
+//   std::cout << "sg_size" << sg_size << std::endl;
 
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
-
+    
+     sycl::stream os { 5000, 5000, cgh};
      cgh.parallel_for<imatrix<T1, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
@@ -40,34 +42,49 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
                sub_a;
             //For B, we assume B has been already VNNIed.
-        //    joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-        //                 layout::ext_intel_packed>
-        //        sub_b;
-        //    joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
+           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
+                        layout::ext_intel_packed>
+               sub_b;
+           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
         //    joint_matrix_load(
         //        sg, sub_c,
         //        accC.template get_multi_ptr<access::decorated::no>() +
         //            (sg_startx * TM) * N + sg_starty / sg_size * TN,
         //         N, layout::row_major);
-        //    for (int k = 0; k < K / TK; k += 1) { //
-        //      joint_matrix_load(
-        //          sg, sub_a,
-        //          accA.template get_multi_ptr<access::decorated::no>() +
-        //              (sg_startx * TM) * K + k * TK,
-        //          K);
-        //      joint_matrix_load(
-        //          sg, sub_b,
-        //          accB.template get_multi_ptr<access::decorated::no>() +
-        //              (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
-        //          N * 2);
-            //   joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
-        //    }
+           for (int k = 0; k < K / TK; k += 1) { //
+             joint_matrix_load(
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
+                 K);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
+                 N * 2);
+               joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+           }
+            os << "After A load \n";
+            joint_matrix_apply(sg, sub_a, [=](bfloat16 &x) {
+                os << (int)x << " ";
+            });
+            os << "\n";
+            
+            os << "After B load \n";
+            joint_matrix_apply(sg, sub_b, [=](bfloat16 &x) {
+                os << (int)x << " ";
+            });
+        //     os << "After C load \n";
+        //    joint_matrix_apply(sg, sub_c, [=](float &x) {
+        //         os << (int)x << " ";
+        //     });
         //    joint_matrix_store(
         //        sg, sub_c,
         //        accC.template get_multi_ptr<access::decorated::no>() +
         //            (sg_startx * TM) * N + sg_starty / sg_size * TN,
         //        N, layout::row_major);
+            // os << "\n";
          }); // parallel for
    }).wait();
 }
@@ -77,23 +94,22 @@ void test() {
     std::cout << "Testing: " << TM << " x " << TN << " x " << TK
             << " [TM x TN x TK]" << std::endl;
 
-    static constexpr size_t MATRIX_M = TM * 2;
-    static constexpr size_t MATRIX_N = TN * 2;
-    static constexpr size_t MATRIX_K = TK * 2;
+    static constexpr size_t MATRIX_M = TM * 1;
+    static constexpr size_t MATRIX_N = TN * 1;
+    static constexpr size_t MATRIX_K = TK * 1;
 
     // A : MxK, B: kxN -> K/2x(Nx2), C: MxN, D: MxN
     T A[MATRIX_M][MATRIX_K];
     T B[MATRIX_K / 2][MATRIX_N * 2];
-
     TResult C[MATRIX_M][MATRIX_N];
     TResult D[MATRIX_M][MATRIX_N];
 
     //A[i][j] = i + j;
     matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
-              [](int i, int j) { return T(1) * (i + j); });
+              [](int i, int j) { return T(32) * i + T(1) * j; });
     // B[i][j] = 2 * i + 3 * j
     matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (T *)B,
-              [](int i, int j) { return T(2) * i + T(3) * j; });
+              [](int i, int j) { return T(64) * i + T(1) * j; });
     matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, TResult(1));
     matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
 
@@ -103,8 +119,33 @@ void test() {
     big_matrix<T, MATRIX_K / 2, MATRIX_N * 2> MB((T *)&B);
     matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MC, MA,
                                                                         MB);
-    // matrix_multiply_ref<T, T, TResult, 2>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
-    //                                     MATRIX_N, MATRIX_K / 2);
+    matrix_multiply_ref<T, T, TResult, 2>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
+                                        MATRIX_N, MATRIX_K / 2);
+
+    // std::cout << "ref matrix " << std::endl;
+    // for(int i = 0; i < MATRIX_M; i++) {
+    //     for(int j = 0; j < MATRIX_N; j++) {
+    //         // std::cout << D[i * MATRIX_N + j] << " ";
+    //         std::cout << D[i][j] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    std::cout << "Matrix A" << std::endl;
+    for(int i = 0; i < MATRIX_M; i++) {
+        for(int j = 0; j < MATRIX_K; j++) {
+            // std::cout << C[i * MATRIX_N + j] << " ";
+            std::cout << A[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    // std::cout << "source matrix " << std::endl;
+    // for(int i = 0; i < MATRIX_M; i++) {
+    //     for(int j = 0; j < MATRIX_N; j++) {
+    //         // std::cout << C[i * MATRIX_N + j] << " ";
+    //         std::cout << C[i][j] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
 
     // assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }
@@ -119,6 +160,7 @@ int main() {
                 matrix_combinations>();
 
     for (unsigned int i = 0; i < combinations.size(); i++) {
+
         if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
             // test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
             // test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();

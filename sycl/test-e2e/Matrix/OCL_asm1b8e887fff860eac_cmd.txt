@@ -1,3 +1,0 @@
-IGC keys (some dump keys not shown) and command line to compile:
-
-IGCStandalone -api ocl -llvm 14 -device 0x4f6.0x4f80.0x0 -gmd_render 0x37.0x0 -inputcs OCL_asm1b8e887fff860eac.spv -finternal_options OCL_asm1b8e887fff860eac_internal_options.txt
