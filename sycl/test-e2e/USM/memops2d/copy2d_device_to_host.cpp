@@ -13,6 +13,8 @@
 // Temporarily disabled until the failure is addressed.
 // For HIP see https://github.com/intel/llvm/issues/10157.
 // UNSUPPORTED: (level_zero && windows) || hip
+// Certain rocm versions fail due to driver bug.
+// XFAIL: hip_amd
 
 #include "copy2d_common.hpp"
 
