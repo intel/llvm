@@ -99,13 +99,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 17 19:12:31 2024 +0100
-  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
-  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
-  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
+  # commit 9abb51ebe60ef86ccc86838183e9bf15842c5f08 (jack/hip-set-device)
+  # Author: JackAKirk <jack.kirk@codeplay.com>
+  # Date:   Fri Jul 12 10:40:28 2024 +0100
+  # 
+  #     Update match: API passes if unsupported.
+  #     
+  #     The test should have been checking for success or unsupported, since most backends don't support context interop.
+  #     
+  #     Signed-off-by: JackAKirk <jack.kirk@codeplay.com>
+  set(UNIFIED_RUNTIME_TAG 9abb51ebe60ef86ccc86838183e9bf15842c5f08)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

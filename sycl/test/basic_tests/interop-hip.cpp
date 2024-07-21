@@ -51,7 +51,6 @@ int main() {
   // backend-defined and specified in the backend specification.
 
   hip_device = get_native<backend::ext_oneapi_hip>(Device);
-  // expected-warning@+1{{'get_native<sycl::backend::ext_oneapi_hip, sycl::context>' is deprecated: Context interop is deprecated for HIP. If a native context is required, use hipDevicePrimaryCtxRetain with a native device}}
   hip_context = get_native<backend::ext_oneapi_hip>(Context);
   hip_event = get_native<backend::ext_oneapi_hip>(Event);
   hip_queue = get_native<backend::ext_oneapi_hip>(Queue);
