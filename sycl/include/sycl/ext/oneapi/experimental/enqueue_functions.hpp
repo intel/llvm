@@ -34,6 +34,16 @@ template <typename RangeT>
 constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
 
 template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess;
+
+// Checks that none of the properties in the property list has compile-time
+// effects on the kernel.
+template <typename T>
+struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
+template <typename... Ts>
+struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
+  static constexpr bool value =
+      !(HasCompileTimeEffect<Ts>::value || ... || false);
+};
 } // namespace detail
 
 // Available only when Range is range or nd_range
@@ -183,11 +193,15 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void parallel_for(handler &CGH,
                   launch_config<range<Dimensions>, Properties> Config,
                   const kernel &KernelObj, ArgsT &&...Args) {
+  static_assert(detail::NoPropertyHasCompileTimeKernelEffect<Properties>::value,
+                "This kernel enqueue function does not allow properties with "
+                "compile-time kernel effects.");
   ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
@@ -259,11 +273,16 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                const kernel &KernelObj, ArgsT &&...Args) {
+  static_assert(detail::NoPropertyHasCompileTimeKernelEffect<Properties>::value,
+                "This kernel enqueue function does not allow properties with "
+                "compile-time kernel effects.");
+
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
