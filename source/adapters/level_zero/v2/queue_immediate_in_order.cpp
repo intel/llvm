@@ -481,21 +481,21 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
-    void *pDst, const void *pSrc, const ur_image_format_t *pImageFormat,
-    const ur_image_desc_t *pImageDesc, ur_exp_image_copy_flags_t imageCopyFlags,
-    ur_rect_offset_t srcOffset, ur_rect_offset_t dstOffset,
-    ur_rect_region_t copyExtent, ur_rect_region_t hostExtent,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = pDst;
   std::ignore = pSrc;
-  std::ignore = pImageFormat;
-  std::ignore = pImageDesc;
+  std::ignore = pSrcImageDesc;
+  std::ignore = pDstImageDesc;
   std::ignore = imageCopyFlags;
-  std::ignore = srcOffset;
-  std::ignore = dstOffset;
-  std::ignore = copyExtent;
-  std::ignore = hostExtent;
+  std::ignore = pSrcImageFormat;
+  std::ignore = pDstImageFormat;
+  std::ignore = pCopyRegion;
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
