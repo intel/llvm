@@ -12,74 +12,11 @@
 // then tests a graph made of kernels. This test uses USM isntead of buffers to
 // test the path with no implicit dependencies which bypasses the SYCL
 // scheduler.
+#define GRAPH_TESTS_VERBOSE_PRINT 0
 
 #include "../graph_common.hpp"
 
 #include <sycl/properties/all_properties.hpp>
-
-#define GRAPH_TESTS_VERBOSE_PRINT 1
-
-#if GRAPH_TESTS_VERBOSE_PRINT
-#include <chrono>
-#endif
-
-bool verifyProfiling(event Event) {
-  auto Submit =
-      Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto Start =
-      Event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto End =
-      Event.get_profiling_info<sycl::info::event_profiling::command_end>();
-
-#if GRAPH_TESTS_VERBOSE_PRINT
-  std::cout << "Submit = " << Submit << std::endl;
-  std::cout << "Start = " << Start << std::endl;
-  std::cout << "End = " << End << " ( " << (End - Start) << " ) "
-            << " => full ( " << (End - Submit) << " ) " << std::endl;
-#endif
-
-  assert((Submit && Start && End) && "Profiling information failed.");
-  assert(Submit <= Start);
-  assert(Start < End);
-
-  bool Pass = sycl::info::event_command_status::complete ==
-              Event.get_info<sycl::info::event::command_execution_status>();
-
-  return Pass;
-}
-
-bool compareProfiling(event Event1, event Event2) {
-  assert(Event1 != Event2);
-
-  auto SubmitEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto StartEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto EndEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((SubmitEvent1 && StartEvent1 && EndEvent1) &&
-         "Profiling information failed.");
-
-  auto SubmitEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto StartEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto EndEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((SubmitEvent2 && StartEvent2 && EndEvent2) &&
-         "Profiling information failed.");
-
-  assert(SubmitEvent1 != SubmitEvent2);
-  assert(StartEvent1 != StartEvent2);
-  assert(EndEvent1 != EndEvent2);
-
-  bool Pass1 = sycl::info::event_command_status::complete ==
-               Event1.get_info<sycl::info::event::command_execution_status>();
-  bool Pass2 = sycl::info::event_command_status::complete ==
-               Event2.get_info<sycl::info::event::command_execution_status>();
-
-  return (Pass1 && Pass2);
-}
 
 // The test checks that get_profiling_info waits for command associated with
 // event to complete execution.
@@ -87,7 +24,7 @@ int main() {
   device Dev;
 
   // Queue used for graph recording
-  queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
+  queue Queue{Dev};
 
   // Queue that will be used for execution
   queue ExecutionQueue{Queue.get_device(),
@@ -144,21 +81,21 @@ int main() {
 #endif
     CopyEvent = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(CopyGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto EndCopyGraph = std::chrono::high_resolution_clock::now();
     auto StartKernelSubmit1 = std::chrono::high_resolution_clock::now();
 #endif
     KernelEvent1 = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto endKernelSubmit1 = std::chrono::high_resolution_clock::now();
     auto StartKernelSubmit2 = std::chrono::high_resolution_clock::now();
 #endif
     KernelEvent2 = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto endKernelSubmit2 = std::chrono::high_resolution_clock::now();
 
