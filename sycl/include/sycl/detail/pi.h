@@ -206,9 +206,18 @@
 // 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
 // 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
 //       descriptors.
+// 20.63 Added device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM
+//       Removed device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 
 #define _PI_H_VERSION_MAJOR 20
-#define _PI_H_VERSION_MINOR 62
+#define _PI_H_VERSION_MINOR 63
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
