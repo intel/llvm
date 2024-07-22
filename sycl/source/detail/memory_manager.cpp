@@ -1649,13 +1649,14 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
 }
 
 void MemoryManager::copy_image_bindless(
-    const void *Src, QueueImplPtr Queue, void *Dst,
-    const sycl::detail::pi::PiMemImageDesc &Desc,
-    const sycl::detail::pi::PiMemImageFormat &Format,
+    QueueImplPtr Queue, const void *Src, void *Dst,
+    const sycl::detail::pi::PiMemImageDesc &SrcImageDesc,
+    const sycl::detail::pi::PiMemImageDesc &DestImageDesc,
+    const sycl::detail::pi::PiMemImageFormat &SrcImageFormat,
+    const sycl::detail::pi::PiMemImageFormat &DestImageFormat,
     const sycl::detail::pi::PiImageCopyFlags Flags,
     sycl::detail::pi::PiImageOffset SrcOffset,
     sycl::detail::pi::PiImageOffset DstOffset,
-    sycl::detail::pi::PiImageRegion HostExtent,
     sycl::detail::pi::PiImageRegion CopyExtent,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
@@ -1675,9 +1676,9 @@ void MemoryManager::copy_image_bindless(
 
   const detail::PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextMemImageCopy>(
-      Queue->getHandleRef(), Dst, Src, &Format, &Desc, Flags, &SrcOffset,
-      &DstOffset, &CopyExtent, &HostExtent, DepEvents.size(), DepEvents.data(),
-      OutEvent);
+      Queue->getHandleRef(), Dst, Src, &SrcImageDesc, &DestImageDesc,
+      &SrcImageFormat, &DestImageFormat, Flags, &SrcOffset, &DstOffset,
+      &CopyExtent, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 } // namespace detail

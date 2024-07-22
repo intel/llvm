@@ -1788,7 +1788,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE" << "\\n";
+  Stream << "EMPTY NODE"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3231,13 +3232,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CGType::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
 
-    sycl::detail::pi::PiMemImageDesc Desc = Copy->getDesc();
-
     MemoryManager::copy_image_bindless(
-        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+        MQueue, Copy->getSrc(), Copy->getDst(), Copy->getSrcDesc(),
+        Copy->getDstDesc(), Copy->getSrcFormat(), Copy->getDstFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
-        Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
-        Event);
+        Copy->getCopyExtent(), std::move(RawEvents), Event);
     return PI_SUCCESS;
   }
   case CGType::SemaphoreWait: {
@@ -3466,7 +3465,8 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update" << "\\n";
+  Stream << "CommandBuffer Command Update"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 
