@@ -101,7 +101,7 @@ EventImplPtr Scheduler::addCG(
     bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
-  const CG::CGTYPE Type = CommandGroup->getType();
+  const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
@@ -113,12 +113,12 @@ EventImplPtr Scheduler::addCG(
 
     Command *NewCmd = nullptr;
     switch (Type) {
-    case CG::UpdateHost:
+    case CGType::UpdateHost:
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       NewEvent = NewCmd->getEvent();
       break;
-    case CG::CodeplayHostTask: {
+    case CGType::CodeplayHostTask: {
       auto Result = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
                                         AuxiliaryCmds, EventNeeded);
       NewCmd = Result.NewCmd;
