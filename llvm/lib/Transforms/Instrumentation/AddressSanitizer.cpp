@@ -3467,6 +3467,8 @@ bool AddressSanitizer::instrumentFunction(Function &F,
         NumInsnsPerBB++;
       } else {
         if (auto *CB = dyn_cast<CallBase>(&Inst)) {
+          // On device side, the only non return cases should be *.trap or
+          // assert, and none of these cases need to be handles.
           if (!TargetTriple.isSPIROrSPIRV()) {
             // A call inside BB.
             TempsToInstrument.clear();
