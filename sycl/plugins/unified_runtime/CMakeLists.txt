@@ -100,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7e38af77174f92bf4025122b1fa8e3fc49f3ba29
-  # Merge: ddafd29b 6c7d7a76
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 15 15:14:47 2024 +0100
-  #     Merge pull request #1863 from kbenzie/benie/main-reverts
-  #     Revert "Merge pull request #1849 from ayylol/cl-subgroupsizes"
-  set(UNIFIED_RUNTIME_TAG 7e38af77174f92bf4025122b1fa8e3fc49f3ba29)
+  # commit d2b086a7170145f255e8702f512f6157b047cbe5
+  # Author: Callum Fare <callum@codeplay.com>
+  # Date:   Mon Jul 22 11:11:32 2024 +0100
+  #     Merge pull request #1803 from cppchedy/chedy/new-ur-copy-api
+  #     [CUDA][L0][Bindless] update design of urBindlessImagesImageCopyExp
+  set(UNIFIED_RUNTIME_TAG d2b086a7170145f255e8702f512f6157b047cbe5)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
