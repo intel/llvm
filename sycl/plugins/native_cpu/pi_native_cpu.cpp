@@ -432,15 +432,16 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 
 __SYCL_EXPORT pi_result piextMemImageCopy(
     pi_queue Queue, void *DstPtr, const void *SrcPtr,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-    pi_image_offset DstOffset, pi_image_region CopyExtent,
-    pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DestImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
-                                  Flags, SrcOffset, DstOffset, CopyExtent,
-                                  HostExtent, NumEventsInWaitList,
-                                  EventWaitList, Event);
+  return pi2ur::piextMemImageCopy(
+      Queue, DstPtr, SrcPtr, SrcImageDesc, DestImageDesc, SrcImageFormat,
+      DestImageFormat, Flags, SrcOffset, DstOffset, CopyExtent,
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
@@ -1309,17 +1310,15 @@ pi_result piextCommandBufferAdviseUSM(
                                             SyncPointWaitList, SyncPoint);
 }
 
-pi_result piextEnqueueCooperativeKernelLaunch(
-    pi_queue , pi_kernel , pi_uint32 ,
-    const size_t *, const size_t *,
-    const size_t *, pi_uint32 ,
-    const pi_event *, pi_event *) {
+pi_result piextEnqueueCooperativeKernelLaunch(pi_queue, pi_kernel, pi_uint32,
+                                              const size_t *, const size_t *,
+                                              const size_t *, pi_uint32,
+                                              const pi_event *, pi_event *) {
   return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
-pi_result piextKernelSuggestMaxCooperativeGroupCount(
-    pi_kernel , size_t , size_t ,
-    pi_uint32 *) {
+pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel, size_t, size_t,
+                                                     pi_uint32 *) {
   return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
