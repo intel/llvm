@@ -201,6 +201,12 @@ class SanitizerInterceptor {
     ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
+    ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+        UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+        m_Adapters.push_back(Adapter);
+        return UR_RESULT_SUCCESS;
+    }
+
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
@@ -262,6 +268,8 @@ class SanitizerInterceptor {
 
     std::unique_ptr<Quarantine> m_Quarantine;
     logger::Logger &logger;
+
+    std::vector<ur_adapter_handle_t> m_Adapters;
 };
 
 } // namespace ur_sanitizer_layer

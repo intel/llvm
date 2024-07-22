@@ -158,6 +158,10 @@ SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
 SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
+
+    for (auto Adapter : m_Adapters) {
+        getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    }
 }
 
 /// The memory chunk allocated from the underlying allocator looks like this:
