@@ -18,49 +18,56 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t pfnNativeEnqueue, void *data,
     uint32_t, const ur_mem_handle_t *,
     const ur_exp_enqueue_native_command_properties_t *,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventList,
     ur_event_handle_t *phEvent) {
   auto Queue = this;
 
-  // TODO: Do I need this lock?
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-
-  // TODO: What do I need to do with phMemList? Will a ur_mem_handle_t always
-  // be usable as a native arg from within pfnNativeEnqueue, or should some
-  // mem migration happen?
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
+
+  // Please note that the following code should be run before the
+  // subsequent getAvailableCommandList() call so that there is no
+  // dead-lock from waiting unsubmitted events in an open batch.
+  // The createAndRetainUrZeEventList() has the proper side-effect
+  // of submitting batches with dependent events.
+  //
   _ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      NumEventsInWaitList, phEventWaitList, Queue, UseCopyEngine));
+      NumEventsInWaitList, phEventList, Queue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
+  // TODO: Change UseCopyEngine argument to 'true' once L0 backend
+  // support is added
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventWaitList,
-      true /* AllowBatching */));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
 
+  // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
-  ur_event_handle_t InternalEvent{};
+  ur_event_handle_t InternalEvent;
   bool IsInternal = phEvent == nullptr;
   ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
-
-  UR_CALL(createEventAndAssociateQueue(Queue, Event,
-                                       UR_COMMAND_ENQUEUE_NATIVE_EXP,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal, false));
-  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, phEventWaitList,
-                         CommandList->second.ZeQueue));
+  ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  // FIXME: blocking synchronization. Make this faster
-  Queue->queueFinish();
-
+  const auto &WaitList = (*Event)->WaitList;
+  const auto &ZeCommandList = CommandList->first;
+  if (WaitList.Length) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
+  }
   // Execute interop func
   pfnNativeEnqueue(Queue, data);
 
-  // FIXME: blocking synchronization. Make this faster
-  Queue->queueFinish();
+  // TODO: Level Zero does not have a completion "event" with the prefetch API,
+  // so manually add command to signal our event.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+
+  UR_CALL(Queue->executeCommandList(CommandList, false));
 
   return UR_RESULT_SUCCESS;
 }
