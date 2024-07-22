@@ -4153,17 +4153,17 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
       return;
     }
 
-    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() ||
-        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
-      return;
-    }
-
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
     auto SM = getCudaArch(TI);
     if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << CudaArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() ||
+        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
       return;
     }
   }

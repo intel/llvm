@@ -75,6 +75,8 @@ static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   AT = TargetHelpers::getArchType(M);
+  if (AT == ArchType::Unsupported)
+    return PreservedAnalyses::all();
   assert((AT == ArchType::Cuda || AT == ArchType::AMDHSA) &&
          "Unsupported arch type!");
   Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
