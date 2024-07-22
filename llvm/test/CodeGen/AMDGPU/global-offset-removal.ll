@@ -1,4 +1,4 @@
-; RUN: opt -bugpoint-enable-legacy-pm -globaloffset -enable-global-offset=false %s -S -o - | FileCheck %s
+; RUN: opt -mtriple=amdgcn--amdhsa -passes=globaloffset -enable-global-offset=false %s -S -o - | FileCheck %s
 
 ; This test checks that the implicit offset intrinsic is correctly removed
 
