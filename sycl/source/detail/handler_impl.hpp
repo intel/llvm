@@ -124,13 +124,14 @@ public:
   bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
-  sycl::detail::pi::PiMemImageDesc MImageDesc;
-  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiMemImageDesc MSrcImageDesc;
+  sycl::detail::pi::PiMemImageDesc MDestImageDesc;
+  sycl::detail::pi::PiMemImageFormat MSrcImageFormat;
+  sycl::detail::pi::PiMemImageFormat MDestImageFormat;
   sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
 
   sycl::detail::pi::PiImageOffset MSrcOffset;
   sycl::detail::pi::PiImageOffset MDestOffset;
-  sycl::detail::pi::PiImageRegion MHostExtent;
   sycl::detail::pi::PiImageRegion MCopyExtent;
 
   // Extra information for semaphore interoperability

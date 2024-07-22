@@ -578,39 +578,47 @@ public:
 class CGCopyImage : public CG {
   void *MSrc;
   void *MDst;
-  sycl::detail::pi::PiMemImageDesc MImageDesc;
-  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiMemImageDesc MSrcImageDesc;
+  sycl::detail::pi::PiMemImageDesc MDstImageDesc;
+  sycl::detail::pi::PiMemImageFormat MSrcImageFormat;
+  sycl::detail::pi::PiMemImageFormat MDstImageFormat;
   sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
   sycl::detail::pi::PiImageOffset MSrcOffset;
   sycl::detail::pi::PiImageOffset MDstOffset;
-  sycl::detail::pi::PiImageRegion MHostExtent;
   sycl::detail::pi::PiImageRegion MCopyExtent;
 
 public:
-  CGCopyImage(void *Src, void *Dst, sycl::detail::pi::PiMemImageDesc ImageDesc,
-              sycl::detail::pi::PiMemImageFormat ImageFormat,
+  CGCopyImage(void *Src, void *Dst,
+              sycl::detail::pi::PiMemImageDesc SrcImageDesc,
+              sycl::detail::pi::PiMemImageDesc DstImageDesc,
+              sycl::detail::pi::PiMemImageFormat SrcImageFormat,
+              sycl::detail::pi::PiMemImageFormat DstImageFormat,
               sycl::detail::pi::PiImageCopyFlags ImageCopyFlags,
               sycl::detail::pi::PiImageOffset SrcOffset,
               sycl::detail::pi::PiImageOffset DstOffset,
-              sycl::detail::pi::PiImageRegion HostExtent,
               sycl::detail::pi::PiImageRegion CopyExtent,
               CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
-        MDst(Dst), MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+        MDst(Dst), MSrcImageDesc(SrcImageDesc), MDstImageDesc(DstImageDesc),
+        MSrcImageFormat(SrcImageFormat), MDstImageFormat(DstImageFormat),
         MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
-        MDstOffset(DstOffset), MHostExtent(HostExtent),
-        MCopyExtent(CopyExtent) {}
+        MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
-  sycl::detail::pi::PiMemImageDesc getDesc() const { return MImageDesc; }
-  sycl::detail::pi::PiMemImageFormat getFormat() const { return MImageFormat; }
+  sycl::detail::pi::PiMemImageDesc getSrcDesc() const { return MSrcImageDesc; }
+  sycl::detail::pi::PiMemImageDesc getDstDesc() const { return MDstImageDesc; }
+  sycl::detail::pi::PiMemImageFormat getSrcFormat() const {
+    return MSrcImageFormat;
+  }
+  sycl::detail::pi::PiMemImageFormat getDstFormat() const {
+    return MDstImageFormat;
+  }
   sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
     return MImageCopyFlags;
   }
   sycl::detail::pi::PiImageOffset getSrcOffset() const { return MSrcOffset; }
   sycl::detail::pi::PiImageOffset getDstOffset() const { return MDstOffset; }
-  sycl::detail::pi::PiImageRegion getHostExtent() const { return MHostExtent; }
   sycl::detail::pi::PiImageRegion getCopyExtent() const { return MCopyExtent; }
 };
 
