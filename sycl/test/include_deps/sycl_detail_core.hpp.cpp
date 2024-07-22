@@ -157,5 +157,6 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
+// CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:
