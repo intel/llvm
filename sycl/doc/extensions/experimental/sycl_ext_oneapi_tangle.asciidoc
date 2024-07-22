@@ -363,3 +363,14 @@ executing the same control flow (without introducing significant overhead). If
 we decide at a later date that `tangle` should support only sub-groups,
 we should revisit the name to avoid creating confusion.
 --
+
+. Should we introduce additional functionality to simplify reasoning about
+convergence?
++
+--
+There are some open questions about when an implementation should force
+work-items to reconverge, which can impact membership in a tangle. Adding
+a function like `assert_convergence` to allow users to control when
+reconvergence happens and tying that function to tangles may simplify
+both usage and implementation of tangles.
+--
