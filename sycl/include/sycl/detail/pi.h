@@ -200,9 +200,15 @@
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
 // 17.58 Added context parameter to piextMemImageGetInfo
+// 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
+// 18.60 Remove deprecated functions piextMemImportOpaqueFD and
+//       piextImportExternalSemaphoreOpaqueFD
+// 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
+// 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
+//       descriptors.
 
-#define _PI_H_VERSION_MAJOR 17
-#define _PI_H_VERSION_MINOR 58
+#define _PI_H_VERSION_MAJOR 20
+#define _PI_H_VERSION_MINOR 62
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3081,24 +3087,26 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// API to copy image data Host to Device or Device to Host.
 ///
 /// \param queue is the queue to submit to
-/// \param dst_ptr is the location the data will be copied to
 /// \param src_ptr is the data to be copied
-/// \param image_format format of the image (channel order and data type)
-/// \param image_desc image descriptor
+/// \param dst_ptr is the location the data will be copied to
+/// \param src_image_desc source image descriptor
+/// \param dst_image_desc destination image descriptor
+/// \param src_image_format format of the image (channel order and data type)
+/// \param dst_image_format format of the image (channel order and data type)
 /// \param flags flags describing copy direction (H2D or D2H)
 /// \param src_offset is the offset into the source image/memory
 /// \param dst_offset is the offset into the destination image/memory
 /// \param copy_extent is the extent (region) of the image/memory to copy
-/// \param host_extent is the extent (region) of the memory on the host
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
-    const pi_image_format *image_format, const pi_image_desc *image_desc,
-    const pi_image_copy_flags flags, pi_image_offset src_offset,
-    pi_image_offset dst_offset, pi_image_region copy_extent,
-    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
+    pi_queue queue, void *dst_ptr, const void *src_ptr,
+    const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
+    const pi_image_format *src_image_format,
+    const pi_image_format *dst_image_format, const pi_image_copy_flags flags,
+    pi_image_offset src_offset, pi_image_offset dst_offset,
+    pi_image_region copy_extent, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
 /// API to query an image memory handle for specific properties.
@@ -3113,23 +3121,6 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
                                              pi_image_info param_name,
                                              void *param_value,
                                              size_t *param_value_size_ret);
-
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalMemory`
-///
-/// API to import external memory in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param size is the size of the external memory
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop memory handle to the external
-/// memory
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalMemory`")
-pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
-                                 size_t size, int file_descriptor,
-                                 pi_interop_mem_handle *ret_handle);
 
 /// API to import external memory
 ///
@@ -3165,23 +3156,6 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
 
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalSemaphore`
-///
-/// API to import an external semaphore in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop semaphore handle to the external
-/// semaphore
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalSemaphore`")
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
-                                     int file_descriptor,
-                                     pi_interop_semaphore_handle *ret_handle);
-
 /// API to import an external semaphore
 ///
 /// \param context is the pi_context
@@ -3194,14 +3168,14 @@ piextImportExternalSemaphore(pi_context context, pi_device device,
                              pi_external_semaphore_descriptor *sem_descriptor,
                              pi_interop_semaphore_handle *ret_handle);
 
-/// API to destroy the external semaphore handle.
+/// API to release the external semaphore.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
 /// \param sem_handle is the interop semaphore handle to the external semaphore
 /// to be destroyed
 __SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context context, pi_device device,
+piextReleaseExternalSemaphore(pi_context context, pi_device device,
                               pi_interop_semaphore_handle sem_handle);
 
 /// API to instruct the queue with a non-blocking wait on an external semaphore.

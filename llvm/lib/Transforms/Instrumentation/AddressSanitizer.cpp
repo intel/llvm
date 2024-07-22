@@ -881,7 +881,6 @@ private:
   FunctionCallee AsanSetShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
-  Constant *AsanShadowDevicePrivate;
   StringMap<GlobalVariable *> GlobalStringMap;
   Constant *AsanLaunchInfo;
 

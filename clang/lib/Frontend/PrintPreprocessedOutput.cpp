@@ -1200,7 +1200,8 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
 
-  if (!PP.getPreprocessorOpts().IncludeFooter.empty()) {
+  if (!PP.getPreprocessorOpts().IncludeFooter.empty() &&
+      !PP.IncludeFooterProcessed) {
     assert(PP.getLangOpts().SYCLIsHost &&
            "The 'include-footer' is expected in host compilation only");
     SourceLocation Loc = Tok.getLocation();
