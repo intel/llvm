@@ -1733,8 +1733,6 @@ void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
     case handler::StableKernelCacheConfig::LargeData:
       impl->MKernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA;
       break;
-    default:
-      break;
   }
 }
 
