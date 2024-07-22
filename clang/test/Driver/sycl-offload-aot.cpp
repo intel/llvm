@@ -11,7 +11,7 @@
 /// Check error for -fsycl-targets -fintelfpga conflict
 // RUN:   not %clang -### -fsycl-targets=spir64-unknown-unknown -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
-// RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
 // CHK-SYCL-FPGA-CONFLICT: clang: error: the option -fsycl-targets= conflicts with -fintelfpga
 
@@ -23,7 +23,7 @@
 /// Check error for -fsycl-targets with bad triple
 // RUN:   not %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
-// RUN:   not %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
 // CHK-SYCL-BAD-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown'
 
@@ -55,7 +55,7 @@
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.
 // RUN:   not %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
-// RUN:   not %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-TARGET-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-backend', specify triple using '-Xsycl-target-backend=<triple>'
 
@@ -158,15 +158,15 @@
 // CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT7]]" "[[OUTPUT6]]" {{.*}} "-lsycl"
 
 // Check to be sure that for windows, the 'exe' tools are called
-// RUN: %clang_cl -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
+// RUN: %clang_cl -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -### -- %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-CPU-WIN
 // RUN: %clang -target x86_64-pc-windows-msvc -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-CPU-WIN
-// RUN: %clang_cl -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
+// RUN: %clang_cl -fsycl -fsycl-targets=spir64_gen-unknown-unknown -### -- %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-GEN-WIN
 // RUN: %clang -target x86_64-pc-windows-msvc -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-GEN-WIN
-// RUN: %clang_cl -fsycl -Xshardware -fsycl-targets=spir64_fpga-unknown-unknown %s -### 2>&1 \
+// RUN: %clang_cl -fsycl -Xshardware -fsycl-targets=spir64_fpga-unknown-unknown -### -- %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-FPGA-WIN
 // RUN: %clang -target x86_64-pc-windows-msvc -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-FPGA-WIN
@@ -203,19 +203,19 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-FPGA %s
-// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-FPGA %s
 // CHK-TOOLS-IMPLIED-OPTS-FPGA: opencl-aot{{.*}} "--bo=-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-CPU %s
-// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-CPU %s
 // CHK-TOOLS-IMPLIED-OPTS-CPU: opencl-aot{{.*}} "--bo=-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
-// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_gen-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_gen-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
 // CHK-TOOLS-IMPLIED-OPTS-GEN: ocloc{{.*}} "-options" "-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
