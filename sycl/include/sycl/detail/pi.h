@@ -204,9 +204,11 @@
 // 18.60 Remove deprecated functions piextMemImportOpaqueFD and
 //       piextImportExternalSemaphoreOpaqueFD
 // 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
+// 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
+//       descriptors.
 
-#define _PI_H_VERSION_MAJOR 19
-#define _PI_H_VERSION_MINOR 61
+#define _PI_H_VERSION_MAJOR 20
+#define _PI_H_VERSION_MINOR 62
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3088,24 +3090,26 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// API to copy image data Host to Device or Device to Host.
 ///
 /// \param queue is the queue to submit to
-/// \param dst_ptr is the location the data will be copied to
 /// \param src_ptr is the data to be copied
-/// \param image_format format of the image (channel order and data type)
-/// \param image_desc image descriptor
+/// \param dst_ptr is the location the data will be copied to
+/// \param src_image_desc source image descriptor
+/// \param dst_image_desc destination image descriptor
+/// \param src_image_format format of the image (channel order and data type)
+/// \param dst_image_format format of the image (channel order and data type)
 /// \param flags flags describing copy direction (H2D or D2H)
 /// \param src_offset is the offset into the source image/memory
 /// \param dst_offset is the offset into the destination image/memory
 /// \param copy_extent is the extent (region) of the image/memory to copy
-/// \param host_extent is the extent (region) of the memory on the host
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
-    const pi_image_format *image_format, const pi_image_desc *image_desc,
-    const pi_image_copy_flags flags, pi_image_offset src_offset,
-    pi_image_offset dst_offset, pi_image_region copy_extent,
-    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
+    pi_queue queue, void *dst_ptr, const void *src_ptr,
+    const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
+    const pi_image_format *src_image_format,
+    const pi_image_format *dst_image_format, const pi_image_copy_flags flags,
+    pi_image_offset src_offset, pi_image_offset dst_offset,
+    pi_image_region copy_extent, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
 /// API to query an image memory handle for specific properties.
