@@ -116,7 +116,6 @@ enum class aspect {
   ...
   ext_oneapi_chunk
   ext_oneapi_fragment
-  ext_oneapi_tangle
 }
 }
 ----
@@ -129,7 +128,6 @@ as follows:
 | Aspect | Supported group
 | `ext_oneapi_fragment` | `fragment`
 | `ext_oneapi_chunk` | `chunk`
-| `ext_oneapi_tangle` | `tangle`
 |===
 
 === Control Flow
@@ -153,8 +151,6 @@ simultaneous execution is when work-items are mapped to different lanes of the
 same SIMD instruction(s). The amount of granularity of simultaneous
 execution is implementation-defined.
 
-A _tangle_ is a collection of work-items from the same group executing under
-converged control flow.
 
 === Group Taxonomy
 
@@ -173,7 +169,6 @@ following user-constructed groups:
 
 - `fragment`
 - `chunk`
-- `tangle`
 
 The `is_fixed_topology_group` and `is_user_constructed_group` traits can be
 used to detect whether a group type represents a fixed topology or
@@ -205,10 +200,10 @@ namespace sycl::ext::oneapi::experimental {
 `root_group`, `group` or `sub_group`.
 
 `is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
-`fragment`, `chunk` or `tangle`.
+`fragment` or `chunk`.
 
 Additionally, the `is_group<T>::value` trait from SYCL 2020 is `std::true_type`
-if `T` is one of: `fragment`, `chunk` or `tangle`.
+if `T` is one of: `fragment` or `chunk`.
 
 
 === Group Functions and Algorithms
@@ -640,177 +635,6 @@ void func_that_needs_4_work_items(sycl::ext::oneapi::experimental::chunk<4, Pare
 ----
 
 
-=== Tangle
-
-A `tangle` is a non-contiguous subset of a group representing work-items
-executing in a tangle.
-A tangle can therefore be used to capture all work-items currently executing
-the same control flow.
-
-
-==== Creation
-
-A new `tangle` can only be created by partitioning an existing group, using the
-`entangle` free-function.
-
-[source, c++]
-----
-namespace ext::oneapi::experimental {
-
-template <typename ParentGroup>
-tangle<ParentGroup> entangle(ParentGroup group);
-
-} // namespace ext::oneapi::experimental
-----
-
-_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
-std::is_same_v<Group, sycl::sub_group>` is true.
-
-_Effects:_ Blocks until all work-items in `parent` that will reach this
-synchronization point have reached this synchronization point.
-
-_Synchronization:_ The call in each work-item happens before any work-item
-blocking on the same synchronization point is unblocked.
-Synchronization operations used by an implementation must respect the memory
-scope reported by `ParentGroup::fence_scope`.
-
-_Returns_: A `tangle` consisting of all work-items in `parent` which will reach
-this synchronization point in the same control flow.
-
-NOTE: This function provides stronger guarantees than
-`get_opportunistic_group()`, which returns a group consisting of _some_ of the
-work-items in `parent` which will reach the synchronization point.
-
-
-==== `tangle` Class
-
-[source, c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <typename ParentGroup>
-class tangle {
-public:
-  using id_type = id<1>;
-  using range_type = range<1>;
-  using linear_id_type = uint32_t;
-  static constexpr int dimensions = 1;
-  static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-
-  id_type get_group_id() const;
-
-  id_type get_local_id() const;
-
-  range_type get_group_range() const;
-
-  range_type get_local_range() const;
-
-  linear_id_type get_group_linear_id() const;
-
-  linear_id_type get_local_linear_id() const;
-
-  linear_id_type get_group_linear_range() const;
-
-  linear_id_type get_local_linear_range() const;
-
-  bool leader() const;
-};
-
-}
-----
-
-[source,c++]
-----
-id_type get_group_id() const;
-----
-_Returns_: An `id` representing the index of the tangle.
-
-NOTE: This will always be an `id` with all values set to 0, since there can
-only be one tangle.
-
-[source,c++]
-----
-id_type get_local_id() const;
-----
-_Returns_: An `id` representing the calling work-item's position within
-the tangle.
-
-[source,c++]
-----
-range_type get_group_range() const;
-----
-_Returns_: A `range` representing the number of tangles.
-
-NOTE: This will always return a `range` of 1 as there can only be one
-tangle.
-
-[source,c++]
-----
-range_type get_local_range() const;
-----
-_Returns_: A `range` representing the number of work-items in the tangle.
-
-[source,c++]
-----
-id_type get_group_linear_id() const;
-----
-_Returns_: A linearized version of the `id` returned by `get_group_id()`.
-
-[source,c++]
-----
-id_type get_local_linear_id() const;
-----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
-
-[source,c++]
-----
-range_type get_group_linear_range() const;
-----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
-
-[source,c++]
-----
-range_type get_local_linear_range() const;
-----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
-
-[source,c++]
-----
-bool leader() const;
-----
-_Returns_: `true` for exactly one work-item in the tangle, if the calling
-work-item is the leader of the tangle, and `false` for all other
-work-items in the tangle. The leader of the tangle is guaranteed to
-be the work-item for which `get_local_id()` returns 0.
-
-
-==== Usage examples
-
-A `tangle` can be used in conjunction with constructs like loops and
-branches to safely communicate between all work-items executing the same
-control flow.
-
-NOTE: This differs from the `fragment` returned by `get_opportunistic_group()`
-because a `tangle_group` requires the implementation to track group membership.
-Which group type to use will depend on a combination of
-implementation/backend/device and programmer preference.
-
-[source, c++]
-----
-auto sg = it.get_sub_group();
-
-auto will_branch = sg.get_local_linear_id() % 2 == 0;
-if (will_branch)
-{
-  // wait for all work-items that took the branch to hit the barrier
-  auto inner = sycl::ext::oneapi::experimental::entangle(sg);
-  sycl::group_barrier(inner);
-
-  // reduce across subset of outer work-items that took the branch
-  float ix = sycl::reduce_over_group(inner, x, plus<>());
-}
-----
-
 == Implementation notes
 
 This non-normative section provides information about one possible
@@ -828,19 +652,9 @@ groups encounter unique control flow when appropriate.
 For CUDA backends, all user-constructed group types are expected to be lowered
 to PTX instructions with explicit masks. The only expected difference in
 implementation for the different group types is how the mask is initially
-constructed. Supporting `tangle` may require the compiler to construct
-masks when encountering control flow constructs, and to pass those masks
-across call boundaries.
+constructed.
 
 
 == Issues
 
-. Should `tangle` support work-groups or just sub-groups?
-+
---
-SPIR-V "tangled instructions" include group and sub-group instructions, but it
-is unclear how to identify which work-items in different sub-groups are
-executing the same control flow (without introducing significant overhead). If
-we decide at a later date that `tangle` should support only sub-groups,
-we should revisit the name to avoid creating confusion.
---
+None
