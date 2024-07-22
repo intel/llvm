@@ -8,11 +8,11 @@
 #include <gtest/gtest.h>
 
 namespace DynamicLinkingTest {
-class KernelA;
-class KernelB;
-class KernelC;
-class KernelD;
-class KernelE;
+class BasicCaseKernel;
+class UnresolvedDepKernel;
+class MutualDepKernelA;
+class MutualDepKernelB;
+class AOTCaseKernel;
 } // namespace DynamicLinkingTest
 
 namespace sycl {
@@ -25,11 +25,11 @@ namespace detail {
     static constexpr const char *getName() { return #KernelName; }             \
   };
 
-KERNEL_INFO(KernelA)
-KERNEL_INFO(KernelB)
-KERNEL_INFO(KernelC)
-KERNEL_INFO(KernelD)
-KERNEL_INFO(KernelE)
+KERNEL_INFO(BasicCaseKernel)
+KERNEL_INFO(UnresolvedDepKernel)
+KERNEL_INFO(MutualDepKernelA)
+KERNEL_INFO(MutualDepKernelB)
+KERNEL_INFO(AOTCaseKernel)
 
 #undef KERNEL_INFO
 } // namespace detail
@@ -85,32 +85,38 @@ generateImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static constexpr unsigned PROGRAM_A = 2;
-static constexpr unsigned PROGRAM_A_DEP = 3;
-static constexpr unsigned PROGRAM_A_DEP_NATIVE = 5;
-static constexpr unsigned PROGRAM_A_DEP_DEP = 7;
-static constexpr unsigned PROGRAM_B = 11;
-static constexpr unsigned PROGRAM_C = 13;
-static constexpr unsigned PROGRAM_D = 17;
-static constexpr unsigned PROGRAM_E_NATIVE = 23;
-static constexpr unsigned PROGRAM_E_DEP_NATIVE = 29;
+static constexpr unsigned BASIC_CASE_PRG = 2;
+static constexpr unsigned BASIC_CASE_PRG_DEP = 3;
+static constexpr unsigned BASIC_CASE_PRG_DEP_NATIVE = 5;
+static constexpr unsigned BASIC_CASE_PRG_DEP_DEP = 7;
+static constexpr unsigned UNRESOLVED_DEP_PRG = 11;
+static constexpr unsigned MUTUAL_DEP_PRG_A = 13;
+static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
+static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
+static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
 
 static sycl::unittest::PiImage Imgs[] = {
-    generateImage({"KernelA"}, {}, {"KernelADep"}, PROGRAM_A),
-    generateImage({"KernelADep"}, {"KernelADep"}, {"KernelADepDep"},
-                  PROGRAM_A_DEP),
-    generateImage({"KernelADep"}, {"KernelADep"}, {"KernelADepDep"},
-                  PROGRAM_A_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE),
-    generateImage({"KernelADepDep"}, {"KernelADepDep"}, {}, PROGRAM_A_DEP_DEP),
-    generateImage({"KernelB"}, {}, {"KernelBUnresolvedDep"}, PROGRAM_B),
-    generateImage({"KernelC", "KernelDDep"}, {"KernelDDep"}, {"KernelCDep"},
-                  PROGRAM_C),
-    generateImage({"KernelCDep", "KernelD"}, {"KernelCDep"}, {"KernelDDep"},
-                  PROGRAM_D),
-    generateImage({"KernelE"}, {}, {"KernelEDep"}, PROGRAM_E_NATIVE,
+    generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
+                  BASIC_CASE_PRG),
+    generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
+                  {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP),
+    generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
+                  {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP_NATIVE,
                   PI_DEVICE_BINARY_TYPE_NATIVE),
-    generateImage({"KernelEDep"}, {"KernelEDep"}, {}, PROGRAM_E_DEP_NATIVE,
-                  PI_DEVICE_BINARY_TYPE_NATIVE)};
+    generateImage({"BasicCaseKernelDepDep"}, {"BasicCaseKernelDepDep"}, {},
+                  BASIC_CASE_PRG_DEP_DEP),
+    generateImage({"UnresolvedDepKernel"}, {},
+                  {"UnresolvedDepKernelUnresolvedDep"}, UNRESOLVED_DEP_PRG),
+    generateImage({"MutualDepKernelA", "MutualDepKernelBDep"},
+                  {"MutualDepKernelBDep"}, {"MutualDepKernelADep"},
+                  MUTUAL_DEP_PRG_A),
+    generateImage({"MutualDepKernelADep", "MutualDepKernelB"},
+                  {"MutualDepKernelADep"}, {"MutualDepKernelBDep"},
+                  MUTUAL_DEP_PRG_B),
+    generateImage({"AOTCaseKernel"}, {}, {"AOTCaseKernelDep"},
+                  AOT_CASE_PRG_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE),
+    generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
+                  AOT_CASE_PRG_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::PiImageArray<9> ImgArray{Imgs};
@@ -123,15 +129,15 @@ TEST(DynamicLinking, BasicCase) {
 
   CapturedLinkingData.clear();
 
-  Q.single_task<DynamicLinkingTest::KernelA>([=]() {});
+  Q.single_task<DynamicLinkingTest::BasicCaseKernel>([=]() {});
   ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 3u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
-      {PROGRAM_A, PROGRAM_A_DEP, PROGRAM_A_DEP_DEP}));
+      {BASIC_CASE_PRG, BASIC_CASE_PRG_DEP, BASIC_CASE_PRG_DEP_DEP}));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
-            PROGRAM_A * PROGRAM_A_DEP * PROGRAM_A_DEP_DEP);
+            BASIC_CASE_PRG * BASIC_CASE_PRG_DEP * BASIC_CASE_PRG_DEP_DEP);
 }
 
 TEST(DynamicLinking, UnresolvedDep) {
@@ -139,13 +145,12 @@ TEST(DynamicLinking, UnresolvedDep) {
     sycl::unittest::PiMock Mock;
     sycl::platform Plt = Mock.getPlatform();
     sycl::queue Q(Plt.get_devices()[0]);
-    Q.single_task<DynamicLinkingTest::KernelB>([=]() {});
+    Q.single_task<DynamicLinkingTest::UnresolvedDepKernel>([=]() {});
     FAIL();
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::build);
-    EXPECT_STREQ(
-        e.what(),
-        "No device image found for external symbol KernelBUnresolvedDep");
+    EXPECT_STREQ(e.what(), "No device image found for external symbol "
+                           "UnresolvedDepKernelUnresolvedDep");
   }
 }
 
@@ -157,19 +162,19 @@ TEST(DynamicLinking, MutualDependency) {
 
   CapturedLinkingData.clear();
 
-  Q.single_task<DynamicLinkingTest::KernelC>([=]() {});
+  Q.single_task<DynamicLinkingTest::MutualDepKernelA>([=]() {});
   ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 2u);
   // Both programs should be linked together.
   ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
-  ASSERT_TRUE(
-      CapturedLinkingData.LinkedProgramsContains({PROGRAM_C, PROGRAM_D}));
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {MUTUAL_DEP_PRG_A, MUTUAL_DEP_PRG_B}));
   // And the linked program should be used to create a kernel.
   ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
-            PROGRAM_C * PROGRAM_D);
+            MUTUAL_DEP_PRG_A * MUTUAL_DEP_PRG_B);
 
   CapturedLinkingData.clear();
 
-  Q.single_task<DynamicLinkingTest::KernelD>([=]() {});
+  Q.single_task<DynamicLinkingTest::MutualDepKernelB>([=]() {});
   // The program contianing this kernel should be taken from the
   // in-memory cache.
   ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 0u);
@@ -180,7 +185,7 @@ TEST(DynamicLinking, AheadOfTime) {
     sycl::unittest::PiMock Mock;
     sycl::platform Plt = Mock.getPlatform();
     sycl::queue Q(Plt.get_devices()[0]);
-    Q.single_task<DynamicLinkingTest::KernelE>([=]() {});
+    Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
     FAIL();
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
