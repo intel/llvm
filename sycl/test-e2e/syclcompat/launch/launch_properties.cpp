@@ -23,7 +23,7 @@
  **************************************************************************/
 
 // REQUIRES: aspect-ext_oneapi_cuda_cluster_group
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_90 %s -o %t.out
+// RUN: %{build} -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

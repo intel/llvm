@@ -20,18 +20,18 @@
  *     Negative tests for new launch_policy.
  **************************************************************************/
 
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK1 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK1
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK2 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK2
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK3 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK3
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK4 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK4
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK5 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK5
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK6 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK6
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK7 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK7
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK8 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK8
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK9 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK9
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK10 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK10
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK11 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK11
-// RUN: not %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -DCHECK12 %s -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK12
+// RUN: not %{build} -DCHECK1 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK1
+// RUN: not %{build} -DCHECK2 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK2
+// RUN: not %{build} -DCHECK3 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK3
+// RUN: not %{build} -DCHECK4 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK4
+// RUN: not %{build} -DCHECK5 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK5
+// RUN: not %{build} -DCHECK6 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK6
+// RUN: not %{build} -DCHECK7 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK7
+// RUN: not %{build} -DCHECK8 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK8
+// RUN: not %{build} -DCHECK9 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK9
+// RUN: not %{build} -DCHECK10 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK10
+// RUN: not %{build} -DCHECK11 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK11
+// RUN: not %{build} -DCHECK12 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK12
 
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>

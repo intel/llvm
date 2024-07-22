@@ -20,7 +20,7 @@
  *     launch<F> with config tests
  **************************************************************************/
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
