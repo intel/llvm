@@ -22,6 +22,7 @@
 #include <optional>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace ur_sanitizer_layer {
@@ -203,7 +204,7 @@ class SanitizerInterceptor {
 
     ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
         UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
-        m_Adapters.push_back(Adapter);
+        m_Adapters.insert(Adapter);
         return UR_RESULT_SUCCESS;
     }
 
@@ -269,7 +270,7 @@ class SanitizerInterceptor {
     std::unique_ptr<Quarantine> m_Quarantine;
     logger::Logger &logger;
 
-    std::vector<ur_adapter_handle_t> m_Adapters;
+    std::unordered_set<ur_adapter_handle_t> m_Adapters;
 };
 
 } // namespace ur_sanitizer_layer
