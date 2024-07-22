@@ -274,6 +274,11 @@ struct is_property_key
 };
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
+template <typename> struct has_compile_time_kernel_effect : std::false_type {};
+template <typename PropertyT>
+static constexpr bool has_compile_time_kernel_effect_v =
+    has_compile_time_kernel_effect<PropertyT>::value;
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

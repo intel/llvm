@@ -238,6 +238,19 @@ template <> struct is_property_key<work_group_progress_key> : std::true_type {};
 template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
 template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
+template <size_t... Dims>
+struct has_compile_time_kernel_effect<work_group_size_key::value_t<Dims...>>
+    : std::true_type {};
+template <size_t... Dims>
+struct has_compile_time_kernel_effect<
+    work_group_size_hint_key::value_t<Dims...>> : std::true_type {};
+template <uint32_t Size>
+struct has_compile_time_kernel_effect<sub_group_size_key::value_t<Size>>
+    : std::true_type {};
+template <sycl::aspect... Aspects>
+struct has_compile_time_kernel_effect<device_has_key::value_t<Aspects...>>
+    : std::true_type {};
+
 namespace detail {
 
 template <size_t Dim0, size_t... Dims>

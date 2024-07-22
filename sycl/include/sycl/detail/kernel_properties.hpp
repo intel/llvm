@@ -45,6 +45,7 @@ struct PropertyMetaInfo<sycl::detail::register_alloc_mode_key::value_t<Mode>> {
   static constexpr const char *name = "sycl-register-alloc-mode";
   static constexpr sycl::detail::register_alloc_mode_enum value = Mode;
 };
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

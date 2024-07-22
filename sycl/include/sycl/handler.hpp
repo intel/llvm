@@ -265,6 +265,18 @@ struct GetMergedKernelProperties<
       PropertiesT, get_method_properties>;
 };
 
+// Checks that none of the properties in the property list has compile-time
+// effects on the kernel.
+template <typename T>
+struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
+template <typename... Ts>
+struct NoPropertyHasCompileTimeKernelEffect<
+    ext::oneapi::experimental::detail::properties_t<Ts...>> {
+  static constexpr bool value =
+      !(ext::oneapi::experimental::has_compile_time_kernel_effect_v<Ts> ||
+        ... || false);
+};
+
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
 typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
@@ -970,28 +982,11 @@ private:
     }
   }
 
-  /// Process kernel properties.
+  /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
-  template <
-      typename KernelName,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    using KI = detail::KernelInfo<KernelName>;
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::intel::experimental::fp_control_key>() ||
-            (PropertiesT::template has_property<
-                 sycl::ext::intel::experimental::fp_control_key>() &&
-             KI::isESIMD()),
-        "Floating point control property is supported for ESIMD kernels only.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-        "indirectly_callable property cannot be applied to SYCL kernels");
+  template <typename PropertiesT>
+  void processLaunchProperties(PropertiesT Props) {
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1040,6 +1035,32 @@ private:
     }
 
     checkAndSetClusterRange(Props);
+  }
+
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <
+      typename KernelName,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  void processProperties(PropertiesT Props) {
+    using KI = detail::KernelInfo<KernelName>;
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
+        "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
+
+    processLaunchProperties(Props);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1440,12 +1461,15 @@ private:
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param Kernel is a SYCL kernel function.
-  template <int Dims>
-  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
+  /// \param Properties is the properties.
+  template <int Dims, typename PropertiesT>
+  void parallel_for_impl(range<Dims> NumWorkItems, PropertiesT Props,
+                         kernel Kernel) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
+    processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
     extractArgsAndReqs();
@@ -2125,28 +2149,22 @@ public:
   ///
   /// \param Kernel is a SYCL kernel object.
   void single_task(kernel Kernel) {
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant
-    setNDRangeDescriptor(range<1>{1});
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
-    MKernelName = getKernelName();
+    single_task(ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<2> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<3> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2180,14 +2198,8 @@ public:
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
-    throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
-    setNDRangeDescriptor(std::move(NDRange));
-    setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
-    extractArgsAndReqs();
-    MKernelName = getKernelName();
+    parallel_for(NDRange, ext::oneapi::experimental::empty_properties_t{},
+                 Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function.
@@ -2571,6 +2583,95 @@ public:
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(
         NumWorkGroups, WorkGroupSize, Props, KernelFunc);
+  }
+
+  /// Invokes a SYCL kernel.
+  ///
+  /// Executes exactly once. The kernel invocation method has no functors and
+  /// cannot be called on host.
+  ///
+  /// \param Kernel is a SYCL kernel object.
+  /// \param Props is the properties for the launch.
+  template <typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   void>
+  single_task(PropertiesT Props, kernel Kernel) {
+    static_assert(
+        detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+        "This kernel enqueue function does not allow properties with "
+        "compile-time kernel effects.");
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(Kernel);
+    // No need to check if range is out of INT_MAX limits as it's compile-time
+    // known constant
+    setNDRangeDescriptor(range<1>{1});
+    processLaunchProperties(Props);
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setType(detail::CGType::Kernel);
+    extractArgsAndReqs();
+    MKernelName = getKernelName();
+  }
+
+  template <typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   void>
+  parallel_for(range<1> NumWorkItems, PropertiesT Props, kernel Kernel) {
+    static_assert(
+        detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+        "This kernel enqueue function does not allow properties with "
+        "compile-time kernel effects.");
+    parallel_for_impl(NumWorkItems, Props, Kernel);
+  }
+
+  template <typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   void>
+  parallel_for(range<2> NumWorkItems, PropertiesT Props, kernel Kernel) {
+    static_assert(
+        detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+        "This kernel enqueue function does not allow properties with "
+        "compile-time kernel effects.");
+    parallel_for_impl(NumWorkItems, Props, Kernel);
+  }
+
+  template <typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   void>
+  parallel_for(range<3> NumWorkItems, PropertiesT Props, kernel Kernel) {
+    static_assert(
+        detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+        "This kernel enqueue function does not allow properties with "
+        "compile-time kernel effects.");
+    parallel_for_impl(NumWorkItems, Props, Kernel);
+  }
+
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// \param NDRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// \param Props is the properties for the launch.
+  /// \param Kernel is a SYCL kernel function.
+  template <int Dims, typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   void>
+  parallel_for(nd_range<Dims> NDRange, PropertiesT Props, kernel Kernel) {
+    static_assert(
+        detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+        "This kernel enqueue function does not allow properties with "
+        "compile-time kernel effects.");
+    throwIfActionIsCreated();
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    detail::checkValueRange<Dims>(NDRange);
+    setNDRangeDescriptor(std::move(NDRange));
+    processLaunchProperties(Props);
+    setType(detail::CGType::Kernel);
+    setNDRangeUsed(true);
+    extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   // Clean up KERNELFUNC macro.
