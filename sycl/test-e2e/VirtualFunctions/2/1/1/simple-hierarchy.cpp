@@ -1,7 +1,7 @@
 // UNSUPPORTED: cuda, hip, acc
 // FIXME: replace unsupported with an aspect check once we have it
 //
-// RUN: %{build} -o %t.out -Xclang -fsycl-allow-virtual-functions %helper-includes
+// RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
