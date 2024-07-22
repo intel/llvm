@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/cg.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
@@ -64,7 +65,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
-class program_impl;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -165,20 +165,6 @@ public:
   getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
                      const ContextImplPtr Context);
 
-  /// Resolves given program to a device binary image and requests the program
-  /// to flush constants the image depends on.
-  /// \param Prg the program object to get spec constant settings from.
-  ///        Passing program_impl by raw reference is OK, since it is not
-  ///        captured anywhere once the function returns.
-  /// \param NativePrg the native program, target for spec constant setting; if
-  ///        not null then overrides the native program in Prg
-  /// \param Img A source of the information about which constants need
-  ///        setting and symboling->integer spec constant ID mapping. If not
-  ///        null, overrides native program->binary image binding maintained by
-  ///        the program manager.
-  void flushSpecConstants(const program_impl &Prg,
-                          pi::PiProgram NativePrg = nullptr,
-                          const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
@@ -307,16 +293,20 @@ private:
   using ProgramPtr =
       std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   const sycl::detail::pi::PiDevice &Device,
-                   uint32_t DeviceLibReqMask);
+  ProgramPtr
+  build(ProgramPtr Program, const ContextImplPtr Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
+        const std::vector<sycl::detail::pi::PiProgram> &ProgramsToLink);
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
+
+  std::set<RTDeviceBinaryImage *>
+  collectDependentDeviceImagesForVirtualFunctions(
+      const RTDeviceBinaryImage &Img, device Dev);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
@@ -371,6 +361,11 @@ private:
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
   std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Caches list of device images that use or provide virtual functions from
+  /// the same set. Used to simplify access.
+  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
+      m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.
   std::mutex m_BuiltInKernelIDsMutex;

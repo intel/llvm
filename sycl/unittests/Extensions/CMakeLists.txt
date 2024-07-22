@@ -10,6 +10,10 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMP2P.cpp
   CompositeDevice.cpp
   OneAPIProd.cpp
+  EnqueueFunctionsEvents.cpp
+  DiscardEvent.cpp
+  ProfilingTag.cpp
 )
 
 add_subdirectory(CommandGraph)
+add_subdirectory(VirtualFunctions)

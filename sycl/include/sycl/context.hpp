@@ -196,15 +196,19 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
   /// Gets the specified property of this context.
   ///
-  /// Throws invalid_object_error if this context does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this context does not
+  /// have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   /// Gets OpenCL interoperability context.
   ///
@@ -214,13 +218,6 @@ public:
 #ifdef __SYCL_INTERNAL_API
   cl_context get() const;
 #endif
-
-  /// Checks if this context is a SYCL host context.
-  ///
-  /// \return true if this context is a SYCL host context.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Returns the backend associated with this context.
   ///
@@ -249,17 +246,15 @@ private:
   friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  const property_list &getPropList() const;
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // context.hpp depends on exception.hpp but we can't define these ctors in
 // exception.hpp while context is still an incomplete type.
 inline exception::exception(context Ctx, std::error_code EC,
@@ -286,7 +281,6 @@ inline exception::exception(context Ctx, int EV,
 inline exception::exception(context Ctx, int EV,
                             const std::error_category &ECat)
     : exception(Ctx, EV, ECat, "") {}
-#endif
 
 } // namespace _V1
 } // namespace sycl

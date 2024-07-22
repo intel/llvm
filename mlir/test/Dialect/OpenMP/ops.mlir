@@ -142,7 +142,7 @@ func.func @omp_parallel_pretty(%data_var : memref<i32>, %if_cond : i1, %num_thre
    omp.terminator
  }
 
- // CHECK omp.parallel if(%{{.*}}) num_threads(%{{.*}} : i32) private(%{{.*}} : memref<i32>) proc_bind(close)
+ // CHECK: omp.parallel if(%{{.*}}) num_threads(%{{.*}} : i32) proc_bind(close)
  omp.parallel num_threads(%num_threads : i32) if(%if_cond: i1) proc_bind(close) {
    omp.terminator
  }
@@ -502,6 +502,22 @@ func.func @omp_wsloop_pretty(%lb : index, %ub : index, %step : index, %data_var 
     omp.terminator
   }
 
+  // CHECK: omp.wsloop nowait order(reproducible:concurrent) {
+  // CHECK-NEXT: omp.loop_nest
+  omp.wsloop order(reproducible:concurrent) nowait {
+    omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
+      omp.yield
+    }
+    omp.terminator
+  }
+  // CHECK: omp.wsloop nowait order(unconstrained:concurrent) {
+  // CHECK-NEXT: omp.loop_nest
+  omp.wsloop order(unconstrained:concurrent) nowait {
+    omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
+      omp.yield
+    }
+    omp.terminator
+  }
   // CHECK: omp.wsloop {
   // CHECK-NEXT: omp.simd
   // CHECK-NEXT: omp.loop_nest
@@ -652,6 +668,18 @@ func.func @omp_simd_pretty_order(%lb : index, %ub : index, %step : index) -> () 
       omp.yield
     }
   }
+  // CHECK: omp.simd order(reproducible:concurrent)
+  omp.simd order(reproducible:concurrent) {
+    omp.loop_nest (%iv): index = (%lb) to (%ub) step (%step) {
+      omp.yield
+    }
+  }
+  // CHECK: omp.simd order(unconstrained:concurrent)
+  omp.simd order(unconstrained:concurrent) {
+    omp.loop_nest (%iv): index = (%lb) to (%ub) step (%step) {
+      omp.yield
+    }
+  }
   return
 }
 
@@ -707,6 +735,18 @@ func.func @omp_distribute(%chunk_size : i32, %data_var : memref<i32>, %arg0 : i3
   }
   // CHECK: omp.distribute order(concurrent)
   omp.distribute order(concurrent) {
+    omp.loop_nest (%iv) : i32 = (%arg0) to (%arg0) step (%arg0) {
+      omp.yield
+    }
+  }
+  // CHECK: omp.distribute order(reproducible:concurrent)
+  omp.distribute order(reproducible:concurrent) {
+    omp.loop_nest (%iv) : i32 = (%arg0) to (%arg0) step (%arg0) {
+      omp.yield
+    }
+  }
+  // CHECK: omp.distribute order(unconstrained:concurrent)
+  omp.distribute order(unconstrained:concurrent) {
     omp.loop_nest (%iv) : i32 = (%arg0) to (%arg0) step (%arg0) {
       omp.yield
     }
@@ -869,12 +909,50 @@ func.func @wsloop_reduction(%lb : index, %ub : index, %step : index) {
   return
 }
 
+// CHECK-LABEL: func @wsloop_reduction_byref
+func.func @wsloop_reduction_byref(%lb : index, %ub : index, %step : index) {
+  %c1 = arith.constant 1 : i32
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  // CHECK: reduction(byref @add_f32 %{{.+}} -> %[[PRV:.+]] : !llvm.ptr)
+  omp.wsloop reduction(byref @add_f32 %0 -> %prv : !llvm.ptr) {
+    omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
+      // CHECK: %[[CST:.+]] = arith.constant 2.0{{.*}} : f32
+      %cst = arith.constant 2.0 : f32
+      // CHECK: %[[LPRV:.+]] = llvm.load %[[PRV]] : !llvm.ptr -> f32
+      %lprv = llvm.load %prv : !llvm.ptr -> f32
+      // CHECK: %[[RES:.+]] = llvm.fadd %[[LPRV]], %[[CST]] : f32
+      %res = llvm.fadd %lprv, %cst: f32
+      // CHECK: llvm.store %[[RES]], %[[PRV]] :  f32, !llvm.ptr
+      llvm.store %res, %prv :  f32, !llvm.ptr
+      omp.yield
+    }
+    omp.terminator
+  }
+  return
+}
+
 // CHECK-LABEL: func @parallel_reduction
 func.func @parallel_reduction() {
   %c1 = arith.constant 1 : i32
   %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   // CHECK: omp.parallel reduction(@add_f32 {{.+}} -> {{.+}} : !llvm.ptr)
   omp.parallel reduction(@add_f32 %0 -> %prv : !llvm.ptr) {
+    %1 = arith.constant 2.0 : f32
+    %2 = llvm.load %prv : !llvm.ptr -> f32
+    // CHECK: llvm.fadd %{{.*}}, %{{.*}} : f32
+    %3 = llvm.fadd %1, %2 : f32
+    llvm.store %3, %prv : f32, !llvm.ptr
+    omp.terminator
+  }
+  return
+}
+
+// CHECK-LABEL: func @parallel_reduction_byref
+func.func @parallel_reduction_byref() {
+  %c1 = arith.constant 1 : i32
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  // CHECK: omp.parallel reduction(byref @add_f32 {{.+}} -> {{.+}} : !llvm.ptr)
+  omp.parallel reduction(byref @add_f32 %0 -> %prv : !llvm.ptr) {
     %1 = arith.constant 2.0 : f32
     %2 = llvm.load %prv : !llvm.ptr -> f32
     // CHECK: llvm.fadd %{{.*}}, %{{.*}} : f32
@@ -965,8 +1043,6 @@ func.func @omp_teams(%lb : i32, %ub : i32, %if_cond : i1, %num_threads : i32,
   // CHECK: omp.teams reduction(@add_f32 -> %{{.+}} : !llvm.ptr) {
   omp.teams reduction(@add_f32 -> %0 : !llvm.ptr) {
     %1 = arith.constant 2.0 : f32
-    // CHECK: omp.reduction %{{.+}}, %{{.+}}
-    omp.reduction %1, %0 : f32, !llvm.ptr
     // CHECK: omp.terminator
     omp.terminator
   }
@@ -990,15 +1066,11 @@ func.func @sections_reduction() {
     // CHECK: omp.section
     omp.section {
       %1 = arith.constant 2.0 : f32
-      // CHECK: omp.reduction %{{.+}}, %{{.+}}
-      omp.reduction %1, %0 : f32, !llvm.ptr
       omp.terminator
     }
     // CHECK: omp.section
     omp.section {
       %1 = arith.constant 3.0 : f32
-      // CHECK: omp.reduction %{{.+}}, %{{.+}}
-      omp.reduction %1, %0 : f32, !llvm.ptr
       omp.terminator
     }
     omp.terminator
@@ -1092,14 +1164,10 @@ func.func @sections_reduction2() {
   omp.sections reduction(@add2_f32 -> %0 : memref<1xf32>) {
     omp.section {
       %1 = arith.constant 2.0 : f32
-      // CHECK: omp.reduction
-      omp.reduction %1, %0 : f32, memref<1xf32>
       omp.terminator
     }
     omp.section {
       %1 = arith.constant 2.0 : f32
-      // CHECK: omp.reduction
-      omp.reduction %1, %0 : f32, memref<1xf32>
       omp.terminator
     }
     omp.terminator

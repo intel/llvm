@@ -8,10 +8,6 @@
 
 #include "common.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -69,8 +65,6 @@ const char *to_string(atomic_op op) {
     return "load";
   case atomic_op::store:
     return "store";
-  case atomic_op::predec:
-    return "predec";
   }
   return "<unknown>";
 }
@@ -624,9 +618,7 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<2, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<4, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<8, Op, UseMask, Features, UseAcc, SignMask>(q);
-  if (UseMask && Features == TestFeatures::Generic &&
-      esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "26918", "101.4953", false)) {
+  if (UseMask && Features == TestFeatures::Generic) {
     passed &= test_int_types<16, Op, UseMask, Features, UseAcc, SignMask>(q);
     passed &= test_int_types<32, Op, UseMask, Features, UseAcc, SignMask>(q);
   }

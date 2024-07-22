@@ -210,6 +210,13 @@ template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayFetch(ImageT, TempArgT,
                                                           int);
 
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageArrayFetch(ImageT,
+                                                                 TempArgT, int);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayRead(ImageT, TempArgT, int);
+
 template <typename ImageT, typename CoordT, typename ValT>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageArrayWrite(ImageT, CoordT, int,
                                                           ValT);
@@ -229,6 +236,16 @@ __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, TempArgT, TempArgT);
 template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT __spirv_ImageSampleCubemap(SampledType,
                                                                  TempArgT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ConvertHandleToImageINTEL(HandleT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ConvertHandleToSamplerINTEL(HandleT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL
+    RetT __spirv_ConvertHandleToSampledImageINTEL(HandleT);
 
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
@@ -1009,10 +1026,16 @@ extern __DPCPP_SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-extern __DPCPP_SYCL_EXTERNAL uint16_t
-__spirv_ConvertFToBF16INTEL(float) noexcept;
 extern __DPCPP_SYCL_EXTERNAL float
     __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint16_t
+__spirv_ConvertFToBF16INTEL(float) noexcept;
+template <int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, N>
+    __spirv_ConvertBF16ToFINTEL(__ocl_vec_t<uint16_t, N>) noexcept;
+template <int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<uint16_t, N>
+    __spirv_ConvertFToBF16INTEL(__ocl_vec_t<float, N>) noexcept;
 
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
     __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
@@ -1096,6 +1119,14 @@ __spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT);
 
 template <typename ValueT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
 __spirv_GroupNonUniformSMin(__spv::Scope::Flag, unsigned int, ValueT,
                             unsigned int);
 
@@ -1157,6 +1188,16 @@ __spirv_GroupNonUniformBitwiseXor(__spv::Scope::Flag, unsigned int, ValueT,
 template <typename ValueT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
 __spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT,
+                                  unsigned int);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT,
+                                 unsigned int);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT,
                                   unsigned int);
 
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
@@ -1270,30 +1311,12 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
+extern __DPCPP_SYCL_EXTERNAL uint64_t __spirv_ReadClockKHR(int);
 
 template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
-
-template <typename RetT, typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
-__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
-                                int ClusterMode = -1,
-                                unsigned int ResponseCapacity = 0,
-                                unsigned int InvocationCapacity = 0) noexcept;
-
-template <typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
-                               ArgsT... Args) noexcept;
-
-template <typename RetT>
-extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
-
-extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
-    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

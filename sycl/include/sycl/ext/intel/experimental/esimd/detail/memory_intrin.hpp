@@ -33,13 +33,12 @@ __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 /// @tparam Scope is the operation scope.
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
-template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
-          __ESIMD_ENS::lsc_scope Scope, int N>
+template <__ESIMD_NS::memory_kind Kind, __ESIMD_NS::fence_flush_op FenceOp,
+          __ESIMD_NS::fence_scope Scope, int N>
 __ESIMD_INTRIN void
 __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
-__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
-
-__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
+__ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
+    __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

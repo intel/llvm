@@ -8,10 +8,6 @@
 
 #include "../../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -86,8 +82,6 @@ const char *to_string(atomic_op op) {
     return "load";
   case atomic_op::store:
     return "store";
-  case atomic_op::predec:
-    return "predec";
   }
   return "<unknown>";
 }

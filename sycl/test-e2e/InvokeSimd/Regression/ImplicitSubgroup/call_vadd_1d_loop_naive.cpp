@@ -1,5 +1,3 @@
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
 //
 // Check that full compilation works:
 // RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %S/../call_vadd_1d_loop_naive.cpp -o %t.out

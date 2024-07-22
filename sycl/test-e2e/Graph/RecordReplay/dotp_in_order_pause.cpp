@@ -10,6 +10,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 void foo(sycl::queue Queue, size_t N, int *X, int *Y, int *Z) {
 
   auto Graph = Queue.ext_oneapi_get_graph();

@@ -7,17 +7,13 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -91,8 +87,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "load";
   case DWORDAtomicOp::store:
     return "store";
-  case DWORDAtomicOp::predec:
-    return "predec";
   }
   return "<unknown>";
 }

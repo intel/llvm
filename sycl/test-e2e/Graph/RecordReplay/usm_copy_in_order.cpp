@@ -6,12 +6,14 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 //
-// USM copy command not supported for OpenCL
+// Intended - USM copy command not supported for OpenCL
 // UNSUPPORTED: opencl
 
 // Tests memcpy operation using device USM and an in-order queue.
 
 #include "../graph_common.hpp"
+
+#include <sycl/properties/all_properties.hpp>
 
 int main() {
   property_list Properties{property::queue::in_order{}};

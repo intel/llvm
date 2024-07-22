@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
-  # Merge: 42d72b66 00edaab9
+  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue May 21 10:15:03 2024 +0100
-  #     Merge pull request #1401 from ph0b/patch-1
-  #     [UR][L0] Return device version based on DeviceIpVersion
-  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
+  # Date:   Wed Jul 17 19:12:31 2024 +0100
+  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
+  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
+  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -277,7 +281,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

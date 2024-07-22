@@ -157,14 +157,9 @@ public:
   /// \return true if specified extension is supported by this SYCL platform.
   __SYCL2020_DEPRECATED(
       "use platform::has() function with aspects APIs instead")
-  bool has_extension(const std::string &ExtensionName) const;
-
-  /// Checks if this SYCL platform is a host platform.
-  ///
-  /// \return true if this SYCL platform is a host platform.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
+  bool has_extension(const std::string &ExtensionName) const {
+    return has_extension(detail::string_view{ExtensionName});
+  }
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -246,7 +241,8 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -256,6 +252,8 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view ExtensionName) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

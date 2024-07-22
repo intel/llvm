@@ -53,7 +53,9 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
+#include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
@@ -99,7 +101,6 @@
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
 #include "llvm/Transforms/Utils/Debugify.h"
-#include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 #include <optional>
@@ -994,7 +995,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
-        MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
+        // SYCLConditionalCallOnDevicePass should be run before
+        // SYCLPropagateAspectsUsagePass
+        MPM.addPass(SYCLConditionalCallOnDevicePass(LangOpts.SYCLUniquePrefix));
+        MPM.addPass(SYCLPropagateAspectsUsagePass(
+            /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+            /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
@@ -1047,22 +1053,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
                                            /*ImportSummary=*/nullptr,
                                            /*DropTypeTests=*/true));
           });
-
-    if (CodeGenOpts.InstrumentFunctions ||
-        CodeGenOpts.InstrumentFunctionEntryBare ||
-        CodeGenOpts.InstrumentFunctionsAfterInlining ||
-        CodeGenOpts.InstrumentForProfiling) {
-      PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(createModuleToFunctionPassAdaptor(
-                EntryExitInstrumenterPass(/*PostInlining=*/false)));
-          });
-      PB.registerOptimizerLastEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(createModuleToFunctionPassAdaptor(
-                EntryExitInstrumenterPass(/*PostInlining=*/true)));
-          });
-    }
 
     // Register callbacks to schedule sanitizer passes at the appropriate part
     // of the pipeline.
@@ -1130,8 +1120,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
       // Rerun aspect propagation without warning diagnostics.
-      MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
-                                                /*ValidateAspects=*/false));
+      MPM.addPass(
+          SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+                                        /*ExcludeAspects=*/{},
+                                        /*ValidateAspects=*/false));
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
@@ -1152,6 +1144,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
+
+      // Record SYCL aspect names (this should come after propagating aspects
+      // and before cleaning up metadata)
+      MPM.addPass(RecordSYCLAspectNamesPass());
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline

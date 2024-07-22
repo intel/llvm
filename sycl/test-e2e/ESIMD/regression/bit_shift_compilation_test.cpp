@@ -8,9 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
 
 using namespace sycl;
@@ -20,11 +17,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 #define THREAD_NUM 512
 #define TEST_VALUE 0x55555555
 
-#ifdef SUP
 #define NS sycl::ext::intel::esimd
-#else
-#define NS sycl::ext::intel::experimental::esimd
-#endif
 
 template <typename DataT>
 using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;

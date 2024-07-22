@@ -1,7 +1,6 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include <iostream>
@@ -42,8 +41,7 @@ int main() {
   try {
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32);
+        {width, height, depth}, 4, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     // Input images memory

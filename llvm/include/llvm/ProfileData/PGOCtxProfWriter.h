@@ -13,6 +13,7 @@
 #ifndef LLVM_PROFILEDATA_PGOCTXPROFWRITER_H_
 #define LLVM_PROFILEDATA_PGOCTXPROFWRITER_H_
 
+#include "llvm/Bitstream/BitCodeEnums.h"
 #include "llvm/Bitstream/BitstreamWriter.h"
 #include "llvm/ProfileData/CtxInstrContextNode.h"
 
@@ -20,7 +21,7 @@ namespace llvm {
 enum PGOCtxProfileRecords { Invalid = 0, Version, Guid, CalleeIndex, Counters };
 
 enum PGOCtxProfileBlockIDs {
-  ProfileMetadataBlockID = 100,
+  ProfileMetadataBlockID = bitc::FIRST_APPLICATION_BLOCKID,
   ContextNodeBlockID = ProfileMetadataBlockID + 1
 };
 
@@ -69,7 +70,7 @@ class PGOCtxProfileWriter final {
 public:
   PGOCtxProfileWriter(raw_fd_stream &Out,
                       std::optional<unsigned> VersionOverride = std::nullopt)
-      : Writer(Buff, &Out, 0) {
+      : Writer(Out, 0) {
     Writer.EnterSubblock(PGOCtxProfileBlockIDs::ProfileMetadataBlockID,
                          CodeLen);
     const auto Version = VersionOverride ? *VersionOverride : CurrentVersion;

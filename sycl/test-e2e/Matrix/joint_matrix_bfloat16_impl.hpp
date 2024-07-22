@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define TM 8
-#define TK 16
+template <typename T, size_t TM, size_t TN, size_t TK> class imatrix;
 
-template <typename T1, typename T2, size_t M, size_t N, size_t K>
+template <typename T1, typename T2, size_t M, size_t N, size_t K, size_t TM,
+          size_t TN, size_t TK>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      big_matrix<T2, K / 2, N * 2> &B) {
   size_t NDRangeM = M / TM;
@@ -19,13 +19,13 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<class imatrix>(q);
+  size_t sg_size = get_sg_size<imatrix<T1, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for<imatrix<T1, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
@@ -76,32 +76,67 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-int main() {
+template <typename T, typename TResult, size_t TM, size_t TN, size_t TK>
+void test() {
+  std::cout << "Testing: " << TM << " x " << TN << " x " << TK
+            << " [TM x TN x TK]" << std::endl;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
-  bfloat16 A[MATRIX_M][MATRIX_K];
-  bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
-  float C[MATRIX_M][MATRIX_N];
-  float D[MATRIX_M][MATRIX_N];
+  T A[MATRIX_M][MATRIX_K];
+  T B[MATRIX_K / 2][MATRIX_N * 2];
+  TResult C[MATRIX_M][MATRIX_N];
+  TResult D[MATRIX_M][MATRIX_N];
 
-  matrix_fill(MATRIX_M, MATRIX_K, (bfloat16 *)A,
-              [](int i, int j) { return 1.0f * (i + j); });
-  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (bfloat16 *)B,
-              [](int i, int j) { return 2.0f * i + 3.0f * j; });
-  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
-  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
+              [](int i, int j) { return T(1) * (i + j); });
+  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (T *)B,
+              [](int i, int j) { return T(2) * i + T(3) * j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, TResult(1));
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
 
-  big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
-  big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
-  big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
-  matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
-      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
-      MATRIX_K / 2);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
+  big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
+  big_matrix<T, MATRIX_K / 2, MATRIX_N * 2> MB((T *)&B);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MC, MA,
+                                                                        MB);
+  matrix_multiply_ref<T, T, TResult, 2>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
+                                        MATRIX_N, MATRIX_K / 2);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
+}
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<bfloat16, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+
+      // This combination is not currently supported for sub group size = 32 in
+      // IGC
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      test<bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+#endif
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
+      break;
+    }
+  }
+  return 0;
 }

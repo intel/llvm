@@ -10,7 +10,7 @@
 // the compile line. In that case, user application will crash during launching
 // with abort() message.
 
-#include <sycl/sycl.hpp>
+#include <sycl/queue.hpp>
 
 #include <iostream>
 
