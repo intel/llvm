@@ -167,14 +167,6 @@ private:
 
 #include <sycl/exception.hpp>
 
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

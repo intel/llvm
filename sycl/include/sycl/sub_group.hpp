@@ -28,7 +28,7 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-template <typename Type, int NumElements> class vec;
+template <typename Type, int NumElements> class __SYCL_EBO vec;
 namespace detail {
 
 namespace sub_group {

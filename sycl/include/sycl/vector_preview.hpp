@@ -33,6 +33,7 @@
 #include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
+#include <sycl/detail/named_swizzles_mixin.hpp>
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
@@ -97,13 +98,40 @@ public:
   DataT operator()(DataT, DataT) { return (DataT)0; }
 };
 
+// Templated vs. non-templated conversion operator behaves differently when two
+// conversions are needed as in the case below:
+//
+//   sycl::vec<int, 1> v;
+//   std::ignore = static_cast<bool>(v);
+//
+// Make sure the snippet above compiles. That is important because
+//
+//   sycl::vec<int, 2> v;
+//   if (v.x() == 42)
+//     ...
+//
+// must go throw `v.x()` returning a swizzle, then its `operator==` returning
+// vec<int, 1> and we want that code to compile.
+template <typename Vec, typename T, int N, typename = void>
+struct ScalarConversionOperatorMixIn {};
+
+template <typename Vec, typename T, int N>
+struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
+  operator T() const { return (*static_cast<const Vec *>(this))[0]; }
+};
+
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class vec : public detail::vec_arith<DataT, NumElements> {
+class __SYCL_EBO vec
+    : public detail::vec_arith<DataT, NumElements>,
+      public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
+                                                   DataT, NumElements>,
+      public detail::NamedSwizzlesMixInBoth<vec<DataT, NumElements>,
+                                            NumElements> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -373,12 +401,6 @@ public:
   operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 #endif // __SYCL_DEVICE_ONLY__
 
-  // Available only when: NumElements == 1
-  template <int N = NumElements>
-  operator typename std::enable_if_t<N == 1, DataT>() const {
-    return m_Data[0];
-  }
-
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
@@ -519,26 +541,6 @@ public:
 
   DataT &operator[](int i) { return m_Data[i]; }
 
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles. @{
-private:
-  // Indexer used in the swizzles.def
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int value = Index;
-  };
-
-public:
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN this
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // }@ End of hi/lo, even/odd, xyzw, and rgba swizzles.
-
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
@@ -605,7 +607,7 @@ private:
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>
   friend class detail::SwizzleOp;
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
