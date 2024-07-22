@@ -1319,8 +1319,6 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = ur_sanitizer_layer::getContext()->urDdiTable.Global;
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
