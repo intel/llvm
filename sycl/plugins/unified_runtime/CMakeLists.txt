@@ -99,8 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/cppchedy/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 12f45c44e61aaf0ffe3e3c109a396aa0e15dbd78)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit d2b086a7170145f255e8702f512f6157b047cbe5
+  # Author: Callum Fare <callum@codeplay.com>
+  # Date:   Mon Jul 22 11:11:32 2024 +0100
+  #     Merge pull request #1803 from cppchedy/chedy/new-ur-copy-api
+  #     [CUDA][L0][Bindless] update design of urBindlessImagesImageCopyExp
+  set(UNIFIED_RUNTIME_TAG d2b086a7170145f255e8702f512f6157b047cbe5)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
