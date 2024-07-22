@@ -79,12 +79,12 @@ jobs:
       shell: cmd
       run: |
         mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="ext_oneapi_level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
+        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="ext_oneapi_level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
     - name: Run End-to-End tests
       shell: bash
       run: |
         # Run E2E tests.
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
+        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
     - name: Cleanup
       shell: cmd
