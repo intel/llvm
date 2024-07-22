@@ -12,7 +12,7 @@
 //
 // UNSUPPORTED: cuda || hip
 
-#include "group_sort_decls.hpp"
+#include "group_joint_sort_p1p1.hpp"
 #include <cassert>
 #include <cmath>
 #include <cstddef>
