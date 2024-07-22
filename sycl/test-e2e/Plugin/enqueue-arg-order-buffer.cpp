@@ -1,5 +1,5 @@
 // UNSUPPORTED: hip_nvidia
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>

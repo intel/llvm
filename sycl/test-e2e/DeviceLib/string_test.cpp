@@ -1,8 +1,8 @@
 // UNSUPPORTED: hip
-// RUN: %{build} -fno-builtin -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fno-builtin -o %t.out
 // RUN: %{run} %t.out
 //
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 
 // UNSUPPORTED: accelerator

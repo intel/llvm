@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=implicitly-unsigned-literal -o %t.out
 // RUNx: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

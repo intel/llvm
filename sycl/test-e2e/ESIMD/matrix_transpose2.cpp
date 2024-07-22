@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks matrix transpose implementation with media block read/write

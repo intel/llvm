@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // Test for simd logical not operator.

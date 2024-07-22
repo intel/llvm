@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t1.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
 // RUN: %{run} %t1.out
 
 //==------------------- select.cpp - filter_selector test ------------------==//
