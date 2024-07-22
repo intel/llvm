@@ -97,13 +97,38 @@ public:
   DataT operator()(DataT, DataT) { return (DataT)0; }
 };
 
+// Templated vs. non-templated conversion operator behaves differently when two
+// conversions are needed as in the case below:
+//
+//   sycl::vec<int, 1> v;
+//   std::ignore = static_cast<bool>(v);
+//
+// Make sure the snippet above compiles. That is important because
+//
+//   sycl::vec<int, 2> v;
+//   if (v.x() == 42)
+//     ...
+//
+// must go throw `v.x()` returning a swizzle, then its `operator==` returning
+// vec<int, 1> and we want that code to compile.
+template <typename Vec, typename T, int N, typename = void>
+struct ScalarConversionOperatorMixIn {};
+
+template <typename Vec, typename T, int N>
+struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
+  operator T() const { return (*static_cast<const Vec *>(this))[0]; }
+};
+
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class vec : public detail::vec_arith<DataT, NumElements> {
+class __SYCL_EBO vec
+    : public detail::vec_arith<DataT, NumElements>,
+      public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
+                                                   DataT, NumElements> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -373,12 +398,6 @@ public:
   operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 #endif // __SYCL_DEVICE_ONLY__
 
-  // Available only when: NumElements == 1
-  template <int N = NumElements>
-  operator typename std::enable_if_t<N == 1, DataT>() const {
-    return m_Data[0];
-  }
-
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
@@ -605,7 +624,7 @@ private:
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>
   friend class detail::SwizzleOp;
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
