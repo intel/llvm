@@ -9,6 +9,10 @@
 #include "kernel_compiler_sycl.hpp"
 #include <sycl/exception.hpp> // make_error_code
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #if __GNUC__ && __GNUC__ < 8
 
 // std::filesystem is not availalbe for GCC < 8
@@ -153,7 +157,7 @@ void outputIncludeFiles(const std::filesystem::path &Dirpath,
 }
 
 std::string getCompilerName() {
-#ifdef __WIN32
+#ifdef _WIN32
   std::string Compiler = "clang++.exe";
 #else
   std::string Compiler = "clang++";
@@ -171,7 +175,7 @@ void invokeCompiler(const std::filesystem::path &FPath,
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerName();
-#ifdef __WIN32
+#ifdef _WIN32
   std::string PipeStr{" > "};
   std::string PipeStrTail{" 2>&1"};
 #else

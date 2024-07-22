@@ -390,8 +390,8 @@ public:
       auto Where = Option.find("-Xs");
       if (Where != std::string::npos) {
         Where += 3;
-        std::string flags = Option.substr(Where);
-        SS << trimXsFlags(flags) << " ";
+        std::string Flags = Option.substr(Where);
+        SS << trimXsFlags(Flags) << " ";
       }
     }
     return SS.str();
