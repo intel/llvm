@@ -157,5 +157,100 @@ int main() {
     std::cout << "work group joint sort p1f32_u32_p1i8 passes" << std::endl;
   }
 
+  {
+    constexpr static int NUM = 23;
+    uint8_t a[NUM] = {234, 11, 1,   9,  3,   100, 34, 8, 121, 77, 125, 23,
+                      36,  2,  111, 91, 201, 211, 77, 8, 88,  19, 0};
+    auto work_group_sorter = [](uint8_t *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1u8_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1u8_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<uint8_t, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1u8_u32_p1i8 passes" << std::endl;
+  }
+
+  {
+    constexpr static int NUM = 23;
+    uint16_t a[NUM] = {11234, 11,  1,   119, 3,     100, 341, 8,
+                       121,   77,  125, 23,  3226,  2,   111, 911,
+                       201,   211, 77,  8,   11188, 19,  0};
+    auto work_group_sorter = [](uint16_t *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1u16_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1u16_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<uint16_t, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1u16_u32_p1i8 passes" << std::endl;
+  }
+
+  {
+    constexpr static int NUM = 23;
+    uint32_t a[NUM] = {11234,   11,  1,      1193332332, 231,   100, 341, 8,
+                       121,     77,  125,    32,         3226,  2,   111, 911,
+                       9912201, 211, 711117, 8,          11188, 19,  0};
+    auto work_group_sorter = [](uint32_t *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1u32_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1u32_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<uint32_t, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1u32_u32_p1i8 passes" << std::endl;
+  }
+
+  {
+    constexpr static int NUM = 23;
+    uint64_t a[NUM] = {0x112A111111FFEEFF,
+                       0xAACC11,
+                       0x1,
+                       0x1193332332,
+                       0x231,
+                       0xAA,
+                       0xFCCCA341,
+                       0x8,
+                       0x121,
+                       0x987777777,
+                       0x81,
+                       0x20,
+                       0x3226,
+                       0x2,
+                       0x8FFFFFFFFF111,
+                       0x911,
+                       0xAAAA9912201,
+                       0x211,
+                       0x711117,
+                       0x8,
+                       0xABABABABCC,
+                       0x13,
+                       0};
+    auto work_group_sorter = [](uint64_t *first, uint32_t n, uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1u64_u32_p1i8(
+          first, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1u64_u32_p1i8(
+          first, n, scratch);
+#endif
+    };
+    test_work_group_joint_sort<uint64_t, 8, NUM, decltype(work_group_sorter)>(
+        q, a, work_group_sorter);
+    std::cout << "work group joint sort p1u64_u32_p1i8 passes" << std::endl;
+  }
+
   return 0;
 }

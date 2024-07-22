@@ -41,6 +41,39 @@ __devicelib_default_work_group_joint_sort_ascending_p1f32_u32_p1i8(
 SYCL_EXTERNAL extern "C" void
 __devicelib_default_work_group_joint_sort_descending_p1f32_u32_p1i8(
     float *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u8_u32_p1i8(
+    uint8_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u8_u32_p1i8(
+    uint8_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u16_u32_p1i8(
+    uint16_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u16_u32_p1i8(
+    uint16_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u32_u32_p1i8(
+    uint32_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u32_u32_p1i8(
+    uint32_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u64_u32_p1i8(
+    uint64_t *first, uint32_t n, uint8_t *scratch);
+
+SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u64_u32_p1i8(
+    uint64_t *first, uint32_t n, uint8_t *scratch);
+
 #else
 extern "C" void
 __devicelib_default_work_group_joint_sort_ascending_p1i32_u32_p1i8(
@@ -101,4 +134,53 @@ __devicelib_default_work_group_joint_sort_descending_p1f32_u32_p1i8(
     float *first, uint32_t n, uint8_t *scratch) {
   return;
 }
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u8_u32_p1i8(
+    uint8_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u8_u32_p1i8(
+    uint8_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u16_u32_p1i8(
+    uint16_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u16_u32_p1i8(
+    uint16_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u32_u32_p1i8(
+    uint32_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u32_u32_p1i8(
+    uint32_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_ascending_p1u64_u32_p1i8(
+    uint64_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
+extern "C" void
+__devicelib_default_work_group_joint_sort_descending_p1u64_u32_p1i8(
+    uint64_t *first, uint32_t n, uint8_t *scratch) {
+  return;
+}
+
 #endif
