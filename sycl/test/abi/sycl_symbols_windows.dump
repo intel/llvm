@@ -3749,7 +3749,6 @@
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVqueue@45@@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
-?die@pi@detail@_V1@sycl@@YAXPEBD@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
 ?end@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
@@ -4206,7 +4205,7 @@
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
-?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4_pi_kernel_cache_config@@@Z
+?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z

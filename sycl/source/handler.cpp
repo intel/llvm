@@ -1722,9 +1722,20 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(
-    sycl::detail::pi::PiKernelCacheConfig Config) {
-  impl->MKernelCacheConfig = Config;
+void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
+  switch (Config) {
+    case handler::StableKernelCacheConfig::Default:
+      impl->MKernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+      break;
+    case handler::StableKernelCacheConfig::LargeSLM:
+      impl->MKernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM;
+      break;
+    case handler::StableKernelCacheConfig::LargeData:
+      impl->MKernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA;
+      break;
+    default:
+      break;
+  }
 }
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {

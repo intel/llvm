@@ -98,9 +98,6 @@ bool trace(TraceLevel level);
 #error "Unsupported OS"
 #endif
 
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
-
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
