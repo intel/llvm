@@ -27,6 +27,9 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 
+#include <sycl/exception.hpp>
+#include <sycl/properties/buffer_properties.hpp>
+
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
 #include <iterator>    // for iterator_traits
@@ -62,6 +65,14 @@ template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 namespace detail {
+
+template <typename SyclObject>
+void checkPropertiesAndThrow(const sycl::property_list& Props)
+{
+  if (!PropertiesList<sycl::property::buffer::use_host_ptr, sycl::property::buffer::use_mutex, sycl::property::buffer::context_bound>::checkProperties<SyclObject>(Props))
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "The property list contains property unsupported for the current object");
+}
 
 class buffer_impl;
 
@@ -204,6 +215,7 @@ public:
                      std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
+    detail::checkPropertiesAndThrow<std::remove_pointer_t<decltype(this)>>(propList);
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
         dimensions, sizeof(T), detail::rangeToArray(Range).data());

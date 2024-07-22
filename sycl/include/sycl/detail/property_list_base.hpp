@@ -12,12 +12,13 @@
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 #include <sycl/exception.hpp>
 
-#include <algorithm>   // for iter_swap
-#include <bitset>      // for bitset
-#include <memory>      // for shared_ptr, __shared_ptr_...
-#include <type_traits> // for enable_if_t
-#include <utility>     // for move
-#include <vector>      // for vector
+#include <algorithm>      // for iter_swap
+#include <bitset>         // for bitset
+#include <memory>         // for shared_ptr, __shared_ptr_...
+#include <type_traits>    // for enable_if_t
+#include <utility>        // for move
+#include <vector>         // for vector
+#include <map>            // for multi_map
 
 namespace sycl {
 inline namespace _V1 {
@@ -131,6 +132,17 @@ protected:
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
+
+  void convertPropertiesToKinds(std::multimap<int, bool>& PropKinds) const{
+    for (size_t it = 0; it < MDataLessProps.size(); it++)
+    {
+      if (MDataLessProps[it])
+        PropKinds.insert(std::pair{ int(it), false});
+    }
+    for (auto & Prop: MPropsWithData)
+      PropKinds.insert(std::pair{Prop->getKind(), true});
+  }
+
 };
 } // namespace detail
 } // namespace _V1

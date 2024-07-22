@@ -65,6 +65,7 @@ enum PropWithDataKind {
   AccPropBufferLocation = 5,
   QueueComputeIndex = 6,
   GraphNodeDependencies = 7,
+  LastKnownPropWithDataKind = 7,
   PropWithDataKindSize = 8
 };
 
@@ -88,6 +89,7 @@ public:
   PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
   virtual ~PropertyWithDataBase() = default;
+  int getKind() const { return MID; }
 
 private:
   int MID = -1;
