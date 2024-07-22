@@ -624,7 +624,7 @@ private:
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>
   friend class detail::SwizzleOp;
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
