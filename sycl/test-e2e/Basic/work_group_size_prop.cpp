@@ -1,4 +1,4 @@
-// RUN: %{build} --gcc-toolchain=/opt/slurm/gcc/13.2.0 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
