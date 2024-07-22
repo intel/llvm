@@ -1926,20 +1926,44 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
   __ESIMD_NS::simd<RawT, N> oldDst;
-
+  constexpr uint16_t Mask = 1;
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
+  __ESIMD_NS::simd<T, ActualN> Raw;
+
   if constexpr (Transposed)
-    return __esimd_lsc_load2d_descriptor_transpose<RawT, NBlocks, BlockWidth,
-                                                   BlockHeight, 0, 0, N>(
-        1, payload.get_raw_data().data(), oldDst.data(), Cache);
-  if constexpr (Transformed)
-    return __esimd_lsc_load2d_descriptor_transform<RawT, NBlocks, BlockWidth,
-                                                   BlockHeight, 0, 0, N>(
-        1, payload.get_raw_data().data(), oldDst.data(), Cache);
-  return __esimd_lsc_load2d_descriptor<RawT, NBlocks, BlockWidth, BlockHeight,
-                                       0, 0, N>(
-      1, payload.get_raw_data().data(), oldDst.data(), Cache);
+    Raw = __esimd_lsc_load2d_descriptor_transpose<RawT, NBlocks, BlockWidth,
+                                                  BlockHeight, 0, 0, N>(
+        Mask, payload.get_raw_data().data(), oldDst.data(), Cache);
+  else if constexpr (Transformed)
+    Raw = __esimd_lsc_load2d_descriptor_transform<RawT, NBlocks, BlockWidth,
+                                                  BlockHeight, 0, 0, N>(
+        Mask, payload.get_raw_data().data(), oldDst.data(), Cache);
+  else
+    Raw = __esimd_lsc_load2d_descriptor<RawT, NBlocks, BlockWidth, BlockHeight,
+                                        0, 0, N>(
+        Mask, payload.get_raw_data().data(), oldDst.data(), Cache);
+
+  if constexpr (ActualN == N) {
+    return Raw;
+  } else {
+    // HW restrictions force data which is read to contain padding filled with
+    // zeros for 2d lsc loads. This code eliminates such padding.
+
+    __ESIMD_NS::simd<T, DstElements> Dst;
+
+    for (auto i = 0; i < NBlocks; i++) {
+      auto DstBlock =
+          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
+
+      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
+      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
+                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+                     .template bit_cast_view<T>();
+    }
+
+    return Dst;
+  }
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -1977,11 +2001,11 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
                 "Transposed and transformed is not supported");
 
   __ESIMD_NS::simd<RawT, N> oldDst;
-
+  constexpr uint16_t Mask = 1;
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
   __esimd_lsc_prefetch_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0,
-                                  N>(1, payload.get_raw_data().data(),
+                                  N>(Mask, payload.get_raw_data().data(),
                                      oldDst.data(), Cache);
 }
 
@@ -2016,24 +2040,11 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
                                  PropertyListT>();
 
-  constexpr int Pitch = __ESIMD_DNS::getNextPowerOf2<BlockWidth>();
-  constexpr int NElts = BlockHeight * Pitch;
-  __ESIMD_NS::simd<RawT, NElts> Raw;
-
-  if constexpr (NElts == N) {
-    Raw = Data.template bit_cast_view<RawT>();
-  } else {
-    // For store with padding, allocate the block with padding, and place
-    // original data there.
-    auto Data2D = Data.template bit_cast_view<RawT, BlockHeight, BlockWidth>();
-    auto Raw2D = Raw.template bit_cast_view<RawT, BlockHeight, Pitch>();
-    Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
-  }
-
+  constexpr uint16_t Mask = 1;
   constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
 
   __esimd_lsc_store_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0, N>(
-      1, payload.get_raw_data().data(), Raw.data(), Cache);
+      Mask, payload.get_raw_data().data(), Data.data(), Cache);
 }
 
 namespace detail {
