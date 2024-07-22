@@ -75,8 +75,8 @@ bool test() {
   sycl::free(A, q);
 
   return 0;
-  // CHECK: addrspacecast ptr addrspace(4) %A to ptr addrspace(1)
-  // CHECK: addrspacecast ptr addrspace(4) %B to ptr addrspace(3)
+  // CHECK: addrspacecast ptr addrspace(4) %{{.*}} to ptr addrspace(1)
+  // CHECK: addrspacecast ptr addrspace(4) %{{.*}} to ptr addrspace(3)
 }
 
 int main() {

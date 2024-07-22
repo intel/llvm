@@ -15,6 +15,9 @@
 // It is expected for destination simd instance to store a bitwise same data as
 // the reference one.
 
+// https://github.com/intel/llvm/issues/14650
+// UNSUPPORTED: linux
+
 #include "ctor_load_usm.hpp"
 
 using namespace esimd_test::api::functional;

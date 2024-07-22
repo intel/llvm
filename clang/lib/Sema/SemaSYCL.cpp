@@ -314,6 +314,13 @@ ExprResult SemaSYCL::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
       SYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx, BaseTy);
 }
 
+/// Returns true if the target requires a new type.
+/// This happens if a pointer to generic cannot be passed
+static bool targetRequiresNewType(ASTContext &Context) {
+  llvm::Triple T = Context.getTargetInfo().getTriple();
+  return !T.isNVPTX();
+}
+
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
 // This function returns false if the math lib function
@@ -590,12 +597,6 @@ public:
                          diag::note_sycl_recursive_function_declared_here)
             << SemaSYCL::KernelCallRecursiveFunction;
       }
-
-      if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual() &&
-            !SemaSYCLRef.getLangOpts().SYCLAllowVirtualFunctions)
-          SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << SemaSYCL::KernelCallVirtualFunction;
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
@@ -1482,6 +1483,27 @@ class KernelObjVisitor {
 public:
   KernelObjVisitor(SemaSYCL &S) : SemaSYCLRef(S) {}
 
+  static bool useTopLevelKernelObj(const CXXRecordDecl *KernelObj) {
+    // If the kernel is empty, "decompose" it so we don't generate arguments.
+    if (KernelObj->isEmpty())
+      return false;
+    // FIXME: Workaround to not change large number of tests
+    // this is covered by the test below.
+    if (targetRequiresNewType(KernelObj->getASTContext()))
+      return false;
+    if (KernelObj->hasAttr<SYCLRequiresDecompositionAttr>() ||
+        KernelObj->hasAttr<SYCLGenerateNewTypeAttr>())
+      return false;
+    return true;
+  }
+
+  template <typename... HandlerTys>
+  void visitTopLevelRecord(const CXXRecordDecl *Owner, QualType RecordTy,
+                           HandlerTys &...Handlers) {
+    (void)std::initializer_list<int>{
+        (Handlers.handleTopLevelStruct(Owner, RecordTy), 0)...};
+  }
+
   template <typename... HandlerTys>
   void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
                         HandlerTys &... Handlers) {
@@ -1499,6 +1521,20 @@ public:
   template <typename... HandlerTys>
   void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType ArrayTy, HandlerTys &...Handlers);
+
+  // A visitor for Kernel object to functions as defined in
+  // SyclKernelFieldHandler by iterating over fields and bases
+  // if they require decomposition or new type.
+  template <typename... HandlerTys>
+  void VisitKernelRecord(const CXXRecordDecl *KernelObj,
+                         QualType KernelFunctorTy, HandlerTys &...Handlers) {
+    if (!useTopLevelKernelObj(KernelObj)) {
+      VisitRecordBases(KernelObj, Handlers...);
+      VisitRecordFields(KernelObj, Handlers...);
+    } else {
+      visitTopLevelRecord(KernelObj, KernelFunctorTy, Handlers...);
+    }
+  }
 
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler by iterating over a free function parameter list.
@@ -1551,6 +1587,13 @@ public:
   // Most handlers shouldn't be handling this, just the field checker.
   virtual bool handleOtherType(FieldDecl *, QualType) { return true; }
   virtual bool handleOtherType(ParmVarDecl *, QualType) { return true; }
+
+  // Handle the SYCL kernel as a whole. This applies only when the target can
+  // support pointer to the generic address space as arguments and the functor
+  // doesn't have any SYCL special types.
+  virtual bool handleTopLevelStruct(const CXXRecordDecl *, QualType) {
+    return true;
+  }
 
   // Handle a simple struct that doesn't need to be decomposed, only called on
   // handlers with VisitInsideSimpleContainers as false.  Replaces
@@ -2113,10 +2156,9 @@ public:
   static constexpr const bool VisitNthArrayElement = false;
 
   SyclKernelDecompMarker(SemaSYCL &S) : SyclKernelFieldHandler(S) {
-    // In order to prevent checking this over and over, just add a dummy-base
-    // entry.
-    CollectionStack.push_back(true);
-    PointerStack.push_back(true);
+    // Base entry.
+    CollectionStack.push_back(false);
+    PointerStack.push_back(false);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
@@ -2136,13 +2178,33 @@ public:
   }
 
   bool handlePointerType(FieldDecl *, QualType) final {
-    PointerStack.back() = true;
+    PointerStack.back() = targetRequiresNewType(SemaSYCLRef.getASTContext());
     return true;
   }
 
   bool handlePointerType(ParmVarDecl *, QualType) final {
     // TODO
     unsupportedFreeFunctionParamType();
+    return true;
+  }
+
+  // Add Top level information to ease checks for processor.
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "should not be null.");
+    if (CollectionStack.pop_back_val() ||
+        SemaSYCLRef.getLangOpts().SYCLDecomposeStruct) {
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+        RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
+    }
+    assert(CollectionStack.size() == 0);
+    assert(PointerStack.size() == 0);
     return true;
   }
 
@@ -2911,6 +2973,12 @@ public:
     return true;
   }
 
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    StringRef Name = "_arg__sycl_functor";
+    addParam(Name, Ty);
+    return true;
+  }
+
   bool handleNonDecompStruct(const CXXRecordDecl *RD, FieldDecl *FD,
                              QualType Ty) final {
     // This is a field which should not be decomposed.
@@ -3143,6 +3211,11 @@ public:
     return true;
   }
 
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    addParam(Ty);
+    return true;
+  }
+
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
     addParam(Ty);
@@ -3304,6 +3377,12 @@ public:
     return true;
   }
 
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
+             "SYCL Functor");
+    return true;
+  }
+
   using SyclKernelFieldHandler::handleNonDecompStruct;
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
@@ -3344,6 +3423,7 @@ static bool isESIMDKernelType(CXXMethodDecl *CallOperator) {
 }
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
+  bool UseTopLevelKernelObj;
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<InitListExpr *, 16> CollectionInitExprs;
@@ -3355,7 +3435,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // nextElement.
   llvm::SmallVector<std::pair<InitializedEntity, uint64_t>, 8> ArrayInfos;
   VarDecl *KernelObjClone;
-  InitializedEntity VarEntity;
+  std::optional<InitializedEntity> VarEntity;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   llvm::SmallVector<Expr *, 16> ArrayParamBases;
   FunctionDecl *KernelCallerFunc;
@@ -3386,10 +3466,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // Push the Kernel function scope to ensure the scope isn't empty
     SemaSYCLRef.SemaRef.PushFunctionScope();
 
-    // Initialize kernel object local clone
-    assert(CollectionInitExprs.size() == 1 &&
-           "Should have been popped down to just the first one");
-    KernelObjClone->setInit(CollectionInitExprs.back());
+    if (!UseTopLevelKernelObj) {
+      // Initialize kernel object local clone
+      assert(CollectionInitExprs.size() == 1 &&
+             "Should have been popped down to just the first one");
+      KernelObjClone->setInit(CollectionInitExprs.back());
+    }
 
     // Replace references to the kernel object in kernel body, to use the
     // compiler generated local clone
@@ -3513,7 +3595,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       return InitializedEntity::InitializeElement(SemaSYCLRef.getASTContext(),
                                                   ArrayInfos.back().second,
                                                   ArrayInfos.back().first);
-    return InitializedEntity::InitializeMember(FD, &VarEntity);
+    return InitializedEntity::InitializeMember(FD, &VarEntity.value());
   }
 
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
@@ -3543,7 +3625,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                    InitializationKind InitKind) {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
-        &VarEntity);
+        &VarEntity.value());
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
                                    std::nullopt);
     ExprResult Init =
@@ -3558,7 +3640,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                    InitializationKind InitKind, MultiExprArg Args) {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
-        &VarEntity);
+        &VarEntity.value());
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, Args);
     ExprResult Init =
         InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, Args);
@@ -3574,7 +3656,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
-        &VarEntity);
+        &VarEntity.value());
 
     Expr *ParamRef = createParamReferenceExpr();
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
@@ -3832,8 +3914,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity, /*Implicit*/ true);
+    InitializedEntity Entity = InitializedEntity::InitializeMember(
+        FD, &VarEntity.value(), /*Implicit*/ true);
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
@@ -3898,27 +3980,33 @@ public:
                         const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc, bool IsSIMDKernel,
                         CXXMethodDecl *CallOperator)
-      : SyclKernelFieldHandler(S), DeclCreator(DC),
-        KernelObjClone(createKernelObjClone(S.getASTContext(),
-                                            DC.getKernelDecl(), KernelObj)),
-        VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelCallerFunc(KernelCallerFunc),
+      : SyclKernelFieldHandler(S),
+        UseTopLevelKernelObj(KernelObjVisitor::useTopLevelKernelObj(KernelObj)),
+        DeclCreator(DC),
+        KernelObjClone(UseTopLevelKernelObj
+                           ? nullptr
+                           : createKernelObjClone(S.getASTContext(),
+                                                  DC.getKernelDecl(),
+                                                  KernelObj)),
+        VarEntity(), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
         IsESIMD(IsSIMDKernel), CallOperator(CallOperator) {
-    CollectionInitExprs.push_back(createInitListExpr(KernelObj));
-    annotateHierarchicalParallelismAPICalls();
-
-    Stmt *DS = new (S.getASTContext()) DeclStmt(
-        DeclGroupRef(KernelObjClone), KernelCallerSrcLoc, KernelCallerSrcLoc);
-    BodyStmts.push_back(DS);
-    DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
-        S.getASTContext(), NestedNameSpecifierLoc(), KernelCallerSrcLoc,
-        KernelObjClone, false, DeclarationNameInfo(),
-        QualType(KernelObj->getTypeForDecl(), 0), VK_LValue);
-    MemberExprBases.push_back(KernelObjCloneRef);
+    if (!UseTopLevelKernelObj) {
+      VarEntity.emplace(InitializedEntity::InitializeVariable(KernelObjClone));
+      Stmt *DS = new (S.getASTContext()) DeclStmt(
+          DeclGroupRef(KernelObjClone), KernelCallerSrcLoc, KernelCallerSrcLoc);
+      BodyStmts.push_back(DS);
+      CollectionInitExprs.push_back(createInitListExpr(KernelObj));
+      DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
+          S.getASTContext(), NestedNameSpecifierLoc(), KernelCallerSrcLoc,
+          KernelObjClone, false, DeclarationNameInfo(),
+          QualType(KernelObj->getTypeForDecl(), 0), VK_LValue);
+      MemberExprBases.push_back(KernelObjCloneRef);
+    }
   }
 
   ~SyclKernelBodyCreator() {
+    annotateHierarchicalParallelismAPICalls();
     CompoundStmt *KernelBody = createKernelBody();
     DeclCreator.setBody(KernelBody);
   }
@@ -3944,6 +4032,13 @@ public:
       handleGeneratedArrayType(FD, FieldTy);
     else
       addSimpleArrayInit(FD, FieldTy);
+    return true;
+  }
+
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    // As the functor is passed as a whole, use the param as the vardecl
+    // otherwise used as the clone.
+    KernelObjClone = DeclCreator.getParamVarDeclsForCurrentField()[0];
     return true;
   }
 
@@ -4501,6 +4596,11 @@ public:
     return true;
   }
 
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    addParam(Ty, SYCLIntegrationHeader::kind_std_layout, /*Offset=*/0);
+    return true;
+  }
+
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
     addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
@@ -4868,6 +4968,8 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
+  Visitor.visitTopLevelRecord(KernelObj, GetSYCLKernelObjectType(KernelFunc),
+                              FieldChecker, UnionChecker, DecompMarker);
 
   DiagnosingSYCLKernel = false;
   // Set the kernel function as invalid, if any of the checkers fail validation.
@@ -4982,8 +5084,8 @@ void SemaSYCL::SetSYCLKernelNames() {
 void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                      MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj =
-      GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+  QualType KernelObjTy = GetSYCLKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj = KernelObjTy->getAsCXXRecordDecl();
   assert(KernelObj && "invalid kernel caller");
 
   // Do not visit invalid kernel object.
@@ -5038,17 +5140,13 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // Visit handlers to generate information for optimization record only if
   // optimization record is saved.
   if (!getLangOpts().OptRecordFile.empty()) {
-    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, esimdKernel,
-                             kernel_decl, kernel_body, int_header, int_footer,
-                             opt_report);
-    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, esimdKernel,
-                              kernel_decl, kernel_body, int_header, int_footer,
-                              opt_report);
+    Visitor.VisitKernelRecord(KernelObj, KernelObjTy, argsSizeChecker,
+                              esimdKernel, kernel_decl, kernel_body, int_header,
+                              int_footer, opt_report);
   } else {
-    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, esimdKernel,
-                             kernel_decl, kernel_body, int_header, int_footer);
-    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, esimdKernel,
-                              kernel_decl, kernel_body, int_header, int_footer);
+    Visitor.VisitKernelRecord(KernelObj, KernelObjTy, argsSizeChecker,
+                              esimdKernel, kernel_decl, kernel_body, int_header,
+                              int_footer);
   }
 
   if (ParmVarDecl *KernelHandlerArg =
