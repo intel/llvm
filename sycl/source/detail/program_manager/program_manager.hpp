@@ -106,8 +106,9 @@ public:
                                               const device &Device);
   /// Creates a PI program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
-  /// \param Img The device image to find a cached device code binary for or
-  ///        create the PI program with.
+  /// \param Img The device image used to create the program.
+  /// \param AllImages All images needed to build the program, used for cache
+  ///        lookup.
   /// \param Context The context to find or create the PI program with.
   /// \param Device The device to find or create the PI program for.
   /// \param CompileAndLinkOptions The compile and linking options to be used
@@ -122,11 +123,11 @@ public:
   /// \return A pair consisting of the PI program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<sycl::detail::pi::PiProgram, bool>
-  getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
-                       const device &Device,
-                       const std::string &CompileAndLinkOptions,
-                       SerializedObj SpecConsts);
+  std::pair<sycl::detail::pi::PiProgram, bool> getOrCreatePIProgram(
+      const RTDeviceBinaryImage &Img,
+      const std::vector<const RTDeviceBinaryImage *> &AllImages,
+      const context &Context, const device &Device,
+      const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS
@@ -305,6 +306,10 @@ private:
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
   std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
+                                           device Dev);
+
+  std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, device Dev);
 
@@ -352,7 +357,8 @@ private:
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_set<std::string> m_ExportedSymbols;
+  std::unordered_multimap<std::string, RTDeviceBinaryImage *>
+      m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
@@ -383,7 +389,8 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
+  std::unordered_multimap<pi::PiProgram, const RTDeviceBinaryImage *>
+      NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.
   std::mutex MNativeProgramsMutex;
