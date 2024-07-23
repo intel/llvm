@@ -24,7 +24,7 @@ OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
 
 _sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
   return _sycl_offload_entry_struct{Address, KernelName.get(), EntrySize,
-                                  EntryFlags, EntryReserved};
+                                    EntryFlags, EntryReserved};
 }
 
 PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
@@ -43,7 +43,7 @@ PropertyContainer::PropertyContainer(const std::string &Name, uint32_t Data)
 
 _sycl_device_binary_property_struct PropertyContainer::getPIProperty() {
   return _sycl_device_binary_property_struct{PropName.get(), Value.get(),
-                                           PropType, ValueSize};
+                                             PropType, ValueSize};
 }
 
 PropertySetContainer::PropertySetContainer(const std::string &Name)
@@ -61,7 +61,8 @@ void PropertySetContainer::addProperty(PropertyContainer &&Prop) {
   Properties.push_back(std::move(Prop));
 }
 
-_sycl_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
+_sycl_device_binary_property_set_struct
+PropertySetContainer::getPIPropertySet() {
   Fused = false;
   return _sycl_device_binary_property_set_struct{
       const_cast<char *>(SetName.get()), PIProperties.data(),

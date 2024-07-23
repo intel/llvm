@@ -67,7 +67,8 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
 }
 
 ByteArray DeviceBinaryProperty::asByteArray() const {
-  assert(Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
+  assert(Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY &&
+         "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
   const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
   return {Data, Prop->ValSize};

@@ -320,12 +320,10 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
                0) {
       return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-               0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
       return Dev.is_gpu() && (BE == sycl::backend::opencl ||
                               BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
-               0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
       return Dev.is_accelerator();
     } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
       return BE == sycl::backend::ext_oneapi_cuda;
