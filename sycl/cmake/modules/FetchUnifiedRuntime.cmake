@@ -115,13 +115,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
   # commit bc1a28ede0df7f837047b632e00437587672c134
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Mon Jul 29 16:44:58 2024 +0100
   #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
   #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG bc1a28ede0df7f837047b632e00437587672c134)
+  set(UNIFIED_RUNTIME_TAG a2a053de43b8488a571ec026512a98b178ca06e4)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
