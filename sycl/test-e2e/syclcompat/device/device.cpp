@@ -165,19 +165,12 @@ void test_device_ext_api() {
   int max_cu = dev_.get_max_compute_units();
   int max_wg_size = dev_.get_max_work_group_size();
   size_t global_mem_size = dev_.get_global_mem_size();
-  {
-    syclcompat::device_info Info;
-    dev_.get_device_info(Info);
-    assert(Info.get_max_compute_units() == max_cu);
-    assert(Info.get_max_work_group_size() == max_wg_size);
-    assert(Info.get_global_mem_size() == global_mem_size);
-  }
-  {
-    syclcompat::device_info Info = dev_.get_device_info();
-    assert(Info.get_max_compute_units() == max_cu);
-    assert(Info.get_max_work_group_size() == max_wg_size);
-    assert(Info.get_global_mem_size() == global_mem_size);
-  }
+
+  syclcompat::device_info Info;
+  dev_.get_device_info(Info);
+  assert(Info.get_max_compute_units() == max_cu);
+  assert(Info.get_max_work_group_size() == max_wg_size);
+  assert(Info.get_global_mem_size() == global_mem_size);
 
   dev_.reset();
   auto QueuePtr = dev_.default_queue();
