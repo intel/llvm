@@ -94,7 +94,7 @@ private:
   std::vector<_sycl_device_binary_property_struct> PIProperties;
 };
 
-/// Representation of pi_device_binary_struct for creation of JIT device
+/// Representation of sycl_device_binary_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the PI struct.
 class DeviceBinaryContainer {
@@ -112,9 +112,9 @@ public:
   void addProperty(PropertySetContainer &&Cont);
 
   pi_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
-                                            size_t BinarySize,
-                                            const char *TargetSpec,
-                                            sycl_device_binary_type Format);
+                                              size_t BinarySize,
+                                              const char *TargetSpec,
+                                              sycl_device_binary_type Format);
 
 private:
   bool Fused = true;
@@ -124,7 +124,7 @@ private:
   std::vector<_sycl_device_binary_property_set_struct> PIPropertySets;
 };
 
-/// Representation of pi_device_binaries_struct for creation of JIT device
+/// Representation of sycl_device_binaries_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the PI struct.
 class DeviceBinariesCollection {
@@ -142,11 +142,11 @@ public:
   void addDeviceBinary(DeviceBinaryContainer &&Cont,
                        const unsigned char *BinaryStart, size_t BinarySize,
                        const char *TargetSpec, sycl_device_binary_type Format);
-  pi_device_binaries getPIDeviceStruct();
+  sycl_device_binaries getPIDeviceStruct();
 
 private:
   bool Fused = true;
-  std::unique_ptr<pi_device_binaries_struct> PIStruct;
+  std::unique_ptr<sycl_device_binaries_struct> PIStruct;
 
   std::vector<DeviceBinaryContainer> Binaries;
   std::vector<pi_device_binary_struct> PIBinaries;

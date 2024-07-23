@@ -277,7 +277,7 @@ private:
   PiPropertySet MPropertySet;
 };
 
-/// Convenience wrapper around pi_device_binaries_struct, that manages mock
+/// Convenience wrapper around sycl_device_binaries_struct, that manages mock
 /// device images' lifecycle.
 template <size_t __NumberOfImages> class PiImageArray {
 public:
@@ -287,7 +287,7 @@ public:
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
-    MAllBinaries = pi_device_binaries_struct{
+    MAllBinaries = sycl_device_binaries_struct{
         SYCL_DEVICE_BINARIES_VERSION,
         NumberOfImages,
         MNativeImages,
@@ -302,7 +302,7 @@ public:
 
 private:
   pi_device_binary_struct MNativeImages[NumberOfImages];
-  pi_device_binaries_struct MAllBinaries;
+  sycl_device_binaries_struct MAllBinaries;
 };
 
 template <typename Func, uint32_t Idx = 0, typename... Ts>

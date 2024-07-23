@@ -127,9 +127,9 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
   Binaries.push_back(std::move(Cont));
 }
 
-pi_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
+sycl_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
 
-  PIStruct = std::make_unique<pi_device_binaries_struct>();
+  PIStruct = std::make_unique<sycl_device_binaries_struct>();
   PIStruct->Version = SYCL_DEVICE_BINARIES_VERSION;
   PIStruct->NumDeviceBinaries = PIBinaries.size();
   PIStruct->DeviceBinaries = PIBinaries.data();

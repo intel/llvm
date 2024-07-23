@@ -1499,7 +1499,7 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
   return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
-void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
+void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -3065,12 +3065,12 @@ checkDevSupportDeviceRequirements(const device &Dev,
 } // namespace _V1
 } // namespace sycl
 
-extern "C" void __sycl_register_lib(pi_device_binaries desc) {
+extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
   sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization
-extern "C" void __sycl_unregister_lib(pi_device_binaries desc) {
+extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
   (void)desc;
   // TODO implement the function
 }

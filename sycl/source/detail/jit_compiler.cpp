@@ -975,7 +975,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   return FusedCG;
 }
 
-pi_device_binaries jit_compiler::createPIDeviceBinary(
+sycl_device_binaries jit_compiler::createPIDeviceBinary(
     const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
     ::jit_compiler::BinaryFormat Format) {
 
