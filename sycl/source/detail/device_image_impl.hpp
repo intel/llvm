@@ -17,6 +17,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/detail/compiler.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -127,8 +128,8 @@ public:
            "native_specialization_constant() called for unimplemented case");
 
     auto IsJITSPIRVTarget = [](const char *Target) {
-      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
-              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+      return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0);
     };
     return (MContext.get_backend() == backend::opencl ||
             MContext.get_backend() == backend::ext_oneapi_level_zero) &&

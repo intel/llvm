@@ -8,6 +8,7 @@
 
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/detail/compiler.h>
 
 #include <algorithm>
 #include <cstring>
@@ -206,10 +207,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
-    Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;
+    Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64;
     break;
   default:
-    Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN;
+    Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
   }
   init(Bin);
 }

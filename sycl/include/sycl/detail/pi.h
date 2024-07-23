@@ -1035,28 +1035,6 @@ static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
 // The kind of offload model the binary employs; must be 4 for SYCL
 static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 
-/// Target identification strings for
-/// pi_device_binary_struct.DeviceTargetSpec
-///
-/// A device type represented by a particular target
-/// triple requires specific binary images. We need
-/// to map the image type onto the device target triple
-///
-#define __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
-/// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
-/// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
-/// Device-specific binary images produced from SPIR-V 64-bit <->
-/// various "spir64_*" triples for specific 64-bit OpenCL devices
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
-/// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
-
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested

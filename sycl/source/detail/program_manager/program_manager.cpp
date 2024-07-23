@@ -25,6 +25,7 @@
 #include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/compiler.h>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
@@ -1111,11 +1112,11 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   // If the image is already compiled with AOT, throw an exception.
   const pi_device_binary_struct &RawImg = Image->getRawData();
   if ((strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Recompiling AOT image is not supported");
   }
@@ -1666,9 +1667,9 @@ ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
 static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return (
-        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+        (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+        (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
   };
 
   // There are only two initial states so far - SPIRV which needs to be compiled
