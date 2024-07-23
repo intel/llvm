@@ -99,7 +99,7 @@ on:
         type: choice
         options:
           - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
-          - '-u 1001 --group-add render --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --group-add $(getent group render | cut -d: -f3) --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
       target_devices:
         type: choice
