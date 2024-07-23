@@ -176,13 +176,6 @@ template <> struct is_property_key<intel::experimental::streaming_interface_key>
 template <> struct is_property_key<intel::experimental::register_map_interface_key> : std::true_type {};
 template <> struct is_property_key<intel::experimental::fpga_cluster_key> : std::true_type {};
 
-template <intel::experimental::streaming_interface_options_enum option>
-struct has_compile_time_kernel_effect<intel::experimental::streaming_interface_key::value_t<option>> : std::true_type {};
-template <intel::experimental::register_map_interface_options_enum option>
-struct has_compile_time_kernel_effect<intel::experimental::register_map_interface_key::value_t<option>> : std::true_type {};
-template<intel::experimental::fpga_cluster_options_enum option>
-struct has_compile_time_kernel_effect<intel::experimental::fpga_cluster_key::value_t<option>> : std::true_type {};
-
 } // intel::experimental
 } // namespace sycl::ext
 ```

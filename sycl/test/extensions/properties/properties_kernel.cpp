@@ -42,13 +42,13 @@ int main() {
   static_assert(is_property_key<sub_group_size_key>::value);
   static_assert(is_property_key<device_has_key>::value);
 
-  static_assert(
-      has_compile_time_kernel_effect<work_group_size_key::value_t<1>>::value);
-  static_assert(has_compile_time_kernel_effect<
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                work_group_size_key::value_t<1>>::value);
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
                 work_group_size_hint_key::value_t<1>>::value);
-  static_assert(
-      has_compile_time_kernel_effect<sub_group_size_key::value_t<28>>::value);
-  static_assert(has_compile_time_kernel_effect<
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                sub_group_size_key::value_t<28>>::value);
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
                 device_has_key::value_t<aspect::fp64>>::value);
 
   static_assert(is_property_value<decltype(work_group_size<1>)>::value);

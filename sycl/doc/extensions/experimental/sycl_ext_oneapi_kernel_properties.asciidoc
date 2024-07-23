@@ -114,27 +114,6 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Kernel Property Trait
-
-Some kernel properties carry compile-time information to affect how the compiler
-handles the corresponding kernel object. However, some of the kernel enqueue
-functions take a `sycl::kernel` object and as such it may not be possible to
-infer which kernel function it refers to at compile-time. To help identify the
-properties that have compile-time effects on the kernel, the
-`has_compile_time_kernel_effect` trait.
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-
-template<typename> struct has_compile_time_kernel_effect : std::false_type {};
-
-template<typename PropertyT>
-static constexpr bool has_compile_time_kernel_effect_v =
-    has_compile_time_kernel_effect<PropertyT>::value;
-
-} // namespace sycl::ext::oneapi::experimental
-```
-
 === Kernel Properties
 
 The kernel properties below correspond to kernel attributes defined in
@@ -202,15 +181,6 @@ template <> struct is_property_key<work_group_size_key> : std::true_type {};
 template <> struct is_property_key<work_group_size_hint_key> : std::true_type {};
 template <> struct is_property_key<sub_group_size_key> : std::true_type {};
 template <> struct is_property_key<device_has_key> : std::true_type {};
-
-template <size_t... Dims>
-struct has_compile_time_kernel_effect<work_group_size_key::value_t<Dims...>> : std::true_type {};
-template <size_t... Dims>
-struct has_compile_time_kernel_effect<work_group_size_hint_key::value_t<Dims...>> : std::true_type {};
-template <uint32_t Size>
-struct has_compile_time_kernel_effect<sub_group_size_key::value_t<Size>> : std::true_type {};
-template <sycl::aspect... Aspects>
-struct has_compile_time_kernel_effect<device_has_key::value_t<Aspects...>> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -345,19 +315,19 @@ class handler {
                                PropertyList properties,
                                const WorkgroupFunctionType &kernelFunc);
 
-  // Available only if `!has_compile_time_kernel_effect<PropertyT>` for all
-  // properties `PropertyT` in `PropertyList`.
+  // Available only if all properties in `PropertList` only have launch-related
+  // effects.
   template <typename PropertyList>
   void single_task(PropertyList properties, const kernel& kernelObject);
 
-  // Available only if `!has_compile_time_kernel_effect<PropertyT>` for all
-  // properties `PropertyT` in `PropertyList`.
+  // Available only if all properties in `PropertList` only have launch-related
+  // effects.
   template <int Dimensions, typename PropertyList>
   void parallel_for(range<Dimensions> numWorkItems, PropertyList properties,
                     const kernel& kernelObject);
 
-  // Available only if `!has_compile_time_kernel_effect<PropertyT>` for all
-  // properties `PropertyT` in `PropertyList`.
+  // Available only if all properties in `PropertList` only have launch-related
+  // effects.
   template <int Dimensions, typename PropertyList>
   void parallel_for(nd_range<Dimensions> ndRange, PropertyList properties,
                     const kernel& kernelObject);

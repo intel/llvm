@@ -16,13 +16,13 @@ int main() {
   static_assert(oneapi::experimental::is_property_key<
                 intel::experimental::pipelined_key>::value);
 
-  // Check that oneapi::experimental::has_compile_time_kernel_effect is
+  // Check that oneapi::experimental::detail::HasCompileTimeEffect is
   // correctly specialized
-  static_assert(oneapi::experimental::has_compile_time_kernel_effect<
+  static_assert(oneapi::experimental::detail::HasCompileTimeEffect<
                 intel::experimental::register_map_interface_key::value_t<
                     intel::experimental::register_map_interface_options_enum::
                         wait_for_done_write>>::value);
-  static_assert(oneapi::experimental::has_compile_time_kernel_effect<
+  static_assert(oneapi::experimental::detail::HasCompileTimeEffect<
                 intel::experimental::register_map_interface_key::value_t<
                     intel::experimental::register_map_interface_options_enum::
                         wait_for_done_write>>::value);

@@ -266,6 +266,8 @@ template <typename PropertyT> struct PropertyMetaInfo {
   static constexpr std::nullptr_t value = nullptr;
 };
 
+template <typename> struct HasCompileTimeEffect : std::false_type {};
+
 } // namespace detail
 
 template <typename T>
@@ -273,11 +275,6 @@ struct is_property_key
     : std::bool_constant<std::is_base_of_v<detail::property_key_base_tag, T>> {
 };
 template <typename, typename> struct is_property_key_of : std::false_type {};
-
-template <typename> struct has_compile_time_kernel_effect : std::false_type {};
-template <typename PropertyT>
-static constexpr bool has_compile_time_kernel_effect_v =
-    has_compile_time_kernel_effect<PropertyT>::value;
 
 } // namespace experimental
 } // namespace oneapi

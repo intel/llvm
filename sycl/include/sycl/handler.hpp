@@ -273,7 +273,7 @@ template <typename... Ts>
 struct NoPropertyHasCompileTimeKernelEffect<
     ext::oneapi::experimental::detail::properties_t<Ts...>> {
   static constexpr bool value =
-      !(ext::oneapi::experimental::has_compile_time_kernel_effect_v<Ts> ||
+      !(ext::oneapi::experimental::detail::HasCompileTimeEffect<Ts>::value ||
         ... || false);
 };
 
