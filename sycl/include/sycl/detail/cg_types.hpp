@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
 #include <sycl/detail/item_base.hpp>           // for id
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
 #include <sycl/exception.hpp>
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
@@ -65,6 +64,7 @@ enum class CGType : unsigned int {
   SemaphoreWait = 24,
   SemaphoreSignal = 25,
   ProfilingTag = 26,
+  EnqueueNativeCommand = 27,
 };
 
 template <typename, typename T> struct check_fn_signature {

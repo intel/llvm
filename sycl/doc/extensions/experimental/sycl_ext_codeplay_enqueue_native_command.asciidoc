@@ -1,0 +1,217 @@
+= sycl_ext_codeplay_enqueue_native_command
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the CUDA or HIP backends.  Attempting to use this extension in
+kernels that run on other devices or backends may result in undefined
+behavior.  Be aware that the compiler is not able to issue a diagnostic to
+warn you if this happens.
+
+
+== Overview
+
+This extension is derived from the experimental AdaptiveCpp extension,
+`enqueue_custom_operation` which is documented
+https://github.com/AdaptiveCpp/AdaptiveCpp/blob/develop/doc/enqueue-custom-operation.md[here].
+
+The goal of `ext_codeplay_enqueue_native_command` is to integrate interop
+work within the SYCL runtime's creation of the asynchronous SYCL DAG. As such,
+the user defined lambda must only enqueue asynchronous, as opposed to
+synchronous, backend work within the user lambda. Asynchronous work must only
+be submitted to the native queue obtained from
+`interop_handle::get_native_queue`.
+
+=== Differences with `host_task`
+
+A callable submitted to `ext_codeplay_enqueue_native_command` won't wait
+on its dependent events to execute. The dependencies passed to an
+`ext_codeplay_enqueue_native_command` submission will result in dependencies being
+implicitly handled in the backend API, using the native queue object associated
+with the SYCL queue that the `sycl_ext_codeplay_enqueue_native_command` is
+submitted to. This gives different synchronization guarantees from normal SYCL
+`host_task` s, which guarantee that the `host_task` callable will only begin
+execution once all of its dependent events have completed.
+
+In this example:
+
+```
+q.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(dep_event);
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
+      printf("This will print before dep_event has completed.\n");
+      // This stream has been synchronized with dep_event's underlying
+      // hipEvent_t
+      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
+                      hipMemcpyDeviceToHost, stream);
+    });
+  });
+q.wait()
+```
+
+The print statement may print before `dep_event` has completed. However, the
+asynchronous memcpy submitted to the native queue obtained by
+`interop_handle::get_native_queue` is guaranteed to have the correct
+dependencies, and therefore will only start once its dependent events have
+completed.
+
+By contrast, when using a `host_task`, it is guaranteed that the print statement
+will only happen once the host task's dependent events are observed to be
+complete on the host.
+
+A SYCL event returned by a submission of a
+`ext_codeplay_enqueue_native_command` command is only complete once the
+asynchronous work enqueued to the native queue obtained through
+`interop_handle::get_native_queue()` has completed.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Additions to handler class
+
+This extension adds the following new member function to the SYCL `handler`
+class:
+
+```c++
+class handler {
+  template <typename Func>
+  void ext_codeplay_enqueue_native_command(Func&& interopCallable);
+};
+```
+
+_Constraints_: The `Func` must a C++ callable object which takes a single
+parameter of type `interop_handle`.
+
+_Effects_: The `interopCallable` object is called exactly once, and this call
+may be made asynchronously even after the calling thread returns from
+`ext_codeplay_enqueue_native_command`.
+
+The call to `interopCallable` may submit one or more asynchronous tasks to the
+native backend object obtained from `interop_handle::get_native_queue`, and
+these tasks become encapsulated in a SYCL command that is added to the queue.
+If the enclosing command group has any dependencies, these dependencies are
+propagated to the native asynchronous tasks. This happens, for example, if the
+command group calls `handler::depends_on` or if it constructs an accessor. As a
+result, there is typically no need to specify these dependencies through native
+APIs. Note, however, that these dependencies are associated with the
+_asynchronous tasks submitted by_ `interopCallable`, not the call to
+`interopCallable`. The call to `interopCallable` may happen even before the
+dependencies are satisfied.
+
+The SYCL command described above completes once all of the native asynchronous
+tasks it contains have completed.
+
+The call to `interopCallable` must not submit any synchronous tasks to the
+native backend object, and it must not block waiting for any tasks to complete.
+The call also must not add tasks to backend objects that underly any other
+queue, aside from the queue that is associated with this handler. If it does
+any of these things, the behavior is undefined.
+
+== Example
+
+This example demonstrates how to use this extension to enqueue asynchronous
+native tasks on the HIP backend.
+
+```c++
+sycl::queue q;
+q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{buf, cgh};
+
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
+      // Can extract device pointers from accessors
+      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
+      // Can extract stream
+      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+
+      // Can enqueue arbitrary backend operations. This could also be a kernel
+      // launch or call to a library that enqueues operations on the stream etc
+      //
+      // Important: Enqueuing a *synchronous* backend operation results in
+      // undefined behavior.
+      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
+                      hipMemcpyDeviceToHost, stream);
+    });
+  });
+q.wait();
+```
+
+== Issues
+
+=== sycl_ext_oneapi_graph
+
+`ext_codeplay_enqueue_native_command`
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
