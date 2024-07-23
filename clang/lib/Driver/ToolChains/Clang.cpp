@@ -10704,7 +10704,8 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 }
 
 static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
-  return (TCArgs.hasArg(options::OPT_shared));
+  // TODO: Return true if -shared seen when SYCL RT supports dynamic linking
+  return false;
 }
 
 static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
