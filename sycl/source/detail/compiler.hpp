@@ -39,7 +39,7 @@
 #define __SYCL_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
 /// PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES defined in
 /// PropertySetIO.h
-#define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                   \
+#define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
@@ -58,8 +58,7 @@
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
-  "SYCL/device requirements"
+#define __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS "SYCL/device requirements"
 /// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 /// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
@@ -67,8 +66,7 @@
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
-#define __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
-  "@reqd_work_group_size"
+#define __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE "@reqd_work_group_size"
 #define __SYCL_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
@@ -105,7 +103,7 @@ using sycl_device_binary_property = _sycl_device_binary_property_struct *;
 
 // Named array of properties.
 struct _sycl_device_binary_property_set_struct {
-  char *Name;                                // the name
+  char *Name;                                  // the name
   sycl_device_binary_property PropertiesBegin; // array start
   sycl_device_binary_property PropertiesEnd;   // array end
 };
@@ -114,7 +112,7 @@ using sycl_device_binary_property_set =
 
 /// Types of device binary.
 enum sycl_device_binary_type : uint8_t {
-  SYCL_DEVICE_BINARY_TYPE_NONE = 0, // undetermined
+  SYCL_DEVICE_BINARY_TYPE_NONE = 0,   // undetermined
   SYCL_DEVICE_BINARY_TYPE_NATIVE = 1, // specific to a device
   SYCL_DEVICE_BINARY_TYPE_SPIRV = 2,
   SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3
