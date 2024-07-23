@@ -274,7 +274,7 @@ bool SYCL_Compilation_Available() {
             << std::endl;
 
   std::string SecondaryCommand = "which " + Compiler;
-  std::system(SecondaryCommand.c_str());
+  result += std::system(SecondaryCommand.c_str());
 
   return (result == 0);
 }
