@@ -100,12 +100,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
-  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
-  # Merge: 76c6bf9a 0cd10f63
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 11 15:12:38 2024 +0100
-  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
-  #     [DeviceSanitizer] Support detecting misaligned access error
   set(UNIFIED_RUNTIME_TAG aaron/fixContextCreateWithNative)
 
   fetch_adapter_source(level_zero

@@ -267,7 +267,7 @@ assumed, and single device compiler for this target is invoked.
 
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
-The default value for this option is `1.2.1`.
+The default value for this option is `2020`.
 
 #### Ahead of time (AOT) compilation
 

@@ -194,10 +194,6 @@ __declspec(dllexport) void *getPreloadedPlugin(
   return match->second;
 }
 
-__declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
-  return getPreloadedPlugin(std::filesystem::path(PluginPath));
-}
-
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
                     DWORD fdwReason,    // reason for calling function
                     LPVOID lpReserved)  // reserved
