@@ -271,14 +271,15 @@ public:
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
   static void
-  copy_image_bindless(const void *Src, QueueImplPtr Queue, void *Dst,
-                      const sycl::detail::pi::PiMemImageDesc &Desc,
-                      const sycl::detail::pi::PiMemImageFormat &Format,
+  copy_image_bindless(QueueImplPtr Queue, const void *Src, void *Dst,
+                      const sycl::detail::pi::PiMemImageDesc &SrcImageDesc,
+                      const sycl::detail::pi::PiMemImageDesc &DestImageDesc,
+                      const sycl::detail::pi::PiMemImageFormat &SrcImageFormat,
+                      const sycl::detail::pi::PiMemImageFormat &DestImageFormat,
                       const sycl::detail::pi::PiImageCopyFlags Flags,
                       sycl::detail::pi::PiImageOffset SrcOffset,
                       sycl::detail::pi::PiImageOffset DstOffset,
                       sycl::detail::pi::PiImageRegion CopyExtent,
-                      sycl::detail::pi::PiImageRegion HostExtent,
                       const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
                       sycl::detail::pi::PiEvent *OutEvent);
 };

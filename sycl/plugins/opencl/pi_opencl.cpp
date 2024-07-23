@@ -404,18 +404,18 @@ pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
   return pi2ur::piextMemMipmapFree(Context, Device, MemoryHandle);
 }
 
-pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
-                  const pi_image_format *ImageFormat,
-                  const pi_image_desc *ImageDesc,
-                  const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-                  pi_image_offset DstOffset, pi_image_region CopyExtent,
-                  pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
-                  const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
-                                  Flags, SrcOffset, DstOffset, CopyExtent,
-                                  HostExtent, NumEventsInWaitList,
-                                  EventWaitList, Event);
+pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DestImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextMemImageCopy(
+      Queue, DstPtr, SrcPtr, SrcImageDesc, DestImageDesc, SrcImageFormat,
+      DestImageFormat, Flags, SrcOffset, DstOffset, CopyExtent,
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piextMemUnsampledImageHandleDestroy(pi_context Context,
@@ -467,9 +467,9 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
                                              RetHandle);
 }
 
-pi_result piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+pi_result piextReleaseExternalSemaphore(pi_context Context, pi_device Device,
                                         pi_interop_semaphore_handle SemHandle) {
-  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
+  return pi2ur::piextReleaseExternalSemaphore(Context, Device, SemHandle);
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
