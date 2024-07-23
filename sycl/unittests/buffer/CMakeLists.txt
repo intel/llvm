@@ -5,4 +5,5 @@ add_sycl_unittest(BufferTests OBJECT
   MemChannel.cpp
   KernelArgMemObj.cpp
   SubbufferLargeSize.cpp
+  Properties.cpp
 )

@@ -8,11 +8,13 @@
 
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/property_check.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 #include <cstring>
 #include <utility>
@@ -743,6 +745,21 @@ void queue_impl::doUnenqueuedCommandCleanup(
     tryToCleanup(MExtGraphDeps);
   else
     tryToCleanup(MDefaultGraphDeps);
+}
+
+void queue_impl::verifyProps(const property_list &Props) const {
+  static const auto AllowedPropList = GenerateAllowedProps<
+      sycl::ext::intel::property::queue::compute_index,
+      sycl::property::queue::in_order, sycl::property::queue::enable_profiling,
+      sycl::ext::oneapi::property::queue::discard_events,
+      sycl::ext::oneapi::property::queue::priority_normal,
+      sycl::ext::oneapi::property::queue::priority_low,
+      sycl::ext::oneapi::property::queue::priority_high,
+      sycl::ext::intel::property::queue::no_immediate_command_list,
+      sycl::ext::intel::property::queue::immediate_command_list,
+      sycl::ext::oneapi::cuda::property::queue::use_default_stream,
+      sycl::ext::codeplay::experimental::property::queue::enable_fusion>();
+  checkPropsAndThrow(Props, AllowedPropList);
 }
 
 } // namespace detail

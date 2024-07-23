@@ -10,8 +10,10 @@
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/property_check.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -97,6 +99,17 @@ buffer_impl::getNativeVector(backend BackendName) const {
   addInteropObject(Handles);
   return Handles;
 }
+
+void buffer_impl::verifyProps(const property_list &Props) const {
+  static const auto AllowedPropList = GenerateAllowedProps<
+      sycl::property::buffer::use_host_ptr, sycl::property::buffer::use_mutex,
+      sycl::property::buffer::context_bound,
+      sycl::property::buffer::mem_channel,
+      sycl::property::buffer::detail::buffer_location,
+      sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+  checkPropsAndThrow(Props, AllowedPropList);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

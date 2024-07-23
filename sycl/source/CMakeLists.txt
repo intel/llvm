@@ -224,6 +224,7 @@ set(SYCL_COMMON_SOURCES
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_manager/program_manager.cpp"
+    "detail/property_check.cpp"
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"

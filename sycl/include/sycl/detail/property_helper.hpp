@@ -88,6 +88,7 @@ public:
   PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
   virtual ~PropertyWithDataBase() = default;
+  int getKind() const { return MID; }
 
 private:
   int MID = -1;
