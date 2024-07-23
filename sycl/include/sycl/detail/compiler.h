@@ -75,7 +75,7 @@
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
 // Entry type, matches OpenMP for compatibility
-struct _pi_offload_entry_struct {
+struct _sycl_offload_entry_struct {
   void *addr;
   char *name;
   size_t size;
@@ -83,7 +83,7 @@ struct _pi_offload_entry_struct {
   int32_t reserved;
 };
 
-using _pi_offload_entry = _pi_offload_entry_struct *;
+using _pi_offload_entry = _sycl_offload_entry_struct *;
 
 // A type of a binary image property.
 typedef enum {

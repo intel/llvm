@@ -22,8 +22,8 @@ OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
   std::memcpy(KernelName.get(), Name.c_str(), Name.length() + 1);
 }
 
-_pi_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
-  return _pi_offload_entry_struct{Address, KernelName.get(), EntrySize,
+_sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
+  return _sycl_offload_entry_struct{Address, KernelName.get(), EntrySize,
                                   EntryFlags, EntryReserved};
 }
 

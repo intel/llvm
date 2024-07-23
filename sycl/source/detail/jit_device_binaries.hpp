@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// Representation of _pi_offload_entry for creation of JIT device binaries at
+/// Representation of _sycl_offload_entry_struct for creation of JIT device binaries at
 /// runtime.
 /// Owns the necessary data and provides raw pointers for the PI struct.
 class OffloadEntryContainer {
@@ -31,7 +31,7 @@ public:
   OffloadEntryContainer(const OffloadEntryContainer &) = delete;
   OffloadEntryContainer &operator=(const OffloadEntryContainer &) = delete;
 
-  _pi_offload_entry_struct getPIOffloadEntry();
+  _sycl_offload_entry_struct getPIOffloadEntry();
 
 private:
   std::unique_ptr<char[]> KernelName;
@@ -119,7 +119,7 @@ public:
 private:
   bool Fused = true;
   std::vector<OffloadEntryContainer> OffloadEntries;
-  std::vector<_pi_offload_entry_struct> PIOffloadEntries;
+  std::vector<_sycl_offload_entry_struct> PIOffloadEntries;
   std::vector<PropertySetContainer> PropertySets;
   std::vector<_pi_device_binary_property_set_struct> PIPropertySets;
 };
