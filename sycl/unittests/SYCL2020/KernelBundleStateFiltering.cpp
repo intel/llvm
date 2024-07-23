@@ -25,27 +25,12 @@ class KernelB;
 class KernelC;
 class KernelD;
 class KernelE;
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <> struct KernelInfo<KernelA> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelA"; }
-};
-template <> struct KernelInfo<KernelB> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelB"; }
-};
-template <> struct KernelInfo<KernelC> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelC"; }
-};
-template <> struct KernelInfo<KernelD> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelD"; }
-};
-template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelE"; }
-};
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+
+MOCK_INTEGRATION_HEADER(KernelA)
+MOCK_INTEGRATION_HEADER(KernelB)
+MOCK_INTEGRATION_HEADER(KernelC)
+MOCK_INTEGRATION_HEADER(KernelD)
+MOCK_INTEGRATION_HEADER(KernelE)
 
 namespace {
 
