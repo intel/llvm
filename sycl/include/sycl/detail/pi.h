@@ -983,6 +983,11 @@ using pi_device_exec_capabilities = pi_bitfield;
 static constexpr pi_device_exec_capabilities PI_EXEC_KERNEL = (1 << 0);
 static constexpr pi_device_exec_capabilities PI_EXEC_NATIVE_KERNEL = (1 << 1);
 
+/// Extension to denote native support of assert feature by an arbitrary device
+/// piDeviceGetInfo call should return this extension when the device supports
+/// native asserts if supported extensions' names are requested
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
+
 // pi_buffer_region structure repeats cl_buffer_region, used for sub buffers.
 struct pi_buffer_region_struct {
   size_t origin;
@@ -1163,6 +1168,8 @@ typedef struct {
 
 using pi_launch_property = _pi_launch_property;
 
+
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1226,11 +1233,6 @@ __SYCL_EXPORT pi_result piextDisablePeerAccess(pi_device command_device,
 __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
     pi_device command_device, pi_device peer_device, pi_peer_attr attr,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
-
-/// Extension to denote native support of assert feature by an arbitrary device
-/// piDeviceGetInfo call should return this extension when the device supports
-/// native asserts if supported extensions' names are requested
-#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
