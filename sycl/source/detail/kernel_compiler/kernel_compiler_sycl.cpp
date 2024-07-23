@@ -187,6 +187,8 @@ void invokeCompiler(const std::filesystem::path &FPath,
       FilePath.make_preferred().string() + PipeStr +
       LogPath.make_preferred().string() + PipeStrTail;
 
+  std::cout << "Command: " << Command << std::endl;
+
   int Result = std::system(Command.c_str());
 
   // Read the log file contents into the log variable.
