@@ -115,7 +115,7 @@ struct _sycl_device_binary_property_set_struct {
   pi_device_binary_property PropertiesEnd;   // array end
 };
 
-typedef _sycl_device_binary_property_set_struct *pi_device_binary_property_set;
+typedef _sycl_device_binary_property_set_struct *sycl_device_binary_property_set;
 
 /// Types of device binary.
 using sycl_device_binary_type = uint8_t;
@@ -180,8 +180,8 @@ struct sycl_device_binary_struct {
   sycl_offload_entry EntriesEnd;
   // Array of preperty sets; e.g. specialization constants symbol-int ID map is
   // propagated to runtime with this mechanism.
-  pi_device_binary_property_set PropertySetsBegin;
-  pi_device_binary_property_set PropertySetsEnd;
+  sycl_device_binary_property_set PropertySetsBegin;
+  sycl_device_binary_property_set PropertySetsEnd;
   // TODO Other fields like entries, link options can be propagated using
   // the property set infrastructure. This will improve binary compatibility and
   // add flexibility.

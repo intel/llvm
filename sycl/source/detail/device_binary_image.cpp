@@ -87,7 +87,7 @@ const char *DeviceBinaryProperty::asCString() const {
 void RTDeviceBinaryImage::PropertyRange::init(sycl_device_binary Bin,
                                               const char *PropSetName) {
   assert(!this->Begin && !this->End && "already initialized");
-  pi_device_binary_property_set PS = nullptr;
+  sycl_device_binary_property_set PS = nullptr;
 
   for (PS = Bin->PropertySetsBegin; PS != Bin->PropertySetsEnd; ++PS) {
     assert(PS->Name && "nameless property set - bug in the offload wrapper?");
@@ -124,7 +124,7 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
             << Bin->PropertySetsEnd << "]:\n";
 
-  for (pi_device_binary_property_set PS = Bin->PropertySetsBegin;
+  for (sycl_device_binary_property_set PS = Bin->PropertySetsBegin;
        PS != Bin->PropertySetsEnd; ++PS) {
     std::cerr << "      Category " << PS->Name << " [" << PS->PropertiesBegin
               << "-" << PS->PropertiesEnd << "]:\n";

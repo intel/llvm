@@ -164,7 +164,7 @@ template <typename T> PiArray(std::vector<T>) -> PiArray<T>;
 template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
 #endif // __cpp_deduction_guides
 
-/// Convenience wrapper for pi_device_binary_property_set.
+/// Convenience wrapper for sycl_device_binary_property_set.
 class PiPropertySet {
 public:
   PiPropertySet() {
