@@ -163,7 +163,7 @@ int main(void) {
 
 // CHECK-NO-VAR-LABEL: -vc-codegen -disable-finalizer-msg
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg
-// CHECK-LABEL: ---> piKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-LABEL: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // Kernels requesting GRF are grouped into separate module and compiled
 // with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
@@ -172,6 +172,6 @@ int main(void) {
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
-// CHECK-LABEL: ---> piKernelCreate(
+// CHECK-LABEL: ---> urKernelCreate(
 // CHECK-SAME: EsimdKernelSpecifiedGRF
 // CHECK-SAME: -> UR_RESULT_SUCCESS
