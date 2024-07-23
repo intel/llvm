@@ -8508,9 +8508,6 @@ def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
   HelpText<"Tells compiler that -main-file-name contains an absolute path and "
            "file specified there should be used for checksum calculation.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLUseMainFileName">>;
-def fsycl_allow_virtual_functions : Flag<["-"], "fsycl-allow-virtual-functions">,
-  HelpText<"Allow virtual functions calls in code for SYCL device">,
-  MarshallingInfoFlag<LangOpts<"SYCLAllowVirtualFunctions">>;
 def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,

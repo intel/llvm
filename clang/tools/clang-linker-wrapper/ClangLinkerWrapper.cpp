@@ -904,7 +904,6 @@ static void addBackendOptions(const ArgList &Args,
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
                                                  const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
       findProgram("opencl-aot", {getMainExecutable("opencl-aot")});

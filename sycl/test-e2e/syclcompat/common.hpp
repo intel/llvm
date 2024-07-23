@@ -29,12 +29,15 @@ constexpr double ERROR_TOLERANCE = 1e-5;
 
 // Typed call helper
 // Iterates over all types and calls Functor f for each of them
+template <typename Functor, template <typename...> class Container,
+          typename... Ts>
+void for_each_type_call(Functor &&f, Container<Ts...> *) {
+  (f.template operator()<Ts>(), ...);
+}
+
 template <typename tuple, typename Functor>
 void instantiate_all_types(Functor &&f) {
-  auto for_each_type_call =
-      [&]<template <typename...> class Container, typename... Ts>(
-          Container<Ts...> *) { (f.template operator()<Ts>(), ...); };
-  for_each_type_call(static_cast<tuple *>(nullptr));
+  for_each_type_call(f, static_cast<tuple *>(nullptr));
 }
 
 #define INSTANTIATE_ALL_TYPES(tuple, f)                                        \

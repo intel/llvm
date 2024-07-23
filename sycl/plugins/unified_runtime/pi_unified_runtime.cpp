@@ -1360,15 +1360,16 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
 
 __SYCL_EXPORT pi_result piextMemImageCopy(
     pi_queue Queue, void *DstPtr, const void *SrcPtr,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-    pi_image_offset DstOffset, pi_image_region CopyExtent,
-    pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DstImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DstImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
+  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, SrcImageDesc,
+                                  DstImageDesc, SrcImageFormat, DstImageFormat,
                                   Flags, SrcOffset, DstOffset, CopyExtent,
-                                  HostExtent, NumEventsInWaitList,
-                                  EventWaitList, Event);
+                                  NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(

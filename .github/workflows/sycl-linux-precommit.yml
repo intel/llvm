@@ -76,6 +76,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
