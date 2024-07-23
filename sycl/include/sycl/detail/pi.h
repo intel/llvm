@@ -22,13 +22,6 @@
 #ifndef _PI_H_
 #define _PI_H_
 
-// Ideally, we should only include compiler.h where it is actually used, but
-// since PI interfaces depend on some compiler interfaces we have to include
-// them here.
-// Once we have moved to UR where UR interfaces are not dependent on compiler
-// interfaces, we can clean this up and update our includes.
-#include <sycl/detail/compiler.h>
-
 // Every single change in PI API should be accompanied with the minor
 // version increase (+1). In the cases where backward compatibility is not
 // maintained there should be a (+1) change to the major version in

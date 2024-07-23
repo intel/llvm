@@ -17,6 +17,8 @@
 #include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
+// FIXME: Ideally, we shouldn't include the compiler interface here
+#include <sycl/detail/compiler.h>
 
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
