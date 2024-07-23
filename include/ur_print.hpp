@@ -2583,14 +2583,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP";
         break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP";
-        break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP";
-        break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP";
@@ -2610,14 +2604,23 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP";
         break;
-    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP:
-        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP";
-        break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP";
         break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP";
         break;
     case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
@@ -4223,31 +4226,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -4331,18 +4310,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -4356,6 +4323,54 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";

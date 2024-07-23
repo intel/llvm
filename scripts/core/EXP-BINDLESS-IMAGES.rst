@@ -87,17 +87,18 @@ Enums
     * ${X}_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP
     * ${X}_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
+    * ${X}_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP
 
 * ${x}_command_t
     * ${X}_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP
@@ -242,6 +243,9 @@ Changelog
 |          || BindlessImagesReleaseExternalSemaphoreExp                  |
 +------------------------------------------------------------------------+
 | 15.0     | Added structures for supporting copying.                    |
++----------+-------------------------------------------------------------+
+| 16.0     || Update device queries to resolve inconsistencies and       |
+|          || missing queries.                                           |
 +----------+-------------------------------------------------------------+
 
 Contributors
