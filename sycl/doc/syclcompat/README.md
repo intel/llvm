@@ -1034,7 +1034,7 @@ class device_ext : public sycl::device {
   void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
-  const device_info &get_device_info() const;
+  device_info get_device_info() const;
   void reset(bool print_on_async_exceptions = false, bool in_order = true);
 
   sycl::queue *default_queue();

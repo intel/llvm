@@ -537,11 +537,11 @@ Use 64 bits as memory_bus_width default value."
     out = prop;
   }
 
-  const device_info &get_device_info() const {
+  device_info get_device_info() const {
     if (!_dev_info) {
       this->get_device_info(*_dev_info);
     }
-    return *_dev_info;
+    return _dev_info.value();
   }
 
   void reset(bool print_on_async_exceptions = false, bool in_order = true) {
