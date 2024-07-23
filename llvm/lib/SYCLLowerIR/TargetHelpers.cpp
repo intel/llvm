@@ -137,7 +137,11 @@ void KernelCache::populateKernels(Module &M) {
 }
 
 bool isSYCLDevice(const Module &M) {
-  return M.getModuleFlag("sycl-device") != nullptr;
+  if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
+          M.getModuleFlag("sycl-device"))) {
+    return Flag->getZExtValue() == 1;
+  }
+  return false;
 }
 
 } // namespace TargetHelpers
