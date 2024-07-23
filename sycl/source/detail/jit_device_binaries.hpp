@@ -42,7 +42,7 @@ private:
   int32_t EntryReserved;
 };
 
-/// Representation of _pi_device_binary_property_struct for creation of JIT
+/// Representation of _sycl_device_binary_property_struct for creation of JIT
 /// device binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the PI struct.
 class PropertyContainer {
@@ -60,7 +60,7 @@ public:
   PropertyContainer(const PropertyContainer &) = delete;
   PropertyContainer &operator=(const PropertyContainer &) = delete;
 
-  _pi_device_binary_property_struct getPIProperty();
+  _sycl_device_binary_property_struct getPIProperty();
 
 private:
   std::unique_ptr<char[]> PropName;
@@ -91,7 +91,7 @@ private:
   std::unique_ptr<char[]> SetName;
   bool Fused = true;
   std::vector<PropertyContainer> Properties;
-  std::vector<_pi_device_binary_property_struct> PIProperties;
+  std::vector<_sycl_device_binary_property_struct> PIProperties;
 };
 
 /// Representation of pi_device_binary_struct for creation of JIT device

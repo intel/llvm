@@ -62,10 +62,10 @@ private:
   std::size_t Size;
 };
 
-// C++ wrapper over the _pi_device_binary_property_struct structure.
+// C++ wrapper over the _sycl_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
-  DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
+  DeviceBinaryProperty(const _sycl_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
@@ -75,7 +75,7 @@ public:
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
                                   const DeviceBinaryProperty &P);
-  const _pi_device_binary_property_struct *Prop;
+  const _sycl_device_binary_property_struct *Prop;
 };
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);

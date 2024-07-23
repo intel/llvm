@@ -97,14 +97,14 @@ typedef enum {
 // If the type size of the property value is fixed and is no greater than
 // 64 bits, then ValAddr is 0 and the value is stored in the ValSize field.
 // Example - PI_PROPERTY_TYPE_UINT32, which is 32-bit
-struct _pi_device_binary_property_struct {
+struct _sycl_device_binary_property_struct {
   char *Name;       // null-terminated property name
   void *ValAddr;    // address of property value
   uint32_t Type;    // _pi_property_type
   uint64_t ValSize; // size of property value in bytes
 };
 
-typedef _pi_device_binary_property_struct *pi_device_binary_property;
+typedef _sycl_device_binary_property_struct *pi_device_binary_property;
 
 // Named array of properties.
 struct _pi_device_binary_property_set_struct {
