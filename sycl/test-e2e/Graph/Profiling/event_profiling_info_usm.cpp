@@ -9,7 +9,9 @@
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
 // It first tests a graph made exclusively of memory operations,
-// then tests a graph made of kernels.
+// then tests a graph made of kernels. This test uses USM isntead of buffers to
+// test the path with no implicit dependencies which bypasses the SYCL
+// scheduler.
 #define GRAPH_TESTS_VERBOSE_PRINT 0
 
 #include "../graph_common.hpp"
@@ -20,7 +22,13 @@
 // event to complete execution.
 int main() {
   device Dev;
-  queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
+
+  // Queue used for graph recording
+  queue Queue{Dev};
+
+  // Queue that will be used for execution
+  queue ExecutionQueue{Queue.get_device(),
+                       {sycl::property::queue::enable_profiling()}};
 
   const size_t Size = 100000;
   int Data[Size] = {0};
@@ -28,44 +36,36 @@ int main() {
     Data[I] = I;
   }
   int Values[Size] = {0};
+  int *PtrFrom = malloc_device<int>(Size, Queue);
+  int *PtrTo = malloc_device<int>(Size, Queue);
+  Queue.copy(Data, PtrFrom, Size);
+  Queue.copy(Values, PtrTo, Size);
 
-  buffer<int, 1> BufferFrom(Data, range<1>(Size));
-  buffer<int, 1> BufferTo(Values, range<1>(Size));
+  int *PtrA = malloc_device<int>(Size, Queue);
+  int *PtrB = malloc_device<int>(Size, Queue);
+  int *PtrC = malloc_device<int>(Size, Queue);
 
-  buffer<int, 1> BufferA(Data, range<1>(Size));
-  buffer<int, 1> BufferB(Values, range<1>(Size));
-  buffer<int, 1> BufferC(Values, range<1>(Size));
+  Queue.copy(Data, PtrA, Size);
+  Queue.copy(Values, PtrB, Size);
+  Queue.copy(Values, PtrC, Size);
 
-  BufferFrom.set_write_back(false);
-  BufferTo.set_write_back(false);
-  BufferA.set_write_back(false);
-  BufferB.set_write_back(false);
-  BufferC.set_write_back(false);
-  { // buffer copy
-    exp_ext::command_graph CopyGraph{
-        Queue.get_context(),
-        Queue.get_device(),
-        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
+  Queue.wait_and_throw();
+
+  { // USM copy
+    exp_ext::command_graph CopyGraph{Queue.get_context(), Queue.get_device()};
     CopyGraph.begin_recording(Queue);
 
     Queue.submit([&](sycl::handler &Cgh) {
-      accessor<int, 1, access::mode::read, access::target::device> AccessorFrom(
-          BufferFrom, Cgh, range<1>(Size));
-      accessor<int, 1, access::mode::write, access::target::device> AccessorTo(
-          BufferTo, Cgh, range<1>(Size));
-      Cgh.copy(AccessorFrom, AccessorTo);
+      Cgh.memcpy(PtrTo, PtrFrom, Size * sizeof(int));
     });
 
     CopyGraph.end_recording(Queue);
 
     // kernel launch
-    exp_ext::command_graph KernelGraph{
-        Queue.get_context(),
-        Queue.get_device(),
-        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
+    exp_ext::command_graph KernelGraph{Queue.get_context(), Queue.get_device()};
     KernelGraph.begin_recording(Queue);
 
-    run_kernels(Queue, Size, BufferA, BufferB, BufferC);
+    run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
 
     KernelGraph.end_recording(Queue);
 
@@ -79,23 +79,23 @@ int main() {
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto StartCopyGraph = std::chrono::high_resolution_clock::now();
 #endif
-    CopyEvent = Queue.submit(
+    CopyEvent = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(CopyGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto EndCopyGraph = std::chrono::high_resolution_clock::now();
     auto StartKernelSubmit1 = std::chrono::high_resolution_clock::now();
 #endif
-    KernelEvent1 = Queue.submit(
+    KernelEvent1 = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto endKernelSubmit1 = std::chrono::high_resolution_clock::now();
     auto StartKernelSubmit2 = std::chrono::high_resolution_clock::now();
 #endif
-    KernelEvent2 = Queue.submit(
+    KernelEvent2 = ExecutionQueue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
-    Queue.wait_and_throw();
+    ExecutionQueue.wait_and_throw();
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto endKernelSubmit2 = std::chrono::high_resolution_clock::now();
 
@@ -121,9 +121,11 @@ int main() {
            compareProfiling(KernelEvent1, KernelEvent2));
   }
 
-  host_accessor HostData(BufferTo);
+  std::vector<int> HostData(Size);
+  Queue.copy(PtrTo, HostData.data(), Size).wait_and_throw();
+
   for (size_t I = 0; I < Size; ++I) {
-    assert(HostData[I] == Values[I]);
+    assert(HostData[I] == Data[I]);
   }
 
   return 0;
