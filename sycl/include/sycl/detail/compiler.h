@@ -56,6 +56,8 @@
 #define __SYCL_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_IMPORTED_SYMBOLS defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS "SYCL/imported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
