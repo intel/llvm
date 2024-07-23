@@ -13,6 +13,7 @@
 #include <ur_api.h>
 
 #include "command_list_cache.hpp"
+#include "event_pool_cache.hpp"
 
 struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
@@ -33,4 +34,5 @@ struct ur_context_handle_t_ : _ur_object {
   const ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
   v2::command_list_cache_t commandListCache;
+  v2::event_pool_cache eventPoolCache;
 };
