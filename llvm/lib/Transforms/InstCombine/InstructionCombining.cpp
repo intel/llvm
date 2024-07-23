@@ -2710,6 +2710,23 @@ Value *InstCombiner::getFreelyInvertedImpl(Value *V, bool WillInvertAllUses,
   return nullptr;
 }
 
+static bool isJointMatrixTargetExtTy(Type *Ty) {
+  return Ty->isTargetExtTy() &&
+         Ty->getTargetExtName() == "spirv.JointMatrixINTEL";
+}
+
+static bool containsJointMatrixTargetExtTy(Type *Ty) {
+  if (isJointMatrixTargetExtTy(Ty))
+    return true;
+  if (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
+    return containsJointMatrixTargetExtTy(ArrayTy->getElementType());
+  if (auto *StructTy = dyn_cast<StructType>(Ty))
+    for (Type *EltTy : StructTy->elements())
+      if (containsJointMatrixTargetExtTy(EltTy))
+        return true;
+  return false;
+}
+
 Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   Value *PtrOp = GEP.getOperand(0);
   SmallVector<Value *, 8> Indices(GEP.indices());
@@ -2782,7 +2799,11 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
     return &GEP;
 
   // Canonicalize constant GEPs to i8 type.
-  if (!GEPEltType->isIntegerTy(8) && GEP.hasAllConstantIndices()) {
+  // Don't canonicalize GEPs for spirv.JointMatrixINTEL target extension type,
+  // spirv.JointMatrixINTEL has pointer layout type (to align with SYCL header
+  // definition), which doesn't reflect the actual size of the joint matrix.
+  if (!GEPEltType->isIntegerTy(8) && GEP.hasAllConstantIndices() &&
+      !containsJointMatrixTargetExtTy(GEPEltType)) {
     APInt Offset(DL.getIndexTypeSizeInBits(GEPType), 0);
     if (GEP.accumulateConstantOffset(DL, Offset))
       return replaceInstUsesWith(
