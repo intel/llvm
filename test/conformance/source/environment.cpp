@@ -125,6 +125,7 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
             if (platforms.size() == 1 ||
                 platform_options.platforms_count == 1) {
                 platform = platforms[0];
+                adapter = a;
             } else {
                 std::stringstream ss_error;
                 ss_error << "Select a single platform from below using the "
