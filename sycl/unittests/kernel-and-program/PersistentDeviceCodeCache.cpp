@@ -83,7 +83,7 @@ static pi_result redefinedProgramGetInfoAfter(pi_program program,
 }
 
 class PersistentDeviceCodeCache
-    : public ::testing::TestWithParam<pi_device_binary_type> {
+    : public ::testing::TestWithParam<sycl_device_binary_type> {
 public:
 #ifdef _WIN32
   int setenv(const char *name, const char *value, int overwrite) {
@@ -453,6 +453,6 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,
-                         ::testing::Values(PI_DEVICE_BINARY_TYPE_SPIRV,
-                                           PI_DEVICE_BINARY_TYPE_NATIVE));
+                         ::testing::Values(SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                                           SYCL_DEVICE_BINARY_TYPE_NATIVE));
 } // namespace

@@ -56,15 +56,15 @@ static sycl::unittest::PiImage generateDefaultImage() {
   PiPropertySet PropSet;
   PiProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
                  PiArray<PiProperty>{std::move(HostPipeInfo)});
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),

@@ -59,10 +59,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
   const std::string PropName =
       UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
   sycl::unittest::PiProperty Prop(PropName, Storage,
-                                  PI_PROPERTY_TYPE_BYTE_ARRAY);
+                                  SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                  std::move(Props));
 
   std::vector<unsigned char> Bin{Magic};
@@ -71,8 +71,8 @@ generateImage(std::initializer_list<std::string> KernelNames,
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::PiImage Img{
-      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
       "",                                     // Compile options
       "",                                     // Link options
       std::move(Bin),

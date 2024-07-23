@@ -18,10 +18,10 @@
 namespace sycl {
 inline namespace _V1 {
 namespace unittest {
-/// Convinience wrapper around _pi_device_binary_property_struct.
+/// Convinience wrapper around _sycl_device_binary_property_struct.
 class PiProperty {
 public:
-  using NativeType = _pi_device_binary_property_struct;
+  using NativeType = _sycl_device_binary_property_struct;
 
   /// Constructs a PI property.
   ///
@@ -52,7 +52,7 @@ public:
 
 private:
   void updateNativeType() {
-    if (MType == PI_PROPERTY_TYPE_UINT32) {
+    if (MType == SYCL_PROPERTY_TYPE_UINT32) {
       MNative = NativeType{const_cast<char *>(MName.c_str()), nullptr, MType,
                            *((uint32_t *)MData.data())};
     } else {
@@ -70,7 +70,7 @@ private:
 /// Convinience wrapper for _pi_offload_entry_struct.
 class PiOffloadEntry {
 public:
-  using NativeType = _pi_offload_entry_struct;
+  using NativeType = _sycl_offload_entry_struct;
 
   PiOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
@@ -183,8 +183,8 @@ public:
     // Name doesn't matter here, it is not used by RT
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
-    PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
+    PiProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK,
            PiArray{DeviceLibReqMask});
   }
 
@@ -195,18 +195,18 @@ public:
   void insert(const std::string &Name, PiArray<PiProperty> Props) {
     MNames.push_back(Name);
     MMockProperties.push_back(std::move(Props));
-    MProperties.push_back(_pi_device_binary_property_set_struct{
+    MProperties.push_back(_sycl_device_binary_property_set_struct{
         MNames.back().data(), MMockProperties.back().begin(),
         MMockProperties.back().end()});
   }
 
-  _pi_device_binary_property_set_struct *begin() {
+  _sycl_device_binary_property_set_struct *begin() {
     if (MProperties.empty())
       return nullptr;
     return &*MProperties.begin();
   }
 
-  _pi_device_binary_property_set_struct *end() {
+  _sycl_device_binary_property_set_struct *end() {
     if (MProperties.empty())
       return nullptr;
     return &*MProperties.rbegin() + 1;
@@ -215,7 +215,7 @@ public:
 private:
   std::vector<std::string> MNames;
   std::vector<PiArray<PiProperty>> MMockProperties;
-  std::vector<_pi_device_binary_property_set_struct> MProperties;
+  std::vector<_sycl_device_binary_property_set_struct> MProperties;
 };
 
 /// Convenience wrapper around PI internal structures, that manages PI binary
@@ -239,7 +239,7 @@ public:
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : PiImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+      : PiImage(SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
                 Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
@@ -288,7 +288,7 @@ public:
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
     MAllBinaries = pi_device_binaries_struct{
-        PI_DEVICE_BINARIES_VERSION,
+        SYCL_DEVICE_BINARIES_VERSION,
         NumberOfImages,
         MNativeImages,
         nullptr, // not used, put here for compatibility with OpenMP
@@ -382,7 +382,7 @@ inline PiProperty makeSpecConstant(std::vector<char> &ValData,
 
   iterate_tuple(FillData, DefaultValues);
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -392,8 +392,8 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
                                 PiPropertySet &Set) {
   PiArray<PiProperty> Value;
   for (const std::string &N : Names)
-    Value.push_back({N, {0, 0, 0, 0}, PI_PROPERTY_TYPE_UINT32});
-  Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
+    Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
+  Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
 }
 
 /// Utility function to add specialization constants to property set.
@@ -401,13 +401,13 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 /// This function overrides the default spec constant values.
 inline void addSpecConstants(PiArray<PiProperty> SpecConstants,
                              std::vector<char> ValData, PiPropertySet &Props) {
-  Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
+  Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
-  PiProperty Prop{"all", std::move(ValData), PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiProperty Prop{"all", std::move(ValData), SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   PiArray<PiProperty> DefaultValues{std::move(Prop)};
 
-  Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
+  Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
                std::move(DefaultValues));
 }
 
@@ -415,11 +415,11 @@ inline void addSpecConstants(PiArray<PiProperty> SpecConstants,
 inline void addESIMDFlag(PiPropertySet &Props) {
   std::vector<char> ValData(sizeof(uint32_t));
   ValData[0] = 1;
-  PiProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
+  PiProperty Prop{"isEsimdImage", ValData, SYCL_PROPERTY_TYPE_UINT32};
 
   PiArray<PiProperty> Value{std::move(Prop)};
 
-  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
@@ -451,7 +451,7 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   std::uninitialized_copy(ElimArgMask.begin(), ElimArgMask.end(),
                           DescData.data() + BYTES_FOR_SIZE);
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -474,7 +474,7 @@ inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
   std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
               &DeviceImageScoped, sizeof(DeviceImageScoped));
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -493,7 +493,7 @@ inline PiProperty makeHostPipeInfo(const std::string &Name,
   std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
   std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
 
-  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiProperty Prop{Name, DescData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
 }
@@ -509,7 +509,7 @@ inline PiProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
   std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
                           ValData.data() + BYTES_FOR_SIZE);
-  return {"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  return {"aspects", ValData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 }
 
 inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
@@ -522,7 +522,7 @@ inline PiProperty makeReqdWGSizeProp(const std::vector<int> &ReqdWGSize) {
   std::uninitialized_copy(ReqdWGSizePtr,
                           ReqdWGSizePtr + ReqdWGSize.size() * sizeof(int),
                           ValData.data() + BYTES_FOR_SIZE);
-  return {"reqd_work_group_size", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  return {"reqd_work_group_size", ValData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 }
 
 inline void
@@ -532,7 +532,7 @@ addDeviceRequirementsProps(PiPropertySet &Props,
   PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
-  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                std::move(Value));
 }
 

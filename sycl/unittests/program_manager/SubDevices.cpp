@@ -128,7 +128,7 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
 
   // Create device binary description structures for getBuiltPIProgram API.
   auto devBin = Img.convertToNativeType();
-  pi_device_binaries_struct devBinStruct{PI_DEVICE_BINARIES_VERSION, 1, &devBin,
+  pi_device_binaries_struct devBinStruct{SYCL_DEVICE_BINARIES_VERSION, 1, &devBin,
                                          nullptr, nullptr};
   sycl::detail::ProgramManager::getInstance().addImages(&devBinStruct);
 

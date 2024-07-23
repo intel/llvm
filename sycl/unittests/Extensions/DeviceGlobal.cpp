@@ -70,7 +70,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   PiPropertySet PropSet;
   PiProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  PiArray<PiProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
@@ -78,8 +78,8 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
@@ -101,7 +101,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
   PiPropertySet PropSet;
   PiProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  PiArray<PiProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
@@ -109,8 +109,8 @@ static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
               std::move(Bin),
