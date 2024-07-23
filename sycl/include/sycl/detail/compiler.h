@@ -87,11 +87,11 @@ using _pi_offload_entry = _sycl_offload_entry_struct *;
 
 // A type of a binary image property.
 typedef enum {
-  PI_PROPERTY_TYPE_UNKNOWN,
-  PI_PROPERTY_TYPE_UINT32,     // 32-bit integer
-  PI_PROPERTY_TYPE_BYTE_ARRAY, // byte array
-  PI_PROPERTY_TYPE_STRING      // null-terminated string
-} pi_property_type;
+  SYCL_PROPERTY_TYPE_UNKNOWN,
+  SYCL_PROPERTY_TYPE_UINT32,     // 32-bit integer
+  SYCL_PROPERTY_TYPE_BYTE_ARRAY, // byte array
+  SYCL_PROPERTY_TYPE_STRING      // null-terminated string
+} sycl_property_type;
 
 // Device binary image property.
 // If the type size of the property value is fixed and is no greater than

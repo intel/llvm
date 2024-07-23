@@ -20,13 +20,13 @@ namespace detail {
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     Out << "[UINT32] ";
     break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY:
     Out << "[Byte array] ";
     break;
-  case PI_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     Out << "[String] ";
     break;
   default:
@@ -36,10 +36,10 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   Out << P.Prop->Name << "=";
 
   switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     Out << P.asUint32();
     break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY: {
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY: {
     ByteArray BA = P.asByteArray();
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
@@ -49,7 +49,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     Out.flags(FlagsBackup);
     break;
   }
-  case PI_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     Out << P.asCString();
     break;
   default:
@@ -60,7 +60,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
 }
 
 pi_uint32 DeviceBinaryProperty::asUint32() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
+  assert(Prop->Type == SYCL_PROPERTY_TYPE_UINT32 && "property type mismatch");
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
   const auto *P = reinterpret_cast<const unsigned char *>(&Prop->ValSize);
@@ -68,19 +68,19 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
 }
 
 ByteArray DeviceBinaryProperty::asByteArray() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
+  assert(Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
   const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
   return {Data, Prop->ValSize};
 }
 
 const char *DeviceBinaryProperty::asCString() const {
-  assert((Prop->Type == PI_PROPERTY_TYPE_STRING ||
-          Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) &&
+  assert((Prop->Type == SYCL_PROPERTY_TYPE_STRING ||
+          Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY) &&
          "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
   // Byte array stores its size in first 8 bytes
-  size_t Shift = Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
+  size_t Shift = Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
   return pi::cast<const char *>(Prop->ValAddr) + Shift;
 }
 

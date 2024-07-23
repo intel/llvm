@@ -37,7 +37,7 @@ PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
 
 PropertyContainer::PropertyContainer(const std::string &Name, uint32_t Data)
     : PropName{new char[Name.length() + 1]}, Value{}, ValueSize{Data},
-      PropType{PI_PROPERTY_TYPE_UINT32} {
+      PropType{SYCL_PROPERTY_TYPE_UINT32} {
   std::memcpy(PropName.get(), Name.c_str(), Name.length() + 1);
 }
 
