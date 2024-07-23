@@ -61,9 +61,9 @@ void PropertySetContainer::addProperty(PropertyContainer &&Prop) {
   Properties.push_back(std::move(Prop));
 }
 
-_pi_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
+_sycl_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
   Fused = false;
-  return _pi_device_binary_property_set_struct{
+  return _sycl_device_binary_property_set_struct{
       const_cast<char *>(SetName.get()), PIProperties.data(),
       PIProperties.data() + Properties.size()};
 }

@@ -107,13 +107,13 @@ struct _sycl_device_binary_property_struct {
 typedef _sycl_device_binary_property_struct *pi_device_binary_property;
 
 // Named array of properties.
-struct _pi_device_binary_property_set_struct {
+struct _sycl_device_binary_property_set_struct {
   char *Name;                                // the name
   pi_device_binary_property PropertiesBegin; // array start
   pi_device_binary_property PropertiesEnd;   // array end
 };
 
-typedef _pi_device_binary_property_set_struct *pi_device_binary_property_set;
+typedef _sycl_device_binary_property_set_struct *pi_device_binary_property_set;
 
 /// Types of device binary.
 using pi_device_binary_type = uint8_t;

@@ -69,7 +69,7 @@ private:
   uint32_t PropType;
 };
 
-/// Representation of _pi_device_binary_property_set_struct for creation of JIT
+/// Representation of _sycl_device_binary_property_set_struct for creation of JIT
 /// device binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the PI struct.
 class PropertySetContainer {
@@ -85,7 +85,7 @@ public:
 
   void addProperty(PropertyContainer &&Prop);
 
-  _pi_device_binary_property_set_struct getPIPropertySet();
+  _sycl_device_binary_property_set_struct getPIPropertySet();
 
 private:
   std::unique_ptr<char[]> SetName;
@@ -121,7 +121,7 @@ private:
   std::vector<OffloadEntryContainer> OffloadEntries;
   std::vector<_sycl_offload_entry_struct> PIOffloadEntries;
   std::vector<PropertySetContainer> PropertySets;
-  std::vector<_pi_device_binary_property_set_struct> PIPropertySets;
+  std::vector<_sycl_device_binary_property_set_struct> PIPropertySets;
 };
 
 /// Representation of pi_device_binaries_struct for creation of JIT device
