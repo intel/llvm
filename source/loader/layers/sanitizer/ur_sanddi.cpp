@@ -335,6 +335,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
         hNativeContext, ///< [in][nocheck] the native handle of the getContext()->
+    ur_adapter_handle_t hAdapter,
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -352,8 +353,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     getContext()->logger.debug("==== urContextCreateWithNativeHandle");
 
-    ur_result_t result = pfnCreateWithNativeHandle(
-        hNativeContext, numDevices, phDevices, pProperties, phContext);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
+                                  phDevices, pProperties, phContext);
 
     if (result == UR_RESULT_SUCCESS) {
         UR_CALL(setupContext(*phContext, numDevices, phDevices));
