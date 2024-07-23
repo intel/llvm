@@ -224,11 +224,11 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"
-// CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX: "-D__SYCL_TARGET_INTEL_GPU_DG1__"
-// CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "dg1"
-// CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "skl"
+// CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
+// CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"
+// CHECK_TOOLS_MIX-DAG: ocloc{{.*}} "-device" "dg1"
+// CHECK_TOOLS_MIX-DAG: ocloc{{.*}} "-device" "skl"
 
 /// Test phases when using both spir64_gen and intel_gpu*
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl,spir64_gen \
@@ -237,32 +237,32 @@
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES_MIX
 // CHECK_PHASES_MIX: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHECK_PHASES_MIX: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
-// CHECK_PHASES_MIX: 2: input, "[[INPUT]]", c++, (device-sycl)
-// CHECK_PHASES_MIX: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
-// CHECK_PHASES_MIX: 4: compiler, {3}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown)" {4}, c++-cpp-output
+// CHECK_PHASES_MIX: 2: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHECK_PHASES_MIX: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, skl)
+// CHECK_PHASES_MIX: 4: compiler, {3}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown:skl)" {4}, c++-cpp-output
 // CHECK_PHASES_MIX: 6: compiler, {5}, ir, (host-sycl)
 // CHECK_PHASES_MIX: 7: backend, {6}, assembler, (host-sycl)
 // CHECK_PHASES_MIX: 8: assembler, {7}, object, (host-sycl)
-// CHECK_PHASES_MIX: 9: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHECK_PHASES_MIX: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, skl)
-// CHECK_PHASES_MIX: 11: compiler, {10}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 12: linker, {11}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 13: sycl-post-link, {12}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 14: file-table-tform, {13}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 15: llvm-spirv, {14}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 16: backend-compiler, {15}, image, (device-sycl, skl)
-// CHECK_PHASES_MIX: 17: file-table-tform, {13, 16}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 18: clang-offload-wrapper, {17}, object, (device-sycl, skl)
-// CHECK_PHASES_MIX: 19: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {18}, object
-// CHECK_PHASES_MIX: 20: linker, {4}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 21: sycl-post-link, {20}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 22: file-table-tform, {21}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 23: llvm-spirv, {22}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 24: backend-compiler, {23}, image, (device-sycl)
-// CHECK_PHASES_MIX: 25: file-table-tform, {21, 24}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 26: clang-offload-wrapper, {25}, object, (device-sycl)
-// CHECK_PHASES_MIX: 27: offload, "device-sycl (spir64_gen-unknown-unknown)" {26}, object
+// CHECK_PHASES_MIX: 9: input, "[[INPUT]]", c++, (device-sycl)
+// CHECK_PHASES_MIX: 10: preprocessor, {9}, c++-cpp-output, (device-sycl)
+// CHECK_PHASES_MIX: 11: compiler, {10}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 12: linker, {11}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 13: sycl-post-link, {12}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 14: file-table-tform, {13}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 15: llvm-spirv, {14}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 16: backend-compiler, {15}, image, (device-sycl)
+// CHECK_PHASES_MIX: 17: file-table-tform, {13, 16}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 18: clang-offload-wrapper, {17}, object, (device-sycl)
+// CHECK_PHASES_MIX: 19: offload, "device-sycl (spir64_gen-unknown-unknown)" {18}, object
+// CHECK_PHASES_MIX: 20: linker, {4}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 21: sycl-post-link, {20}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 22: file-table-tform, {21}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 23: llvm-spirv, {22}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 24: backend-compiler, {23}, image, (device-sycl, skl)
+// CHECK_PHASES_MIX: 25: file-table-tform, {21, 24}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 26: clang-offload-wrapper, {25}, object, (device-sycl, skl)
+// CHECK_PHASES_MIX: 27: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {26}, object
 // CHECK_PHASES_MIX: 28: linker, {8, 19, 27}, image, (host-sycl)
 
 /// Check that ocloc backend option settings only occur for the expected
@@ -274,9 +274,8 @@
 // RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS
-// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1"{{.*}}"-DDG1"
-// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL"
-// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
+// CHECK_TOOLS_BEOPTS-DAG: ocloc{{.*}} "-device" "dg1,skl"{{.*}}"-DDG1" "-DSKL2"
+// CHECK_TOOLS_BEOPTS-DAG: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL"
 
 /// Check that ocloc backend option settings only occur for the expected
 /// toolchains when mixing intel_gpu and non-spir64_gen targets
@@ -287,13 +286,10 @@
 // RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS_MIX
-// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1"{{.*}}"-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
-// CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
-// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
+// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1,skl"{{.*}}"-DDG1" "-DSKL2"
 
 /// Check that target is passed to sycl-post-link for filtering
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
-// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
-// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,dg1{{.*}}"

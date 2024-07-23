@@ -404,47 +404,52 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
     // the whole Triple or just the 'ArchName' string.
     auto TargetIt = TargetTable.end();
     const llvm::Triple &TargetTriple = TC->getTriple();
-    const StringRef TargetArch{BoundArch};
-    if (!TargetArch.empty()) {
-      TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
-        using namespace tools::SYCL;
-        StringRef Device{Value.first};
-        if (Device.consume_front(gen::AmdGPU))
-          return TargetArch == Device && TargetTriple.isAMDGCN();
-        if (Device.consume_front(gen::NvidiaGPU))
-          return TargetArch == Device && TargetTriple.isNVPTX();
-        if (Device.consume_front(gen::IntelGPU))
-          return TargetArch == Device && TargetTriple.isSPIRAOT();
-        return TargetArch == Device;
-      });
-    } else {
-      TargetIt = TargetTable.find(TargetTriple.str());
-      if (TargetIt == TargetTable.end())
-        TargetIt = TargetTable.find(TargetTriple.getArchName().str());
-    }
+    // The BoundArch can contain a comma separated list of Arch values.
+    SmallVector<StringRef, 4> ArchList;
+    StringRef Arch(BoundArch);
+    Arch.split(ArchList, ",");
+    for (StringRef TargetArch : ArchList) {
+      if (!TargetArch.empty()) {
+        TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
+          using namespace tools::SYCL;
+          StringRef Device{Value.first};
+          if (Device.consume_front(gen::AmdGPU))
+            return TargetArch == Device && TargetTriple.isAMDGCN();
+          if (Device.consume_front(gen::NvidiaGPU))
+            return TargetArch == Device && TargetTriple.isNVPTX();
+          if (Device.consume_front(gen::IntelGPU))
+            return TargetArch == Device && TargetTriple.isSPIRAOT();
+          return TargetArch == Device;
+        });
+      } else {
+        TargetIt = TargetTable.find(TargetTriple.str());
+        if (TargetIt == TargetTable.end())
+          TargetIt = TargetTable.find(TargetTriple.getArchName().str());
+      }
 
-    if (TargetIt != TargetTable.end()) {
-      const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
-      ++ValidTargets;
-      const auto &AspectList = Info.aspects;
-      const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
-      if (!AnyDeviceHasAnyAspect)
-        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
-      for (const auto &Aspect : AspectList) {
-        // If target has an entry in the config file, the set of aspects
-        // supported by all devices supporting the target is 'AspectList'.
-        // If there's no entry, such set is empty.
-        const auto &AspectIt = AllDevicesHave.find(Aspect);
-        if (AspectIt != AllDevicesHave.end())
-          ++AllDevicesHave[Aspect];
-        else
-          AllDevicesHave[Aspect] = 1;
-        // If target has an entry in the config file AND
-        // 'MaySupportOtherAspects' is false, the set of aspects supported
-        // by any device supporting the target is 'AspectList'. If there's
-        // no entry OR 'MaySupportOtherAspects' is true, such set contains
-        // all the aspects.
-        AnyDeviceHas[Aspect] = true;
+      if (TargetIt != TargetTable.end()) {
+        const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
+        ++ValidTargets;
+        const auto &AspectList = Info.aspects;
+        const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
+        if (!AnyDeviceHasAnyAspect)
+          AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+        for (const auto &Aspect : AspectList) {
+          // If target has an entry in the config file, the set of aspects
+          // supported by all devices supporting the target is 'AspectList'.
+          // If there's no entry, such set is empty.
+          const auto &AspectIt = AllDevicesHave.find(Aspect);
+          if (AspectIt != AllDevicesHave.end())
+            ++AllDevicesHave[Aspect];
+          else
+            AllDevicesHave[Aspect] = 1;
+          // If target has an entry in the config file AND
+          // 'MaySupportOtherAspects' is false, the set of aspects supported
+          // by any device supporting the target is 'AspectList'. If there's
+          // no entry OR 'MaySupportOtherAspects' is true, such set contains
+          // all the aspects.
+          AnyDeviceHas[Aspect] = true;
+        }
       }
     }
   }
@@ -1136,11 +1141,11 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "intel_gpu_12_57_0",
                  "acm_g12")
           .Cases("intel_gpu_pvc", "intel_gpu_12_60_7", "pvc")
-          .Cases("intel_gpu_pvc_vg", "intel_gpu_12_61_7", "pvc_vg")
+          .Cases("intel_gpu_pvc_vg", "intel_gpu_12_61_7", "pvc_xt_c0_vg")
           .Cases("intel_gpu_mtl_u", "intel_gpu_mtl_s", "intel_gpu_arl_u",
-                 "intel_gpu_arl_s", "intel_gpu_12_70_4", "mtl_u")
-          .Cases("intel_gpu_mtl_h", "intel_gpu_12_71_4", "mtl_h")
-          .Cases("intel_gpu_arl_h", "intel_gpu_12_74_4", "arl_h")
+                 "intel_gpu_arl_s", "intel_gpu_12_70_4", "mtl_s")
+          .Cases("intel_gpu_mtl_h", "intel_gpu_12_71_4", "mtl_p")
+          .Cases("intel_gpu_arl_h", "intel_gpu_12_74_4", "xe_lpgplus_b0")
           .Cases("intel_gpu_bmg_g21", "intel_gpu_20_1_4", "bmg_g21")
           .Cases("intel_gpu_lnl_m", "intel_gpu_20_4_4", "lnl_m")
           .Case("nvidia_gpu_sm_50", "sm_50")
@@ -1224,10 +1229,10 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("acm_g11", "INTEL_GPU_ACM_G11")
                       .Case("acm_g12", "INTEL_GPU_ACM_G12")
                       .Case("pvc", "INTEL_GPU_PVC")
-                      .Case("pvc_vg", "INTEL_GPU_PVC_VG")
-                      .Case("mtl_u", "INTEL_GPU_MTL_U")
-                      .Case("mtl_h", "INTEL_GPU_MTL_H")
-                      .Case("arl_h", "INTEL_GPU_ARL_H")
+                      .Case("pvc_xt_c0_vg", "INTEL_GPU_PVC_VG")
+                      .Case("mtl_s", "INTEL_GPU_MTL_U")
+                      .Case("mtl_p", "INTEL_GPU_MTL_H")
+                      .Case("xe_lpgplus_b0", "INTEL_GPU_ARL_H")
                       .Case("bmg_g21", "INTEL_GPU_BMG_G21")
                       .Case("lnl_m", "INTEL_GPU_LNL_M")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
@@ -1508,8 +1513,15 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
-        if (Device != GenDevice && !Device.empty())
-          continue;
+        // Device can come in as a comma separated list.
+        if (!Device.empty()) {
+          SmallVector<StringRef> DeviceArgs;
+          Device.split(DeviceArgs, ",");
+          auto DeviceIter = llvm::find_if(
+              DeviceArgs, [&](auto Cur) { return Cur == GenDevice; });
+          if (DeviceIter == DeviceArgs.end())
+            continue;
+        }
         if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
             GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
@@ -1619,7 +1631,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
+    if (IsJIT || Device.contains("pvc") || hasPVCDevice(TargArgs)) {
       StringRef DeviceName = "pvc";
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
@@ -1662,15 +1674,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
             << "-device" << Target;
       }
-      // ocloc has different names for some of the newer architectures;
-      // translate them to the apropriate value here.
-      DepInfo =
-          llvm::StringSwitch<StringRef>(DepInfo)
-              .Cases("pvc_vg", "12_61_7", "pvc_xt_c0_vg")
-              .Cases("mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4", "mtl_s")
-              .Cases("mtl_h", "12_71_4", "mtl_p")
-              .Cases("arl_h", "12_74_4", "xe_lpgplus_b0")
-              .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }

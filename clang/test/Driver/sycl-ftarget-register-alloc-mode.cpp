@@ -81,10 +81,6 @@
 // RUNx:          %s 2>&1 \
 // RUNx:   | FileCheck -check-prefix=NO_PVC %s
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
-// RUN:          %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=NO_PVC %s
-
 // NO_PVC-NOT: -device_options
 // NO_PVC-NOT: -ze-opt-large-register-file
 

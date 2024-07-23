@@ -6339,6 +6339,10 @@ class OffloadingActionBuilder final {
 
           int I = 0;
           // Fill SYCLTargetInfoList
+          // For any spir64_gen triple targets that have a matching GPU arch
+          // associated, gather those as comma separated arch values to create
+          // a singular toolchain.
+          std::pair<const ToolChain *, SmallString<128>> GpuCollect;
           for (auto &TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
@@ -6347,12 +6351,26 @@ class OffloadingActionBuilder final {
             if (!TT.isNVPTX() && !TT.isAMDGCN()) {
               // When users specify the target as 'intel_gpu_*', the proper
               // triple is 'spir64_gen'.  The given string from intel_gpu_*
-              // is the target device.
+              // is the target device.  To handle multiple intel_gpu_*
+              // settings on the command line, we want a singular device
+              // compilation to handle all of the separate GPU targets.
+              // We handle this by combining each GPU in a comma separated
+              // list to apply to a single spir64_gen toolchain.
               if (TT.isSPIR() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
                 StringRef Device(GpuArchList[I].second);
-                SYCLTargetInfoList.emplace_back(
-                    *TCIt, Device.empty() ? nullptr : Device.data());
+                if (Device.empty())
+                  SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
+                else {
+                  if (GpuCollect.first == nullptr) {
+                    GpuCollect.first = *TCIt;
+                    GpuCollect.second = Device;
+                  } else {
+                    // Already populated with an arch, add to that.
+                    GpuCollect.second += ",";
+                    GpuCollect.second += Device;
+                  }
+                }
                 ++I;
                 continue;
               }
@@ -6370,6 +6388,9 @@ class OffloadingActionBuilder final {
               ++I;
             }
           }
+          if (GpuCollect.first)
+            SYCLTargetInfoList.emplace_back(
+                GpuCollect.first, Args.MakeArgString(GpuCollect.second.data()));
         }
       } else if (HasValidSYCLRuntime) {
         // -fsycl is provided without -fsycl-*targets.

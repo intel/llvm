@@ -5627,19 +5627,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
         return;
       SmallString<64> Macro;
+      auto AddMacro = [&] {
+        if (Macro.size()) {
+          CmdArgs.push_back(Args.MakeArgString(Macro));
+          D.addSYCLTargetMacroArg(Args, Macro);
+        }
+      };
       if ((Triple.isSPIR() &&
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
           Triple.isNVPTX() || Triple.isAMDGCN()) {
-        StringRef Device = JA.getOffloadingArch();
-        if (!Device.empty() && !SYCL::gen::getGenDeviceMacro(Device).empty()) {
-          Macro = "-D";
-          Macro += SYCL::gen::getGenDeviceMacro(Device);
+        StringRef Arch = JA.getOffloadingArch();
+        // The offloading arch can be a separated list for spir64_gen.
+        SmallVector<StringRef, 4> ArchList;
+        Arch.split(ArchList, ",");
+        for (StringRef Device : ArchList) {
+          StringRef MacroSuffix(SYCL::gen::getGenDeviceMacro(Device));
+          if (!Device.empty() && !MacroSuffix.empty()) {
+            Macro = "-D";
+            Macro += MacroSuffix;
+            AddMacro();
+          }
         }
-      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64) {
         Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-      if (Macro.size()) {
-        CmdArgs.push_back(Args.MakeArgString(Macro));
-        D.addSYCLTargetMacroArg(Args, Macro);
+        AddMacro();
       }
     };
     if (IsSYCLOffloadDevice)
