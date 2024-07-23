@@ -20,7 +20,6 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/compiler.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: detail/string.hpp

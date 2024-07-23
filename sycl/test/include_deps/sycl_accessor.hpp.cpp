@@ -23,7 +23,6 @@
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/compiler.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
