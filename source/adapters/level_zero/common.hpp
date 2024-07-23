@@ -25,6 +25,8 @@
 
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "logger/ur_logger.hpp"
+
 struct _ur_platform_handle_t;
 
 static auto getUrResultString = [](ur_result_t Result) {

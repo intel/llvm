@@ -1,12 +1,2 @@
-urQueueCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueCreateTest.CheckContext/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueFinishTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueFlushTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_QUEUE_INFO_CONTEXT
-urQueueGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_QUEUE_INFO_DEVICE
-urQueueGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_QUEUE_INFO_FLAGS
-urQueueGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_QUEUE_INFO_REFERENCE_COUNT
-urQueueGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_QUEUE_INFO_EMPTY
-urQueueGetInfoTest.InvalidSizeSmall/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueRetainTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urQueueReleaseTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urQueueFinishTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__
+urQueueFlushTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__

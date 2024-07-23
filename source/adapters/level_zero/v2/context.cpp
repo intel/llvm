@@ -8,15 +8,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "context.hpp"
 #include "../device.hpp"
+
+#include "context.hpp"
+#include "event_provider_normal.hpp"
 
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
-                                           bool)
+                                           bool ownZeContext)
     : hContext(hContext), hDevices(phDevices, phDevices + numDevices),
-      commandListCache(hContext) {}
+      commandListCache(hContext),
+      eventPoolCache(phDevices[0]->Platform->getNumDevices(),
+                     [context = this,
+                      platform = phDevices[0]->Platform](DeviceId deviceId) {
+                       auto device = platform->getDeviceById(deviceId);
+                       // TODO: just use per-context id?
+                       return std::make_unique<v2::provider_normal>(
+                           context, device, v2::EVENT_COUNTER,
+                           v2::QUEUE_IMMEDIATE);
+                     }) {
+  std::ignore = ownZeContext;
+}
 
 ur_context_handle_t_::~ur_context_handle_t_() noexcept(false) {
   // ur_context_handle_t_ is only created/destroyed through urContextCreate
@@ -84,4 +97,27 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   return hContext->release();
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetInfo(ur_context_handle_t hContext,
+                 ur_context_info_t contextInfoType, size_t propSize,
+
+                 void *pContextInfo,
+
+                 size_t *pPropSizeRet) {
+  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
+  UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
+  switch (
+      (uint32_t)contextInfoType) { // cast to avoid warnings on EXT enum values
+  case UR_CONTEXT_INFO_DEVICES:
+    return ReturnValue(hContext->getDevices().data(),
+                       hContext->getDevices().size());
+  case UR_CONTEXT_INFO_NUM_DEVICES:
+    return ReturnValue(uint32_t(hContext->getDevices().size()));
+  case UR_CONTEXT_INFO_REFERENCE_COUNT:
+    return ReturnValue(uint32_t{hContext->RefCount.load()});
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 }

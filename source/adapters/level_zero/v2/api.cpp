@@ -17,14 +17,6 @@
 
 std::mutex ZeCall::GlobalLock;
 
-ur_result_t UR_APICALL urContextGetInfo(ur_context_handle_t hContext,
-                                        ur_context_info_t propName,
-                                        size_t propSize, void *pPropValue,
-                                        size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
   logger::error("{} function not implemented!", __FUNCTION__);
@@ -157,71 +149,6 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMHostAlloc(ur_context_handle_t hContext,
-                                      const ur_usm_desc_t *pUSMDesc,
-                                      ur_usm_pool_handle_t pool, size_t size,
-                                      void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMDeviceAlloc(ur_context_handle_t hContext,
-                                        ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
-                                        ur_usm_pool_handle_t pool, size_t size,
-                                        void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMSharedAlloc(ur_context_handle_t hContext,
-                                        ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
-                                        ur_usm_pool_handle_t pool, size_t size,
-                                        void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext, void *pMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMGetMemAllocInfo(ur_context_handle_t hContext,
-                                            const void *pMem,
-                                            ur_usm_alloc_info_t propName,
-                                            size_t propSize, void *pPropValue,
-                                            size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolCreate(ur_context_handle_t hContext,
-                                       ur_usm_pool_desc_t *pPoolDesc,
-                                       ur_usm_pool_handle_t *ppPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolRetain(ur_usm_pool_handle_t pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolRelease(ur_usm_pool_handle_t pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolGetInfo(ur_usm_pool_handle_t hPool,
-                                        ur_usm_pool_info_t propName,
-                                        size_t propSize, void *pPropValue,
-                                        size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
@@ -322,14 +249,6 @@ ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                         ur_kernel_sub_group_info_t propName, size_t propSize,
                         void *pPropValue, size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

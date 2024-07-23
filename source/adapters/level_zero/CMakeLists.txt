@@ -201,6 +201,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
@@ -213,6 +214,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
     )
 
     if(NOT WIN32)
@@ -253,6 +255,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../ur"
         LevelZeroLoader-Headers
     )
 endif()
