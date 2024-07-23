@@ -11,9 +11,6 @@
 #include <cstddef>
 #include <cstdint>
 
-// TODO: as of time of the file creation, it is only used within SYCL library,
-// consider moving it to library includes.
-
 /// Target identification strings
 ///
 /// A device type represented by a particular target
@@ -84,16 +81,15 @@ struct _sycl_offload_entry_struct {
   int32_t flags;
   int32_t reserved;
 };
-
 using sycl_offload_entry = _sycl_offload_entry_struct *;
 
 // A type of a binary image property.
-typedef enum {
+enum sycl_property_type {
   SYCL_PROPERTY_TYPE_UNKNOWN,
   SYCL_PROPERTY_TYPE_UINT32,     // 32-bit integer
   SYCL_PROPERTY_TYPE_BYTE_ARRAY, // byte array
   SYCL_PROPERTY_TYPE_STRING      // null-terminated string
-} sycl_property_type;
+};
 
 // Device binary image property.
 // If the type size of the property value is fixed and is no greater than
@@ -105,8 +101,7 @@ struct _sycl_device_binary_property_struct {
   uint32_t Type;    // _pi_property_type
   uint64_t ValSize; // size of property value in bytes
 };
-
-typedef _sycl_device_binary_property_struct *sycl_device_binary_property;
+using sycl_device_binary_property = _sycl_device_binary_property_struct *;
 
 // Named array of properties.
 struct _sycl_device_binary_property_set_struct {
@@ -114,20 +109,16 @@ struct _sycl_device_binary_property_set_struct {
   sycl_device_binary_property PropertiesBegin; // array start
   sycl_device_binary_property PropertiesEnd;   // array end
 };
-
-typedef _sycl_device_binary_property_set_struct *sycl_device_binary_property_set;
+using sycl_device_binary_property_set =
+    _sycl_device_binary_property_set_struct *;
 
 /// Types of device binary.
-using sycl_device_binary_type = uint8_t;
-// format is not determined
-static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_NONE = 0;
-// specific to a device
-static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_NATIVE = 1;
-// portable binary types go next
-// SPIR-V
-static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_SPIRV = 2;
-// LLVM bitcode
-static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
+enum sycl_device_binary_type : uint8_t {
+  SYCL_DEVICE_BINARY_TYPE_NONE = 0, // undetermined
+  SYCL_DEVICE_BINARY_TYPE_NATIVE = 1, // specific to a device
+  SYCL_DEVICE_BINARY_TYPE_SPIRV = 2,
+  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3
+};
 
 // Device binary descriptor version supported by this library.
 static const uint16_t SYCL_DEVICE_BINARY_VERSION = 1;
