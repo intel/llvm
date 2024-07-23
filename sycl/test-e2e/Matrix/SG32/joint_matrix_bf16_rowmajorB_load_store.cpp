@@ -8,7 +8,7 @@
 // REQUIRES: aspect-ext_intel_matrix, cpu
 
 // RUN: %{build} -o %t.out
-// RUN: RUN: %{run} %t.out
+// RUN: %{run} %t.out
 
 #include "../common.hpp"
 
