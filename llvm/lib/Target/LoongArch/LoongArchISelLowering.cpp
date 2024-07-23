@@ -22,7 +22,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/RuntimeLibcalls.h"
+#include "llvm/CodeGen/RuntimeLibcallUtil.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicsLoongArch.h"
@@ -2673,6 +2673,10 @@ static SDValue performSETCCCombine(SDNode *N, SelectionDAG &DAG,
 
   if (!checkValueWidth(TruncInputValue1, ExtType1) ||
       !checkValueWidth(TruncInputValue2, ExtType2))
+    return SDValue();
+
+  if (TruncInputValue1->getValueType(0) != TruncInputValue2->getValueType(0) ||
+      AndNode->getValueType(0) != TruncInputValue1->getValueType(0))
     return SDValue();
 
   if ((ExtType2 != ISD::ZEXTLOAD) &&

@@ -3375,6 +3375,8 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
   if (F.getName().starts_with("__asan_")) return false;
+  if (F.isPresplitCoroutine())
+    return false;
 
   if (TargetTriple.isSPIROrSPIRV()) {
     if (F.getName().contains("__sycl_service_kernel__"))

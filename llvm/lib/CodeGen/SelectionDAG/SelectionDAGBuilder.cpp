@@ -44,7 +44,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/RuntimeLibcalls.h"
+#include "llvm/CodeGen/RuntimeLibcallUtil.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/StackMaps.h"
@@ -6707,11 +6707,11 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
                              getValue(I.getArgOperand(0))));
     return;
   case Intrinsic::eh_sjlj_callsite: {
+    MachineModuleInfo &MMI = DAG.getMachineFunction().getMMI();
     ConstantInt *CI = cast<ConstantInt>(I.getArgOperand(0));
-    assert(DAG.getMMI()->getCurrentCallSite() == 0 &&
-           "Overlapping call sites!");
+    assert(MMI.getCurrentCallSite() == 0 && "Overlapping call sites!");
 
-    DAG.getMMI()->setCurrentCallSite(CI->getZExtValue());
+    MMI.setCurrentCallSite(CI->getZExtValue());
     return;
   }
   case Intrinsic::eh_sjlj_functioncontext: {
@@ -9566,10 +9566,15 @@ static SDValue getAddressForMemoryInput(SDValue Chain, const SDLoc &Location,
   // Otherwise, create a stack slot and emit a store to it before the asm.
   Type *Ty = OpVal->getType();
   auto &DL = DAG.getDataLayout();
-  uint64_t TySize = DL.getTypeAllocSize(Ty);
+  TypeSize TySize = DL.getTypeAllocSize(Ty);
   MachineFunction &MF = DAG.getMachineFunction();
-  int SSFI = MF.getFrameInfo().CreateStackObject(
-      TySize, DL.getPrefTypeAlign(Ty), false);
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  int StackID = 0;
+  if (TySize.isScalable())
+    StackID = TFI->getStackIDForScalableVectors();
+  int SSFI = MF.getFrameInfo().CreateStackObject(TySize.getKnownMinValue(),
+                                                 DL.getPrefTypeAlign(Ty), false,
+                                                 nullptr, StackID);
   SDValue StackSlot = DAG.getFrameIndex(SSFI, TLI.getFrameIndexTy(DL));
   Chain = DAG.getTruncStore(Chain, Location, OpInfo.CallOperand, StackSlot,
                             MachinePointerInfo::getFixedStack(MF, SSFI),

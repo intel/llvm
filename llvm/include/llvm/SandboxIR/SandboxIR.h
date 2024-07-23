@@ -40,7 +40,7 @@
 //                                      |
 //                                      +- PHINode
 //                                      |
-//                                      +- RetInst
+//                                      +- ReturnInst
 //                                      |
 //                                      +- SelectInst
 //                                      |
@@ -76,6 +76,8 @@ class Context;
 class Function;
 class Instruction;
 class LoadInst;
+class ReturnInst;
+class StoreInst;
 class User;
 class Value;
 
@@ -172,10 +174,12 @@ protected:
   /// order.
   llvm::Value *Val = nullptr;
 
-  friend class Context;  // For getting `Val`.
-  friend class User;     // For getting `Val`.
-  friend class Use;      // For getting `Val`.
-  friend class LoadInst; // For getting `Val`.
+  friend class Context;    // For getting `Val`.
+  friend class User;       // For getting `Val`.
+  friend class Use;        // For getting `Val`.
+  friend class LoadInst;   // For getting `Val`.
+  friend class StoreInst;  // For getting `Val`.
+  friend class ReturnInst; // For getting `Val`.
 
   /// All values point to the context.
   Context &Ctx;
@@ -495,7 +499,9 @@ protected:
   /// A SandboxIR Instruction may map to multiple LLVM IR Instruction. This
   /// returns its topmost LLVM IR instruction.
   llvm::Instruction *getTopmostLLVMInstruction() const;
-  friend class LoadInst; // For getTopmostLLVMInstruction().
+  friend class LoadInst;   // For getTopmostLLVMInstruction().
+  friend class StoreInst;  // For getTopmostLLVMInstruction().
+  friend class ReturnInst; // For getTopmostLLVMInstruction().
 
   /// \Returns the LLVM IR Instructions that this SandboxIR maps to in program
   /// order.
@@ -594,6 +600,80 @@ public:
   void verify() const final {
     assert(isa<llvm::LoadInst>(Val) && "Expected LoadInst!");
   }
+  void dump(raw_ostream &OS) const override;
+  LLVM_DUMP_METHOD void dump() const override;
+#endif
+};
+
+class StoreInst final : public Instruction {
+  /// Use StoreInst::create().
+  StoreInst(llvm::StoreInst *SI, Context &Ctx)
+      : Instruction(ClassID::Store, Opcode::Store, SI, Ctx) {}
+  friend Context; // for StoreInst()
+  Use getOperandUseInternal(unsigned OpIdx, bool Verify) const final {
+    return getOperandUseDefault(OpIdx, Verify);
+  }
+  SmallVector<llvm::Instruction *, 1> getLLVMInstrs() const final {
+    return {cast<llvm::Instruction>(Val)};
+  }
+
+public:
+  unsigned getUseOperandNo(const Use &Use) const final {
+    return getUseOperandNoDefault(Use);
+  }
+  unsigned getNumOfIRInstrs() const final { return 1u; }
+  static StoreInst *create(Value *V, Value *Ptr, MaybeAlign Align,
+                           Instruction *InsertBefore, Context &Ctx);
+  static StoreInst *create(Value *V, Value *Ptr, MaybeAlign Align,
+                           BasicBlock *InsertAtEnd, Context &Ctx);
+  /// For isa/dyn_cast.
+  static bool classof(const Value *From);
+  Value *getValueOperand() const;
+  Value *getPointerOperand() const;
+  Align getAlign() const { return cast<llvm::StoreInst>(Val)->getAlign(); }
+  bool isSimple() const { return cast<llvm::StoreInst>(Val)->isSimple(); }
+  bool isUnordered() const { return cast<llvm::StoreInst>(Val)->isUnordered(); }
+#ifndef NDEBUG
+  void verify() const final {
+    assert(isa<llvm::StoreInst>(Val) && "Expected StoreInst!");
+  }
+  void dump(raw_ostream &OS) const override;
+  LLVM_DUMP_METHOD void dump() const override;
+#endif
+};
+
+class ReturnInst final : public Instruction {
+  /// Use ReturnInst::create() instead of calling the constructor.
+  ReturnInst(llvm::Instruction *I, Context &Ctx)
+      : Instruction(ClassID::Ret, Opcode::Ret, I, Ctx) {}
+  ReturnInst(ClassID SubclassID, llvm::Instruction *I, Context &Ctx)
+      : Instruction(SubclassID, Opcode::Ret, I, Ctx) {}
+  friend class Context; // For accessing the constructor in create*()
+  Use getOperandUseInternal(unsigned OpIdx, bool Verify) const final {
+    return getOperandUseDefault(OpIdx, Verify);
+  }
+  SmallVector<llvm::Instruction *, 1> getLLVMInstrs() const final {
+    return {cast<llvm::Instruction>(Val)};
+  }
+  static ReturnInst *createCommon(Value *RetVal, IRBuilder<> &Builder,
+                                  Context &Ctx);
+
+public:
+  static ReturnInst *create(Value *RetVal, Instruction *InsertBefore,
+                            Context &Ctx);
+  static ReturnInst *create(Value *RetVal, BasicBlock *InsertAtEnd,
+                            Context &Ctx);
+  static bool classof(const Value *From) {
+    return From->getSubclassID() == ClassID::Ret;
+  }
+  unsigned getUseOperandNo(const Use &Use) const final {
+    return getUseOperandNoDefault(Use);
+  }
+  unsigned getNumOfIRInstrs() const final { return 1u; }
+  /// \Returns null if there is no return value.
+  Value *getReturnValue() const;
+#ifndef NDEBUG
+  void verify() const final {}
   void dump(raw_ostream &OS) const override;
   LLVM_DUMP_METHOD void dump() const override;
 #endif
@@ -734,6 +814,10 @@ protected:
 
   LoadInst *createLoadInst(llvm::LoadInst *LI);
   friend LoadInst; // For createLoadInst()
+  StoreInst *createStoreInst(llvm::StoreInst *SI);
+  friend StoreInst; // For createStoreInst()
+  ReturnInst *createReturnInst(llvm::ReturnInst *I);
+  friend ReturnInst; // For createReturnInst()
 
 public:
   Context(LLVMContext &LLVMCtx)
