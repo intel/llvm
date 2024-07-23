@@ -161,66 +161,92 @@ std::string getCompilerName() {
   return Compiler;
 }
 
-void invokeCompiler(const std::filesystem::path &FPath,
-                    const std::filesystem::path &DPath, const std::string &Id,
-                    const std::vector<std::string> &UserArgs,
-                    std::string *LogPtr) {
+int invokeCommand(const std::string &command, std::string &output) {
+  FILE *pipe = popen(command.c_str(), "r");
+  if (!pipe) {
+    return -1;
+  }
+
+  char buffer[124]; // Larger buffer for initial reads
+  while (!feof(pipe)) {
+    if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+      output += buffer;
+    }
+  }
+
+  pclose(pipe);
+
+  return 0;
+}
+
+std::string invokeCompiler(const std::filesystem::path &FPath,
+                           const std::filesystem::path &DPath,
+                           const std::string &Id,
+                           const std::vector<std::string> &UserArgs,
+                           std::string *LogPtr) {
 
   std::filesystem::path FilePath(FPath);
   std::filesystem::path ParentDir(DPath);
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerName();
-#ifdef _WIN32
-  std::string PipeStr{" > "};
-  std::string PipeStrTail{" 2>&1"};
-#else
-  std::string PipeStr{" &> "};
-  std::string PipeStrTail{""};
-#endif
+  // #ifdef _WIN32
+  //   std::string PipeStr{" > "};
+  //   std::string PipeStrTail{" 2>&1"};
+  // #else
+  //   std::string PipeStr{" &> "};
+  //   std::string PipeStrTail{""};
+  // #endif
 
   std::string Command =
       Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
       userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
       ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + PipeStr +
-      LogPath.make_preferred().string() + PipeStrTail;
+      FilePath.make_preferred().string() + " 2>&1"; // + PipeStr +
+  // LogPath.make_preferred().string() + PipeStrTail;
 
   std::cout << "Command: " << Command << std::endl;
 
-  int Result = std::system(Command.c_str());
+  // int Result = std::system(Command.c_str());
+  std::string CompileLog;
+  int Result = invokeCommand(Command, CompileLog);
 
   std::cout << "Result: " << Result << std::endl;
 
-  // Read the log file contents into the log variable.
-  std::string CompileLog;
-  std::ifstream LogStream;
-  LogStream.open(LogPath);
-  if (LogStream.is_open()) {
-    std::stringstream LogBuffer;
-    LogBuffer << LogStream.rdbuf();
-    CompileLog.append(LogBuffer.str());
-    if (LogPtr != nullptr)
-      LogPtr->append(LogBuffer.str());
-    LogStream.close(); // don't forget
-
-  } else if (Result == 0 && LogPtr != nullptr) {
-    // If there was a compilation problem, we want to report that (below),
-    // not a mere "missing log" error.
-    throw sycl::exception(sycl::errc::build,
-                          "failure retrieving compilation log");
+  if (LogPtr != nullptr) {
+    LogPtr->append(CompileLog);
   }
+
+  // Read the log file contents into the log variable.
+  // std::string CompileLog;
+  // std::ifstream LogStream;
+  // LogStream.open(LogPath);
+  // if (LogStream.is_open()) {
+  //   std::stringstream LogBuffer;
+  //   LogBuffer << LogStream.rdbuf();
+  //   CompileLog.append(LogBuffer.str());
+  //   if (LogPtr != nullptr)
+  //     LogPtr->append(LogBuffer.str());
+  //   LogStream.close(); // don't forget
+  // } else if (Result == 0 && LogPtr != nullptr) {
+  //   // If there was a compilation problem, we want to report that (below),
+  //   // not a mere "missing log" error.
+  //   throw sycl::exception(sycl::errc::build,
+  //                         "failure retrieving compilation log");
+  // }
 
   if (Result != 0) {
     throw sycl::exception(sycl::errc::build,
                           "Compile failure: " + std::to_string(Result) + " " +
                               CompileLog);
   }
+
+  return CompileLog;
 }
 
 std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
-                              const std::string &Id) {
+                              const std::string &Id, std::string &CompileLog) {
   std::regex PatternRegex(Id + R"(.*\.spv)");
 
   // Iterate through all files in the directory matching the pattern.
@@ -234,9 +260,9 @@ std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
   }
 
   // File not found, throw.
-  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + Id +
-                                               " missing from " +
-                                               ParentDir.filename().string());
+  throw sycl::exception(sycl::errc::build, "Compile failure: " + CompileLog);
+  // "SPIRV output matching " + Id + " missing from " +
+  // ParentDir.filename().string());
 }
 
 spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
@@ -259,10 +285,10 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   const std::filesystem::path ParentDir  = prepareWS(id);
   std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
                                            outputIncludeFiles(ParentDir, IncludePairs);
-                                           invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
-  std::filesystem::path SpvPath          = findSpv(ParentDir, id);
+  std::string CompileLog                 = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+  std::filesystem::path SpvPath          = findSpv(ParentDir, id, CompileLog);
                                     return loadSpvFromFile(SpvPath);
-  // clang-format on
+                                           // clang-format on
 }
 
 bool SYCL_Compilation_Available() {
