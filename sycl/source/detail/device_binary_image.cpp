@@ -129,7 +129,7 @@ void RTDeviceBinaryImage::print() const {
     std::cerr << "      Category " << PS->Name << " [" << PS->PropertiesBegin
               << "-" << PS->PropertiesEnd << "]:\n";
 
-    for (pi_device_binary_property P = PS->PropertiesBegin;
+    for (sycl_device_binary_property P = PS->PropertiesBegin;
          P != PS->PropertiesEnd; ++P) {
       std::cerr << "        " << DeviceBinaryProperty(P) << "\n";
     }
@@ -141,14 +141,14 @@ void RTDeviceBinaryImage::dump(std::ostream &Out) const {
   Out.write(reinterpret_cast<const char *>(Bin->BinaryStart), ImgSize);
 }
 
-pi_device_binary_property
+sycl_device_binary_property
 RTDeviceBinaryImage::getProperty(const char *PropName) const {
   RTDeviceBinaryImage::PropertyRange BoolProp;
   BoolProp.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
   if (!BoolProp.isAvailable())
     return nullptr;
   auto It = std::find_if(BoolProp.begin(), BoolProp.end(),
-                         [=](pi_device_binary_property Prop) {
+                         [=](sycl_device_binary_property Prop) {
                            return !strcmp(PropName, Prop->Name);
                          });
   if (It == BoolProp.end())

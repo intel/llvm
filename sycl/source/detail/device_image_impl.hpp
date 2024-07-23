@@ -227,7 +227,7 @@ public:
   }
 
   bool specialization_constants_replaced_with_default() const noexcept {
-    pi_device_binary_property Prop =
+    sycl_device_binary_property Prop =
         MBinImage->getProperty("specConstsReplacedWithDefault");
     return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
   }

@@ -1170,6 +1170,8 @@ using pi_launch_property = _pi_launch_property;
 
 struct sycl_device_binaries_struct;
 typedef sycl_device_binaries_struct * pi_device_binary;
+struct _sycl_device_binary_property_struct;
+typedef _sycl_device_binary_property_struct * pi_device_binary_property;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.

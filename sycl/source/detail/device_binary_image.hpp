@@ -87,19 +87,19 @@ public:
   // Implements the standard C++ STL input iterator interface.
   class PropertyRange {
   public:
-    using ValTy = std::remove_pointer<pi_device_binary_property>::type;
+    using ValTy = std::remove_pointer<sycl_device_binary_property>::type;
 
     class ConstIterator {
-      pi_device_binary_property Cur;
+      sycl_device_binary_property Cur;
 
     public:
       using iterator_category = std::input_iterator_tag;
       using value_type = ValTy;
       using difference_type = ptrdiff_t;
-      using pointer = const pi_device_binary_property;
-      using reference = pi_device_binary_property;
+      using pointer = const sycl_device_binary_property;
+      using reference = sycl_device_binary_property;
 
-      ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
+      ConstIterator(sycl_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;
         return *this;
@@ -129,8 +129,8 @@ public:
       init(Bin, PropSetName);
     };
     void init(sycl_device_binary Bin, const char *PropSetName);
-    pi_device_binary_property Begin;
-    pi_device_binary_property End;
+    sycl_device_binary_property Begin;
+    sycl_device_binary_property End;
   };
 
 public:
@@ -177,7 +177,7 @@ public:
   }
 
   /// Returns a single property from SYCL_MISC_PROP category.
-  pi_device_binary_property getProperty(const char *PropName) const;
+  sycl_device_binary_property getProperty(const char *PropName) const;
 
   /// Gets the iterator range over specialization constants in this binary
   /// image. For each property pointed to by an iterator within the

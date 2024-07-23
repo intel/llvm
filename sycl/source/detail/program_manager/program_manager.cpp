@@ -73,7 +73,7 @@ ProgramManager &ProgramManager::getInstance() {
 static sycl::detail::pi::PiProgram
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
-                    const std::vector<pi_device_binary_property> Metadata) {
+                    const std::vector<sycl_device_binary_property> Metadata) {
   const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
@@ -213,7 +213,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadata();
-  std::vector<pi_device_binary_property> ProgMetadataVector{
+  std::vector<sycl_device_binary_property> ProgMetadataVector{
       ProgMetadata.begin(), ProgMetadata.end()};
 
   // Load the image
@@ -255,13 +255,13 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
 
 static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
                                 const char *PropName) {
-  pi_device_binary_property Prop = Img.getProperty(PropName);
+  sycl_device_binary_property Prop = Img.getProperty(PropName);
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
 static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
                                          const char *PropName) {
-  pi_device_binary_property Prop = Img.getProperty(PropName);
+  sycl_device_binary_property Prop = Img.getProperty(PropName);
   std::stringstream ss;
   if (!Prop)
     return "";
@@ -279,9 +279,9 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
                                          bool IsEsimdImage) {
   // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
   // next ABI break.
-  pi_device_binary_property RegAllocModeProp =
+  sycl_device_binary_property RegAllocModeProp =
       Img.getProperty("sycl-register-alloc-mode");
-  pi_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
+  sycl_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
 
   if (!RegAllocModeProp && !GRFSizeProp)
     return;
@@ -497,7 +497,7 @@ ProgramManager::getOrCreatePIProgram(
       Device, AllImages, SpecConsts, CompileAndLinkOptions);
   if (BinProg.size()) {
     // Get program metadata from properties
-    std::vector<pi_device_binary_property> ProgMetadataVector;
+    std::vector<sycl_device_binary_property> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
       auto ProgMetadata = Img->getProgramMetadata();
       std::copy(ProgMetadata.begin(), ProgMetadata.end(),
@@ -556,7 +556,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
   std::set<std::string> HandledSymbols;
   std::queue<std::string> WorkList;
-  for (const pi_device_binary_property &ISProp : MainImg.getImportedSymbols()) {
+  for (const sycl_device_binary_property &ISProp : MainImg.getImportedSymbols()) {
     WorkList.push(ISProp->Name);
     HandledSymbols.insert(ISProp->Name);
   }
@@ -578,7 +578,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
-      for (const pi_device_binary_property &ISProp :
+      for (const sycl_device_binary_property &ISProp :
            Img->getImportedSymbols()) {
         if (HandledSymbols.insert(ISProp->Name).second)
           WorkList.push(ISProp->Name);
@@ -608,7 +608,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   // already seen.
   std::set<std::string> HandledSets;
   std::queue<std::string> WorkList;
-  for (const pi_device_binary_property &VFProp : Img.getVirtualFunctions()) {
+  for (const sycl_device_binary_property &VFProp : Img.getVirtualFunctions()) {
     std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
     // Device image passed to this function is expected to contain SYCL kernels
     // and therefore it may only use virtual function sets, but cannot provide
@@ -633,7 +633,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // virtual-functions-set properties, but their handling is the same: we
       // just grab all sets they reference and add them for consideration if
       // we haven't done so already.
-      for (const pi_device_binary_property &VFProp :
+      for (const sycl_device_binary_property &VFProp :
            BinImage->getVirtualFunctions()) {
         std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
         for (const auto &SetName : detail::split_string(StrValue, ',')) {
@@ -1529,12 +1529,12 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
     // Register all exported symbols
-    for (const pi_device_binary_property &ESProp : Img->getExportedSymbols()) {
+    for (const sycl_device_binary_property &ESProp : Img->getExportedSymbols()) {
       m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
     }
 
     // Record mapping between virtual function sets and device images
-    for (const pi_device_binary_property &VFProp : Img->getVirtualFunctions()) {
+    for (const sycl_device_binary_property &VFProp : Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage[SetName].insert(Img.get());
@@ -1588,7 +1588,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     // check if kernel uses asan
     {
-      pi_device_binary_property Prop = Img->getProperty("asanUsed");
+      sycl_device_binary_property Prop = Img->getProperty("asanUsed");
       m_AsanFoundInImage |=
           Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
     }
@@ -1602,7 +1602,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
       std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
 
       auto DeviceGlobals = Img->getDeviceGlobals();
-      for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
+      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
         ByteArray DeviceGlobalInfo =
             DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
@@ -1639,7 +1639,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
       auto HostPipes = Img->getHostPipes();
-      for (const pi_device_binary_property &HostPipe : HostPipes) {
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
         ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
 
         // The supplied host_pipe info property is expected to contain:

@@ -106,13 +106,13 @@ struct _sycl_device_binary_property_struct {
   uint64_t ValSize; // size of property value in bytes
 };
 
-typedef _sycl_device_binary_property_struct *pi_device_binary_property;
+typedef _sycl_device_binary_property_struct *sycl_device_binary_property;
 
 // Named array of properties.
 struct _sycl_device_binary_property_set_struct {
   char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
+  sycl_device_binary_property PropertiesBegin; // array start
+  sycl_device_binary_property PropertiesEnd;   // array end
 };
 
 typedef _sycl_device_binary_property_set_struct *sycl_device_binary_property_set;
