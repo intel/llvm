@@ -349,6 +349,34 @@ public:
   }
 
   // oneapi_ext_kernel_compiler
+  // interop constructor used for source_language::sycl
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     std::vector<sycl::kernel_id> Kids,
+                     std::vector<std::string> KNames,
+                     syclex::source_language Lang)
+      : kernel_bundle_impl(Ctx, Devs, Kids, bundle_state::executable) {
+    KernelNames = KNames;
+    Language = Lang;
+  }
+
+  std::shared_ptr<kernel_bundle_impl> build_from_sycl_source(
+      const std::vector<device> Devices, const std::string &SourceStr,
+      const include_pairs_t &IncludePairs,
+      const std::vector<std::string> &BuildOptions, std::string *LogPtr,
+      const std::vector<std::string> &RegisteredKernelNames) {
+
+    std::vector<sycl::kernel_id> kids = syclex::detail::SYCL_to_Kernel_IDs(
+        SourceStr, IncludePairs, BuildOptions, LogPtr, RegisteredKernelNames);
+    std::vector<std::string> KNames(kids.size());
+    std::transform(kids.begin(), kids.end(), KNames.begin(),
+                   [](const sycl::kernel_id &kid) { return kid.get_name(); });
+
+    // CP - temporary just to compile
+    return std::make_shared<kernel_bundle_impl>(MContext, Devices, kids, KNames,
+                                                syclex::source_language::sycl);
+  }
+
+  // oneapi_ext_kernel_compiler
   // interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage,
@@ -379,6 +407,13 @@ public:
       DeviceVec.push_back(Dev);
     }
 
+    if (Language == syclex::source_language::sycl) {
+      const auto &SourceStr = std::get<std::string>(this->Source);
+      return build_from_sycl_source(Devices, SourceStr, IncludePairs,
+                                    BuildOptions, LogPtr,
+                                    RegisteredKernelNames);
+    }
+
     const auto spirv = [&]() -> std::vector<uint8_t> {
       if (Language == syclex::source_language::opencl) {
         // if successful, the log is empty. if failed, throws an error with the
@@ -404,15 +439,9 @@ public:
                        [](std::byte B) { return static_cast<uint8_t>(B); });
         return Result;
       }
-      if (Language == syclex::source_language::sycl) {
-        const auto &SourceStr = std::get<std::string>(this->Source);
-        return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
-                                             BuildOptions, LogPtr,
-                                             RegisteredKernelNames);
-      }
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "OpenCL C and SPIR-V are the only supported languages at this time");
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "SYCL C++, OpenCL C and SPIR-V are the only "
+                            "supported languages at this time");
     }();
 
     sycl::detail::pi::PiProgram PiProgram = nullptr;

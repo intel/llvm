@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel_compiler_sycl.hpp"
-#include <sycl/exception.hpp> // make_error_code
+#include <sycl/detail/core.hpp> // get_kernel_ids
+#include <sycl/exception.hpp>   // make_error_code
+
+#include <dlfcn.h> // dlopen
 
 #if __GNUC__ && __GNUC__ < 8
 
@@ -24,10 +27,11 @@ namespace detail {
 
 bool SYCL_Compilation_Available() { return false; }
 
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr,
-              const std::vector<std::string> &RegisteredKernelNames) {
+std::vector<sycl::kernel_id>
+SYCL_to_Kernel_IDs(const std::string &SYCLSource, include_pairs_t IncludePairs,
+                   const std::vector<std::string> &UserArgs,
+                   std::string *LogPtr,
+                   const std::vector<std::string> &RegisteredKernelNames) {
   (void)SYCLSource;
   (void)IncludePairs;
   (void)UserArgs;
@@ -74,7 +78,8 @@ std::string generateSemiUniqueId() {
 
 std::filesystem::path prepareWS(const std::string &Id) {
   const std::filesystem::path TmpDirectoryPath =
-      std::filesystem::temp_directory_path();
+      std::filesystem::current_path();
+  // std::filesystem::temp_directory_path();
   std::filesystem::path NewDirectoryPath = TmpDirectoryPath / Id;
 
   try {
@@ -99,10 +104,9 @@ void outputPreamble(std::ofstream &Os, const std::filesystem::path &FilePath,
                     const std::vector<std::string> &UserArgs) {
 
   Os << "/*\n";
-  Os << "  clang++ -fsycl -o " << Id << ".bin ";
+  Os << "  clang++ -fsycl -fPIC -shared -o " << Id << ".so ";
   Os << userArgsAsString(UserArgs);
-  Os << " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=./ " << Id;
-  Os << ".cpp \n */" << std::endl;
+  Os << Id << ".cpp \n */" << std::endl;
 }
 
 std::filesystem::path
@@ -116,8 +120,7 @@ outputCpp(const std::filesystem::path &ParentDir, const std::string &Id,
     outputPreamble(Outfile, FilePath, Id, UserArgs);
     Outfile << RawCodeString << std::endl;
 
-    // Temporarily needed until -c works with -fsycl-dump-spirv.
-    Outfile << "int main() {\n";
+    Outfile << "int temp() {\n";
     for (const std::string &KernelName : RegisteredKernelNames) {
       Outfile << "  " << KernelName << ";\n";
     }
@@ -161,24 +164,31 @@ std::string getCompilerName() {
   return Compiler;
 }
 
-void invokeCompiler(const std::filesystem::path &FPath,
-                    const std::filesystem::path &DPath, const std::string &Id,
-                    const std::vector<std::string> &UserArgs,
-                    std::string *LogPtr) {
+std::filesystem::path invokeCompiler(const std::filesystem::path &FPath,
+                                     const std::filesystem::path &DPath,
+                                     const std::string &Id,
+                                     const std::vector<std::string> &UserArgs,
+                                     std::string *LogPtr) {
+
+#ifdef _WIN32
+  std::string fPIC = "";
+  std::string Ext = ".dll";
+#else
+  std::string fPIC = "-fPIC ";
+  std::string Ext = ".so";
+#endif
 
   std::filesystem::path FilePath(FPath);
   std::filesystem::path ParentDir(DPath);
-  std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
+  std::filesystem::path TargetPath = ParentDir / (Id + Ext);
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerName();
 
-  std::string Command =
-      Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
-      userArgsAsString(UserArgs) +
-      " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
-      ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + " 2> " +
-      LogPath.make_preferred().string();
+  std::string Command = Compiler + " -fsycl -shared " + fPIC + " -o " +
+                        TargetPath.make_preferred().string() + " " +
+                        userArgsAsString(UserArgs) + " " +
+                        FilePath.make_preferred().string() + " 2> " +
+                        LogPath.make_preferred().string();
 
   int Result = std::system(Command.c_str());
 
@@ -205,49 +215,51 @@ void invokeCompiler(const std::filesystem::path &FPath,
                           "Compile failure: " + std::to_string(Result) + " " +
                               CompileLog);
   }
+
+  return TargetPath;
 }
 
-std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
-                              const std::string &Id) {
-  std::regex PatternRegex(Id + R"(.*\.spv)");
+std::vector<sycl::kernel_id>
+openSharedLib(const std::filesystem::path &TargetPath) {
+  std::vector<sycl::kernel_id> before_kids = sycl::get_kernel_ids();
+#ifdef _WIN32
+  LoadLibrary(TargetPath.c_str());
+#else
+  dlopen(TargetPath.c_str(), RTLD_LAZY | RTLD_LOCAL);
+#endif
+  std::vector<sycl::kernel_id> after_kids = sycl::get_kernel_ids();
+  // std::cout << "all kernels " << std::endl;
+  // for(auto &kid: after_kids){
+  //   std::cout << " kernel =>  " << kid.get_name() << std::endl;
+  // }
 
-  // Iterate through all files in the directory matching the pattern.
-  for (const auto &Entry : std::filesystem::directory_iterator(ParentDir)) {
-    if (Entry.is_regular_file() &&
-        std::regex_match(Entry.path().filename().string(), PatternRegex)) {
-      return Entry.path(); // Return the path if it matches the SPV pattern.
-    }
+  // the new kernels seem to appear first.  They don't support a comparsion
+  // operation, so are unsortable. If not this, we would have to brute force
+  // diff the before and after vectors, which could potentially be expensive.
+  int n = after_kids.size() - before_kids.size();
+  std::vector<sycl::kernel_id> difference(after_kids.begin(),
+                                          after_kids.begin() + n);
+
+  std::cout << "new kernels " << std::endl;
+  for (auto &kid : difference) {
+    std::cout << " kernel =>  " << kid.get_name() << std::endl;
   }
 
-  // File not found, throw.
-  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + Id +
-                                               " missing from " +
-                                               ParentDir.filename().string());
+  return difference;
 }
 
-spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
-  std::ifstream SpvStream(FileName, std::ios::binary);
-  SpvStream.seekg(0, std::ios::end);
-  size_t Size = SpvStream.tellg();
-  SpvStream.seekg(0);
-  spirv_vec_t Spv(Size);
-  SpvStream.read(reinterpret_cast<char *>(Spv.data()), Size);
-
-  return Spv;
-}
-
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr,
-              const std::vector<std::string> &RegisteredKernelNames) {
+std::vector<sycl::kernel_id>
+SYCL_to_Kernel_IDs(const std::string &SYCLSource, include_pairs_t IncludePairs,
+                   const std::vector<std::string> &UserArgs,
+                   std::string *LogPtr,
+                   const std::vector<std::string> &RegisteredKernelNames) {
   // clang-format off
-  const std::string id                   = generateSemiUniqueId();
-  const std::filesystem::path ParentDir  = prepareWS(id);
-  std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
-                                           outputIncludeFiles(ParentDir, IncludePairs);
-                                           invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
-  std::filesystem::path SpvPath          = findSpv(ParentDir, id);
-                                    return loadSpvFromFile(SpvPath);
+  const std::string id                    = generateSemiUniqueId();
+  const std::filesystem::path ParentDir   = prepareWS(id);
+  std::filesystem::path FilePath          = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
+                                            outputIncludeFiles(ParentDir, IncludePairs);
+  const std::filesystem::path TargetPath  = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+                                    return  openSharedLib(TargetPath);
   // clang-format on
 }
 
