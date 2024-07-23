@@ -11,6 +11,7 @@
 #include <cstring>
 #include <memory>
 #include <sycl/detail/pi.hpp>
+#include <sycl/detail/compiler.h>
 
 namespace sycl {
 inline namespace _V1 {

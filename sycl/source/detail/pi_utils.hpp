@@ -11,6 +11,7 @@
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/detail/compiler.h>
 
 #include <optional>
 
@@ -66,6 +67,15 @@ private:
   std::optional<sycl::detail::pi::PiEvent> MEvent;
   const PluginPtr &MPlugin;
 };
+
+namespace pi {
+using PiDeviceBinaryType = ::sycl_device_binary_type;
+
+/// Tries to determine the device binary image foramat. Returns
+/// SYCL_DEVICE_BINARY_TYPE_NONE if unsuccessful.
+PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
+                                        size_t ImgSize);
+}
 
 } // namespace detail
 } // namespace _V1

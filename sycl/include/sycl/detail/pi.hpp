@@ -17,8 +17,6 @@
 #include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
-// FIXME: Ideally, we shouldn't include the compiler interface here
-#include <sycl/detail/compiler.h>
 
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
@@ -107,7 +105,6 @@ using PiPlatformBackend = ::pi_platform_backend;
 using PiDevice = ::pi_device;
 using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
-using PiDeviceBinaryType = ::sycl_device_binary_type;
 using PiContext = ::pi_context;
 using PiContextInfo = ::pi_context_info;
 using PiProgram = ::pi_program;
@@ -240,12 +237,6 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FName,
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin);
-
-/// Tries to determine the device binary image foramat. Returns
-/// SYCL_DEVICE_BINARY_TYPE_NONE if unsuccessful.
-PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
-                                        size_t ImgSize);
-
 } // namespace pi
 
 // Workaround for build with GCC 5.x
