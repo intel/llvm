@@ -7,7 +7,7 @@
 // RUN: %{build} -DDES -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -DES  -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{build} -DDES  -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
