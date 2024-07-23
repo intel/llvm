@@ -180,7 +180,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
               << getSyclObjImpl(Context).get() << ", "
               << getSyclObjImpl(Device).get() << ")\n";
-  const pi_device_binary_struct &RawImg = Img.getRawData();
+  const sycl_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
   if (RawImg.BinaryEnd < RawImg.BinaryStart) {
@@ -536,8 +536,8 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
   pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
-  pi_device_binary DevBin =
-      const_cast<pi_device_binary>(&BinImage->getRawData());
+  auto DevBin = reinterpret_cast<pi_device_binary>(
+      const_cast<sycl_device_binary>(&BinImage->getRawData()));
   sycl::detail::pi::PiResult Error =
       Plugin->call_nocheck<PiApiKind::piextDeviceSelectBinary>(
           PIDeviceHandle, &DevBin,
@@ -1017,7 +1017,7 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
 
 // TODO device libraries may use scpecialization constants, manifest files, etc.
 // To support that they need to be delivered in a different container - so that
-// pi_device_binary_struct can be created for each of them.
+// sycl_device_binary_struct can be created for each of them.
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           sycl::detail::pi::PiProgram &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
@@ -1190,7 +1190,7 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   if (!JITCompilationIsRequired)
     return;
   // If the image is already compiled with AOT, throw an exception.
-  const pi_device_binary_struct &RawImg = Image->getRawData();
+  const sycl_device_binary_struct &RawImg = Image->getRawData();
   if ((strcmp(RawImg.DeviceTargetSpec,
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
@@ -1213,7 +1213,8 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
   auto It = ItBegin;
   for (unsigned I = 0; It != ItEnd; ++It, ++I)
-    RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
+    RawImgs[I] = reinterpret_cast<pi_device_binary>(
+        const_cast<sycl_device_binary>(&It->second->getRawData()));
 
   pi_uint32 ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
@@ -1296,7 +1297,8 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   std::vector<pi_device_binary> RawImgs(ImageSet.size());
   auto ImageIterator = ImageSet.begin();
   for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
-    RawImgs[i] = const_cast<pi_device_binary>(&(*ImageIterator)->getRawData());
+    RawImgs[i] = reinterpret_cast<pi_device_binary>(
+        const_cast<sycl_device_binary>(&(*ImageIterator)->getRawData()));
   pi_uint32 ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
@@ -1502,7 +1504,7 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
-    pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
@@ -1679,7 +1681,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
-  const pi_device_binary_struct &RawImg = Img.getRawData();
+  const sycl_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   if (SequenceID)
     Fname += '_' + std::to_string(SequenceID);

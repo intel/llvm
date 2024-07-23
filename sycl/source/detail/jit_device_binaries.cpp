@@ -88,10 +88,10 @@ void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
   PropertySets.push_back(std::move(Cont));
 }
 
-pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
+sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
     sycl_device_binary_type Format) {
-  pi_device_binary_struct DeviceBinary;
+  sycl_device_binary_struct DeviceBinary;
   DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
   DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;

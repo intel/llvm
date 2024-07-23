@@ -1168,7 +1168,8 @@ typedef struct {
 
 using pi_launch_property = _pi_launch_property;
 
-
+struct sycl_device_binaries_struct;
+typedef sycl_device_binaries_struct * pi_device_binary;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.

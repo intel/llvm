@@ -124,18 +124,18 @@ public:
     // Searches for a property set with given name and constructs a
     // PropertyRange spanning all its elements. If property set is not found,
     // the range will span zero elements.
-    PropertyRange(pi_device_binary Bin, const char *PropSetName)
+    PropertyRange(sycl_device_binary Bin, const char *PropSetName)
         : PropertyRange() {
       init(Bin, PropSetName);
     };
-    void init(pi_device_binary Bin, const char *PropSetName);
+    void init(sycl_device_binary Bin, const char *PropSetName);
     pi_device_binary_property Begin;
     pi_device_binary_property End;
   };
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -150,7 +150,7 @@ public:
     return getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV;
   }
 
-  const pi_device_binary_struct &getRawData() const { return *get(); }
+  const sycl_device_binary_struct &getRawData() const { return *get(); }
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
@@ -228,10 +228,10 @@ public:
   }
 
 protected:
-  void init(pi_device_binary Bin);
-  pi_device_binary get() const { return Bin; }
+  void init(sycl_device_binary Bin);
+  sycl_device_binary get() const { return Bin; }
 
-  pi_device_binary Bin;
+  sycl_device_binary Bin;
 
   pi::PiDeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;

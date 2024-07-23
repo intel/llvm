@@ -11,6 +11,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/compiler.h>
 #include <sycl/detail/pi.hpp>
 
 #include <sycl/detail/defines_elementary.hpp>
@@ -244,8 +245,8 @@ public:
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
 
-  pi_device_binary_struct convertToNativeType() {
-    return pi_device_binary_struct{
+  sycl_device_binary_struct convertToNativeType() {
+    return sycl_device_binary_struct{
         MVersion,
         MKind,
         MFormat,
@@ -301,7 +302,7 @@ public:
   ~PiImageArray() { __sycl_unregister_lib(&MAllBinaries); }
 
 private:
-  pi_device_binary_struct MNativeImages[NumberOfImages];
+  sycl_device_binary_struct MNativeImages[NumberOfImages];
   sycl_device_binaries_struct MAllBinaries;
 };
 

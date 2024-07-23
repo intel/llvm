@@ -226,7 +226,7 @@ protected:
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  pi_device_binary_struct BinStruct{/*Version*/ 1,
+  sycl_device_binary_struct BinStruct{/*Version*/ 1,
                                     /*Kind*/ 4,
                                     /*Format*/ GetParam(),
                                     /*DeviceTargetSpec*/ nullptr,
@@ -240,7 +240,7 @@ protected:
                                     /*EntriesEnd*/ &EntryStruct + 1,
                                     /*PropertySetsBegin*/ nullptr,
                                     /*PropertySetsEnd*/ nullptr};
-  pi_device_binary Bin = &BinStruct;
+  sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   sycl::detail::pi::PiProgram NativeProg;
 };
@@ -276,7 +276,7 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
-  pi_device_binary_struct ExtraBinStruct{/*Version*/ 1,
+  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
                                          /*Kind*/ 4,
                                          /*Format*/ GetParam(),
                                          /*DeviceTargetSpec*/ nullptr,
@@ -290,7 +290,7 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
                                          /*EntriesEnd*/ &ExtraEntryStruct + 1,
                                          /*PropertySetsBegin*/ nullptr,
                                          /*PropertySetsEnd*/ nullptr};
-  pi_device_binary ExtraBin = &ExtraBinStruct;
+  sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};
 

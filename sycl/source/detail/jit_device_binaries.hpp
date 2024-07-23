@@ -111,7 +111,7 @@ public:
 
   void addProperty(PropertySetContainer &&Cont);
 
-  pi_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
+  sycl_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
                                               size_t BinarySize,
                                               const char *TargetSpec,
                                               sycl_device_binary_type Format);
@@ -149,7 +149,7 @@ private:
   std::unique_ptr<sycl_device_binaries_struct> PIStruct;
 
   std::vector<DeviceBinaryContainer> Binaries;
-  std::vector<pi_device_binary_struct> PIBinaries;
+  std::vector<sycl_device_binary_struct> PIBinaries;
 };
 
 } // namespace detail

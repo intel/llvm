@@ -84,7 +84,7 @@ const char *DeviceBinaryProperty::asCString() const {
   return pi::cast<const char *>(Prop->ValAddr) + Shift;
 }
 
-void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
+void RTDeviceBinaryImage::PropertyRange::init(sycl_device_binary Bin,
                                               const char *PropSetName) {
   assert(!this->Begin && !this->End && "already initialized");
   pi_device_binary_property_set PS = nullptr;
@@ -157,7 +157,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
-void RTDeviceBinaryImage::init(pi_device_binary Bin) {
+void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
   // If device binary image format wasn't set by its producer, then can't change
@@ -194,7 +194,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
     : RTDeviceBinaryImage() {
   Data = std::move(DataPtr);
-  Bin = new pi_device_binary_struct();
+  Bin = new sycl_device_binary_struct();
   Bin->Version = SYCL_DEVICE_BINARY_VERSION;
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
