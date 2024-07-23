@@ -275,9 +275,15 @@ void test_esimd() {
 int main() {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
+  std::cout << "test_build_and_run()" << std::endl;
   test_build_and_run();
+  std::cout << "----" << std::endl;
+  std::cout << "test_error()" << std::endl;
   test_error();
+  std::cout << "----" << std::endl;
+  std::cout << "test_esimd()" << std::endl;
   test_esimd();
+  std::cout << "----" << std::endl;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

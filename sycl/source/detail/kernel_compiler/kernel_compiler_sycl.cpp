@@ -220,6 +220,8 @@ std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
 
   // Iterate through all files in the directory matching the pattern.
   for (const auto &Entry : std::filesystem::directory_iterator(ParentDir)) {
+    std::cout << "findSpv Entry: " << Entry.path().filename().string()
+              << std::endl;
     if (Entry.is_regular_file() &&
         std::regex_match(Entry.path().filename().string(), PatternRegex)) {
       return Entry.path(); // Return the path if it matches the SPV pattern.
@@ -267,6 +269,12 @@ bool SYCL_Compilation_Available() {
   std::string TestCommand =
       Compiler + " --version > " + DumpPath.make_preferred().string();
   int result = std::system(TestCommand.c_str());
+
+  std::cout << "SYCL_Compilation_Available().  version at: " << DumpPath
+            << std::endl;
+
+  std::string SecondaryCommand = "which " + Compiler;
+  std::system(SecondaryCommand.c_str());
 
   return (result == 0);
 }
