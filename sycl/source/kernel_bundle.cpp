@@ -12,7 +12,7 @@
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/compiler.h>
+#include <detail/compiler.hpp>
 
 #include <cstddef>
 #include <set>

@@ -146,10 +146,10 @@ pi_result redefinedExtDeviceSelectBinary(pi_device device,
                                          pi_uint32 num_binaries,
                                          pi_uint32 *selected_binary_ind) {
   EXPECT_EQ(num_binaries, 1U);
-  auto *binaries = reinterpret_cast<sycl_device_binary>(pi_binaries);
+  auto *binaries = reinterpret_cast<sycl_device_binary *>(pi_binaries);
   // Treat image 3 as incompatible with one of the devices.
-  if (TrackedImages.count(binaries[0].BinaryStart) != 0 &&
-      *binaries[0].BinaryStart == 3 &&
+  if (TrackedImages.count(binaries[0]->BinaryStart) != 0 &&
+      *binaries[0]->BinaryStart == 3 &&
       device == reinterpret_cast<pi_device>(2)) {
     return PI_ERROR_INVALID_BINARY;
   }

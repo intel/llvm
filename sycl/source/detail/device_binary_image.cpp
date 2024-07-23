@@ -8,7 +8,6 @@
 
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/pi.hpp>
-#include <sycl/detail/compiler.h>
 
 #include <algorithm>
 #include <cstring>

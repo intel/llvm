@@ -11,7 +11,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/compiler.h>
+#include <detail/compiler.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <sycl/detail/defines_elementary.hpp>

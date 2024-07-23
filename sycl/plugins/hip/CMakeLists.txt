@@ -122,6 +122,8 @@ add_sycl_plugin(hip
     ${sycl_plugin_dir}
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
     ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/hip
+    # Temporary (?) hack to include compiler interface header
+    "${SYCL_SOURCE_DIR}/source"
   LIBRARIES
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon

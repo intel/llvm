@@ -221,6 +221,8 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+    # Temporary (?) hack to include compiler interface header
+    "${SYCL_SOURCE_DIR}/source"
 )
 
 # We need for #include <ze_api.h> in common.h

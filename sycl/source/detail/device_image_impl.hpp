@@ -13,11 +13,11 @@
 #include <detail/kernel_id_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
+#include <detail/compiler.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/detail/compiler.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>

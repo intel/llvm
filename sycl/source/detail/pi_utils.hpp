@@ -11,7 +11,7 @@
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/pi.hpp>
-#include <sycl/detail/compiler.h>
+#include <detail/compiler.hpp>
 
 #include <optional>
 

@@ -11,6 +11,7 @@
 #include <cstdarg>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
+#include <detail/compiler.hpp>
 #include <ur/ur.hpp>
 
 // Map of UR error codes to PI error codes
@@ -1487,11 +1488,12 @@ inline pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
 inline pi_result
 piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
-                        pi_device_binary *Binaries, pi_uint32 NumBinaries,
+                        pi_device_binary *PIBinaries, pi_uint32 NumBinaries,
                         pi_uint32 *SelectedBinaryInd) {
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   std::vector<ur_device_binary_t> UrBinaries(NumBinaries);
+  auto *Binaries = reinterpret_cast<sycl_device_binary *>(PIBinaries);
 
   for (uint32_t BinaryCount = 0; BinaryCount < NumBinaries; BinaryCount++) {
     if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,

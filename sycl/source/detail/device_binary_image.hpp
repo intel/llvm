@@ -10,7 +10,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
-#include <sycl/detail/compiler.h>
+#include <detail/compiler.hpp>
 
 #include "pi_utils.hpp"
 
