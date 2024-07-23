@@ -1142,6 +1142,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_kernel_handle_t *
         RetKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
+  if (!Program) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
   ze_kernel_handle_t ZeKernel = ur_cast<ze_kernel_handle_t>(NativeKernel);
   ur_kernel_handle_t_ *Kernel = nullptr;
   try {

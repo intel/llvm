@@ -3855,7 +3855,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
-        hProgram, ///< [in] handle of the program associated with the kernel
+        hProgram, ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
@@ -3870,10 +3870,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
     if (getContext()->enableParameterValidation) {
         if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
