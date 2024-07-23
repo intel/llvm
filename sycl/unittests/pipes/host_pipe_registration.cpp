@@ -12,31 +12,13 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 
-template <size_t KernelSize = 1> class TestKernel;
-
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return KernelSize; }
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+class TestKernel;
+MOCK_INTEGRATION_HEADER(TestKernel)
 
 using namespace sycl;
 using default_pipe_properties =
