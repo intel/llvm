@@ -785,15 +785,15 @@ mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
   ur_metadata->pName = (*pi_metadata)->Name;
   ur_metadata->size = (*pi_metadata)->ValSize;
   switch ((*pi_metadata)->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_UINT32;
     ur_metadata->value.data32 = (*pi_metadata)->ValSize;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
     ur_metadata->value.pData = (*pi_metadata)->ValAddr;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_STRING;
     ur_metadata->value.pString =
         reinterpret_cast<char *>((*pi_metadata)->ValAddr);
@@ -1495,39 +1495,39 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
 
   for (uint32_t BinaryCount = 0; BinaryCount < NumBinaries; BinaryCount++) {
     if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+               __SYCL_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV32;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_NVPTX64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else

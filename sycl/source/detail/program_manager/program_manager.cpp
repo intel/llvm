@@ -561,7 +561,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     HandledSymbols.insert(ISProp->Name);
   }
   sycl::detail::pi::PiDeviceBinaryType Format = MainImg.getFormat();
-  if (!WorkList.empty() && Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (!WorkList.empty() && Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     throw exception(make_error_code(errc::feature_not_supported),
                     "Dynamic linking is not supported for AOT compilation yet");
   while (!WorkList.empty()) {

@@ -223,7 +223,7 @@ protected:
   platform Plt;
   device Dev;
   const char *EntryName = "Entry";
-  _pi_offload_entry_struct EntryStruct = {
+  _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
   pi_device_binary_struct BinStruct{/*Version*/ 1,
@@ -273,7 +273,7 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
 
 TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   const char *ExtraEntryName = "ExtraEntry";
-  _pi_offload_entry_struct ExtraEntryStruct = {
+  _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
   pi_device_binary_struct ExtraBinStruct{/*Version*/ 1,
