@@ -30,4 +30,14 @@ endfunction()
 
 add_unittest(level_zero_command_list_cache
         command_list_cache_test.cpp
-        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/command_list_cache.cpp)
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/command_list_cache.cpp
+)
+
+add_unittest(level_zero_event_pool
+        event_pool_test.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool_cache.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_normal.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_counter.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event.cpp
+)
