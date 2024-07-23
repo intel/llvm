@@ -1227,6 +1227,11 @@ __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
     pi_device command_device, pi_device peer_device, pi_peer_attr attr,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
+/// Extension to denote native support of assert feature by an arbitrary device
+/// piDeviceGetInfo call should return this extension when the device supports
+/// native asserts if supported extensions' names are requested
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
+
 /// Returns requested info for provided native device
 /// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
 /// PI_DEVICE_INFO_EXTENSIONS query when the device supports native asserts

@@ -194,8 +194,8 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     : RTDeviceBinaryImage() {
   Data = std::move(DataPtr);
   Bin = new pi_device_binary_struct();
-  Bin->Version = PI_DEVICE_BINARY_VERSION;
-  Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+  Bin->Version = SYCL_DEVICE_BINARY_VERSION;
+  Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;

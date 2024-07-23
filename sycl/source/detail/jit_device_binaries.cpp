@@ -92,8 +92,8 @@ pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
     sycl_device_binary_type Format) {
   pi_device_binary_struct DeviceBinary;
-  DeviceBinary.Version = PI_DEVICE_BINARY_VERSION;
-  DeviceBinary.Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+  DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
+  DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = "";
   DeviceBinary.LinkOptions = "";
@@ -130,7 +130,7 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
 pi_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
 
   PIStruct = std::make_unique<pi_device_binaries_struct>();
-  PIStruct->Version = PI_DEVICE_BINARIES_VERSION;
+  PIStruct->Version = SYCL_DEVICE_BINARIES_VERSION;
   PIStruct->NumDeviceBinaries = PIBinaries.size();
   PIStruct->DeviceBinaries = PIBinaries.data();
   // According to documentation in pi.h, the HostEntries are not used and
