@@ -286,7 +286,7 @@ params:
       desc: "[in] handle of the context object"
     - type: $x_device_handle_t
       name: hDevice
-      desc: "[in] handle of the device object"
+      desc: "[in][optional] handle of the device object"
     - type: "const $x_queue_native_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to native queue properties struct"

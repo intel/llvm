@@ -1044,10 +1044,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
-        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+        phDevices, ///< [in][optional][range(0, numDevices)] list of devices associated with
+                   ///< the context
     const ur_context_native_properties_t *
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
@@ -1058,13 +1061,15 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     [[maybe_unused]] auto context = getContext();
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_device_object_t *>(*phDevices)->dditable;
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
 
     // convert loader handles to platform handles
     auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
@@ -1074,7 +1079,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeContext, numDevices,
+    result = pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
                                        phDevicesLocal.data(), pProperties,
                                        phContext);
 
@@ -3910,7 +3915,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_device_handle_t hDevice, ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3932,7 +3937,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
 
     // forward to device-platform
     result = pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
