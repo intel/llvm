@@ -78,10 +78,10 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -109,10 +109,10 @@ static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

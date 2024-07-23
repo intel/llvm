@@ -63,8 +63,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
                                   SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
-                 std::move(Props));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
 
   std::vector<unsigned char> Bin{Magic};
 
@@ -72,10 +71,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::PiImage Img{
-      SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};

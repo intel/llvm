@@ -87,10 +87,10 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
-  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "-compile-img",                         // Compile options
-              "-link-img",                            // Link options
+              "-compile-img",                      // Compile options
+              "-link-img",                         // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
