@@ -61,7 +61,8 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK: @[[__GLOBAL_OFFSET_REMAPPER_1_10_1_1_10_1_1_3_48_1_1_2_1_1_X__CONST:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(5) constant [3 x i32] zeroinitializer
 
 ; CHECK-LABEL: define amdgpu_kernel void @fused_0(
-; CHECK-SAME: i32 [[KERNELONE_X:%.*]], i32 [[KERNELONE_X1:%.*]], i32 [[KERNELONE_X2:%.*]]) !work_group_size_hint !3 !kernel_arg_buffer_location !4 !kernel_arg_runtime_aligned !4 !kernel_arg_exclusive_ptr !4 {
+; CHECK-SAME: i32 [[KERNELONE_X:%.*]], i32 [[KERNELONE_X1:%.*]], i32 [[KERNELONE_X2:%.*]])
+; CHECK-SAME: !work_group_size_hint ![[META0:[0-9]+]] !kernel_arg_buffer_location ![[META1:[0-9]+]] !kernel_arg_runtime_aligned ![[META1]] !kernel_arg_exclusive_ptr ![[META1]] {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[TMP0]], 42
@@ -486,7 +487,8 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range !24 void @fused_kernel_1D()
 
 ; CHECK-LABEL: define amdgpu_kernel void @fused_1(
-; CHECK-SAME: i32 [[KERNELONE_X:%.*]], i32 [[KERNELONE_X1:%.*]], i32 [[KERNELONE_X2:%.*]]) !work_group_size_hint !3 !kernel_arg_buffer_location !4 !kernel_arg_runtime_aligned !4 !kernel_arg_exclusive_ptr !4 {
+; CHECK-SAME: i32 [[KERNELONE_X:%.*]], i32 [[KERNELONE_X1:%.*]], i32 [[KERNELONE_X2:%.*]])
+; CHECK-SAME: !work_group_size_hint ![[META0]] !kernel_arg_buffer_location ![[META1]] !kernel_arg_runtime_aligned ![[META1]] !kernel_arg_exclusive_ptr ![[META1]] {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[TMP0]], 20
