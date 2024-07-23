@@ -21,13 +21,10 @@
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: detail/pi.hpp
-// CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: detail/os_util.hpp
+// CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/pi.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
-// CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
@@ -61,6 +58,7 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
+// CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/cl.h
@@ -78,6 +76,7 @@
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
+// CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
 // CHECK-NEXT: property_list.hpp

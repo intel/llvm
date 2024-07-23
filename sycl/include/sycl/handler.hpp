@@ -1830,6 +1830,20 @@ private:
     SetHostTask(std::move(Func));
   }
 
+  template <typename FuncT>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
+  ext_codeplay_enqueue_native_command_impl(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    setArgsToAssociatedAccessors();
+
+    SetHostTask(std::move(Func));
+    setType(detail::CGType::CodeplayHostTask);
+  }
+
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
   /// the appropriate constructor.
@@ -2036,6 +2050,17 @@ public:
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
     host_task_impl(Func);
+  }
+
+  /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
+  template <typename FuncT>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
+  ext_codeplay_enqueue_native_command(FuncT &&Func) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_codeplay_enqueue_native_command>();
+    ext_codeplay_enqueue_native_command_impl(Func);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
