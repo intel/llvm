@@ -69,7 +69,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
@@ -77,7 +76,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dll"
@@ -86,7 +84,6 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.so"
@@ -94,18 +91,12 @@ bool trace(TraceLevel level);
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
-#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
 #define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "libpi_native_cpu.dylib"
 #else
 #error "Unsupported OS"
 #endif
-
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
-
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
@@ -150,6 +141,9 @@ using PiExternalMemDescriptor = ::pi_external_mem_descriptor;
 using PiExternalSemaphoreDescriptor = ::pi_external_semaphore_descriptor;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
+using PiPhysicalMem = ::pi_physical_mem;
+using PiVirtualAccessFlags = ::pi_virtual_access_flags;
+using PiLaunchProperty = ::pi_launch_property;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
@@ -195,7 +189,7 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+template <backend BE> const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
@@ -261,9 +255,7 @@ namespace pi {
 // Want all the needed casts be explicit, do not define conversion
 // operators.
 template <class To, class From> inline To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
-                              "assert: cast failed size check");
+  static_assert(sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 

@@ -569,6 +569,7 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
     return;
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
   assert(ArgDecoMD && "Decoration list must be a metadata node");
+  std::vector<Instruction *> CreatedGeps;
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
     if (!DecoMD) {
@@ -597,19 +598,36 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
 
     // Create dummy GEP for SSA copy of the pointer operand. Lets do our best
     // to guess pointee type here, but if we won't - just pointer is also fine,
-    // if necessary TypeScavenger will adjust types and create bitcasts.
+    // if necessary TypeScavenger will adjust types and create bitcasts. If
+    // memory instruction operand is already created zero GEP - create nothing
+    // and use the old GEP.
+    SmallVector<Metadata *, 4> MDs;
+    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
+    if (auto *const GEP = dyn_cast<GetElementPtrInst>(PtrInstOp)) {
+      if (GEP->hasAllZeroIndices() &&
+          (std::find(CreatedGeps.begin(), CreatedGeps.end(), GEP) !=
+           std::end(CreatedGeps))) {
+        MDs.push_back(MDNode::get(Inst->getContext(), OPs));
+        // If the existing GEP has SPIRV_MD_DECORATIONS metadata - copy it
+        if (auto *OldMD = GEP->getMetadata(SPIRV_MD_DECORATIONS))
+          for (unsigned I = 0, E = OldMD->getNumOperands(); I != E; ++I)
+            if (auto *DecoMD = dyn_cast<MDNode>(OldMD->getOperand(I)))
+              MDs.push_back(DecoMD);
+        MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
+        GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+        return;
+      }
+    }
     IRBuilder Builder(Inst);
-    Type *GEPTy = PtrInstOp->getType();
+    Type *GEPTy = Builder.getInt8Ty();
     if (auto *LI = dyn_cast<LoadInst>(Inst))
       GEPTy = LI->getType();
     else if (auto *SI = dyn_cast<StoreInst>(Inst))
       GEPTy = SI->getValueOperand()->getType();
     auto *GEP =
         cast<Instruction>(Builder.CreateConstGEP1_32(GEPTy, PtrInstOp, 0));
+    CreatedGeps.push_back(GEP);
     Inst->setOperand(TargetArgNo, GEP);
-
-    SmallVector<Metadata *, 4> MDs;
-    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
     MDs.push_back(MDNode::get(Inst->getContext(), OPs));
     MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
     GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);

@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/pi.hpp>         // for PiEvent
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -42,12 +41,6 @@ namespace detail {
 
 class buffer_impl;
 class context_impl;
-// The function returns list of events that can be passed to OpenCL API as
-// dependency list and waits for others.
-__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
-getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                std::shared_ptr<sycl::detail::context_impl> Context);
-
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
 
 __SYCL_EXPORT void
@@ -55,7 +48,7 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
-// Function to get of store id, item, nd_item, group for the host implementation
+// Function to get or store id, item, nd_item, group for the host implementation
 // Pass nullptr to get stored object. Pass valid address to store object
 template <typename T> T get_or_store(const T *obj) {
   static thread_local auto stored = *obj;

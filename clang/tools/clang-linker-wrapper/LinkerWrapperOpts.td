@@ -150,6 +150,9 @@ def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
+def sycl_nvptx_device_lib_EQ : CommaJoined<["--", "-"], "sycl-nvptx-device-libraries=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"A comma separated list of nvptx-specific device libraries that are linked during the device link.">;
 
 // Options for SYCL backends and linker options for shared libraries.
 def sycl_backend_compile_options_EQ :
@@ -165,6 +168,11 @@ def sycl_target_link_options_EQ :
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control sycl-post-link step">;
+
+def sycl_module_split_mode_EQ :
+  Joined<["--", "-"], "sycl-module-split-mode=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Option that turns on split library with the given split mode">;
 
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,

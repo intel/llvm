@@ -12,11 +12,15 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#include <climits>
+
 #include <sycl/builtins.hpp>
+#include <sycl/detail/key_value_iterator.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
 
+#include <iterator>
 #include <memory>
 
 namespace sycl {
@@ -50,7 +54,49 @@ static __SYCL_ALWAYS_INLINE T *align_scratch(sycl::span<std::byte> scratch,
   scratch_begin = sycl::group_broadcast(g, scratch_begin);
   return scratch_begin;
 }
+
+template <typename KeyTy, typename ValueTy, typename Group>
+static __SYCL_ALWAYS_INLINE std::pair<KeyTy *, ValueTy *>
+align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
+                        size_t number_of_elements) {
+  size_t KeysSize = number_of_elements * sizeof(KeyTy);
+  size_t ValuesSize = number_of_elements * sizeof(ValueTy);
+  size_t KeysScratchSpace = KeysSize + alignof(KeyTy);
+  size_t ValuesScratchSpace = ValuesSize + alignof(ValueTy);
+
+  KeyTy *keys_scratch_begin = nullptr;
+  ValueTy *values_scratch_begin = nullptr;
+  sycl::group_barrier(g);
+  if (g.leader()) {
+    void *scratch_ptr = scratch.data();
+    scratch_ptr =
+        std::align(alignof(KeyTy), KeysSize, scratch_ptr, KeysScratchSpace);
+    keys_scratch_begin = ::new (scratch_ptr) KeyTy[number_of_elements];
+    scratch_ptr = scratch.data() + KeysSize + alignof(KeyTy);
+    scratch_ptr = std::align(alignof(ValueTy), ValuesSize, scratch_ptr,
+                             ValuesScratchSpace);
+    values_scratch_begin = ::new (scratch_ptr) ValueTy[number_of_elements];
+  }
+  // Broadcast leader's pointer (the beginning of the scratch) to all work
+  // items in the group.
+  keys_scratch_begin = sycl::group_broadcast(g, keys_scratch_begin);
+  values_scratch_begin = sycl::group_broadcast(g, values_scratch_begin);
+  return std::make_pair(keys_scratch_begin, values_scratch_begin);
+}
 #endif
+
+template <typename T> void swap_tuples(T &first, T &second) {
+  std::swap(first, second);
+}
+
+// Swap tuples of references.
+template <template <typename...> class Tuple, typename... T>
+void swap_tuples(Tuple<T &...> &&first, Tuple<T &...> &&second) {
+  auto lhs = first;
+  auto rhs = second;
+  // Do std::swap for each element of the tuple.
+  std::swap(lhs, rhs);
+}
 
 // ---- merge sort implementation
 
@@ -79,15 +125,6 @@ size_t upper_bound(Acc acc, const size_t first, const size_t last,
                    const Value &value, Compare comp) {
   return detail::lower_bound(acc, first, last, value,
                              [comp](auto x, auto y) { return !comp(y, x); });
-}
-
-// swap for all data types including tuple-like types
-template <typename T> void swap_tuples(T &a, T &b) { std::swap(a, b); }
-
-template <template <typename...> class TupleLike, typename T1, typename T2>
-void swap_tuples(TupleLike<T1, T2> &&a, TupleLike<T1, T2> &&b) {
-  std::swap(std::get<0>(a), std::get<0>(b));
-  std::swap(std::get<1>(a), std::get<1>(b));
 }
 
 template <typename Iter> struct GetValueType {
@@ -205,18 +242,18 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
   if (begin < end) {
     for (size_t i = begin; i < end; ++i) {
       // Handle intermediate items
-      for (size_t idx = i + 1; idx < end; ++idx) {
-        if (comp(first[idx], first[i])) {
-          detail::swap_tuples(first[i], first[idx]);
+      for (size_t idx = begin; idx < begin + (end - 1 - i); ++idx) {
+        if (comp(first[idx + 1], first[idx])) {
+          detail::swap_tuples(first[idx], first[idx + 1]);
         }
       }
     }
   }
 }
 
-template <typename Group, typename Iter, typename T, typename Compare>
+template <typename Group, typename Iter, typename ScratchIter, typename Compare>
 void merge_sort(Group group, Iter first, const size_t n, Compare comp,
-                T *scratch) {
+                ScratchIter scratch) {
   const size_t idx = group.get_local_linear_id();
   const size_t local = group.get_local_range().size();
   const size_t chunk = (n - 1) / local + 1;
@@ -606,14 +643,40 @@ void performRadixIterDynamicSize(
 
 // The iteration of radix sort for known number of elements per work item
 template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
-          bool is_key_value_sort, bool is_blocked, typename KeysT,
-          typename ValsT, typename GroupT>
+          bool is_key_value_sort, bool is_input_blocked, bool is_output_blocked,
+          typename KeysT, typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
+                                const uint32_t first_iter,
                                 const uint32_t last_iter, KeysT *keys,
                                 ValsT *vals, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
+
+  const ScratchMemory &keys_temp = memory;
+  const ScratchMemory vals_temp =
+      memory + wgsize * items_per_work_item * sizeof(KeysT);
+
+  // If input is striped, reroder items using scratch memory before sorting,
+  // this only needs to be done at the first iteration.
+  if constexpr (!is_input_blocked) {
+    if (radix_iter == first_iter) {
+      for (uint32_t i = 0; i < items_per_work_item; ++i) {
+        size_t shift = i * wgsize + idx;
+        keys_temp.get<KeysT>(shift) = keys[i];
+        if constexpr (is_key_value_sort)
+          vals_temp.get<ValsT>(shift) = vals[i];
+      }
+      sycl::group_barrier(group);
+      for (uint32_t i = 0; i < items_per_work_item; ++i) {
+        size_t shift = idx * items_per_work_item + i;
+        keys[i] = keys_temp.get<KeysT>(shift);
+        if constexpr (is_key_value_sort)
+          vals[i] = vals_temp.get<ValsT>(shift);
+      }
+      sycl::group_barrier(group);
+    }
+  }
 
   // 1.1. count per witem: create a private array for storing count values
   uint32_t count_arr[items_per_work_item] = {0};
@@ -664,9 +727,6 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
   sycl::group_barrier(group);
 
   // 3. Reorder
-  const ScratchMemory &keys_temp = memory;
-  const ScratchMemory vals_temp =
-      memory + wgsize * items_per_work_item * sizeof(KeysT);
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     keys_temp.get<KeysT>(ranks[i]) = keys[i];
     if constexpr (is_key_value_sort)
@@ -678,7 +738,7 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
   // 4. Copy back to input
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     size_t shift = idx * items_per_work_item + i;
-    if constexpr (!is_blocked) {
+    if constexpr (!is_output_blocked) {
       if (radix_iter == last_iter - 1)
         shift = i * wgsize + idx;
     }
@@ -726,7 +786,8 @@ void privateDynamicSort(GroupT group, KeysT *keys, ValsT *values,
   }
 }
 
-template <bool is_key_value_sort, bool is_blocked, bool is_comp_asc,
+template <bool is_key_value_sort, bool is_intput_blocked,
+          bool is_output_blocked, bool is_comp_asc,
           size_t items_per_work_item = 1, uint32_t radix_bits = 4,
           typename GroupT, typename T, typename U>
 void privateStaticSort(GroupT group, T *keys, U *values, std::byte *scratch,
@@ -737,8 +798,9 @@ void privateStaticSort(GroupT group, T *keys, U *values, std::byte *scratch,
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
     performRadixIterStaticSize<items_per_work_item, radix_bits, is_comp_asc,
-                               is_key_value_sort, is_blocked>(
-        group, radix_iter, last_iter, keys, values, scratch);
+                               is_key_value_sort, is_intput_blocked,
+                               is_output_blocked>(
+        group, radix_iter, first_iter, last_iter, keys, values, scratch);
     sycl::group_barrier(group);
   }
 }

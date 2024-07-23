@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Remove XFAIL after fixing https://github.com/intel/llvm/issues/13397
-// XFAIL: cpu
 
 #include "helpers.hpp"
 

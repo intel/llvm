@@ -48,21 +48,16 @@ class auto_name {};
 /// the \c Name.
 template <typename Name, typename Type> struct get_kernel_name_t {
   using name = Name;
-  static_assert(
-      !std::is_same_v<Name, auto_name>,
-      "No kernel name provided without -fsycl-unnamed-lambda enabled!");
 };
 
-#ifdef __SYCL_UNNAMED_LAMBDA__
 /// Specialization for the case when \c Name is undefined.
-/// This is only legal with our compiler with the unnamed lambda
-/// extension, so make sure the specialiation isn't available in that case: the
-/// lack of specialization allows us to trigger static_assert from the primary
-/// definition.
+/// This is only legal with our compiler with the unnamed lambda extension or if
+/// the kernel is a functor object. For the case where \c Type is a lambda
+/// function and unnamed lambdas are disabled, the compiler will issue a
+/// diagnostic.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
-#endif // __SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 
@@ -101,20 +96,12 @@ public:
   /// Get a valid OpenCL kernel handle
   ///
   /// If this kernel encapsulates an instance of OpenCL kernel, a valid
-  /// cl_kernel will be returned. If this kernel is a host kernel,
-  /// an invalid_object_error exception will be thrown.
+  /// cl_kernel will be returned.
   ///
   /// \return a valid cl_kernel instance
 #ifdef __SYCL_INTERNAL_API
   cl_kernel get() const;
 #endif
-
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Get the context that this kernel is defined for.
   ///
@@ -188,7 +175,8 @@ private:
   std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <backend BackendName, class SyclObjectT>

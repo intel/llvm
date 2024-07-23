@@ -301,6 +301,9 @@ void BackendConsumer::HandleTranslationUnit(ASTContext &C) {
   Ctx.setDiagnosticHandler(std::make_unique<ClangDiagnosticHandler>(
       CodeGenOpts, this));
 
+  Ctx.setDefaultTargetCPU(TargetOpts.CPU);
+  Ctx.setDefaultTargetFeatures(llvm::join(TargetOpts.Features, ","));
+
   // The diagnostic handler is now processed in OptRecordFileRAII.
 
   // The parallel_for_work_group legalization pass can emit calls to
@@ -803,6 +806,28 @@ void BackendConsumer::AspectMismatchDiagHandler(
   }
 }
 
+void BackendConsumer::SYCLIllegalVirtualCallDiagHandler(
+    const llvm::DiagnosticInfoIllegalVirtualCall &D) {
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain =
+      D.getCallChain();
+  auto &KI = CallChain.front();
+
+  SourceLocation LocCookie = SourceLocation::getFromRawEncoding(KI.second);
+  assert(LocCookie.isValid() &&
+         "Invalid location for kernel in illegal virtual call diagnostic");
+  Diags.Report(LocCookie, diag::err_sycl_illegal_virtual_call)
+      << llvm::demangle(KI.first.str());
+
+  for (size_t I = 1; I < CallChain.size(); ++I) {
+    auto &CalleeInfo = CallChain[I];
+    LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
+    assert(LocCookie.isValid() &&
+           "Invalid location for callee in illegal virtual call diagnostic");
+    Diags.Report(LocCookie, diag::note_sycl_virtual_call_done_from)
+        << /* function */ 0 << llvm::demangle(CalleeInfo.first.str());
+  }
+}
+
 void BackendConsumer::MisExpectDiagHandler(
     const llvm::DiagnosticInfoMisExpect &D) {
   StringRef Filename;
@@ -906,6 +931,10 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     return;
   case llvm::DK_AspectMismatch:
     AspectMismatchDiagHandler(cast<DiagnosticInfoAspectsMismatch>(DI));
+    return;
+  case llvm::DK_SYCLIllegalVirtualCall:
+    SYCLIllegalVirtualCallDiagHandler(
+        cast<DiagnosticInfoIllegalVirtualCall>(DI));
     return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.
@@ -1270,6 +1299,9 @@ void CodeGenAction::ExecuteAction() {
   Ctx.setDiscardValueNames(false);
   Ctx.setDiagnosticHandler(
       std::make_unique<ClangDiagnosticHandler>(CodeGenOpts, &Result));
+
+  Ctx.setDefaultTargetCPU(TargetOpts.CPU);
+  Ctx.setDefaultTargetFeatures(llvm::join(TargetOpts.Features, ","));
 
   Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
       setupLLVMOptimizationRemarks(
