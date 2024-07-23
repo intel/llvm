@@ -5,18 +5,16 @@
 ; CHECK-VALID: .param .u32 _ZTS14example_kernel_param_0
 ; CHECK-INVALID: .param .u64 .ptr .shared .align 1 _ZTS14example_kernel_param_0
 
-; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
-source_filename = "local-accessor-to-shared-memory-valid-triple.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
-; Function Attrs: noinline
-define weak_odr dso_local void @_ZTS14example_kernel(ptr addrspace(3) %a) {
+define void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
   %0 = load i32, ptr addrspace(3) %a
   ret void
 }
 
+!llvm.module.flags = !{!6}
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 !nvvmir.version = !{!5}
 
@@ -26,3 +24,4 @@ entry:
 !3 = !{null, !"align", i32 16}
 !4 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
 !5 = !{i32 1, i32 4}
+!6 = !{i32 1, !"sycl-device", i32 1}
