@@ -117,7 +117,7 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Link options    : "
             << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
   std::cerr << "    Entries  : ";
-  for (_pi_offload_entry EntriesIt = Bin->EntriesBegin;
+  for (sycl_offload_entry EntriesIt = Bin->EntriesBegin;
        EntriesIt != Bin->EntriesEnd; ++EntriesIt)
     std::cerr << EntriesIt->name << " ";
   std::cerr << "\n";

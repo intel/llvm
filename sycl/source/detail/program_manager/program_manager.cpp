@@ -1505,8 +1505,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
-    const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
-    const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
+    const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
     if (EntriesB == EntriesE)
       continue;
@@ -1551,7 +1551,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-    for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          ++EntriesIt) {
 
       // Skip creating unique kernel ID if it is a service kernel.

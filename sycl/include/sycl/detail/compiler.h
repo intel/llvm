@@ -85,7 +85,7 @@ struct _sycl_offload_entry_struct {
   int32_t reserved;
 };
 
-using _pi_offload_entry = _sycl_offload_entry_struct *;
+using sycl_offload_entry = _sycl_offload_entry_struct *;
 
 // A type of a binary image property.
 typedef enum {
@@ -176,8 +176,8 @@ struct sycl_device_binary_struct {
   /// Pointer to the target code end
   const unsigned char *BinaryEnd;
   /// the offload entry table
-  _pi_offload_entry EntriesBegin;
-  _pi_offload_entry EntriesEnd;
+  sycl_offload_entry EntriesBegin;
+  sycl_offload_entry EntriesEnd;
   // Array of preperty sets; e.g. specialization constants symbol-int ID map is
   // propagated to runtime with this mechanism.
   pi_device_binary_property_set PropertySetsBegin;
@@ -204,7 +204,7 @@ struct sycl_device_binaries_struct {
   /// Device binaries data
   sycl_device_binary DeviceBinaries;
   /// the offload entry table (not used, for compatibility with OpenMP)
-  _pi_offload_entry *HostEntriesBegin;
-  _pi_offload_entry *HostEntriesEnd;
+  sycl_offload_entry *HostEntriesBegin;
+  sycl_offload_entry *HostEntriesEnd;
 };
 using sycl_device_binaries = sycl_device_binaries_struct *;
