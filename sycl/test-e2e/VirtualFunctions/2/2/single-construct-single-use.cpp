@@ -33,7 +33,8 @@ public:
 
 class IncrementBy4 : public BaseIncrement {
 public:
-  IncrementBy4(int Mod, int ExtraMod) : BaseIncrement(Mod), ExtraMod(ExtraMod) {}
+  IncrementBy4(int Mod, int ExtraMod)
+      : BaseIncrement(Mod), ExtraMod(ExtraMod) {}
 
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
   void increment(int *Data) override { *Data += 4 + Mod + ExtraMod; }
