@@ -433,7 +433,22 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   DeviceCachePopulated = true;
+
+  size_t id = 0;
+  for (auto &dev : URDevicesCache) {
+    dev->Id = id++;
+  }
+
   return UR_RESULT_SUCCESS;
+}
+
+ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
+  for (auto &dev : URDevicesCache) {
+    if (dev->Id == id) {
+      return dev.get();
+    }
+  }
+  return nullptr;
 }
 
 // Returns plugin specific backend option.

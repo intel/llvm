@@ -23,6 +23,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
 
 enum EventsScope {
@@ -219,4 +220,7 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
+
+  // unique ephemeral identifer of the device in the adapter
+  DeviceId Id;
 };

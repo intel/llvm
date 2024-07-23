@@ -158,6 +158,7 @@ Types
 * ${x}_exp_win32_handle_t
 * ${x}_exp_sampler_addr_modes_t
 * ${x}_exp_sampler_cubemap_properties_t
+* ${x}_exp_image_copy_region_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -240,6 +241,8 @@ Changelog
 | 14.0     || Rename func BindlessImagesDestroyExternalSemaphoreExp to   |
 |          || BindlessImagesReleaseExternalSemaphoreExp                  |
 +------------------------------------------------------------------------+
+| 15.0     | Added structures for supporting copying.                    |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
