@@ -137,6 +137,9 @@ etors:
     - name: EXP_SAMPLER_CUBEMAP_PROPERTIES
       desc: $x_exp_sampler_cubemap_properties_t
       value: "0x2006"
+    - name: EXP_IMAGE_COPY_REGION
+      desc: $x_exp_image_copy_region_t
+      value: "0x2007"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -284,6 +287,21 @@ class: $xBindlessImages
 name: $x_exp_interop_semaphore_desc_t
 base: $x_base_desc_t
 members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes the (sub-)regions and the extent to be copied"
+name: $x_exp_image_copy_region_t
+base: $x_base_desc_t
+members:
+    - type: ur_rect_offset_t
+      name: srcOffset
+      desc: "[in] the offset into the source image"
+    - type: ur_rect_offset_t
+      name: dstOffset
+      desc: "[in] the offset into the destination image"
+    - type: ur_rect_region_t
+      name: copyExtent
+      desc: "[in] the extent (region) of the image to copy"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"
@@ -511,7 +529,7 @@ returns:
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Copy image data Host to Device or Device to Host"
+desc: "Copy image data Host to Device, Device to Host, or Device to Device"
 class: $xBindlessImages
 name: ImageCopyExp
 ordinal: "0"
@@ -524,33 +542,30 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: void*
-      name: pDst
-      desc: "[in] location the data will be copied to"
     - type: const void*
       name: pSrc
       desc: "[in] location the data will be copied from"
-    - type: "const $x_image_format_t*"
-      name: pImageFormat
-      desc: "[in] pointer to image format specification"
+    - type: void*
+      name: pDst
+      desc: "[in] location the data will be copied to"
     - type: "const $x_image_desc_t*"
-      name: pImageDesc
+      name: pSrcImageDesc
       desc: "[in] pointer to image description"
+    - type: "const $x_image_desc_t*"
+      name: pDstImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pSrcImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_format_t*"
+      name: pDstImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "$x_exp_image_copy_region_t*"
+      name: pCopyRegion
+      desc: "[in] Pointer to structure describing the (sub-)regions of source and destination images"
     - type: $x_exp_image_copy_flags_t
       name: imageCopyFlags
       desc: "[in] flags describing copy direction e.g. H2D or D2H"
-    - type: $x_rect_offset_t
-      name: srcOffset
-      desc: "[in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_offset_t
-      name: dstOffset
-      desc: "[in] defines the (x,y,z) destination offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_region_t
-      name: copyExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region to copy"
-    - type: $x_rect_region_t
-      name: hostExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region on the host"    
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -568,7 +583,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+      - "`pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
