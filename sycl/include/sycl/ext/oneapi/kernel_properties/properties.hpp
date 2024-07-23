@@ -244,8 +244,8 @@ template <size_t... Dims>
 struct HasCompileTimeEffect<work_group_size_key::value_t<Dims...>>
     : std::true_type {};
 template <size_t... Dims>
-struct HasCompileTimeEffect<
-    work_group_size_hint_key::value_t<Dims...>> : std::true_type {};
+struct HasCompileTimeEffect<work_group_size_hint_key::value_t<Dims...>>
+    : std::true_type {};
 template <uint32_t Size>
 struct HasCompileTimeEffect<sub_group_size_key::value_t<Size>>
     : std::true_type {};
