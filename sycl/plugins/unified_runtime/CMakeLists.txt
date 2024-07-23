@@ -99,13 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit 40902ecace6d16500c79e5787314e3e393e70379
-  # Author: Duncan Brawley <duncan.brawley@codeplay.com>
-  # Date:   Wed May 29 13:04:15 2024 +0100
-  #     [Bindless][Exp] Update device_info enum elements and update Level Zero
-  #     and CUDA backend device_info supported features
-  set(UNIFIED_RUNTIME_TAG 40902ecace6d16500c79e5787314e3e393e70379)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit f11caf98857bb22800d09aedec8bd607643ab67b
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jul 23 15:28:10 2024 +0100
+  #     Merge pull request #1795 from DBDuncan/duncan/bindless-aspects
+  #     [Bindless][Exp] Update device_info enum elements and update Level Zero and CUDA backend device_info supported features
+  set(UNIFIED_RUNTIME_TAG f11caf98857bb22800d09aedec8bd607643ab67b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
