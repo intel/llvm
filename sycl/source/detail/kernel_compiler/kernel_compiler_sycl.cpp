@@ -153,7 +153,7 @@ void outputIncludeFiles(const std::filesystem::path &Dirpath,
 }
 
 std::string getCompilerName() {
-#ifdef __WIN32
+#ifdef _WIN32
   std::string Compiler = "clang++.exe";
 #else
   std::string Compiler = "clang++";
@@ -171,7 +171,7 @@ void invokeCompiler(const std::filesystem::path &FPath,
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerName();
-#ifdef __WIN32
+#ifdef _WIN32
   std::string PipeStr{" > "};
   std::string PipeStrTail{" 2>&1"};
 #else
@@ -191,6 +191,8 @@ void invokeCompiler(const std::filesystem::path &FPath,
 
   int Result = std::system(Command.c_str());
 
+  std::cout << "Result: " << Result << std::endl;
+
   // Read the log file contents into the log variable.
   std::string CompileLog;
   std::ifstream LogStream;
@@ -201,6 +203,7 @@ void invokeCompiler(const std::filesystem::path &FPath,
     CompileLog.append(LogBuffer.str());
     if (LogPtr != nullptr)
       LogPtr->append(LogBuffer.str());
+    LogStream.close(); // don't forget
 
   } else if (Result == 0 && LogPtr != nullptr) {
     // If there was a compilation problem, we want to report that (below),
