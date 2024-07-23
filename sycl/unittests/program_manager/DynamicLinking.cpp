@@ -64,10 +64,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiPropertySet PropSet;
   if (!ExportedSymbols.empty())
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
-                   std::move(createPropertySet(ExportedSymbols)));
+                   createPropertySet(ExportedSymbols));
   if (!ImportedSymbols.empty())
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
-                   std::move(createPropertySet(ImportedSymbols)));
+                   createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =

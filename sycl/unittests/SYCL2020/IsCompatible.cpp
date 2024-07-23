@@ -14,59 +14,13 @@ class TestKernelCPUValidReqdWGSize3D;
 class TestKernelGPU;
 class TestKernelACC;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<TestKernelCPU> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernelCPU"; }
-};
-
-template <>
-struct KernelInfo<TestKernelCPUInvalidReqdWGSize1D>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "TestKernelCPUInvalidReqdWGSize1D";
-  }
-};
-
-template <>
-struct KernelInfo<TestKernelCPUInvalidReqdWGSize2D>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "TestKernelCPUInvalidReqdWGSize2D";
-  }
-};
-
-template <>
-struct KernelInfo<TestKernelCPUInvalidReqdWGSize3D>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "TestKernelCPUInvalidReqdWGSize3D";
-  }
-};
-
-template <>
-struct KernelInfo<TestKernelCPUValidReqdWGSize3D>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "TestKernelCPUValidReqdWGSize3D";
-  }
-};
-
-template <>
-struct KernelInfo<TestKernelGPU> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernelGPU"; }
-};
-
-template <>
-struct KernelInfo<TestKernelACC> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernelACC"; }
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+MOCK_INTEGRATION_HEADER(TestKernelCPU)
+MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize1D)
+MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize2D)
+MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize3D)
+MOCK_INTEGRATION_HEADER(TestKernelCPUValidReqdWGSize3D)
+MOCK_INTEGRATION_HEADER(TestKernelGPU)
+MOCK_INTEGRATION_HEADER(TestKernelACC)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
