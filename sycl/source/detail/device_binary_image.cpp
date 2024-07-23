@@ -167,7 +167,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   // it when invoking the offload wrapper job
   Format = static_cast<pi::PiDeviceBinaryType>(Bin->Format);
 
-  if (Format == PI_DEVICE_BINARY_TYPE_NONE)
+  if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
     Format = pi::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
@@ -206,7 +206,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->EntriesEnd = nullptr;
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
-  case PI_DEVICE_BINARY_TYPE_SPIRV:
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64;
     break;
   default:

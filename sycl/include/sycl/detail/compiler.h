@@ -116,16 +116,16 @@ struct _sycl_device_binary_property_set_struct {
 typedef _sycl_device_binary_property_set_struct *pi_device_binary_property_set;
 
 /// Types of device binary.
-using pi_device_binary_type = uint8_t;
+using sycl_device_binary_type = uint8_t;
 // format is not determined
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE = 0;
+static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_NONE = 0;
 // specific to a device
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE = 1;
+static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_NATIVE = 1;
 // portable binary types go next
 // SPIR-V
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV = 2;
+static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_SPIRV = 2;
 // LLVM bitcode
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
+static constexpr sycl_device_binary_type SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
 // Device binary descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARY_VERSION = 1;

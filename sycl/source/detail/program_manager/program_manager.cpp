@@ -117,8 +117,8 @@ createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
 static bool
 isDeviceBinaryTypeSupported(const context &C,
                             sycl::detail::pi::PiDeviceBinaryType Format) {
-  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
-  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+  // All formats except SYCL_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
   const backend ContextBackend = detail::getSyclObjImpl(C)->getBackend();
@@ -160,13 +160,13 @@ isDeviceBinaryTypeSupported(const context &C,
 
 static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
   switch (Format) {
-  case PI_DEVICE_BINARY_TYPE_NONE:
+  case SYCL_DEVICE_BINARY_TYPE_NONE:
     return "none";
-  case PI_DEVICE_BINARY_TYPE_NATIVE:
+  case SYCL_DEVICE_BINARY_TYPE_NATIVE:
     return "native";
-  case PI_DEVICE_BINARY_TYPE_SPIRV:
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     return "SPIR-V";
-  case PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return "LLVM IR";
   }
   assert(false && "Unknown device image format");
@@ -201,10 +201,10 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   //   OS module binary.
   sycl::detail::pi::PiDeviceBinaryType Format = Img.getFormat();
 
-  if (Format == PI_DEVICE_BINARY_TYPE_NONE)
+  if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     Format = pi::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
   // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
-  // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
+  // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw sycl::exception(
@@ -219,7 +219,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   sycl::detail::pi::PiProgram Res =
-      Format == PI_DEVICE_BINARY_TYPE_SPIRV
+      Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize,
                                 ProgMetadataVector);
@@ -685,7 +685,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
     if (!DeviceCodeWasInCache &&
-        Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+        Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -1605,9 +1605,9 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   std::string Ext;
 
   sycl::detail::pi::PiDeviceBinaryType Format = Img.getFormat();
-  if (Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (Format == SYCL_DEVICE_BINARY_TYPE_SPIRV)
     Ext = ".spv";
-  else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
+  else if (Format == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
     Ext = ".bc";
   else
     Ext = ".bin";
@@ -2139,7 +2139,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Add support for creating non-SPIRV programs from multiple devices.
   if (InputImpl->get_bin_image_ref()->getFormat() !=
-          PI_DEVICE_BINARY_TYPE_SPIRV &&
+          SYCL_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
     // FIXME: It was probably intended to be thrown, but a unittest starts
     // failing if we do so, investigate independently of switching to SYCL 2020
@@ -2337,7 +2337,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
-            PI_DEVICE_BINARY_TYPE_SPIRV &&
+            SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
       // FIXME: It was probably intended to be thrown, but a unittest starts
       // failing if we do so, investigate independently of switching to SYCL
@@ -2364,7 +2364,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 

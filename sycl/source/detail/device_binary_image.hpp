@@ -147,7 +147,7 @@ public:
   virtual ~RTDeviceBinaryImage() {}
 
   bool supportsSpecConstants() const {
-    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
+    return getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV;
   }
 
   const pi_device_binary_struct &getRawData() const { return *get(); }
@@ -232,7 +232,7 @@ protected:
 
   pi_device_binary Bin;
 
-  pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
+  pi::PiDeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
