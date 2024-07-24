@@ -49,6 +49,7 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
 #include <random>
 #include <regex>
 #include <sstream>
+#include <stdio.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -153,7 +154,7 @@ void outputIncludeFiles(const std::filesystem::path &Dirpath,
 }
 
 std::string getCompilerName() {
-#ifdef __WIN32
+#ifdef _WIN32
   std::string Compiler = "clang++.exe";
 #else
   std::string Compiler = "clang++";
@@ -161,10 +162,37 @@ std::string getCompilerName() {
   return Compiler;
 }
 
-void invokeCompiler(const std::filesystem::path &FPath,
-                    const std::filesystem::path &DPath, const std::string &Id,
-                    const std::vector<std::string> &UserArgs,
-                    std::string *LogPtr) {
+int invokeCommand(const std::string &command, std::string &output) {
+#ifdef _WIN32
+  FILE *pipe = _popen(command.c_str(), "r");
+#else
+  FILE *pipe = popen(command.c_str(), "r");
+#endif
+  if (!pipe) {
+    return -1;
+  }
+
+  char buffer[124];
+  while (!feof(pipe)) {
+    if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+      output += buffer;
+    }
+  }
+
+#ifdef _WIN32
+  _pclose(pipe);
+#else
+  pclose(pipe);
+#endif
+
+  return 0;
+}
+
+std::string invokeCompiler(const std::filesystem::path &FPath,
+                           const std::filesystem::path &DPath,
+                           const std::string &Id,
+                           const std::vector<std::string> &UserArgs,
+                           std::string *LogPtr) {
 
   std::filesystem::path FilePath(FPath);
   std::filesystem::path ParentDir(DPath);
@@ -177,38 +205,28 @@ void invokeCompiler(const std::filesystem::path &FPath,
       userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
       ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + " 2> " +
-      LogPath.make_preferred().string();
+      FilePath.make_preferred().string() + " 2>&1";
 
-  int Result = std::system(Command.c_str());
-
-  // Read the log file contents into the log variable.
   std::string CompileLog;
-  std::ifstream LogStream;
-  LogStream.open(LogPath);
-  if (LogStream.is_open()) {
-    std::stringstream LogBuffer;
-    LogBuffer << LogStream.rdbuf();
-    CompileLog.append(LogBuffer.str());
-    if (LogPtr != nullptr)
-      LogPtr->append(LogBuffer.str());
+  int Result = invokeCommand(Command, CompileLog);
 
-  } else if (Result == 0 && LogPtr != nullptr) {
-    // If there was a compilation problem, we want to report that (below),
-    // not a mere "missing log" error.
-    throw sycl::exception(sycl::errc::build,
-                          "failure retrieving compilation log");
+  if (LogPtr != nullptr) {
+    LogPtr->append(CompileLog);
   }
 
+  // There is little chance of Result being non-zero.
+  // Actual compilation failure is not detected by error code,
+  // but by missing .spv files.
   if (Result != 0) {
     throw sycl::exception(sycl::errc::build,
                           "Compile failure: " + std::to_string(Result) + " " +
                               CompileLog);
   }
+  return CompileLog;
 }
 
 std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
-                              const std::string &Id) {
+                              const std::string &Id, std::string &CompileLog) {
   std::regex PatternRegex(Id + R"(.*\.spv)");
 
   // Iterate through all files in the directory matching the pattern.
@@ -219,10 +237,8 @@ std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
     }
   }
 
-  // File not found, throw.
-  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + Id +
-                                               " missing from " +
-                                               ParentDir.filename().string());
+  // Missing .spv file indicates there was a compilation failure.
+  throw sycl::exception(sycl::errc::build, "Compile failure: " + CompileLog);
 }
 
 spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
@@ -245,10 +261,10 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   const std::filesystem::path ParentDir  = prepareWS(id);
   std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
                                            outputIncludeFiles(ParentDir, IncludePairs);
-                                           invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
-  std::filesystem::path SpvPath          = findSpv(ParentDir, id);
+  std::string CompileLog                 = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+  std::filesystem::path SpvPath          = findSpv(ParentDir, id, CompileLog);
                                     return loadSpvFromFile(SpvPath);
-  // clang-format on
+                                           // clang-format on
 }
 
 bool SYCL_Compilation_Available() {
@@ -258,7 +274,7 @@ bool SYCL_Compilation_Available() {
   std::filesystem::path DumpPath = tmp / (id + "_version.txt");
   std::string Compiler = getCompilerName();
   std::string TestCommand =
-      Compiler + " --version &> " + DumpPath.make_preferred().string();
+      Compiler + " --version > " + DumpPath.make_preferred().string();
   int result = std::system(TestCommand.c_str());
 
   return (result == 0);
