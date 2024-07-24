@@ -525,7 +525,7 @@ images: if we make sure to include every vtable into every device image and
 somehow maintain the stable order of those.
 
 There are many questions that need to be explored and answered and therefore
-this implementation design is not being immediatly proposed, but it sounds like
+this implementation design is not being immediately proposed, but it sounds like
 a promising direction to lift some of existing limitations and improve user
 experience.
 

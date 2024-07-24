@@ -254,7 +254,7 @@ implementation.
 |===
 
 If a kernel is submitted with the `assume_indirect_calls_to` property that
-points to an empty set of virtual functions, a synchronious exception with the
+points to an empty set of virtual functions, a synchronous exception with the
 `errc::invalid` error code should be thrown by an implementation.
 
 Applying the `indirectly_callable_in` property to a SYCL Kernel function is
@@ -358,7 +358,7 @@ int main() {
 NOTE: By definition of the `indirectly_callable` and `assume_indirect_calls`
 properties above, the type `void` is used to denote the default set of
 virtual functions.  Applications may also explicitly use the type `void` to
-denote this default set of virtual functions when using `indirectly_calleble_in`
+denote this default set of virtual functions when using `indirectly_callable_in`
 and `assume_indirect_calls_to` properties.
 
 === Optional kernel features handling
@@ -537,7 +537,7 @@ sub-group sizes. It can be done in a straightforward manner when operating on a
 static call graph.
 
 Virtual member functions are essentially called indirectly and pointers to them
-are initialized just once when an object of a polymorhpic class is being
+are initialized just once when an object of a polymorphic class is being
 created. Therefore, to support calling such virtual member function from two or
 more kernels with different `reqd_sub_group_size`, each kernel may need to
 receive a different pointer to a different version of a virtual member function.
