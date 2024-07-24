@@ -164,6 +164,7 @@ MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
 MODULE_PASS("record-sycl-aspect-names", RecordSYCLAspectNamesPass())
 MODULE_PASS("sycl-virtual-functions-analysis",
             SYCLVirtualFunctionsAnalysisPass())
+MODULE_PASS("spec-constants", SpecConstantsPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
