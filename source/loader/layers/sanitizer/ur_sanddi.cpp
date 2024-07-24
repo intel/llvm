@@ -11,8 +11,7 @@
  */
 
 #include "asan_interceptor.hpp"
-#include "asan_report.hpp"
-#include "asan_validator.hpp"
+#include "asan_options.hpp"
 #include "stacktrace.hpp"
 #include "ur_sanitizer_layer.hpp"
 #include "ur_sanitizer_utils.hpp"
@@ -1300,7 +1299,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
         pArgValue);
 
-    {
+    if (Options(getContext()->logger).DetectKernelArguments) {
         auto KI = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
