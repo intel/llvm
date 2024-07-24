@@ -28,7 +28,6 @@ struct LinkingCapturesHolder {
 static LinkingCapturesHolder CapturedLinkingData;
 
 static ur_result_t redefined_urProgramCreateWithIL(void *pParams) {
-  std::cerr << __PRETTY_FUNCTION__ << "\n";
   auto Params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
   auto *Magic = reinterpret_cast<const unsigned char *>(*Params.ppIL);
   ur_program_handle_t *res = *Params.pphProgram;
@@ -39,7 +38,6 @@ static ur_result_t redefined_urProgramCreateWithIL(void *pParams) {
 }
 
 static ur_result_t redefined_urProgramLinkExp(void *pParams) {
-  std::cerr << __PRETTY_FUNCTION__ << "\n";
   auto Params = *static_cast<ur_program_link_exp_params_t *>(pParams);
   unsigned ResProgram = 1;
   auto Programs = *Params.pphPrograms;
@@ -60,7 +58,6 @@ static ur_result_t redefined_urProgramLinkExp(void *pParams) {
 }
 
 static ur_result_t redefined_urKernelCreate(void *pParams) {
-  std::cerr << __PRETTY_FUNCTION__ << "\n";
   auto Params = *static_cast<ur_kernel_create_params_t *>(pParams);
   CapturedLinkingData.ProgramUsedToCreateKernel =
       reinterpret_cast<mock::dummy_handle_t>(*Params.phProgram)
