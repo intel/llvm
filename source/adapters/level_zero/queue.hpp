@@ -423,6 +423,12 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) override;
 
+  // Thread local stream will be used if ScopedStream is active
+  static ze_command_list_handle_t &getThreadLocalCommandList() {
+    static thread_local ze_command_list_handle_t CommandList{0};
+    return CommandList;
+  }
+
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
   struct ur_queue_group_t {
@@ -941,3 +947,23 @@ ur_result_t setSignalEvent(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
 ur_result_t CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup,
     bool QueueLocked = false);
+
+// RAII object to make hQueue command list getter methods all return the same
+// command list within the lifetime of this object.
+//
+// This is useful for urEnqueueNativeCommandExp where we want guarantees that
+// the user submitted native calls will be dispatched to a known command list,
+// which must be "got" within the user submitted fuction.
+class ScopedCommandList {
+  ur_queue_handle_legacy_t hQueue;
+
+public:
+  ScopedCommandList(ur_queue_handle_legacy_t hQueue,
+                    ze_command_list_handle_t CommandList)
+      : hQueue{hQueue} {
+    hQueue->getThreadLocalCommandList() = CommandList;
+  }
+  ~ScopedCommandList() {
+    hQueue->getThreadLocalCommandList() = ze_command_list_handle_t{0};
+  }
+};
