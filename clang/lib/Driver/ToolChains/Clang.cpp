@@ -10704,7 +10704,10 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 }
 
 static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
-  // TODO: Return true if -shared seen when SYCL RT supports dynamic linking
+  if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
+                     options::OPT_fno_sycl_allow_device_dependencies,
+                     false))
+    return true;
   return false;
 }
 
