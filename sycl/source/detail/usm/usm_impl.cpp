@@ -189,7 +189,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 
     if (PropList.has_property<
             sycl::ext::oneapi::property::usm::device_read_only>()) {
-      UsmDeviceDesc.flags &= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+      UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
     }
 
     if (PropList.has_property<
