@@ -162,6 +162,8 @@ MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
 MODULE_PASS("cleanup-sycl-metadata", CleanupSYCLMetadataPass())
 MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
 MODULE_PASS("record-sycl-aspect-names", RecordSYCLAspectNamesPass())
+MODULE_PASS("sycl-virtual-functions-analysis",
+            SYCLVirtualFunctionsAnalysisPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS

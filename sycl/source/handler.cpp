@@ -390,6 +390,7 @@ event handler::finalize() {
         MPattern[0], MDstPtr, impl->MDstPitch, impl->MWidth, impl->MHeight,
         std::move(impl->CGData), MCodeLoc));
     break;
+  case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
     auto context = impl->MGraph
                        ? detail::getSyclObjImpl(impl->MGraph->getContext())
@@ -1766,8 +1767,6 @@ void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
       break;
     case handler::StableKernelCacheConfig::LargeData:
       impl->MKernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA;
-      break;
-    default:
       break;
   }
 }
