@@ -806,8 +806,10 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 }
 
 static bool isValidSYCLTriple(llvm::Triple T) {
-  // NVPTX is valid for SYCL.
-  if (T.isNVPTX())
+  // 'nvptx64-nvidia-cuda' is the valid SYCL triple for NVidia GPUs.
+  if (T.getArch() == llvm::Triple::nvptx64 &&
+      T.getVendor() == llvm::Triple::NVIDIA &&
+      T.getOS() == llvm::Triple::CUDA && !T.hasEnvironment())
     return true;
 
   // AMDGCN is valid for SYCL
@@ -2407,11 +2409,14 @@ void Driver::PrintHelp(bool ShowHidden) const {
 llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
   SmallVector<StringRef, 5> SYCLAlias = {
       "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
-      "spir64_gen", "spirv32", "spirv64"};
+      "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
   if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
       SYCLAlias.end()) {
     llvm::Triple TT;
     TT.setArchName(TargetArch);
+    // Return the full SYCL target triple string for NVidia GPU targets.
+    if (TT.getArch() == llvm::Triple::nvptx64)
+      return llvm::Triple("nvptx64-nvidia-cuda");
     TT.setVendor(llvm::Triple::UnknownVendor);
     TT.setOS(llvm::Triple::UnknownOS);
     return TT;
