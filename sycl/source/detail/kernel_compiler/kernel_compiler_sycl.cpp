@@ -43,6 +43,8 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
 
 #else
 
+#include <sycl/detail/os_util.hpp>
+
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -74,17 +76,31 @@ std::string generateSemiUniqueId() {
 }
 
 std::filesystem::path prepareWS(const std::string &Id) {
-  const std::filesystem::path TmpDirectoryPath =
-      std::filesystem::temp_directory_path();
-  std::filesystem::path NewDirectoryPath = TmpDirectoryPath / Id;
+  namespace fs = std::filesystem;
+  const fs::path TmpDirectoryPath = fs::temp_directory_path();
+  fs::path NewDirectoryPath = TmpDirectoryPath / Id;
 
   try {
-    std::filesystem::create_directories(NewDirectoryPath);
-  } catch (const std::filesystem::filesystem_error &E) {
+    fs::create_directories(NewDirectoryPath);
+    fs::permissions(NewDirectoryPath, fs::perms::owner_read |
+                                          fs::perms::owner_write |
+                                          fs::perms::owner_exec); // 0700
+
+  } catch (const fs::filesystem_error &E) {
     throw sycl::exception(sycl::errc::build, E.what());
   }
 
   return NewDirectoryPath;
+}
+
+void deleteWS(const std::filesystem::path &ParentDir) {
+  try {
+    std::filesystem::remove_all(ParentDir);
+  } catch (const std::filesystem::filesystem_error &E) {
+    // We could simply suppress this, since deleting the directory afterwards
+    // is not critical. But if there are problems, seems good to know.
+    throw sycl::exception(sycl::errc::build, E.what());
+  }
 }
 
 std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
@@ -162,6 +178,16 @@ std::string getCompilerName() {
   return Compiler;
 }
 
+// We are assuming that the compiler is in /bin and the shared lib in
+// the adjacent /lib.
+std::filesystem::path getCompilerPath() {
+  std::string Compiler = getCompilerName();
+  const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
+  std::filesystem::path CompilerPath =
+      std::filesystem::path(LibSYCLDir) / ".." / "bin" / Compiler;
+  return CompilerPath;
+}
+
 int invokeCommand(const std::string &command, std::string &output) {
 #ifdef _WIN32
   FILE *pipe = _popen(command.c_str(), "r");
@@ -172,7 +198,7 @@ int invokeCommand(const std::string &command, std::string &output) {
     return -1;
   }
 
-  char buffer[124];
+  char buffer[1024];
   while (!feof(pipe)) {
     if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
       output += buffer;
@@ -198,7 +224,7 @@ std::string invokeCompiler(const std::filesystem::path &FPath,
   std::filesystem::path ParentDir(DPath);
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
-  std::string Compiler = getCompilerName();
+  std::string Compiler = getCompilerPath().make_preferred().string();
 
   std::string Command =
       Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
@@ -263,8 +289,10 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
                                            outputIncludeFiles(ParentDir, IncludePairs);
   std::string CompileLog                 = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
   std::filesystem::path SpvPath          = findSpv(ParentDir, id, CompileLog);
-                                    return loadSpvFromFile(SpvPath);
-                                           // clang-format on
+  spirv_vec_t Spv                        = loadSpvFromFile(SpvPath);
+                                           deleteWS(ParentDir);
+                                           return Spv;
+  // clang-format on
 }
 
 bool SYCL_Compilation_Available() {
@@ -272,7 +300,7 @@ bool SYCL_Compilation_Available() {
   std::string id = generateSemiUniqueId();
   const std::filesystem::path tmp = std::filesystem::temp_directory_path();
   std::filesystem::path DumpPath = tmp / (id + "_version.txt");
-  std::string Compiler = getCompilerName();
+  std::string Compiler = getCompilerPath().make_preferred().string();
   std::string TestCommand =
       Compiler + " --version > " + DumpPath.make_preferred().string();
   int result = std::system(TestCommand.c_str());
