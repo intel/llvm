@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out -lcuda
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out -lcuda
 // RUN: %{run} %t.out
 // REQUIRES: cuda
 
