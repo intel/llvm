@@ -43,10 +43,10 @@ public:
   void free(ur_event *event);
 
 private:
+  std::unique_ptr<event_provider> provider;
+
   std::deque<ur_event> events;
   std::vector<ur_event *> freelist;
-
-  std::unique_ptr<event_provider> provider;
 };
 
 } // namespace v2
