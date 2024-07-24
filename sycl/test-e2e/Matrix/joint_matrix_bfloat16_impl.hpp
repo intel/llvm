@@ -105,6 +105,14 @@ void test() {
   matrix_multiply_ref<T, T, TResult, 2>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
                                         MATRIX_N, MATRIX_K / 2);
 
+  std::cout << "Matrix C after" << std::endl;
+  for(int i = 0; i < MATRIX_M; i++) {
+      for(int j = 0; j < MATRIX_N; j++) {
+          std::cout << C[i][j] << " ";
+      }
+      std::cout << std::endl;
+  }
+
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }
 int main() {
@@ -134,8 +142,8 @@ int main() {
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      // test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
       test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
+      test<bfloat16, float, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16>();
       break;
     }
   }

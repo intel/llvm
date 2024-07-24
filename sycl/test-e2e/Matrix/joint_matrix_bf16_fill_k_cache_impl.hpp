@@ -8,7 +8,6 @@
 
 #include <random>
 #include <sycl/usm.hpp>
-#include <iostream>
 
 // number of test iterations
 constexpr unsigned int testIterations = 100;
