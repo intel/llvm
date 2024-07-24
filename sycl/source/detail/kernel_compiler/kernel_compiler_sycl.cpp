@@ -59,18 +59,20 @@ namespace ext::oneapi::experimental {
 namespace detail {
 
 std::string generateSemiUniqueId() {
-  // Get the current time as a time_t object.
-  std::time_t CurrentTime = std::time(nullptr);
+  auto Now = std::chrono::high_resolution_clock::now();
+  auto Milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      Now.time_since_epoch());
 
-  // Convert time_t to a string with format YYYYMMDD_HHMMSS.
-  std::tm *LocalTime = std::localtime(&CurrentTime);
+  // Generate random number between 10'000 and 99'900.
+  std::random_device RD;
+  std::mt19937 Gen(RD());
+  std::uniform_int_distribution<int> Distrib(10'000, 99'999);
+  int RandomNumber = Distrib(Gen);
+
+  // Combine time and random number into a string.
   std::stringstream Ss;
-  Ss << std::put_time(LocalTime, "%Y%m%d_%H%M%S");
-
-  // Amend with random number.
-  std::random_device Rd;
-  int RandomNumber = Rd() % 900 + 100;
-  Ss << "_" << std::setfill('0') << std::setw(3) << RandomNumber;
+  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
+     << RandomNumber;
 
   return Ss.str();
 }
