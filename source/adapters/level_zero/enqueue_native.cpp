@@ -47,7 +47,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   ur_event_handle_t InternalEvent;
   bool IsInternal = phEvent == nullptr;
   ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_ENQUEUE_NATIVE_EXP,
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
