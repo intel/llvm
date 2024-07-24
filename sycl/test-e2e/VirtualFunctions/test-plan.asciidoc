@@ -3,7 +3,7 @@
 = Test plan for virtual functions support in SYCL
 
 This is a test plan for virtual functions functionality described by the
-corresponding upcoming `ext_sycl_intel_virtual_functions` extension.
+`ext_sycl_oneapi_virtual_functions` extension.
 
 NOTE: This test plan does not cover unit tests, or negative tests related to
 compiler diagnostics, it is focused on end-to-end examples to make sure that the
@@ -200,6 +200,22 @@ an object of one of derived classes and passes it to a function accepting a
 pointer to a base class object. The function the virtual member function, result
 is stored to a buffer and verified on host.
 
+===== Handling of non-device virtual functions
+
+The test checks that presence of virtual member functions which were not marked
+to be callable from device code can be handled correctly.
+
+In a simple hierarchy of classes some of virtual functions and their overrides
+should be marked as callable from device, but other should not. Those virtual
+functions should perform access to non-static data members.
+
+Depending on a runtime parameter (passed as a kernel argument) a kernel creates
+an object of one of derived classes and passes it to a function accepting a
+pointer to a base class object. The function the virtual member function, result
+is stored to a buffer and verified on host. In device code we only check virtual
+functions which were marked as callable on device. Host part of the program
+also does calls to host-only virtual functions to verify their correctness.
+
 === Passing objects of polymorphic classes between kernels
 
 Contrary to the previous section, an object of a polymorphic class is
@@ -232,7 +248,7 @@ a method from a different set on that single object.
 
 In this test, there should be several kernels each constructing an object of a
 different derived class. It should be followed by a single kernel that calls
-virtual functions from that created object.
+virtual functions using all those constructed objects.
 
 ==== Multiple construct, multiple use
 
@@ -244,7 +260,34 @@ that created object.
 
 === Separate translation units
 
-TBD.
+Test cases in this section aimed to cover different scenarios where definitions
+of virtual functions, kernels that construct objects and kernels which perform
+virtual calls are all distributed among several translation units in different
+combinations.
+
+Test cases in this section could be a copy of test cases from the sections above
+with only difference that they are split into several source files.
+
+==== Virtual functions defined in a separate translation unit
+
+For this test case, definition of virtual functions which are called from device
+should be outlined into a separate translation unit, but kernels which construct
+objects and perform virtual calls should all be in the same translation unit.
+
+==== Virtual functions defined in several translation unit
+
+This is the same test case as one above, except that every virtual function
+definition should be placed in its individual translation unit.
+
+==== Kernels that use virtual functions are defined in different translation units
+
+For this test cases, both virtual functions and kernels that use them (including
+kernels that construct objects) should be outlined into separate translation
+units, i.e. there should be at least 3 translation units:
+
+- virtual functions definitions
+- kernels that construct objects
+- kernels that perform virtual calls
 
 === Optional kernel features
 
