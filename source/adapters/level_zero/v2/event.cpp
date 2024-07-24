@@ -12,23 +12,17 @@
 #include "ze_api.h"
 
 namespace v2 {
-void ur_event::attachZeHandle(event_allocation event) {
-  type = event.type;
-  zeEvent = std::move(event.borrow);
-}
-
-event_borrowed ur_event::detachZeHandle() {
+void ur_event::reset() {
   // consider make an abstraction for regular/counter based
   // events if there's more of this type of conditions
   if (type == event_type::EVENT_REGULAR) {
     zeEventHostReset(zeEvent.get());
   }
-  auto e = std::move(zeEvent);
-  zeEvent = nullptr;
-
-  return e;
 }
 
 ze_event_handle_t ur_event::getZeEvent() { return zeEvent.get(); }
+
+ur_event::ur_event(event_allocation eventAllocation)
+    : type(eventAllocation.type), zeEvent(std::move(eventAllocation.borrow)) {}
 
 } // namespace v2

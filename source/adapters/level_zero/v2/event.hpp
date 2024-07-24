@@ -21,9 +21,9 @@ namespace v2 {
 
 class ur_event {
 public:
-  void attachZeHandle(event_allocation);
-  event_borrowed detachZeHandle();
+  ur_event(event_allocation eventAllocation);
 
+  void reset();
   ze_event_handle_t getZeEvent();
 
 private:

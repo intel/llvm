@@ -18,25 +18,20 @@ ur_event *event_pool::allocate() {
   if (freelist.empty()) {
     auto start = events.size();
     auto end = start + EVENTS_BURST;
-    events.resize(end);
     for (; start < end; ++start) {
+      events.emplace_back(provider->allocate());
       freelist.push_back(&events.at(start));
     }
   }
 
   auto event = freelist.back();
-
-  auto ZeEvent = provider->allocate();
-  event->attachZeHandle(std::move(ZeEvent));
-
   freelist.pop_back();
 
   return event;
 }
 
 void event_pool::free(ur_event *event) {
-  auto _ = event->detachZeHandle();
-
+  event->reset();
   freelist.push_back(event);
 }
 
