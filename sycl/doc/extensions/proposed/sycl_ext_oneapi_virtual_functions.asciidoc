@@ -100,7 +100,8 @@ supports.
 === New language restrictions for device functions
 
 The following restriction, listed in section 5.4 of the core SYCL specification
-does not apply if this extension is supported by an implementation:
+does not apply to kernels submitted with the `assume_indirect_calls_to` and
+`assume_indirect_calls` properties:
 
 > The odr-use of polymorphic classes and classes with virtual inheritance is
 > allowed. *However, no virtual member functions are allowed to be called in a
