@@ -7,6 +7,8 @@
 #define UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 
 #include "ur_api.h"
+#include "ur_ddi.h"
+
 #include <uur/checks.h>
 #include <uur/environment.h>
 #include <uur/utils.h>
