@@ -529,7 +529,7 @@ this implementation design is not being immediatly proposed, but it sounds like
 a promising direction to lift some of existing limitations and improve user
 experience.
 
-[1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
+[1]: <../extensions/proposed/sycl_ext_oneapi_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
 [3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
 [sycl-spec-optional-kernel-features]: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features
