@@ -40,14 +40,14 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   // support is added
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
-  ScopedCommandList Active{Queue, CommandList->first};
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
   bool IsInternal = phEvent == nullptr;
   ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_ENQUEUE_NATIVE_EXP,
+  UR_CALL(createEventAndAssociateQueue(Queue, Event,
+                                       UR_COMMAND_ENQUEUE_NATIVE_EXP,
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
@@ -58,12 +58,26 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
+
+  if (!isInOrderQueue()) {
+    queueFinish();
+    // queue finish will execute the command list. Open it again so that
+    // `zeCommandListAppendSignalEvent` can be executed.
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
+  }
+  ScopedCommandList Active{Queue, CommandList->first};
+
   // Execute interop func
   pfnNativeEnqueue(Queue, data);
 
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, false));
+
+  if (!isInOrderQueue()) {
+    queueFinish();
+  }
 
   return UR_RESULT_SUCCESS;
 }
