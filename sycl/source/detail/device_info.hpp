@@ -843,7 +843,7 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 32, 16, matrix_type::bf16, matrix_type::bf16,
-          matrix_type::fp32, matrix_type::fp32},
+           matrix_type::fp32, matrix_type::fp32},
       };
     else if (architecture::amd_gpu_gfx90a == DeviceArch)
       return {

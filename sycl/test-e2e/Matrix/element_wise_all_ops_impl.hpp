@@ -35,6 +35,7 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
   size_t sg_size = get_sg_size<kernel_name>(q);
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
+
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
@@ -240,6 +241,9 @@ int main() {
       test_ewops_ab<bfloat16, 8, 16, use::a, layout::row_major, 1>();
       test_ewops_ab<bfloat16, 16, 8, use::b, layout::ext_intel_packed, 2>();
       test_ewops_c<float, 8, 8>();
+      test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
+      test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
+      test_ewops_c<float, 32, 32>();
       break;
     }
   }
