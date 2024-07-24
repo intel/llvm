@@ -26,6 +26,13 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
         auto hDevice = phDevices[i];
         std::shared_ptr<DeviceInfo> DI;
         UR_CALL(getContext()->interceptor->insertDevice(hDevice, DI));
+        DI->Type = GetDeviceType(Context, hDevice);
+        if (DI->Type == DeviceType::UNKNOWN) {
+            getContext()->logger.error("Unsupport device");
+            return UR_RESULT_ERROR_INVALID_DEVICE;
+        }
+        getContext()->logger.info("Add {} into context {}", ToString(DI->Type),
+                                  (void *)Context);
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
@@ -1522,19 +1529,20 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {
-        getContext()->enabledType = SanitizerType::AddressSanitizer;
+        enabledType = SanitizerType::AddressSanitizer;
+        interceptor = std::make_unique<SanitizerInterceptor>(logger);
     } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
-        getContext()->enabledType = SanitizerType::MemorySanitizer;
+        enabledType = SanitizerType::MemorySanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
-        getContext()->enabledType = SanitizerType::ThreadSanitizer;
+        enabledType = SanitizerType::ThreadSanitizer;
     }
 
     // Only support AddressSanitizer now
-    if (getContext()->enabledType != SanitizerType::AddressSanitizer) {
+    if (enabledType != SanitizerType::AddressSanitizer) {
         return result;
     }
 
-    if (getContext()->enabledType == SanitizerType::AddressSanitizer) {
+    if (enabledType == SanitizerType::AddressSanitizer) {
         if (!(dditable->VirtualMem.pfnReserve && dditable->VirtualMem.pfnMap &&
               dditable->VirtualMem.pfnGranularityGetInfo)) {
             die("Some VirtualMem APIs are needed to enable UR_LAYER_ASAN");
