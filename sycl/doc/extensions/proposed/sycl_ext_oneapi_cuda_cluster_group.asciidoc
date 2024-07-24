@@ -75,17 +75,19 @@ of NVIDIA's GPUs conveying the feature set associated with that number.
 
 == Overview
 
-NVIDIA’s compute capability (cc) 9.0 devices introduced a new level in the
+CUDA compute capability (cc) 9.0 (sm_90 and above) devices introduces a new level in the
 thread hierarchy, called as thread block clusters, in CUDA terminology. A thread
 block cluster, is a collection of thread blocks (a work-group in SYCL
 terminology) that run concurrently. The work-groups which make up a cluster 
 have the ability to access one another's local memory, and can be synchronized. 
 This has various applications, convolutions, GEMMs and FFTs to name a few.
 
-This proposal introduces a SYCL API to expose this capability, to be called as
-`cluster_group`, and adds the methods to launch a kernel with a cluster range
-and accessing the various id's associated with the cluster
-launch in device code.
+This proposal introduces a SYCL API to expose these capabilities, and defines a 
+mechanism to launch a kernel with clusters enabled, access the cluster's various
+ranges and id's from the device code, atomics at the cluster level as well as 
+synchronize the cluster. This proposal also introduces a device aspect to check 
+if the SYCL device supports a cluster launch, and a device query to obtain the 
+maximum supported cluster size.
 
 
 == Specification
@@ -118,12 +120,12 @@ supports
 namespace sycl {
 enum class aspect {
   ...
-  sycl_ext_oneapi_cuda_cluster_group
+  ext_oneapi_cuda_cluster_group
 }
 }
 ----
 
-A device requires the `sycl_ext_oneapi_cuda_cluster_group` aspect to
+A device requires the `ext_oneapi_cuda_cluster_group` aspect to
 support launching a kernel with the `cluster_size` property defined in the
 following section.
 
@@ -145,10 +147,9 @@ namespace sycl::ext::oneapi::experimental::cuda {
 */
 template <int Dim>
 struct cluster_size {
-  cluster_size(const sycl::range<Dim>& size) : 
-    size(size) {}
+  cluster_size(const sycl::range<Dim>& size);
   sycl::range<Dim> get_cluster_size();
-  sycl::range<Dim> size;
+  ...
 };
 using cluster_size_key = cluster_size;
 } // namespace sycl::ext::oneapi::experimental::cuda
@@ -180,13 +181,25 @@ size_t max_cluster_size =
   device.get_info<
     ext::oneapi::experimental::cuda::info::device::max_cluster_group_size>();
 ----
+[%header,cols="10,5,5"]
+|===
+|Device descriptor
+|Return Type
+|Description
+
+|`ext::oneapi::experimental::cuda::info::device::max_cluster_group_size`
+|size_t
+|Returns the maximum possible number of work-groups that can constitute a 
+cluster-group
+|===
+
 
 === Accessing the Cluster Group From Device Code
 
 Building upon the group hierarchy in SYCL, this proposal adds another level
 above group (for work-groups), to be called as `cluster-group`, which 
 represents a collection of work-groups and will be accessible via the `nd_item`
-class, via a method to be introduced called `ext_oneapi_cuda_get_cluster_group()`.
+class, via a member function to be introduced called `ext_oneapi_cuda_get_cluster_group()`.
 
 
 [%header,cols="10,5"]
@@ -298,13 +311,27 @@ work-item which is to be mapped from the local memory of the work-group, as
 specified by the group_id, denoting the linear group_id within the cluster
 |===
 
+Conversely, `get_linear_cluster_group_id_for_local_pointer` will return the 
+linearized id of the work-group a mapped local memory address belongs to.
+
+[%header,cols="10,5"]
+|===
+|Method
+|Description
+
+|size_t  get_linear_cluster_group_id_for_local_pointer(T* addr)
+|Accepts a mapped pointer to the local memory of another work-group and returns
+the linearized id of the work-group in the cluster from whom's local memory the
+mapped pointer was obtained
+|===
+
 
 == Cluster Memory Fence Scope and Barrier
 
 Work-items in a work-group can access a local memory address from another
 work-group in the cluster-group, which has been mapped as described above. To
 facilitate this, a new memory scope is introduced to the `memory_scope` class;
-`ext_oneapi_cuda_experimental_cluster_group` which indicates a memory ordering
+`ext_oneapi_cuda_cluster_group` which indicates a memory ordering
 constraint that applies to all work-items in the same cluster-group. This memory
 scope can be used with `atomic_ref`` and other SYCL APIs that use
 `memory_scope`.
@@ -337,7 +364,7 @@ inline constexpr auto memory_scope_cluster_group = memory_scope::ext_oneapi_cuda
     public:
     ...
     static constexpr memory_scope fence_scope = 
-                memory_scope::sycl_ext_oneapi_experimental_cuda_cluster_fence;
+                memory_scope::ext_oneapi_cuda_cluster_fence;
     }
 ----
 
