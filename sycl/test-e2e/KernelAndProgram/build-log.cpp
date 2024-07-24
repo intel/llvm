@@ -24,7 +24,7 @@ void test() {
 
   // Submitting this kernel should result in an exception with error code
   // `sycl::errc::build` and a message indicating
-  // "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE".
+  // "PI_ERROR_BUILD_PROGRAM_FAILURE".
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -45,7 +45,6 @@ void test() {
   } catch (const sycl::exception &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
-
     assert(e.code() == sycl::errc::build &&
            "Caught exception was not a compilation error");
   } catch (...) {

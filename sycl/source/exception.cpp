@@ -10,7 +10,6 @@
 #include <detail/global_handler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/exception.hpp>
-#include <ur_print.hpp>
 
 #include <cstring>
 #include <sstream>

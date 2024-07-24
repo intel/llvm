@@ -74,10 +74,6 @@ enum class partition_property : intptr_t {
   ext_intel_partition_by_cslice = UR_DEVICE_PARTITION_BY_CSLICE
 };
 
-// The old implementation would simply static cast the UR enum to the strongly
-// typed sycl one, but that only worked because the PR "enum" was actually a
-// typedef with some global constexpr values defined in the header. UR defines
-// an actual enum so we need this conversion helper
 // FIXME: maybe this should live elsewhere, maybe it should be implemented
 // differently
 inline partition_property

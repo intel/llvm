@@ -12,7 +12,6 @@
 #include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
 #include <sycl/exception.hpp>
 #include <sycl/properties/property_traits.hpp> // for is_property
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_VALUE
 
 #include <bitset>      // for bitset
 #include <memory>      // for shared_ptr

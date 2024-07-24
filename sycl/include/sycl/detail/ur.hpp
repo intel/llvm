@@ -251,6 +251,7 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
+// TODO: To be removed as this was only introduced for esimd which was removed.
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 

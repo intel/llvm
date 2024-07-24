@@ -132,7 +132,7 @@ template <>
 __SYCL_EXPORT device
 device::get_info_impl<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
-  // overridden (ie it may be nullptr on a sub-device) The UR of the sub-devices
+  // overridden (ie it may be nullptr on a sub-device) The sub-devices
   // have parents, but we don't want to return them. They must pretend to be
   // parentless root devices.
   if (impl->isRootDevice())

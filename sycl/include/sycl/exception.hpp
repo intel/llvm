@@ -57,9 +57,7 @@ namespace detail {
 __SYCL_EXPORT const char *stringifyErrorCode(int32_t error);
 
 inline std::string codeToString(int32_t code) {
-  std::stringstream ss;
-  ss << stringifyErrorCode(code);
-  return std::to_string(code) + " (" + ss.str() + ")";
+  return std::to_string(code) + " (" + std::string(stringifyErrorCode(code)) + ")";
 }
 
 class __SYCL_EXPORT SYCLCategory : public std::error_category {

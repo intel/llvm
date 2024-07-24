@@ -60,7 +60,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
     Plugin->call(urMemRetain, MInteropMemObject);
 }
 
-ur_mem_type_t getImageType(unsigned Dimensions) {
+ur_mem_type_t getImageType(int Dimensions) {
   if (Dimensions == 1)
     return UR_MEM_TYPE_IMAGE1D;
   if (Dimensions == 2)

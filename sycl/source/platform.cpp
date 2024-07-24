@@ -27,7 +27,7 @@ platform::platform(cl_platform_id PlatformId) {
   ur_platform_handle_t UrPlatform = nullptr;
   Plugin->call(urPlatformCreateWithNativeHandle,
                detail::ur::cast<ur_native_handle_t>(PlatformId),
-               Plugin->getUrAdapter(), nullptr, &UrPlatform);
+               Plugin->getUrAdapter(), /* pProperties = */ nullptr, &UrPlatform);
   impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
 }
 

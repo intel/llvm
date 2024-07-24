@@ -69,7 +69,7 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // point returned a similar error code to INVALID_OPERATION and would have
   // resulted in a similar throw to this one
   throw exception(
-      make_error_code(errc::runtime),
+      make_error_code(errc::feature_not_supported),
       "This operation is not supported by any existing backends.");
   return nullptr;
 }
@@ -232,7 +232,7 @@ template <backend BE> const PluginPtr &getPlugin() {
       return *Plugin;
     }
 
-  throw exception(errc::runtime, "pi::getPlugin couldn't find plugin");
+  throw exception(errc::runtime, "ur::getPlugin couldn't find plugin");
 }
 
 template const PluginPtr &getPlugin<backend::opencl>();
