@@ -27,7 +27,8 @@ int validate(int Seed, std::vector<int> &Input, std::vector<int> &Output) {
 // CHECK: Working on function:
 // CHECK: ==================
 // CHECK: _ZTSZ15runKernelBundleN4sycl3_V15queueERSt6vectorIiSaIiEES5_E10WoofBundle
-int runKernelBundle(sycl::queue Queue, std::vector<int> &Input, std::vector<int> &Output) {
+int runKernelBundle(sycl::queue Queue, std::vector<int> &Input,
+                    std::vector<int> &Output) {
   for (int i = 0; i < Size; ++i) {
     Output[i] = 42;
     Input[i] = i * i;
@@ -70,7 +71,8 @@ int runKernelBundle(sycl::queue Queue, std::vector<int> &Input, std::vector<int>
 // CHECK: Working on function:
 // CHECK: ==================
 // CHECK: _ZTSZZ9runKernelN4sycl3_V15queueERSt6vectorIiSaIiEES5_ENKUlRT_E_clINS0_7handlerEEEDaS7_E10WoofKernel
-int runKernel(sycl::queue Queue, std::vector<int> &Input, std::vector<int> &Output) {
+int runKernel(sycl::queue Queue, std::vector<int> &Input,
+              std::vector<int> &Output) {
   for (int i = 0; i < Size; ++i) {
     Output[i] = 42;
     Input[i] = i * i;
@@ -103,6 +105,6 @@ int main() {
   std::vector<int> Input(Size);
   std::vector<int> Output(Size);
   sycl::queue Queue;
-  return runKernel(Queue, Input, Output) | runKernelBundle(Queue, Input, Output);
+  return runKernel(Queue, Input, Output) |
+         runKernelBundle(Queue, Input, Output);
 }
-
