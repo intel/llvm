@@ -13,6 +13,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/codeplay/usm_props.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/usm.hpp>
@@ -68,32 +69,66 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
-    ur_usm_desc_t UsmDesc{};
-    UsmDesc.align = Alignment;
+  ur_usm_desc_t UsmDesc{};
+  UsmDesc.align = Alignment;
 
-    ur_usm_alloc_location_desc_t UsmLocationDesc{};
-    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+  ur_usm_alloc_location_desc_t UsmLocationDesc{};
+  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+  ur_usm_host_desc_t HostDesc{};
+  HostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+  const void **Next = &UsmDesc.pNext;
 
-    if (PropList.has_property<
-            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-        Ctxt.get_platform().has_extension(
-            "cl_intel_mem_alloc_buffer_location")) {
-      UsmLocationDesc.location = static_cast<uint32_t>(
-          PropList
-              .get_property<sycl::ext::intel::experimental::property::usm::
-                                buffer_location>()
-              .get_buffer_location());
-      UsmDesc.pNext = &UsmLocationDesc;
+  if (PropList.has_property<
+          sycl::ext::intel::experimental::property::usm::buffer_location>() &&
+      Ctxt.get_platform().has_extension("cl_intel_mem_alloc_buffer_location")) {
+    UsmLocationDesc.location = static_cast<uint32_t>(
+        PropList
+            .get_property<sycl::ext::intel::experimental::property::usm::
+                              buffer_location>()
+            .get_buffer_location());
+    *Next = &UsmLocationDesc;
+    Next = &UsmLocationDesc.pNext;
+  }
+  {
+    auto &HF = HostDesc.flags;
+    assert(!HF);
+    using namespace sycl::ext::codeplay::usm_props;
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY *
+          PropList.has_property<host_read_only>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY *
+          PropList.has_property<host_write_only>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT *
+          PropList.has_property<host_hot>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD *
+          PropList.has_property<host_cold>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT *
+          PropList.has_property<host_cache_non_coherent>();
+#ifdef TODO
+    HF |= UR_USM_HOST_MEM_FLAG_WRITE_BACK *
+          PropList.has_property<host_cache_write_back>();
+    HF |= UR_USM_HOST_MEM_FLAG_WRITE_THROUGH *
+          PropList.has_property<host_cache_write_through>();
+#endif
+    HF |= UR_USM_HOST_MEM_FLAG_WRITE_COMBINE *
+          PropList.has_property<host_cache_write_combine>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL *
+          PropList.has_property<host_access_sequential>();
+    HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM *
+          PropList.has_property<host_access_random>();
+    if (HF) {
+      *Next = &HostDesc;
+      Next = &HostDesc.pNext;
     }
+  }
 
     Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
         C, &UsmDesc,
         /* pool= */ nullptr, Size, &RetVal);
 
-    // Error is for debugging purposes.
-    // The spec wants a nullptr returned, not an exception.
-    if (Error != UR_RESULT_SUCCESS)
-      return nullptr;
+  // Error is for debugging purposes.
+  // The spec wants a nullptr returned, not an exception.
+  if (Error != UR_RESULT_SUCCESS)
+    return nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
@@ -145,6 +180,42 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 
     ur_usm_alloc_location_desc_t UsmLocationDesc{};
     UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+    ur_usm_device_desc_t DevDesc{};
+    DevDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
+    auto &DF = DevDesc.flags;
+    const void **Next = &UsmDesc.pNext;
+
+    {
+      using namespace sycl::ext::codeplay::usm_props;
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY *
+            PropList.has_property<device_read_only>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY *
+            PropList.has_property<device_write_only>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT *
+            PropList.has_property<device_hot>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD *
+            PropList.has_property<device_cold>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL *
+            PropList.has_property<device_access_sequential>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM *
+            PropList.has_property<device_access_random>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT *
+            PropList.has_property<device_cache_non_coherent>();
+      DF |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE *
+            PropList.has_property<device_cache_write_combine>();
+#if TODO
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ *
+          PropList.has_property<USM::device_read>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_BACK *
+          PropList.has_property<USM::device_cache_write_back>();
+    DF |= UR_USM_DEVICE_MEM_FLAG_DEVICE_CACHE_WRITE_THROUGH *
+          PropList.has_property<USM::device_cache_write_through>();
+#endif
+    }
+    if (DF) {
+      *Next = &DevDesc;
+      Next = &DevDesc.pNext;
+    }
 
     // Buffer location is only supported on FPGA devices
     if (PropList.has_property<
