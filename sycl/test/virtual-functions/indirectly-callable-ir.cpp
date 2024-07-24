@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -emit-llvm -S -Xclang -fsycl-allow-virtual-functions %s -o %t.ll
+// RUN: %clangxx -fsycl -fsycl-device-only -emit-llvm -S %s -o %t.ll
 // RUN: FileCheck %s < %t.ll
 //
 // This test is intended to check integration between SYCL headers and SYCL FE,

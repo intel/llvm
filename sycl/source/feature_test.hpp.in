@@ -110,18 +110,14 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS 1
 #define SYCL_EXT_ONEAPI_RAW_KERNEL_ARG 1
 #define SYCL_EXT_ONEAPI_PROFILING_TAG 1
+#define SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND 1
 
 #ifndef __has_include
 #define __has_include(x) 0
 #endif
 
-#if __has_include("detail/plugins/cuda/features.hpp")
-#include "detail/plugins/cuda/features.hpp"
-#endif
-
-#if __has_include("detail/plugins/hip/features.hpp")
-#include "detail/plugins/hip/features.hpp"
-#endif
+#cmakedefine01 SYCL_EXT_ONEAPI_BACKEND_CUDA
+#cmakedefine01 SYCL_EXT_ONEAPI_BACKEND_HIP
 
 } // namespace _V1
 } // namespace sycl
