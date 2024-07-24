@@ -175,7 +175,7 @@ static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
 sycl::detail::pi::PiProgram
 ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
-  if (DbgProgMgr > 0)
+  if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
               << getSyclObjImpl(Context).get() << ", "
               << getSyclObjImpl(Device).get() << ")\n";
@@ -231,7 +231,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
 
-  if (DbgProgMgr > 1)
+  if constexpr (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
 
@@ -791,7 +791,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const NDRDescT &NDRDesc) {
-  if (DbgProgMgr > 0) {
+  if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
   }
@@ -1096,7 +1096,7 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     m_SpvFileImage =
         std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), Size);
 
-    if (DbgProgMgr > 0) {
+    if constexpr (DbgProgMgr > 0) {
       std::cerr << "loaded device image binary from " << SpvFile << "\n";
       std::cerr << "format: " << getFormatStr(m_SpvFileImage->getFormat())
                 << "\n";
@@ -1150,7 +1150,7 @@ RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(const std::string &KernelName,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
-  if (DbgProgMgr > 0) {
+  if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
               << getSyclObjImpl(Context).get() << ", "
               << getSyclObjImpl(Device).get() << ", "
@@ -1184,7 +1184,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   if (Img) {
     CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
-    if (DbgProgMgr > 0) {
+    if constexpr (DbgProgMgr > 0) {
       std::cerr << "selected device image: " << &Img->getRawData() << "\n";
       Img->print();
     }
@@ -1201,7 +1201,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     bool JITCompilationIsRequired) {
   assert(ImageSet.size() > 0);
 
-  if (DbgProgMgr > 0) {
+  if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
               << getSyclObjImpl(Context).get() << ", "
               << getSyclObjImpl(Device).get() << ", "
@@ -1230,7 +1230,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
 
   CheckJITCompilationForImage(*ImageIterator, JITCompilationIsRequired);
 
-  if (DbgProgMgr > 0) {
+  if constexpr (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
               << "\n";
     (*ImageIterator)->print();
@@ -1322,7 +1322,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
     const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
     const std::vector<sycl::detail::pi::PiProgram> &ExtraProgramsToLink) {
 
-  if (DbgProgMgr > 0) {
+  if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
               << CompileOptions << ", " << LinkOptions << ", ... " << Device
               << ")\n";
@@ -2518,7 +2518,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
 sycl::detail::pi::PiKernel ProgramManager::getCachedMaterializedKernel(
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
-  if (DbgProgMgr > 0)
+  if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getCachedMaterializedKernel\n"
               << "KernelName: " << KernelName << "\n";
 
@@ -2526,20 +2526,20 @@ sycl::detail::pi::PiKernel ProgramManager::getCachedMaterializedKernel(
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     if (auto KnownMaterializations = m_MaterializedKernels.find(KernelName);
         KnownMaterializations != m_MaterializedKernels.end()) {
-      if (DbgProgMgr > 0)
+      if constexpr (DbgProgMgr > 0)
         std::cerr << ">>> There are:" << KnownMaterializations->second.size()
                   << " materialized kernels.\n";
       if (auto Kernel =
               KnownMaterializations->second.find(SpecializationConsts);
           Kernel != KnownMaterializations->second.end()) {
-        if (DbgProgMgr > 0)
+        if constexpr (DbgProgMgr > 0)
           std::cerr << ">>> Kernel in the chache\n";
         return Kernel->second;
       }
     }
   }
 
-  if (DbgProgMgr > 0)
+  if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> Kernel not in the chache\n";
 
   return nullptr;
@@ -2550,7 +2550,7 @@ sycl::detail::pi::PiKernel ProgramManager::getOrCreateMaterializedKernel(
     const device &Device, const std::string &KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
   // Check if we already have the kernel in the cache.
-  if (DbgProgMgr > 0)
+  if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getOrCreateMaterializedKernel\n"
               << "KernelName: " << KernelName << "\n";
 
@@ -2558,7 +2558,7 @@ sycl::detail::pi::PiKernel ProgramManager::getOrCreateMaterializedKernel(
           getCachedMaterializedKernel(KernelName, SpecializationConsts))
     return CachedKernel;
 
-  if (DbgProgMgr > 0)
+  if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> Adding the kernel to the cache.\n";
   auto Program = createPIProgram(Img, Context, Device);
   auto DeviceImpl = detail::getSyclObjImpl(Device);
