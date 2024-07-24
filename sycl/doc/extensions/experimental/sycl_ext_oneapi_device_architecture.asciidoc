@@ -121,6 +121,16 @@ which version of this extension first included each of these enumerators.
 |Added in version
 |Description
 
+3+^|*Unknown architecture*
+
+a|
+[source]
+----
+unknown
+----
+|-
+|Some architecture which is not one of those listed below.
+
 3+^|*Intel CPU family*
 
 a|
@@ -528,6 +538,7 @@ a|
 [source]
 ----
 nvidia_gpu_sm_90
+nvidia_gpu_sm_90a
 ----
 |-
 |NVIDIA Hopper architecture.
@@ -1018,7 +1029,8 @@ struct architecture;
 
 _Return type:_ `sycl::ext::oneapi::experimental::architecture`
 
-_Returns:_ The architecture of the device.
+_Returns:_ The architecture of the device if architecture is supported, otherwise 
+`ext::oneapi::experimental::architecture::unknown`.
 |====
 
 
@@ -1105,6 +1117,9 @@ They cannot be used with the `if_architecture_is` function, the
 They currently exist only for use with the
 link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
 extension.
+
+The architecture enumeration `unknown` is not currently supported with the 
+`if_architecture_is` function.
 
 
 == Implementation notes

@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
-  # Merge: c015f892 b9442104
+  # commit 9b209642d47a99fc445c3bdea3407a829f4623ae
+  # Merge: fa6bf973 65b44315
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 10:20:23 2024 +0100
-  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
-  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
-  set(UNIFIED_RUNTIME_TAG 9f783837089c970a22cda08f768aa3dbed38f0d3)
+  # Date:   Tue Jul 23 19:22:06 2024 +0100
+  #     Merge pull request #1861 from aarongreig/aaron/addSetDataToMockHandle
+  #     Add getData/setData to mock dummy handle
+  set(UNIFIED_RUNTIME_TAG 9b209642d47a99fc445c3bdea3407a829f4623ae)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -282,7 +282,6 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 
-  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
   if(NATIVECPU_USE_OCK)
     message(STATUS "Compiling Native CPU adapter with OCK support.")

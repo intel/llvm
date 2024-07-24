@@ -69,7 +69,7 @@ class PersistentDeviceCodeCache {
    *   <cache_root>                 - root directory storing cache files;
    *   <device_hash>                - hash out of device information used to
    *                                  identify target device;
-   *   <device_image_hash>          - hash made out of device image used as
+   *   <device_image_hash>          - hash made out of device images used as
    *                                  input for the JIT compilation;
    *   <spec_constants_values_hash> - hash for specialization constants values;
    *   <build_options_hash>         - hash for all build options;
@@ -80,7 +80,7 @@ class PersistentDeviceCodeCache {
    *                                  started from 0).
    * Two files per cache item are stored on disk:
    *   <n>.src  - contains full values for build parameters (device information,
-   *              specialization constant values, build options, device image)
+   *              specialization constant values, build options, device images)
    *              which is used to resolve hash collisions and analysis of
    *              cached items.
    *   <n>.bin  - contains built device code.
@@ -108,20 +108,20 @@ private:
 
   /* Writing cache item key sources to be used for reliable identification
    * Format: Four pairs of [size, value] for device, build options,
-   * specialization constant values, device code SPIR-V image.
+   * specialization constant values, device code SPIR-V images.
    */
-  static void writeSourceItem(const std::string &FileName, const device &Device,
-                              const RTDeviceBinaryImage &Img,
-                              const SerializedObj &SpecConsts,
-                              const std::string &BuildOptionsString);
+  static void
+  writeSourceItem(const std::string &FileName, const device &Device,
+                  const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
+                  const SerializedObj &SpecConsts,
+                  const std::string &BuildOptionsString);
 
   /* Check that cache item key sources are equal to the current program
    */
-  static bool isCacheItemSrcEqual(const std::string &FileName,
-                                  const device &Device,
-                                  const RTDeviceBinaryImage &Img,
-                                  const SerializedObj &SpecConsts,
-                                  const std::string &BuildOptionsString);
+  static bool isCacheItemSrcEqual(
+      const std::string &FileName, const device &Device,
+      const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
+      const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
   /* Check if on-disk cache enabled.
    */
@@ -133,9 +133,10 @@ private:
   /* Form string representing device version */
   static std::string getDeviceIDString(const device &Device);
 
-  /* Returns true if specified image should be cached on disk. It checks if
-   * cache is enabled, image has SPIRV type and matches thresholds. */
-  static bool isImageCached(const RTDeviceBinaryImage &Img);
+  /* Returns true if specified images should be cached on disk. It checks if
+   * cache is enabled, images have SPIRV type and match thresholds. */
+  static bool areImagesCacheable(
+      const std::vector<const RTDeviceBinaryImage *> &SortedImgs);
 
   /* Returns value of specified parameter. Default value is used if failure
    * happens during obtaining value. */
@@ -162,27 +163,30 @@ private:
 public:
   /* Get directory name for storing current cache item
    */
-  static std::string getCacheItemPath(const device &Device,
-                                      const RTDeviceBinaryImage &Img,
-                                      const SerializedObj &SpecConsts,
-                                      const std::string &BuildOptionsString);
+  static std::string
+  getCacheItemPath(const device &Device,
+                   const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
+                   const SerializedObj &SpecConsts,
+                   const std::string &BuildOptionsString);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
    * stored in vector of chars.
    */
   static std::vector<std::vector<char>>
-  getItemFromDisc(const device &Device, const RTDeviceBinaryImage &Img,
+  getItemFromDisc(const device &Device,
+                  const std::vector<const RTDeviceBinaryImage *> &Imgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
-  /* Stores build program in persisten cache
+  /* Stores build program in persistent cache
    */
-  static void putItemToDisc(const device &Device,
-                            const RTDeviceBinaryImage &Img,
-                            const SerializedObj &SpecConsts,
-                            const std::string &BuildOptionsString,
-                            const sycl::detail::pi::PiProgram &NativePrg);
+  static void
+  putItemToDisc(const device &Device,
+                const std::vector<const RTDeviceBinaryImage *> &Imgs,
+                const SerializedObj &SpecConsts,
+                const std::string &BuildOptionsString,
+                const sycl::detail::pi::PiProgram &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {

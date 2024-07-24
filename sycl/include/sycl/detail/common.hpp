@@ -167,14 +167,6 @@ private:
 
 #include <sycl/exception.hpp>
 
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -367,6 +359,17 @@ template <size_t N, typename T>
 static constexpr std::array<T, N> RepeatValue(const T &Arg) {
   return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
+
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#endif
 
 } // namespace detail
 } // namespace _V1

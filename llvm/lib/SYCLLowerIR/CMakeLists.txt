@@ -47,6 +47,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   RecordSYCLAspectNames.cpp
   CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
+  ComputeModuleRuntimeInfo.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
@@ -56,20 +57,21 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
+  SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLConditionalCallOnDevice.cpp
+  SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
+  SYCLKernelParamOptInfo.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
-  PrepareSYCLNativeCPU.cpp
-  RenameKernelSYCLNativeCPU.cpp
-  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -88,10 +90,13 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMDemangle
   LLVMTargetParser
   LLVMTransformUtils
-  
+
   LINK_COMPONENTS
   Analysis
+  BitWriter
   Core
+  Demangle
+  IRPrinter
   Support
   ipo
   )

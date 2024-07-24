@@ -119,13 +119,6 @@ public:
   cl_device_id get() const;
 #endif
 
-  /// Check if device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
@@ -145,8 +138,7 @@ public:
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
   /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
-  /// is a host device then the SYCL platform must be a host platform.
+  /// underlying OpenCL cl_device_id of this SYCL device.
   /// The value returned must be equal to that returned by
   /// get_info<info::device::platform>().
   ///
@@ -236,12 +228,11 @@ public:
   /// \param extension_name is a name of queried extension.
   /// \return true if SYCL device supports the extension.
   __SYCL2020_DEPRECATED("use device::has() function with aspects APIs instead")
-  bool has_extension(const std::string &extension_name) const;
+  bool has_extension(const std::string &extension_name) const {
+    return has_extension(detail::string_view{extension_name});
+  }
 
   /// Query available SYCL devices
-  ///
-  /// The returned std::vector must contain a single SYCL device
-  /// that is a host device, permitted by the deviceType parameter
   ///
   /// \param deviceType is one of the values described in A.3 of SYCL Spec
   /// \return a std::vector containing all SYCL devices available in the system
@@ -311,7 +302,9 @@ public:
   /// \param Feature
   ///
   /// \return true if supported
-  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
+  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+    return ext_oneapi_supports_cl_c_feature(detail::string_view{Feature});
+  }
 
   /// Indicates if the device supports kernel bundles written in a particular
   /// OpenCL C version
@@ -331,7 +324,9 @@ public:
   /// extension identified by `name`.
   bool ext_oneapi_supports_cl_extension(
       const std::string &name,
-      ext::oneapi::experimental::cl_version *version = nullptr) const;
+      ext::oneapi::experimental::cl_version *version = nullptr) const {
+    return ext_oneapi_supports_cl_extension(detail::string_view{name}, version);
+  }
 
   /// Retrieve the OpenCl Device Profile
   ///
@@ -355,11 +350,8 @@ private:
   pi_native_handle getNative() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -372,6 +364,12 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_device_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view extension_name) const;
+  bool ext_oneapi_supports_cl_c_feature(detail::string_view Feature);
+  bool ext_oneapi_supports_cl_extension(
+      detail::string_view name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const;
 };
 
 } // namespace _V1

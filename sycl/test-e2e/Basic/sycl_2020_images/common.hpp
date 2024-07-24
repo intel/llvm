@@ -269,7 +269,7 @@ template <typename T, int Dims> bool AllTrue(const vec<T, Dims> &Vec) {
 
 template <typename T, int Dims>
 bool ApproxEq(const vec<T, Dims> &LHS, const vec<T, Dims> &RHS,
-              T Precision = 0.1) {
+              T Precision = (T)0.1) {
   if constexpr (std::is_integral_v<T>)
     return AllTrue(sycl::abs(LHS - RHS) <= Precision);
   else

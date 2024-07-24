@@ -15,6 +15,9 @@
 // 1. Choose a safe or unsafe version of atomic_xor at compile time, which can
 //    be chosen at compile time by setting the flag
 //    --amdgpu-oclc-unsafe-int-atomics=true.
+// 2. Choose a safe or unsafe version of atomic_fadd at compile time, which can
+//    be chosen at compile time by setting the flag
+//    --amdgpu-oclc-unsafe-fp-atomics=true.
 //
 // This pass is similar to the NVPTX pass NVVMReflect.
 //
@@ -39,6 +42,9 @@ static cl::opt<bool>
 static cl::opt<bool> AMDGPUUnsafeIntAtomicsEnable(
     "amdgpu-oclc-unsafe-int-atomics", cl::init(false), cl::Hidden,
     cl::desc("Should unsafe int atomics be chosen. Disabled by default."));
+static cl::opt<bool> AMDGPUUnsafeFPAtomicsEnable(
+    "amdgpu-oclc-unsafe-fp-atomics", cl::init(false), cl::Hidden,
+    cl::desc("Should unsafe fp atomics be chosen. Disabled by default."));
 
 PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
                                              FunctionAnalysisManager &AM) {
@@ -78,6 +84,9 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
 
     if (ReflectArg == "AMDGPU_OCLC_UNSAFE_INT_ATOMICS") {
       int ReflectVal = AMDGPUUnsafeIntAtomicsEnable ? 1 : 0;
+      Call->replaceAllUsesWith(ConstantInt::get(Call->getType(), ReflectVal));
+    } else if (ReflectArg == "AMDGPU_OCLC_UNSAFE_FP_ATOMICS") {
+      int ReflectVal = AMDGPUUnsafeFPAtomicsEnable ? 1 : 0;
       Call->replaceAllUsesWith(ConstantInt::get(Call->getType(), ReflectVal));
     } else {
       report_fatal_error("Invalid arg passed to __oclc_amdgpu_reflect");

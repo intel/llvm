@@ -91,6 +91,7 @@ and not recommended to use in production environment.
     * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
     * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
     * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * nvidia_gpu_sm_90a - NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
@@ -134,9 +135,8 @@ and not recommended to use in production environment.
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
-    SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1 [DEPRECATED]
-    * 2020 - SYCL 2020
+    SYCL language standard to compile for. Currently the possible value is:
+    * 2020 - for SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
     It is under development and not recommended to use in production
@@ -147,7 +147,7 @@ and not recommended to use in production environment.
 
     Enables/Disables unnamed SYCL lambda kernels support.
     The default value depends on the SYCL language standard: it is enabled
-    by default for SYCL 2020, and disabled for SYCL 1.2.1.
+    by default for SYCL 2020.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -283,16 +283,6 @@ and not recommended to use in production environment.
     device libraries for VTune(R). This provides annotations to intercept
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
-
-**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
-
-    Place device code later in the linked binary in order to avoid precluding
-    32-bit PC relative relocations between surrounding ELF sections when device
-    code is larger than 2GiB. This is disabled by default.
-
-    Deprecated in favor of `-f[no-]link-huge-device-code`.
-
-    NOTE: This option is currently only supported on Linux.
 
 **`-fsycl-force-target=<T>`**
 

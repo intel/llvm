@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/cg.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
@@ -64,7 +65,6 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
-class program_impl;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -106,8 +106,9 @@ public:
                                               const device &Device);
   /// Creates a PI program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
-  /// \param Img The device image to find a cached device code binary for or
-  ///        create the PI program with.
+  /// \param Img The device image used to create the program.
+  /// \param AllImages All images needed to build the program, used for cache
+  ///        lookup.
   /// \param Context The context to find or create the PI program with.
   /// \param Device The device to find or create the PI program for.
   /// \param CompileAndLinkOptions The compile and linking options to be used
@@ -122,11 +123,11 @@ public:
   /// \return A pair consisting of the PI program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<sycl::detail::pi::PiProgram, bool>
-  getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
-                       const device &Device,
-                       const std::string &CompileAndLinkOptions,
-                       SerializedObj SpecConsts);
+  std::pair<sycl::detail::pi::PiProgram, bool> getOrCreatePIProgram(
+      const RTDeviceBinaryImage &Img,
+      const std::vector<const RTDeviceBinaryImage *> &AllImages,
+      const context &Context, const device &Device,
+      const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS
@@ -165,20 +166,6 @@ public:
   getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
                      const ContextImplPtr Context);
 
-  /// Resolves given program to a device binary image and requests the program
-  /// to flush constants the image depends on.
-  /// \param Prg the program object to get spec constant settings from.
-  ///        Passing program_impl by raw reference is OK, since it is not
-  ///        captured anywhere once the function returns.
-  /// \param NativePrg the native program, target for spec constant setting; if
-  ///        not null then overrides the native program in Prg
-  /// \param Img A source of the information about which constants need
-  ///        setting and symboling->integer spec constant ID mapping. If not
-  ///        null, overrides native program->binary image binding maintained by
-  ///        the program manager.
-  void flushSpecConstants(const program_impl &Prg,
-                          pi::PiProgram NativePrg = nullptr,
-                          const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
@@ -307,16 +294,24 @@ private:
   using ProgramPtr =
       std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   const sycl::detail::pi::PiDevice &Device,
-                   uint32_t DeviceLibReqMask);
+  ProgramPtr
+  build(ProgramPtr Program, const ContextImplPtr Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask,
+        const std::vector<sycl::detail::pi::PiProgram> &ProgramsToLink);
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
+
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
+                                           device Dev);
+
+  std::set<RTDeviceBinaryImage *>
+  collectDependentDeviceImagesForVirtualFunctions(
+      const RTDeviceBinaryImage &Img, device Dev);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
@@ -362,7 +357,8 @@ private:
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_set<std::string> m_ExportedSymbols;
+  std::unordered_multimap<std::string, RTDeviceBinaryImage *>
+      m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
@@ -371,6 +367,11 @@ private:
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
   std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Caches list of device images that use or provide virtual functions from
+  /// the same set. Used to simplify access.
+  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
+      m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.
   std::mutex m_BuiltInKernelIDsMutex;
@@ -388,7 +389,8 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
+  std::unordered_multimap<pi::PiProgram, const RTDeviceBinaryImage *>
+      NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.
   std::mutex MNativeProgramsMutex;

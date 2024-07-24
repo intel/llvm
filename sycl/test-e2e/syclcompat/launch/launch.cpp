@@ -19,8 +19,9 @@
  *  Description:
  *     launch<F> and launch<F> with dinamyc local memory tests
  **************************************************************************/
-
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
+// https://github.com/intel/llvm/issues/14387
+// UNSUPPORTED: gpu-intel-dg2
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 #include <type_traits>

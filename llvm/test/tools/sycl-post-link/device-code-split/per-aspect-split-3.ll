@@ -1,7 +1,7 @@
 ; This test is intended to check that per-aspect device code split works as
 ; expected with SYCL_EXTERNAL functions
 
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \
@@ -15,6 +15,22 @@
 ; RUN:     --implicit-check-not bar
 ;
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefix CHECK-M1-IR \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not bar
+
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2.table --check-prefix CHECK-TABLE
+;
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefix CHECK-M0-SYMS \
+; RUN:     --implicit-check-not foo --implicit-check-not kernel1
+;
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefix CHECK-M1-SYMS \
+; RUN:     --implicit-check-not foo --implicit-check-not kernel0
+;
+; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefix CHECK-M2-SYMS \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not foo \
+; RUN:     --implicit-check-not bar
+;
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix CHECK-M1-IR \
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not bar
 
 ; We expect to see 3 modules generated:

@@ -37,6 +37,8 @@
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-DEVICE-TRIPLE
 // RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-DEVICE-TRIPLE
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-DEVICE-TRIPLE
 
 // Compiling for a CUDA target passing the device arch to '--offload-arch' (using the '--cuda-gpu-arch' alias).
 //
@@ -68,6 +70,8 @@
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-OFFLOAD-ARCH
 // RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-OFFLOAD-ARCH
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_90a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-SYCL-NVPTX-NVIDIA-CUDA-OFFLOAD-ARCH
 
 // Check device traits macros are defined if sycl is enabled:
 
@@ -92,4 +96,4 @@
 // CHECK-SM60: "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}} "-D__SYCL_ALL_DEVICES_HAVE_[[ASPECT]]__=1"
 // CHECK-SM70: "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}} "-D__SYCL_ALL_DEVICES_HAVE_[[ASPECT]]__=1"
 // CHECK-SM80: "-D__SYCL_TARGET_NVIDIA_GPU_SM_80__"{{.*}} "-D__SYCL_ALL_DEVICES_HAVE_[[ASPECT]]__=1"
-// CHECK-SM90: "-D__SYCL_TARGET_NVIDIA_GPU_SM_80__"{{.*}} "-D__SYCL_ALL_DEVICES_HAVE_[[ASPECT]]__=1"
+// CHECK-SM90: "-D__SYCL_TARGET_NVIDIA_GPU_SM_90__"{{.*}} "-D__SYCL_ALL_DEVICES_HAVE_[[ASPECT]]__=1"

@@ -387,4 +387,22 @@ void LLVMContext::setOpaquePointers(bool Enable) const {
   assert(Enable && "Cannot disable opaque pointers");
 }
 
-bool LLVMContext::supportsTypedPointers() const { return false; }
+bool LLVMContext::supportsTypedPointers() const {
+  return false;
+}
+
+StringRef LLVMContext::getDefaultTargetCPU() {
+  return pImpl->DefaultTargetCPU;
+}
+
+void LLVMContext::setDefaultTargetCPU(StringRef CPU) {
+  pImpl->DefaultTargetCPU = CPU;
+}
+
+StringRef LLVMContext::getDefaultTargetFeatures() {
+  return pImpl->DefaultTargetFeatures;
+}
+
+void LLVMContext::setDefaultTargetFeatures(StringRef Features) {
+  pImpl->DefaultTargetFeatures = Features;
+}

@@ -953,12 +953,19 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is 1.
-      int LocID = 0;
+      int IsRuntimeAligned = 0;
       if (!isa<MDString>(RuntimeAligned->getOperand(ArgNo)) &&
           !isa<MDNode>(RuntimeAligned->getOperand(ArgNo)))
-        LocID = getMDOperandAsInt(RuntimeAligned, ArgNo);
-      if (LocID == 1)
-        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL, LocID);
+        IsRuntimeAligned = getMDOperandAsInt(RuntimeAligned, ArgNo);
+      if (IsRuntimeAligned == 1) {
+        // TODO: to replace non-conformant to the spec decoration generation
+        // with:
+        // BM->addExtension(ExtensionID::SPV_INTEL_runtime_aligned);
+        // BM->addCapability(CapabilityRuntimeAlignedAttributeINTEL);
+        // BA->addAttr(FunctionParameterAttributeRuntimeAlignedINTEL);
+        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL,
+                        IsRuntimeAligned);
+      }
     }
   }
   if (Attrs.hasRetAttr(Attribute::ZExt))
@@ -1212,7 +1219,10 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   auto *BM = BF->getModule();
   if (!BM->preserveAuxData())
     return;
-  BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+    BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  else
+    BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
   const auto &FnAttrs = F->getAttributes().getFnAttrs();
   for (const auto &Attr : FnAttrs) {
     std::vector<SPIRVWord> Ops;
@@ -2102,55 +2112,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       }
       BM->addExtension(ExtensionID::SPV_INTEL_hw_thread_queries);
     }
-
-    // TODO: it's W/A for intel/llvm to prevent not fixed SPIR-V consumers
-    // see https://github.com/intel/llvm/issues/7592
-    // from crashing. Need to remove, when we have the fixed drivers
-    // to remove: begin
-    {
-      std::vector<Instruction *> GEPs;
-      std::vector<Instruction *> Loads;
-      auto *GVTy = GV->getType();
-      auto *VecTy = GVTy->isOpaquePointerTy()
-                        ? nullptr
-                        : dyn_cast<FixedVectorType>(
-                              GVTy->getNonOpaquePointerElementType());
-      auto ReplaceIfLoad = [&](User *I, ConstantInt *Idx) -> void {
-        auto *LD = dyn_cast<LoadInst>(I);
-        if (!LD)
-          return;
-        Loads.push_back(LD);
-        const DebugLoc &DLoc = LD->getDebugLoc();
-        LoadInst *Load = new LoadInst(VecTy, GV, "", LD);
-        ExtractElementInst *Extract = ExtractElementInst::Create(Load, Idx);
-        if (DLoc)
-          Extract->setDebugLoc(DLoc);
-        Extract->insertAfter(cast<Instruction>(Load));
-        LD->replaceAllUsesWith(Extract);
-      };
-      for (auto *UI : GV->users()) {
-        if (!VecTy)
-          break;
-        if (auto *GEP = dyn_cast<GetElementPtrInst>(UI)) {
-          GEPs.push_back(GEP);
-          for (auto *GEPUser : GEP->users()) {
-            assert(GEP->getNumIndices() == 2 &&
-                   "GEP to ID vector is expected to have exactly 2 indices");
-            auto *Idx = cast<ConstantInt>(GEP->getOperand(2));
-            ReplaceIfLoad(GEPUser, Idx);
-          }
-        }
-      }
-      auto Erase = [](std::vector<Instruction *> &ToErase) {
-        for (Instruction *I : ToErase) {
-          assert(I->user_empty());
-          I->eraseFromParent();
-        }
-      };
-      Erase(Loads);
-      Erase(GEPs);
-    }
-    // to remove: end
 
     BVar->setBuiltin(Builtin);
     return BVar;
@@ -4413,24 +4374,28 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         BM->addIntegerType(VecTy->getElementType()->getIntegerBitWidth());
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
+                                        Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
-                                      Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_fadd:
   case Intrinsic::vector_reduce_fmul: {
@@ -4440,17 +4405,22 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *StartingSVal = transValue(II->getArgOperand(0), BB);
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
-    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    if (VecSize > 0) {
+      SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+      }
+      SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(),
+                                        StartingSVal, Extracts[0], BB);
+      for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
+        V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx],
+                              BB);
+      }
+      return V;
     }
-    SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(), StartingSVal,
-                                      Extracts[0], BB);
-    for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
-      V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx], BB);
-    }
-    return V;
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::vector_reduce_smax:
   case Intrinsic::vector_reduce_smin:
@@ -4484,27 +4454,31 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
     SmallVector<SPIRVValue *, 16> Extracts(VecSize);
-    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
-      Extracts[Idx] = BM->addVectorExtractDynamicInst(
-          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
-    }
-    unsigned Counter = VecSize >> 1;
-    while (Counter != 0) {
-      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
-        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
-                                             Extracts[(Idx << 1) + 1], BB);
-        Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
-                                          Extracts[(Idx << 1) + 1], BB);
+    if (VecSize > 0) {
+      for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+        Extracts[Idx] = BM->addVectorExtractDynamicInst(
+            VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
       }
-      Counter >>= 1;
+      unsigned Counter = VecSize >> 1;
+      while (Counter != 0) {
+        for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+          SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
+                                               Extracts[(Idx << 1) + 1], BB);
+          Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
+                                            Extracts[(Idx << 1) + 1], BB);
+        }
+        Counter >>= 1;
+      }
+      if ((VecSize & 1) != 0) {
+        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
+                                             Extracts[VecSize - 1], BB);
+        Extracts[0] =
+            BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
+      }
+      return Extracts[0];
     }
-    if ((VecSize & 1) != 0) {
-      SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
-                                           Extracts[VecSize - 1], BB);
-      Extracts[0] =
-          BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
-    }
-    return Extracts[0];
+    assert(VecSize && "Zero Extracts size for vector reduce lowering");
+    return nullptr;
   }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
@@ -5604,7 +5578,7 @@ static auto stablePreDominatorTraversal(Function &F, const DominatorTree &DT) {
                                     std::forward_iterator_tag, BasicBlock> {
 
     // The passed DominatorTree; may be unset for end iterators.
-    const DominatorTree *DT;
+    const DominatorTree *DT = nullptr;
 
     // The set of basic blocks already visited in this traversal.
     SmallPtrSet<const BasicBlock *, 4> VisitedBBs;

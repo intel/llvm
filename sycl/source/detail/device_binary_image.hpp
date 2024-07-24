@@ -214,11 +214,13 @@ public:
   const PropertyRange &getAssertUsed() const { return AssertUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
+  const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
+  const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -239,9 +241,11 @@ protected:
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
+  RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
+  RTDeviceBinaryImage::PropertyRange VirtualFunctions;
 
 private:
   static std::atomic<uintptr_t> ImageCounter;
