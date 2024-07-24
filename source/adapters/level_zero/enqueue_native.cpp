@@ -43,6 +43,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   // support is added
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
+  ScopedCommandList Active{Queue, CommandList->first};
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
