@@ -61,8 +61,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   // Execute interop func
   pfnNativeEnqueue(Queue, data);
 
-  // TODO: Level Zero does not have a completion "event" with the prefetch API,
-  // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, false));
