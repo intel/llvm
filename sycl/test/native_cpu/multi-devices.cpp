@@ -2,8 +2,6 @@
 // REQUIRES: opencl
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
-// See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: *
 
 #include <sycl/sycl.hpp>
 

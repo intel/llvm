@@ -1,7 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: ocloc && level_zero
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

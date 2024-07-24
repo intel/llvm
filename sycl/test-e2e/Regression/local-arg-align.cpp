@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 // https://github.com/intel/llvm/issues/10682
 // REQUIRES: TEMPORARY_DISABLED

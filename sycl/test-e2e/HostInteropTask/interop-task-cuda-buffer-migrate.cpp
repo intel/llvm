@@ -8,9 +8,6 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
-//
-// See github issue https://github.com/intel/llvm/issues/14598
-// XFAIL: cuda
 
 #include <cuda.h>
 #include <iostream>

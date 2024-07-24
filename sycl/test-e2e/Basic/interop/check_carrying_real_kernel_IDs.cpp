@@ -1,8 +1,6 @@
 // REQUIRES: opencl, opencl_icd
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 #include <CL/opencl.h>
 #include <sycl/backend.hpp>

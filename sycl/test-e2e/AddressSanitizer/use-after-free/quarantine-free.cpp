@@ -1,8 +1,6 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %force_device_asan_rt UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run} %t 2>&1 | FileCheck %s
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 #include <sycl/usm.hpp>
 
 /// Quarantine Cache Test

@@ -1,6 +1,4 @@
 // REQUIRES: gpu
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 // TODO: Remove unsetting SYCL_DEVICE_FILTER when feature is dropped
 // RUN: env --unset=SYCL_DEVICE_FILTER  --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose >%t.default.out

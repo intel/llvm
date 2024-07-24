@@ -2,8 +2,6 @@
 //
 // RUN: %{build} %opencl_lib -o %t.out
 // RUN: %{run} %t.out
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>

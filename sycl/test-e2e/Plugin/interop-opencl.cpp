@@ -1,6 +1,4 @@
 // REQUIRES: opencl
-// See github issue https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
