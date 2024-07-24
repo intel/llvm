@@ -28,31 +28,6 @@ template <typename T> T *getPointerFromVector(std::vector<T> &V) {
 }
 
 /**
- * Checks the version of the level-zero driver.
- * @param[in] Context Execution context
- * @param[in] VersionMajor Major version number to compare to.
- * @param[in] VersionMinor Minor version number to compare to.
- * @param[in] VersionBuild Build version number to compare to.
- * @return true if the version of the driver is higher than or equal to the
- * compared version.
- */
-bool isDriverVersionNewerOrSimilar(ur_context_handle_t Context,
-                                   uint32_t VersionMajor, uint32_t VersionMinor,
-                                   uint32_t VersionBuild) {
-  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
-  ZE2UR_CALL(zeDriverGetProperties,
-             (Context->getPlatform()->ZeDriver, &ZeDriverProperties));
-  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
-  auto DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
-  auto DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
-  auto DriverVersionBuild = DriverVersion & 0x0000FFFF;
-
-  return ((DriverVersionMajor >= VersionMajor) &&
-          (DriverVersionMinor >= VersionMinor) &&
-          (DriverVersionBuild >= VersionBuild));
-}
-
-/**
  * Default to using compute engine for fill operation, but allow to override
  * this with an environment variable. Disable the copy engine if the pattern
  * size is larger than the maximum supported.
@@ -637,7 +612,8 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
   // In-order command-lists are not available in old driver version.
-  bool CompatibleDriver = isDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
+  bool CompatibleDriver = isDriverVersionNewerOrSimilar(
+      Context->getPlatform()->ZeDriver, 1, 3, L0_DRIVER_INORDER_MIN_VERSION);
   return CompatibleDriver
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;

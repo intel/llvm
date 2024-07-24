@@ -283,6 +283,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,               ///< ::ur_exp_sampler_cubemap_properties_t
+    UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,                        ///< ::ur_exp_image_copy_region_t
     UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,        ///< ::ur_exp_enqueue_native_command_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
@@ -1656,12 +1657,8 @@ typedef enum ur_device_info_t {
                                                                      ///< from individual mipmap levels
     UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C,       ///< [::ur_bool_t] returns true if the device supports importing external
                                                                      ///< memory resources
-    UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D,       ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                     ///< memory resources
     UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E,    ///< [::ur_bool_t] returns true if the device supports importing external
                                                                      ///< semaphore resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,    ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                     ///< event resources
     UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP = 0x2010,                     ///< [::ur_bool_t] returns true if the device supports allocating and
                                                                      ///< accessing cubemap resources
     UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,  ///< [::ur_bool_t] returns true if the device supports sampling cubemapped
@@ -1674,11 +1671,17 @@ typedef enum ur_device_info_t {
                                                                      ///< backed 2D sampled image data.
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 2D sampled image data.
-    UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP = 0x2016, ///< [::ur_bool_t] returns true if the device is capable of fetching USM
-                                                                     ///< backed 3D sampled image data.
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 3D sampled image data.
     UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
+    UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,                 ///< [::ur_bool_t] returns true if the device supports allocating and
+                                                                     ///< accessing image array resources.
+    UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,  ///< [::ur_bool_t] returns true if the device supports unique addressing
+                                                                     ///< per dimension.
+    UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,              ///< [::ur_bool_t] returns true if the device is capable of sampling USM
+                                                                     ///< backed 1D sampled image data.
+    UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,              ///< [::ur_bool_t] returns true if the device is capable of sampling USM
+                                                                     ///< backed 2D sampled image data.
     UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,      ///< [::ur_bool_t] returns true if the device supports enqueueing of native
                                                                      ///< work
     /// @cond
@@ -7502,6 +7505,18 @@ typedef struct ur_exp_interop_semaphore_desc_t {
 } ur_exp_interop_semaphore_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes the (sub-)regions and the extent to be copied
+typedef struct ur_exp_image_copy_region_t {
+    ur_structure_type_t stype;   ///< [in] type of this structure, must be
+                                 ///< ::UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION
+    const void *pNext;           ///< [in][optional] pointer to extension-specific structure
+    ur_rect_offset_t srcOffset;  ///< [in] the offset into the source image
+    ur_rect_offset_t dstOffset;  ///< [in] the offset into the destination image
+    ur_rect_region_t copyExtent; ///< [in] the extent (region) of the image to copy
+
+} ur_exp_image_copy_region_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate pitched memory
 ///
 /// @details
@@ -7740,7 +7755,7 @@ urBindlessImagesSampledImageCreateExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Copy image data Host to Device or Device to Host
+/// @brief Copy image data Host to Device, Device to Host, or Device to Device
 ///
 /// @remarks
 ///   _Analogues_
@@ -7757,34 +7772,34 @@ urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDst`
 ///         + `NULL == pSrc`
-///         + `NULL == pImageFormat`
-///         + `NULL == pImageDesc`
+///         + `NULL == pDst`
+///         + `NULL == pSrcImageDesc`
+///         + `NULL == pDstImageDesc`
+///         + `NULL == pSrcImageFormat`
+///         + `NULL == pDstImageFormat`
+///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
+///         + `pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`
+///         + `pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    void *pDst,                               ///< [in] location the data will be copied to
     const void *pSrc,                         ///< [in] location the data will be copied from
-    const ur_image_format_t *pImageFormat,    ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc,        ///< [in] pointer to image description
+    void *pDst,                               ///< [in] location the data will be copied to
+    const ur_image_desc_t *pSrcImageDesc,     ///< [in] pointer to image description
+    const ur_image_desc_t *pDstImageDesc,     ///< [in] pointer to image description
+    const ur_image_format_t *pSrcImageFormat, ///< [in] pointer to image format specification
+    const ur_image_format_t *pDstImageFormat, ///< [in] pointer to image format specification
+    ur_exp_image_copy_region_t *pCopyRegion,  ///< [in] Pointer to structure describing the (sub-)regions of source and
+                                              ///< destination images
     ur_exp_image_copy_flags_t imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
-    ur_rect_offset_t srcOffset,               ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
-                                              ///< image
-    ur_rect_offset_t dstOffset,               ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
-                                              ///< or 3D image
-    ur_rect_region_t copyExtent,              ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                                              ///< region to copy
-    ur_rect_region_t hostExtent,              ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                                              ///< region on the host
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before this command can be executed.
@@ -11138,15 +11153,14 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_image_copy_exp_params_t {
     ur_queue_handle_t *phQueue;
-    void **ppDst;
     const void **ppSrc;
-    const ur_image_format_t **ppImageFormat;
-    const ur_image_desc_t **ppImageDesc;
+    void **ppDst;
+    const ur_image_desc_t **ppSrcImageDesc;
+    const ur_image_desc_t **ppDstImageDesc;
+    const ur_image_format_t **ppSrcImageFormat;
+    const ur_image_format_t **ppDstImageFormat;
+    ur_exp_image_copy_region_t **ppCopyRegion;
     ur_exp_image_copy_flags_t *pimageCopyFlags;
-    ur_rect_offset_t *psrcOffset;
-    ur_rect_offset_t *pdstOffset;
-    ur_rect_region_t *pcopyExtent;
-    ur_rect_region_t *phostExtent;
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;

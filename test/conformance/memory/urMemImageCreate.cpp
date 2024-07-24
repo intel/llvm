@@ -5,9 +5,6 @@
 #include <uur/fixtures.h>
 #include <uur/raii.h>
 
-using urMemImageCreateTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
-
 static ur_image_format_t image_format{UR_IMAGE_CHANNEL_ORDER_RGBA,
                                       UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32};
 
@@ -25,8 +22,52 @@ static ur_image_desc_t image_desc{
     0                    ///< [in] number of samples
 };
 
+struct urMemImageCreateTest : public uur::urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
+
+        ur_mem_handle_t image_handle = nullptr;
+        auto ret =
+            urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                             &image_desc, nullptr, &image_handle);
+
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            GTEST_SKIP() << "urMemImageCreate not supported";
+        }
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::TearDown());
+    }
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
+
+template <typename Param>
+struct urMemImageCreateTestWithParam
+    : public uur::urContextTestWithParam<Param> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<Param>::SetUp());
+
+        ur_mem_handle_t image_handle = nullptr;
+        auto ret = urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                    &image_format, &image_desc, nullptr,
+                                    &image_handle);
+
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            GTEST_SKIP() << "urMemImageCreate not supported";
+        }
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<Param>::TearDown());
+    }
+};
+
 using urMemImageCreateTestWith1DMemoryTypeParam =
-    uur::urContextTestWithParam<ur_mem_type_t>;
+    urMemImageCreateTestWithParam<ur_mem_type_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateTestWith1DMemoryTypeParam,
                  ::testing::Values(UR_MEM_TYPE_IMAGE1D,
@@ -57,7 +98,7 @@ TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
 }
 
 using urMemImageCreateTestWith2DMemoryTypeParam =
-    uur::urContextTestWithParam<ur_mem_type_t>;
+    urMemImageCreateTestWithParam<ur_mem_type_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateTestWith2DMemoryTypeParam,
                  ::testing::Values(UR_MEM_TYPE_IMAGE2D,
@@ -248,7 +289,7 @@ TEST_P(urMemImageCreateTest, InvalidImageDescSlicePitch) {
 }
 
 using urMemImageCreateWithHostPtrFlagsTest =
-    uur::urContextTestWithParam<ur_mem_flag_t>;
+    urMemImageCreateTestWithParam<ur_mem_flag_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateWithHostPtrFlagsTest,
                  ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
