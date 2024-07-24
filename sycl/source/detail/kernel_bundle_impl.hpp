@@ -493,7 +493,7 @@ public:
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     ur_kernel_handle_t UrKernel = nullptr;
-    Plugin->call(urKernelCreate, UrProgram, Name.c_str(), &UrKernel);
+    Plugin->call(urKernelCreate, UrProgram, AdjustedName.c_str(), &UrKernel);
     // Kernel created by urKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
