@@ -8461,7 +8461,8 @@ class ToolSelector final {
   // a third party host compilation step for SYCL offloading.  We don't know
   // what the third party compiler is capable of, so only allow for object
   // creation when performing -save-temps.
-  bool SYCLHostCompiler = BaseAction->isHostOffloading(Action::OFK_SYCL) &&
+  bool SYCLHostCompiler =
+      BaseAction->isHostOffloading(Action::OFK_SYCL) &&
       C.getArgs().hasArg(options::OPT_fsycl_host_compiler_EQ);
 
   /// Return true if an assemble action can be collapsed.
