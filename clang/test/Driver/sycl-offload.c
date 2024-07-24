@@ -390,7 +390,7 @@
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -409,7 +409,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 14: preprocessor, {13}, c++-cpp-output, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: compiler, {14}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: backend, {15}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (nvptx-nvidia-cuda:sm_75)" {16}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {16}, ir
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: clang-offload-packager, {7, 12, 17}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {18}, ir
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: backend, {19}, assembler, (host-sycl)

@@ -33,27 +33,8 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernelWithMemObj"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Img = generateImage();
+static auto Img =
+    sycl::unittest::generateDefaultImage({"TestKernelWithMemObj"});
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 using namespace sycl;
