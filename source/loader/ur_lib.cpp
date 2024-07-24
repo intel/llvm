@@ -212,7 +212,10 @@ ur_result_t urLoaderTearDown() {
         delete context;
     });
 
-    return ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;
+    ur_result_t result =
+        ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;
+    logger::info("---> urLoaderTearDown() -> {}", result);
+    return result;
 }
 
 ur_result_t
