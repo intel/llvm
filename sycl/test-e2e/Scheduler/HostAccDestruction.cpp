@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Windows doesn't yet have full shutdown().

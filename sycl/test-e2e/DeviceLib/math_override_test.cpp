@@ -1,5 +1,5 @@
 // UNSUPPORTED: windows
-// RUN: %clangxx -fsycl %s -o %t.out -fno-builtin
+// RUN: %clangxx -fsycl %s -Wno-error=unused-command-line-argument -o %t.out -fno-builtin
 #include <iostream>
 #include <math.h>
 #include <sycl/detail/core.hpp>
