@@ -1,6 +1,6 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out -lcuda
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: cuda
+// REQUIRES: cuda, cuda_dev_kit
 
 #include <cuda.h>
 
