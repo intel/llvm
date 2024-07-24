@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/detail/core.hpp>

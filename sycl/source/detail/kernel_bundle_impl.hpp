@@ -360,6 +360,43 @@ public:
     Language = Lang;
   }
 
+  std::string trimXsFlags(std::string &str) {
+    // Trim first and last quote if they exist, but no others.
+    char EncounteredQuote = '\0';
+    auto Start = std::find_if(str.begin(), str.end(), [&](char c) {
+      if (!EncounteredQuote && (c == '\'' || c == '"')) {
+        EncounteredQuote = c;
+        return false;
+      }
+      return !std::isspace(c);
+    });
+    auto End = std::find_if(str.rbegin(), str.rend(), [&](char c) {
+                 if (c == EncounteredQuote) {
+                   EncounteredQuote = '\0';
+                   return false;
+                 }
+                 return !std::isspace(c);
+               }).base();
+    if (Start != std::end(str) && End != std::begin(str) && Start < End) {
+      return std::string(Start, End);
+    }
+
+    return "";
+  }
+
+  std::string extractXsFlags(const std::vector<std::string> &BuildOptions) {
+    std::stringstream SS;
+    for (std::string Option : BuildOptions) {
+      auto Where = Option.find("-Xs");
+      if (Where != std::string::npos) {
+        Where += 3;
+        std::string Flags = Option.substr(Where);
+        SS << trimXsFlags(Flags) << " ";
+      }
+    }
+    return SS.str();
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -420,8 +457,9 @@ public:
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
     // program created by piProgramCreate is implicitly retained.
 
+    std::string XsFlags = extractXsFlags(BuildOptions);
     Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        PiProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str(), nullptr,
         nullptr);
 
     // Get the number of kernels in the program.
