@@ -13,7 +13,6 @@
 
 class TaskSequenceTest;
 
-
 template <typename T, int COUNT> class FixedVect {
   T data[COUNT];
 
@@ -108,7 +107,9 @@ int main() {
     });
     q.wait();
   }
-  assert((abs(res_struct[0].val - vec_in_struct[0].val) < 0.001) && res_struct[0].isValid);
-  assert((abs(res_array[0][0] - vec_in_array[0][0]) < 0.001) && (abs(res_array[0][1] - vec_in_array[0][1]) < 0.001));
+  assert((abs(res_struct[0].val - vec_in_struct[0].val) < 0.001) &&
+         res_struct[0].isValid);
+  assert((abs(res_array[0][0] - vec_in_array[0][0]) < 0.001) &&
+         (abs(res_array[0][1] - vec_in_array[0][1]) < 0.001));
   return 0;
 }
