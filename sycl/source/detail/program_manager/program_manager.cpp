@@ -556,7 +556,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
   std::set<std::string> HandledSymbols;
   std::queue<std::string> WorkList;
-  for (const sycl_device_binary_property &ISProp : MainImg.getImportedSymbols()) {
+  for (const sycl_device_binary_property &ISProp :
+       MainImg.getImportedSymbols()) {
     WorkList.push(ISProp->Name);
     HandledSymbols.insert(ISProp->Name);
   }
@@ -1529,12 +1530,14 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
     // Register all exported symbols
-    for (const sycl_device_binary_property &ESProp : Img->getExportedSymbols()) {
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
       m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
     }
 
     // Record mapping between virtual function sets and device images
-    for (const sycl_device_binary_property &VFProp : Img->getVirtualFunctions()) {
+    for (const sycl_device_binary_property &VFProp :
+         Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage[SetName].insert(Img.get());

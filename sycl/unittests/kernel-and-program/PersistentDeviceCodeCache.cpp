@@ -227,19 +227,19 @@ protected:
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
   sycl_device_binary_struct BinStruct{/*Version*/ 1,
-                                    /*Kind*/ 4,
-                                    /*Format*/ GetParam(),
-                                    /*DeviceTargetSpec*/ nullptr,
-                                    /*CompileOptions*/ nullptr,
-                                    /*LinkOptions*/ nullptr,
-                                    /*ManifestStart*/ nullptr,
-                                    /*ManifestEnd*/ nullptr,
-                                    /*BinaryStart*/ nullptr,
-                                    /*BinaryEnd*/ nullptr,
-                                    /*EntriesBegin*/ &EntryStruct,
-                                    /*EntriesEnd*/ &EntryStruct + 1,
-                                    /*PropertySetsBegin*/ nullptr,
-                                    /*PropertySetsEnd*/ nullptr};
+                                      /*Kind*/ 4,
+                                      /*Format*/ GetParam(),
+                                      /*DeviceTargetSpec*/ nullptr,
+                                      /*CompileOptions*/ nullptr,
+                                      /*LinkOptions*/ nullptr,
+                                      /*ManifestStart*/ nullptr,
+                                      /*ManifestEnd*/ nullptr,
+                                      /*BinaryStart*/ nullptr,
+                                      /*BinaryEnd*/ nullptr,
+                                      /*EntriesBegin*/ &EntryStruct,
+                                      /*EntriesEnd*/ &EntryStruct + 1,
+                                      /*PropertySetsBegin*/ nullptr,
+                                      /*PropertySetsEnd*/ nullptr};
   sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   sycl::detail::pi::PiProgram NativeProg;
@@ -277,19 +277,19 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
   sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
-                                         /*Kind*/ 4,
-                                         /*Format*/ GetParam(),
-                                         /*DeviceTargetSpec*/ nullptr,
-                                         /*CompileOptions*/ nullptr,
-                                         /*LinkOptions*/ nullptr,
-                                         /*ManifestStart*/ nullptr,
-                                         /*ManifestEnd*/ nullptr,
-                                         /*BinaryStart*/ nullptr,
-                                         /*BinaryEnd*/ nullptr,
-                                         /*EntriesBegin*/ &ExtraEntryStruct,
-                                         /*EntriesEnd*/ &ExtraEntryStruct + 1,
-                                         /*PropertySetsBegin*/ nullptr,
-                                         /*PropertySetsEnd*/ nullptr};
+                                           /*Kind*/ 4,
+                                           /*Format*/ GetParam(),
+                                           /*DeviceTargetSpec*/ nullptr,
+                                           /*CompileOptions*/ nullptr,
+                                           /*LinkOptions*/ nullptr,
+                                           /*ManifestStart*/ nullptr,
+                                           /*ManifestEnd*/ nullptr,
+                                           /*BinaryStart*/ nullptr,
+                                           /*BinaryEnd*/ nullptr,
+                                           /*EntriesBegin*/ &ExtraEntryStruct,
+                                           /*EntriesEnd*/ &ExtraEntryStruct + 1,
+                                           /*PropertySetsBegin*/ nullptr,
+                                           /*PropertySetsEnd*/ nullptr};
   sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};

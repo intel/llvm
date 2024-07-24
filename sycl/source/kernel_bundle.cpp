@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/compiler.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/compiler.hpp>
 
 #include <cstddef>
 #include <set>

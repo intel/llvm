@@ -67,8 +67,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 

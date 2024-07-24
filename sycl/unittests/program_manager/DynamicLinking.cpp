@@ -76,8 +76,8 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiImage Img{
       BinType,
       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};

@@ -1055,8 +1055,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     PropertyContainer NeedFinalization{
         __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
-    PropertySetContainer ProgramMetadata{
-        __SYCL_PROPERTY_SET_PROGRAM_METADATA};
+    PropertySetContainer ProgramMetadata{__SYCL_PROPERTY_SET_PROGRAM_METADATA};
     ProgramMetadata.addProperty(std::move(NeedFinalization));
     Binary.addProperty(std::move(ProgramMetadata));
   }
