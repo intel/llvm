@@ -33,27 +33,8 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateImage() {
-  using namespace sycl::unittest;
-
-  UrPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernelWithMemObj"});
-
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::UrImage Img = generateImage();
+static sycl::unittest::UrImage Img =
+    sycl::unittest::generateDefaultImage({"TestKernelWithMemObj"});
 static sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 using namespace sycl;

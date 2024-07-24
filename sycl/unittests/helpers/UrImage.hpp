@@ -539,6 +539,25 @@ addDeviceRequirementsProps(UrPropertySet &Props,
                std::move(Value));
 }
 
+inline UrImage
+generateDefaultImage(std::initializer_list<std::string> KernelNames) {
+  UrPropertySet PropSet;
+
+  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+
+  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+
+  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                     // Compile options
+              "",                                     // Link options
+              std::move(Bin),
+              std::move(Entries),
+              std::move(PropSet)};
+
+  return Img;
+}
+
 } // namespace unittest
 } // namespace _V1
 } // namespace sycl

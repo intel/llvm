@@ -23,43 +23,10 @@ using namespace sycl;
 
 class MultipleDevsCacheTestKernel;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<MultipleDevsCacheTestKernel>
-    : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "MultipleDevsCacheTestKernel";
-  }
-};
+MOCK_INTEGRATION_HEADER(MultipleDevsCacheTestKernel)
 
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-
-static sycl::unittest::UrImage generateDefaultImage() {
-  using namespace sycl::unittest;
-
-  UrPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  UrArray<UrOffloadEntry> Entries =
-      makeEmptyKernels({"MultipleDevsCacheTestKernel"});
-
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::UrImage Img = generateDefaultImage();
+static sycl::unittest::UrImage Img =
+    sycl::unittest::generateDefaultImage({"MultipleDevsCacheTestKernel"});
 static sycl::unittest::UrImageArray<1> ImgArray{&Img};
 
 static ur_result_t redefinedDeviceGetAfter(void *pParams) {

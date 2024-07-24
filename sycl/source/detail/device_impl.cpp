@@ -530,30 +530,12 @@ bool device_impl::has(aspect Aspect) const {
             &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_export: {
-    ur_bool_t support = false;
-    bool call_successful =
-        getPlugin()->call_nocheck(
-            urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP, sizeof(ur_bool_t),
-            &support, nullptr) == UR_RESULT_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_interop_semaphore_import: {
     ur_bool_t support = false;
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
             UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP,
-            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_semaphore_export: {
-    ur_bool_t support = false;
-    bool call_successful =
-        getPlugin()->call_nocheck(
-            urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -619,15 +601,6 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm: {
-    ur_bool_t support = false;
-    bool call_successful =
-        getPlugin()->call_nocheck(
-            urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP,
-            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_3d: {
     ur_bool_t support = false;
     bool call_successful =
@@ -651,6 +624,41 @@ bool device_impl::has(aspect Aspect) const {
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
             UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_image_array: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MDevice, UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_unique_addressing_per_dim: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MDevice,
+            UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_1d_usm: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_2d_usm: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }

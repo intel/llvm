@@ -88,7 +88,7 @@ target_include_directories(sycl_ur_trace_collector PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if(SYCL_BUILD_BACKEND_CUDA)
 
   find_package(CUDA 10.1 REQUIRED)
 

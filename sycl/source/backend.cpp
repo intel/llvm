@@ -106,8 +106,8 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
   Plugin->call(urContextCreateWithNativeHandle, NativeHandle,
-               DeviceHandles.size(), DeviceHandles.data(), &Properties,
-               &UrContext);
+               Plugin->getUrAdapter(), DeviceHandles.size(),
+               DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
   return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
       UrContext, Handler, Plugin, DeviceList, !KeepOwnership));
