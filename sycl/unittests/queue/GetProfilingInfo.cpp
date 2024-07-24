@@ -24,36 +24,7 @@
 
 class InfoTestKernel;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<InfoTestKernel> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "InfoTestKernel"; }
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-template <typename T> sycl::unittest::PiImage generateTestImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"InfoTestKernel"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
+MOCK_INTEGRATION_HEADER(InfoTestKernel)
 
 static pi_result
 redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
@@ -86,7 +57,8 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
@@ -123,7 +95,8 @@ TEST(GetProfilingInfo, command_exception_check) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{Ctx, Dev};
@@ -223,7 +196,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
@@ -262,7 +236,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
@@ -407,7 +382,8 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
       redefinedDeviceGetInfoAcc);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
@@ -445,7 +421,8 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
       redefinedDeviceGetInfoAcc);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static auto DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{

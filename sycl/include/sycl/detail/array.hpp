@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
 #include <sycl/exception.hpp>
 
 #include <stddef.h>    // for size_t

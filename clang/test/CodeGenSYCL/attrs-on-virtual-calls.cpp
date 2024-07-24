@@ -1,11 +1,9 @@
 // Test verifies that clang codegen properly adds call site attributes to
 // device code
 
-// RUN: %clang_cc1 -triple spir64 -fsycl-allow-virtual-functions \
-// RUN:    -fsycl-is-device -emit-llvm %s -o %t.device
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -emit-llvm %s -o %t.device
 // RUN: FileCheck %s --input-file=%t.device
-// RUN: %clang_cc1 -triple x86_64 -fsycl-allow-virtual-functions \
-// RUN:    -fsycl-is-host -emit-llvm %s -o %t.host
+// RUN: %clang_cc1 -triple x86_64 -fsycl-is-host -emit-llvm %s -o %t.host
 // RUN: FileCheck %s --input-file=%t.host --check-prefix=CHECK-HOST
 
 // CHECK-HOST-NOT: attributes {{.*}} "virtual-call"

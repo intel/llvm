@@ -20,27 +20,9 @@ class TestKernel;
 class TestKernelExeOnly;
 class TestKernelWithAspects;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernel"; }
-};
-
-template <>
-struct KernelInfo<TestKernelExeOnly> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernelExeOnly"; }
-};
-
-template <>
-struct KernelInfo<TestKernelWithAspects> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "TestKernelWithAspects"; }
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+MOCK_INTEGRATION_HEADER(TestKernel)
+MOCK_INTEGRATION_HEADER(TestKernelExeOnly)
+MOCK_INTEGRATION_HEADER(TestKernelWithAspects)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,

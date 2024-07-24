@@ -17,7 +17,7 @@ class Kernel1;
 // CHECK-SAME:      !sycl_used_aspects ![[#USED_ASPECTS:]]
 
 // CHECK: ![[#USED_ASPECTS]] = !{![[#ASPECT:]]}
-// CHECK: ![[#ASPECT]] = !{!"ext_oneapi_private_alloca", i32 63}
+// CHECK: ![[#ASPECT]] = !{!"ext_oneapi_private_alloca", i32 64}
 
 constexpr static sycl::specialization_id<int> size(10);
 
