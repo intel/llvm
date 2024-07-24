@@ -127,8 +127,7 @@ class it belongs to).
 Without any knowledge about which virtual function can be called from which
 kernels compiler will have to make all virtual functions available to all
 kernels. That may not be desirable because some of those virtual functions could
-use optional kernel features and thus would propagate their use into kernels
-designed to be submitted to devices without support for those optional features.
+use features that are prohibited in device code.
 
 In order to help compiler to build a mapping between kernels and virtual
 functions they may call, the extension introduces new compile-time-constant
