@@ -128,7 +128,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     Message += Acc;
   }
   Message += Suffix;
-  throw sycl::runtime_error(Message, PI_ERROR_DEVICE_NOT_FOUND);
+  throw exception(make_error_code(errc::runtime), Message);
 }
 
 // select_device(selector)
@@ -283,8 +283,8 @@ int accelerator_selector::operator()(const device &dev) const {
 
 namespace ext::oneapi {
 
-filter_selector::filter_selector(const std::string &Input)
-    : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
+filter_selector::filter_selector(sycl::detail::string_view Input)
+    : impl(std::make_shared<detail::filter_selector_impl>(Input.data())) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
@@ -316,7 +316,7 @@ device filter_selector::select_device() const {
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
-filter_selector::filter_selector(const std::string &Input)
+filter_selector::filter_selector(sycl::detail::string_view Input)
     : ext::oneapi::filter_selector(Input) {}
 
 int filter_selector::operator()(const device &Dev) const {

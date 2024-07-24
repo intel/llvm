@@ -1057,14 +1057,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     C.getDriver().addFPGATempDepFile(DepFile, BaseName);
   };
 
-  // Do not add dependency generation information when compiling the source +
-  // footer combination.  The dependency generation is done in a separate
-  // compile step so we can retain original source information.
-  // TODO: remove this when/if we can improve the host compilation situation
-  // when dealing with the temporary file generated for the footer.
-  if (ContainsAppendFooterAction(&JA))
-    ArgM = nullptr;
-
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -1335,24 +1327,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     // Not translated, render as usual.
     A->claim();
     A->render(Args, CmdArgs);
-  }
-
-  // The file being compiled that contains the integration footer is not being
-  // compiled in the directory of the original source.  Add that directory
-  // as an -iquote option so we can properly find potential user headers there.
-  // The original source search directory should also be placed before any user
-  // search directories.
-  if (ContainsAppendFooterAction(&JA)) {
-    SmallString<128> SourcePath(Inputs[0].getBaseInput());
-    llvm::sys::path::remove_filename(SourcePath);
-    if (!SourcePath.empty()) {
-      CmdArgs.push_back("-iquote");
-      CmdArgs.push_back(Args.MakeArgString(SourcePath));
-    } else if (llvm::ErrorOr<std::string> CWD =
-                   D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-iquote");
-      CmdArgs.push_back(Args.MakeArgString(*CWD));
-    }
   }
 
   Args.addAllArgs(CmdArgs,
@@ -5447,6 +5421,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
+                    options::OPT_fno_sycl_decompose_functor);
+
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR/SPIR-V based targets.
     if (Triple.isSPIROrSPIRV())
@@ -5509,13 +5486,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
     if (SYCLStdArg) {
-      // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.
-      // TODO: remove support at next approprate major release.
-      StringRef StdValue(SYCLStdArg->getValue());
-      if (StdValue == "1.2.1" || StdValue == "121" ||
-          StdValue == "sycl-1.2.1" || StdValue == "2017")
-        D.Diag(diag::warn_drv_deprecated_argument_option_release)
-            << StdValue << SYCLStdArg->getSpelling();
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
@@ -5620,6 +5590,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
+
+      // Add the -include-footer option to add the integration footer
+      StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
+      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
+        CmdArgs.push_back("-include-footer");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+        // When creating dependency information, filter out the generated
+        // integration footer file.
+        CmdArgs.push_back("-dependency-filter");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+      }
+
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
@@ -10553,7 +10536,6 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_argument_interfaces"
       ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
       ",+SPV_INTEL_fpga_latency_control"
-      ",+SPV_INTEL_task_sequence"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
@@ -10746,11 +10728,6 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
-
-  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
-  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
-  if (!IsUsingLTO || LTOMode != LTOK_Thin)
-    addArgs(PostLinkArgs, TCArgs, {"-properties"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10765,11 +10742,18 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                            llvm::Triple Triple,
                                            bool SpecConstsSupported,
                                            types::ID OutputType) {
+
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
   if (OutputType == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
+  } else if (!IsUsingLTO || LTOMode != LTOK_Thin) {
+    // Only create a properties file if we are not
+    // only outputting IR.
+    addArgs(PostLinkArgs, TCArgs, {"-properties"});
   }
   if (SpecConstsSupported)
     addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});

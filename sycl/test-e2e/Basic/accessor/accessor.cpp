@@ -11,7 +11,6 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 struct IdxID1 {
   int x;
