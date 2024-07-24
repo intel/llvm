@@ -940,8 +940,8 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
         group_scope<GroupT>::value, convertToOpenCLType(x), LocalId));
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(
-        __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(
+        __spv::Scope::Subgroup, convertToOpenCLType(x), LocalId));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -978,8 +978,9 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleXorINTEL(
-        convertToOpenCLType(x), static_cast<uint32_t>(mask.get(0))));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleXor(
+        __spv::Scope::Subgroup, convertToOpenCLType(x),
+        static_cast<uint32_t>(mask.get(0))));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1025,8 +1026,8 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleDownINTEL(
-        convertToOpenCLType(x), convertToOpenCLType(x), delta));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleDown(
+        __spv::Scope::Subgroup, convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1069,8 +1070,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleUpINTEL(
-        convertToOpenCLType(x), convertToOpenCLType(x), delta));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleUp(
+        __spv::Scope::Subgroup, convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
