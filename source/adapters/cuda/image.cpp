@@ -759,13 +759,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcPitch = pCopyRegion->copyExtent.width * PixelSizeBytes;
-        cpy_desc.srcHeight = pCopyRegion->copyExtent.height;
+        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcHeight = std::max(uint64_t{1}, pSrcImageDesc->height);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
-        cpy_desc.Depth = pDstImageDesc->arraySize;
+        cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
     } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
@@ -855,10 +855,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
-        cpy_desc.dstHeight = pDstImageDesc->height;
+        cpy_desc.dstHeight = std::max(uint64_t{1}, pDstImageDesc->height);
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
-        cpy_desc.Depth = pSrcImageDesc->arraySize;
+        cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
     } else {
@@ -932,7 +932,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstArray = (CUarray)pDst;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
-        cpy_desc.Depth = pSrcImageDesc->arraySize;
+        cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
       // Synchronization is required here to handle the case of copying data
