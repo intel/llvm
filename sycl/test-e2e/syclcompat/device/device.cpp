@@ -29,7 +29,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=user-defined-warnings -o %t.out
 // RUN: %{run} %t.out
 
 #include <syclcompat/device.hpp>

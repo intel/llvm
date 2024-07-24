@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %{run} %t.out
 //
 // REQUIRES: cuda

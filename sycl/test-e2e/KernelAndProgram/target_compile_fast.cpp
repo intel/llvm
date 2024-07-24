@@ -1,4 +1,4 @@
-// RUN: %{build} -ftarget-compile-fast -o %t_with.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -ftarget-compile-fast -o %t_with.out
 // RUN: %{build} -o %t_without.out
 
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t_with.out 2>&1 | FileCheck %if !gpu || hip || cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-INTEL-GPU-WITH %} %s
