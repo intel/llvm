@@ -248,14 +248,18 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
             "Program and kernel_bundle state mismatch " +
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
+        ur_program_handle_t UrLinkedProgram = nullptr;
         auto Res =
             Plugin->call_nocheck(urProgramLinkExp, ContextImpl->getHandleRef(),
-                                 1, &Dev, 1, &UrProgram, nullptr, &UrProgram);
+                                 1, &Dev, 1, &UrProgram, nullptr, &UrLinkedProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Plugin->call_nocheck(urProgramLink, ContextImpl->getHandleRef(),
-                                     1, &UrProgram, nullptr, &UrProgram);
+                                     1, &UrProgram, nullptr, &UrLinkedProgram);
         }
         Plugin->checkUrResult<errc::build>(Res);
+        if (UrLinkedProgram != nullptr) {
+          UrProgram = UrLinkedProgram;
+        }
       }
       break;
     case (UR_PROGRAM_BINARY_TYPE_EXECUTABLE):

@@ -17,17 +17,19 @@
 // RUN: env SYCL_CACHE_PERSISTENT=1 XDG_CACHE_HOME=%t/cache_dir SYCL_UR_TRACE=1 env -u SYCL_CACHE_DIR env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 // RUN: rm -rf %t/cache_dir
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=1 env -u XDG_CACHE_HOME env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
-// RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=1 env -u XDG_CACHE_HOME env -u HOME %{run} %t.out %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
+// RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=1 env -u XDG_CACHE_HOME env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 // RUN: rm -rf %t/cache_dir
 // RUN: env SYCL_CACHE_PERSISTENT=1 HOME=%t/cache_dir SYCL_UR_TRACE=1 env -u XDG_CACHE_HOME env -u SYCL_CACHE_DIR %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 HOME=%t/cache_dir SYCL_UR_TRACE=1 env -u XDG_CACHE_HOME env -u SYCL_CACHE_DIR %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 
+// Some backends will call urProgramBuild and some will call urProgramBuildExp depending on urProgramBuildExp support.
+
 // CHECK-BUILD-NOT: urProgramCreateWithBinary(
 // CHECK-BUILD: urProgramCreateWithIL(
-// CHECK-BUILD: urProgramBuild(
+// CHECK-BUILD: urProgramBuild{{.*}}(
 
 // CHECK-CACHE-NOT: urProgramCreateWithIL(
 // CHECK-CACHE: urProgramCreateWithBinary(
-// CHECK-CACHE: urProgramBuild(
+// CHECK-CACHE: urProgramBuild{{.*}}(
 
 #include "cache_env_vars.hpp"
