@@ -7,7 +7,32 @@
 #include "uur/raii.h"
 
 struct urSamplerCreateTestWithParam
-    : uur::urContextTestWithParam<uur::SamplerCreateParamT> {};
+    : public uur::urContextTestWithParam<uur::SamplerCreateParamT> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<uur::SamplerCreateParamT>::SetUp());
+
+        ur_sampler_desc_t sampler_desc{
+            UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
+            nullptr,                        /* pNext */
+            {},                             /* normalizedCoords */
+            {},                             /* addressing mode */
+            {},                             /* filterMode */
+        };
+
+        uur::raii::Sampler hSampler = nullptr;
+        auto ret = urSamplerCreate(context, &sampler_desc, hSampler.ptr());
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        }
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<uur::SamplerCreateParamT>::TearDown());
+    }
+};
 
 UUR_TEST_SUITE_P(
     urSamplerCreateTestWithParam,

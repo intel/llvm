@@ -971,6 +971,15 @@ ur_result_t urPrintExpInteropSemaphoreDesc(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params,
+                          char *buffer, const size_t buff_size,
+                          size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpCommandBufferInfo(enum ur_exp_command_buffer_info_t value,
                                         char *buffer, const size_t buff_size,
                                         size_t *out_size) {
@@ -1227,8 +1236,8 @@ ur_result_t urPrintBindlessImagesImportExternalSemaphoreExpParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintBindlessImagesDestroyExternalSemaphoreExpParams(
-    const struct ur_bindless_images_destroy_external_semaphore_exp_params_t
+ur_result_t urPrintBindlessImagesReleaseExternalSemaphoreExpParams(
+    const struct ur_bindless_images_release_external_semaphore_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;

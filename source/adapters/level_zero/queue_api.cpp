@@ -255,16 +255,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
                                       phEventWaitList, phEvent);
 }
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
-    ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
-    ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
+    ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
+    const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   return hQueue->bindlessImagesImageCopyExp(
-      pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
-      dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
-      phEvent);
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
+      phEventWaitList, phEvent);
 }
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,

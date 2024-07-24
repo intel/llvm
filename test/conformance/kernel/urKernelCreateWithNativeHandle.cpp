@@ -50,13 +50,6 @@ TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullHandleContext) {
                                        &properties, &native_kernel));
 }
 
-TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullHandleProgram) {
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urKernelCreateWithNativeHandle(native_kernel_handle, context, nullptr,
-                                       &properties, &native_kernel));
-}
-
 TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullPointerNativeKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urKernelCreateWithNativeHandle(native_kernel_handle,

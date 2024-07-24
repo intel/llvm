@@ -963,6 +963,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpInteropMemDesc(const struct ur_exp
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpInteropSemaphoreDesc(const struct ur_exp_interop_semaphore_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_image_copy_region_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_command_buffer_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2155,12 +2163,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseInteropExpParams
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalSemaphoreExpParams(const struct ur_bindless_images_import_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_destroy_external_semaphore_exp_params_t struct
+/// @brief Print ur_bindless_images_release_external_semaphore_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesDestroyExternalSemaphoreExpParams(const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseExternalSemaphoreExpParams(const struct ur_bindless_images_release_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_wait_external_semaphore_exp_params_t struct

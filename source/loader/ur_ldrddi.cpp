@@ -1044,10 +1044,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
-        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+        phDevices, ///< [in][optional][range(0, numDevices)] list of devices associated with
+                   ///< the context
     const ur_context_native_properties_t *
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
@@ -1058,13 +1061,15 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     [[maybe_unused]] auto context = getContext();
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_device_object_t *>(*phDevices)->dditable;
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
 
     // convert loader handles to platform handles
     auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
@@ -1074,7 +1079,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeContext, numDevices,
+    result = pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
                                        phDevicesLocal.data(), pProperties,
                                        phContext);
 
@@ -3592,7 +3597,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
-        hProgram, ///< [in] handle of the program associated with the kernel
+        hProgram, ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
@@ -3614,7 +3619,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
-    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+    hProgram = (hProgram)
+                   ? reinterpret_cast<ur_program_object_t *>(hProgram)->handle
+                   : nullptr;
 
     // forward to device-platform
     result = pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
@@ -3908,7 +3915,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_device_handle_t hDevice, ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3930,7 +3937,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
 
     // forward to device-platform
     result = pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
@@ -6363,25 +6372,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    const void *pSrc,         ///< [in] location the data will be copied from
     void *pDst,               ///< [in] location the data will be copied to
-    void *pSrc,               ///< [in] location the data will be copied from
+    const ur_image_desc_t *pSrcImageDesc, ///< [in] pointer to image description
+    const ur_image_desc_t *pDstImageDesc, ///< [in] pointer to image description
     const ur_image_format_t
-        *pImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+        *pSrcImageFormat, ///< [in] pointer to image format specification
+    const ur_image_format_t
+        *pDstImageFormat, ///< [in] pointer to image format specification
+    ur_exp_image_copy_region_t *
+        pCopyRegion, ///< [in] Pointer to structure describing the (sub-)regions of source and
+                     ///< destination images
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
-    ur_rect_offset_t
-        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
-                   ///< image
-    ur_rect_offset_t
-        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
-                   ///< or 3D image
-    ur_rect_region_t
-        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                    ///< region to copy
-    ur_rect_region_t
-        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6416,9 +6419,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     // forward to device-platform
-    result = pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
-                             imageCopyFlags, srcOffset, dstOffset, copyExtent,
-                             hostExtent, numEventsInWaitList,
+    result = pfnImageCopyExp(hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc,
+                             pSrcImageFormat, pDstImageFormat, pCopyRegion,
+                             imageCopyFlags, numEventsInWaitList,
                              phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
@@ -6644,7 +6647,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be freed
+        hInteropMem ///< [in][release] handle of interop memory to be destroyed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6727,8 +6730,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
@@ -6740,9 +6743,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnDestroyExternalSemaphoreExp =
-        dditable->ur.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
-    if (nullptr == pfnDestroyExternalSemaphoreExp) {
+    auto pfnReleaseExternalSemaphoreExp =
+        dditable->ur.BindlessImagesExp.pfnReleaseExternalSemaphoreExp;
+    if (nullptr == pfnReleaseExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6759,7 +6762,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 
     // forward to device-platform
     result =
-        pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
     return result;
 }
@@ -8692,8 +8695,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
                 ur_loader::urBindlessImagesReleaseInteropExp;
             pDdiTable->pfnImportExternalSemaphoreExp =
                 ur_loader::urBindlessImagesImportExternalSemaphoreExp;
-            pDdiTable->pfnDestroyExternalSemaphoreExp =
-                ur_loader::urBindlessImagesDestroyExternalSemaphoreExp;
+            pDdiTable->pfnReleaseExternalSemaphoreExp =
+                ur_loader::urBindlessImagesReleaseExternalSemaphoreExp;
             pDdiTable->pfnWaitExternalSemaphoreExp =
                 ur_loader::urBindlessImagesWaitExternalSemaphoreExp;
             pDdiTable->pfnSignalExternalSemaphoreExp =

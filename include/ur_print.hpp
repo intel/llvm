@@ -334,6 +334,7 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_cubemap_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_image_copy_region_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_command_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_desc_t params);
@@ -752,8 +753,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
         break;
-    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP";
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP";
         break;
     case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP";
@@ -1094,6 +1095,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
         break;
+    case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION:
+        os << "UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION";
+        break;
     case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
         break;
@@ -1346,6 +1350,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES: {
         const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION: {
+        const ur_exp_image_copy_region_t *pstruct = (const ur_exp_image_copy_region_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
@@ -2574,14 +2583,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP";
         break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP";
-        break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP";
-        break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP";
@@ -2601,14 +2604,23 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP";
         break;
-    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP:
-        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP";
-        break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP";
         break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP";
         break;
     case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
@@ -4214,31 +4226,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -4322,18 +4310,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        os << (const void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -4347,6 +4323,54 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -9607,6 +9631,41 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_se
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_copy_region_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_image_copy_region_t params) {
+    os << "(struct ur_exp_image_copy_region_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".srcOffset = ";
+
+    os << (params.srcOffset);
+
+    os << ", ";
+    os << ".dstOffset = ";
+
+    os << (params.dstOffset);
+
+    os << ", ";
+    os << ".copyExtent = ";
+
+    os << (params.copyExtent);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_command_buffer_info_t type
 /// @returns
 ///     std::ostream &
@@ -10608,6 +10667,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os, reinterpret_cast<void *>(
                                   *(params->phNativeContext)));
+
+    os << ", ";
+    os << ".hAdapter = ";
+
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".numDevices = ";
@@ -14866,54 +14931,52 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phQueue));
 
     os << ", ";
-    os << ".pDst = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppDst));
-
-    os << ", ";
     os << ".pSrc = ";
 
     ur::details::printPtr(os,
                           *(params->ppSrc));
 
     os << ", ";
-    os << ".pImageFormat = ";
+    os << ".pDst = ";
 
     ur::details::printPtr(os,
-                          *(params->ppImageFormat));
+                          *(params->ppDst));
 
     os << ", ";
-    os << ".pImageDesc = ";
+    os << ".pSrcImageDesc = ";
 
     ur::details::printPtr(os,
-                          *(params->ppImageDesc));
+                          *(params->ppSrcImageDesc));
+
+    os << ", ";
+    os << ".pDstImageDesc = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppDstImageDesc));
+
+    os << ", ";
+    os << ".pSrcImageFormat = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppSrcImageFormat));
+
+    os << ", ";
+    os << ".pDstImageFormat = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppDstImageFormat));
+
+    os << ", ";
+    os << ".pCopyRegion = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppCopyRegion));
 
     os << ", ";
     os << ".imageCopyFlags = ";
 
     ur::details::printFlag<ur_exp_image_copy_flag_t>(os,
                                                      *(params->pimageCopyFlags));
-
-    os << ", ";
-    os << ".srcOffset = ";
-
-    os << *(params->psrcOffset);
-
-    os << ", ";
-    os << ".dstOffset = ";
-
-    os << *(params->pdstOffset);
-
-    os << ", ";
-    os << ".copyExtent = ";
-
-    os << *(params->pcopyExtent);
-
-    os << ", ";
-    os << ".hostExtent = ";
-
-    os << *(params->phostExtent);
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -15191,10 +15254,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_destroy_external_semaphore_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_release_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_release_external_semaphore_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -17747,8 +17810,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_import_external_semaphore_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP: {
-        os << (const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP: {
+        os << (const struct ur_bindless_images_release_external_semaphore_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_wait_external_semaphore_exp_params_t *)params;
