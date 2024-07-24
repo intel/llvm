@@ -3897,6 +3897,8 @@ private:
   // __builtin_field_type, __builtin_base_type
   ExprResult ParseSYCLBuiltinType();
 
+  ExprResult ParseBuiltinPtrauthTypeDiscriminator();
+
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through
   void CodeCompleteDirective(bool InConditional) override;
