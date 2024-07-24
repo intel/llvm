@@ -1,5 +1,5 @@
-// REQUIRES: cuda
-// RUN: %{build} -o %t.out -lcuda
+// REQUIRES: cuda, cuda_dev_kit
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 #include <cuda.h>
 
