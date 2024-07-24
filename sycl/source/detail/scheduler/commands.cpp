@@ -3170,8 +3170,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue->getContextImplPtr() ==
-              AllocaCmd->getQueue()->getContextImplPtr()) {
+          if (getContext(HostTask->MQueue) ==
+              getContext(AllocaCmd->getQueue())) {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3185,7 +3185,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available ");
+            "Can't get memory object due to no allocation available " +
+                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
