@@ -503,7 +503,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   // optimized path for immediate, in-order command lists
   if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Flags);
+    *Queue = v2::createQueue(Context, Device, Props);
     return UR_RESULT_SUCCESS;
   }
 
