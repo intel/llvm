@@ -298,12 +298,8 @@ int main() {
   constexpr size_t NCache2 = 256;
   constexpr size_t KCache2 = 32;
 
-  std::cout << "start the test" << std::endl;
-  std::cout << combinations.size() << std::endl;
-
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      std::cout << "Intel AMX test" << std::endl;
       constexpr size_t NCache1 = 32;
       constexpr size_t KCache1 = 32;
 
@@ -313,7 +309,6 @@ int main() {
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-    std::cout << "Intel gpt pvc" << std::endl;
       constexpr size_t NCache1 = 4 * /*TN*/ 16;
       constexpr size_t KCache1 = 16;
 
