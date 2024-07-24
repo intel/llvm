@@ -967,12 +967,15 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
 
   SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for
-  // spir64-unknown-unknown.
-  // TODO: Fix SYCL runtime to accept both triple
+  // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
+  // TODO: Fix SYCL runtime to accept other triples
   llvm::Triple T(Target);
   std::string EmbeddedIRTarget("llvm_");
   EmbeddedIRTarget.append(T.getArchName());
   StringRef RegularTarget(T.getArchName());
+  if (RegularTarget == "spirv64")
+    RegularTarget = "spir64";
+
   for (auto &SI : SplitModules) {
     auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
     if (!MBOrDesc)

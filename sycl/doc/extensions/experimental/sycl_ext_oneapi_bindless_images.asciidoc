@@ -135,8 +135,8 @@ The device aspects for these queries are:
 |======================
 |Device descriptor |Description
 |`aspect::ext_oneapi_bindless_images` | Indicates if the device supports 
-creation of bindless images backed by the `image_mem` and `image_mem_handle` 
-APIs.
+bindless images. This includes creating bindless images backed by the
+`image_mem` and `image_mem_handle` APIs.
 |`aspect::ext_oneapi_bindless_images_shared_usm` | Indicates if the device 
 supports the creation of bindless images backed by shared USM memory.
 |`aspect::ext_oneapi_bindless_images_1d_usm` | Indicates if the device supports 
@@ -714,6 +714,8 @@ represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e.
 `addressing[3]` defines the addressing mode per texture dimension. A 
 `bindless_image_sampler` can be constructed with a singular 
 `sycl::addressing_mode`, where this parameter will define all dimensions.
+Not all devices may support unique addressing per dimension.  We provide device
+aspect queries for this in <<querying_unique_addressing_support>>
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -1069,6 +1071,9 @@ not all devices may support fetching of sampled image data depending on the
 dimension or backing memory type. We provide device aspect queries for this in 
 <<querying_sampled_image_fetch_support>>.
 
+Additionally, not all devices may support sampling of USM images. We provide
+device aspect queries for this in <<querying_usm_sample_support>>
+
 The user is required to pass a `DataT` template parameter, which specifies the
 return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
 not a recognized standard type, as defined in <<recognized_standard_types>>, 
@@ -1171,12 +1176,39 @@ The device aspect descriptors for these queries are:
 |`aspect::ext_oneapi_bindless_sampled_image_fetch_2d` | 
  Indicates if the device is capable of fetching non-USM backed 2D 
  sampled image data.
-|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm` | 
- Indicates if the device is capable of fetching USM backed 3D 
- sampled image data.
 |`aspect::ext_oneapi_bindless_sampled_image_fetch_3d` | 
  Indicates if the device is capable of fetching non-USM backed 3D 
  sampled image data.
+|======================
+
+=== Querying USM sampling support [[querying_usm_sample_support]]
+
+We provide the following device queries to query support for sampling USM
+images.
+
+The device aspect descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor | Description
+|`aspect::ext_oneapi_bindless_images_sample_1d_usm` | Indicates if the device
+supports the sampling of 1D bindless images backed by USM.
+|`aspect::ext_oneapi_bindless_images_sample_2d_usm` | Indicates if the device
+supports the sampling of 2D bindless images backed by USM.
+|======================
+
+=== Querying unique addressing support [[querying_unique_addressing_support]]
+
+We provide the following device queries to query support information for
+unique addressing for each image dimension.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_unique_addressing_per_dim` | Indicates if the device 
+supports unique addressing per dimension when sampling.
 |======================
 
 == Mipmapped images
@@ -1311,6 +1343,20 @@ every index has the same dimensionality, size, and data type.
 
 Image arrays may also be referred to as layered images, and the array indices 
 may be referred to layers.
+
+=== Querying image array support
+
+We provide the following device aspect to retrieve support information for
+image arrays.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_image_array` | Indicates if the device supports
+image arrays.
+|======================
 
 === Allocation of image arrays
 
@@ -1547,12 +1593,8 @@ The device aspect descriptors for these queries are:
 |Device descriptor |Description
 |`aspect::ext_oneapi_interop_memory_import` | Indicates if the device supports 
 importing external memory resources.
-|`aspect::ext_oneapi_interop_memory_export` | Indicates if the device supports 
-exporting internal memory resources.
 |`aspect::ext_oneapi_interop_semaphore_import`` | Indicates if the device 
 supports importing external semaphore resources.
-|`aspect::ext_oneapi_interop_semaphore_export` | Indicates if the device 
-supports exporting internal event resources.
 |======================
 
 
@@ -2811,4 +2853,10 @@ These features still need to be handled:
                     funcs.
 |5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
                     `release_external_semaphore`.
+|5.15|2024-07-19 - Add missing device queries for image arrays, sampling USM 
+                   images and unique addressing per dimension.
+                 - Remove aspects for semaphore export, memory export and fetch 
+                   3D USM images as they are not supported on any platform.
+                 - Refine the description of `ext_oneapi_bindless_images` aspect
+                   to indicate support for bindless image APIs.
 |======================
