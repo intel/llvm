@@ -1304,23 +1304,14 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
-        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
         UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
@@ -1342,6 +1333,15 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                              UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH,
                              UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT,
+                             UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM,
+        UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -1595,7 +1595,6 @@ inline pi_result piextContextCreateWithNativeHandle(
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
@@ -1607,7 +1606,7 @@ inline pi_result piextContextCreateWithNativeHandle(
       UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
-      NativeContext, NumDevices, UrDevices, &Properties, UrContext));
+      NativeContext, adapter, NumDevices, UrDevices, &Properties, UrContext));
 
   return PI_SUCCESS;
 }
@@ -5321,21 +5320,25 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
   }
 }
 
-inline pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
-                  const pi_image_format *ImageFormat,
-                  const pi_image_desc *ImageDesc,
-                  const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-                  pi_image_offset DstOffset, pi_image_region CopyExtent,
-                  pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
-                  const pi_event *EventWaitList, pi_event *Event) {
+inline pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DstImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DstImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
-  ur_image_format_t UrFormat{};
-  ur_image_desc_t UrDesc{};
-  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+  ur_image_format_t UrSrcFormat{};
+  ur_image_desc_t UrSrcDesc{};
+  pi2urImageDesc(SrcImageFormat, SrcImageDesc, &UrSrcFormat, &UrSrcDesc);
+
+  ur_image_format_t UrDstFormat{};
+  ur_image_desc_t UrDstDesc{};
+  pi2urImageDesc(DstImageFormat, DstImageDesc, &UrDstFormat, &UrDstDesc);
 
   ur_exp_image_copy_flags_t UrFlags;
   pi2urImageCopyFlags(Flags, &UrFlags);
@@ -5346,18 +5349,19 @@ piextMemImageCopy(pi_queue Queue, void *DstPtr, const void *SrcPtr,
   UrCopyExtent.depth = CopyExtent->depth;
   UrCopyExtent.height = CopyExtent->height;
   UrCopyExtent.width = CopyExtent->width;
-  ur_rect_region_t UrHostExtent{};
-  UrHostExtent.depth = HostExtent->depth;
-  UrHostExtent.height = HostExtent->height;
-  UrHostExtent.width = HostExtent->width;
+
+  ur_exp_image_copy_region_t UrCopyRegion{};
+  UrCopyRegion.copyExtent = UrCopyExtent;
+  UrCopyRegion.srcOffset = UrSrcOffset;
+  UrCopyRegion.dstOffset = UrDstOffset;
 
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesImageCopyExp(
-      UrQueue, DstPtr, SrcPtr, &UrFormat, &UrDesc, UrFlags, UrSrcOffset,
-      UrDstOffset, UrCopyExtent, UrHostExtent, NumEventsInWaitList,
+      UrQueue, SrcPtr, DstPtr, &UrSrcDesc, &UrDstDesc, &UrSrcFormat,
+      &UrDstFormat, &UrCopyRegion, UrFlags, NumEventsInWaitList,
       UrEventWaitList, UREvent));
 
   return PI_SUCCESS;

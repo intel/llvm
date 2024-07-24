@@ -100,12 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0abf37072567c27ff412ea7acfce7b72b9e4b3c0
+  # commit 9b209642d47a99fc445c3bdea3407a829f4623ae
+  # Merge: fa6bf973 65b44315
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 17 19:12:31 2024 +0100
-  #     Reinstate "Merge pull request #1855 from Seanst98/sean/rename-external-semaphore-release""
-  #     This reverts commit b26e53cdbd178ee03c3e8252aa00e596deb1f313.
-  set(UNIFIED_RUNTIME_TAG 0abf37072567c27ff412ea7acfce7b72b9e4b3c0)
+  # Date:   Tue Jul 23 19:22:06 2024 +0100
+  #     Merge pull request #1861 from aarongreig/aaron/addSetDataToMockHandle
+  #     Add getData/setData to mock dummy handle
+  set(UNIFIED_RUNTIME_TAG 9b209642d47a99fc445c3bdea3407a829f4623ae)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

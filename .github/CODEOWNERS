@@ -47,12 +47,6 @@ sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
-# Transform Dialect in MLIR.
-/mlir/include/mlir/Dialect/Transform/* @ftynse @nicolasvasilache
-/mlir/lib/Dialect/Transform/* @ftynse @nicolasvasilache
-/mlir/**/*TransformOps* @ftynse @nicolasvasilache
-
-
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
 
@@ -166,6 +160,7 @@ sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/NewOffloadDriver/ @intel/dpcpp-tools-reviewers
 
 # Sanitizer
 clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review

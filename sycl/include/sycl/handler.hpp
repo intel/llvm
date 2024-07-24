@@ -997,9 +997,9 @@ private:
       auto Config = Props.template get_property<
           sycl::ext::intel::experimental::cache_config_key>();
       if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
+        setKernelCacheConfig(StableKernelCacheConfig::LargeSLM);
       } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
+        setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
       std::ignore = Props;
@@ -1830,6 +1830,20 @@ private:
     SetHostTask(std::move(Func));
   }
 
+  template <typename FuncT>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
+  ext_codeplay_enqueue_native_command_impl(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    setArgsToAssociatedAccessors();
+
+    SetHostTask(std::move(Func));
+    setType(detail::CGType::CodeplayHostTask);
+  }
+
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
   /// the appropriate constructor.
@@ -2036,6 +2050,17 @@ public:
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
     host_task_impl(Func);
+  }
+
+  /// Enqueues a command to the SYCL runtime to invoke \p Func immediately.
+  template <typename FuncT>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
+  ext_codeplay_enqueue_native_command(FuncT &&Func) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_codeplay_enqueue_native_command>();
+    ext_codeplay_enqueue_native_command_impl(Func);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -3602,8 +3627,15 @@ private:
                             "handler::require() before it can be used.");
   }
 
+  // Changing values in this will break ABI/API.
+  enum class StableKernelCacheConfig : int32_t {
+    Default = 0,
+    LargeSLM = 1,
+    LargeData = 2
+  };
+
   // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  void setKernelCacheConfig(StableKernelCacheConfig);
   // Set value of the kernel is cooperative flag
   void setKernelIsCooperative(bool);
 
