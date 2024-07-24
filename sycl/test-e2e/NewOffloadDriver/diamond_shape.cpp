@@ -1,3 +1,5 @@
+// REQUIRES: fusion
+
 // RUN: %{build} %{embed-ir} -O2 --offload-new-driver -o %t.out
 // RUN: %{run} %t.out
 
