@@ -80,6 +80,14 @@ int main() {
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  if (!ok) {
+    std::cout << "compiling from SYCL source not supported" << std::endl;
+    return 0;
+  }
+
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
