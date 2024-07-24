@@ -204,9 +204,20 @@
 // 18.60 Remove deprecated functions piextMemImportOpaqueFD and
 //       piextImportExternalSemaphoreOpaqueFD
 // 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
+// 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
+//       descriptors.
+// 20.63 Added device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM
+//       Removed device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 
-#define _PI_H_VERSION_MAJOR 19
-#define _PI_H_VERSION_MINOR 61
+#define _PI_H_VERSION_MAJOR 20
+#define _PI_H_VERSION_MINOR 63
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -490,9 +501,7 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY = 0x2010A,
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT = 0x2010B,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT = 0x2010C,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT = 0x2010D,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
 
@@ -513,7 +522,6 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D = 0x20118,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM = 0x20119,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D = 0x2011A,
-  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM = 0x2011B,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D = 0x2011C,
 
   // Timestamp enqueue
@@ -527,6 +535,12 @@ typedef enum {
 
   // Return whether cluster launch is supported by device
   PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
+
+  // Bindless image arrays, unique addressing and USM sampling
+  PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT = 0x20122,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM = 0x20123,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM = 0x20124,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM = 0x20125,
 } _pi_device_info;
 
 typedef enum {
@@ -1081,6 +1095,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_IMPORTED_SYMBOLS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS "SYCL/imported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
@@ -3085,24 +3101,26 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// API to copy image data Host to Device or Device to Host.
 ///
 /// \param queue is the queue to submit to
-/// \param dst_ptr is the location the data will be copied to
 /// \param src_ptr is the data to be copied
-/// \param image_format format of the image (channel order and data type)
-/// \param image_desc image descriptor
+/// \param dst_ptr is the location the data will be copied to
+/// \param src_image_desc source image descriptor
+/// \param dst_image_desc destination image descriptor
+/// \param src_image_format format of the image (channel order and data type)
+/// \param dst_image_format format of the image (channel order and data type)
 /// \param flags flags describing copy direction (H2D or D2H)
 /// \param src_offset is the offset into the source image/memory
 /// \param dst_offset is the offset into the destination image/memory
 /// \param copy_extent is the extent (region) of the image/memory to copy
-/// \param host_extent is the extent (region) of the memory on the host
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, const void *src_ptr,
-    const pi_image_format *image_format, const pi_image_desc *image_desc,
-    const pi_image_copy_flags flags, pi_image_offset src_offset,
-    pi_image_offset dst_offset, pi_image_region copy_extent,
-    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
+    pi_queue queue, void *dst_ptr, const void *src_ptr,
+    const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
+    const pi_image_format *src_image_format,
+    const pi_image_format *dst_image_format, const pi_image_copy_flags flags,
+    pi_image_offset src_offset, pi_image_offset dst_offset,
+    pi_image_region copy_extent, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
 /// API to query an image memory handle for specific properties.

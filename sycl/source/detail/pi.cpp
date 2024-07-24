@@ -212,8 +212,7 @@ std::string platformInfoToString(pi_platform_info info) {
   case PI_EXT_PLATFORM_INFO_BACKEND:
     return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
-  die("Unknown pi_platform_info value passed to "
-      "sycl::detail::pi::platformInfoToString");
+  return "unknown PI_PLATFORM_INFO enum value";
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
@@ -512,15 +511,6 @@ template const PluginPtr &getPlugin<backend::opencl>();
 template const PluginPtr &getPlugin<backend::ext_oneapi_level_zero>();
 template const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
-
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
-  std::terminate();
-}
 
 // Reads an integer value from ELF data.
 template <typename ResT>

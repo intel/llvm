@@ -1,4 +1,3 @@
-/// TODO: macro settings only in old offloading model
 /// Check that no device traits macros are defined if sycl is disabled: 
 // RUN:   %clang -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DISABLED %s
@@ -11,6 +10,8 @@
 /// occurrences of the macro definition, one for host and one for device.
 // RUN:   %clang -fsycl --no-offload-new-driver -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-ENABLED %s
+// RUN:   %clang -fsycl --offload-new-driver -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-ENABLED %s
 // CHECK-ENABLED-COUNT-2: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 
 /// Check device traits macros are defined if sycl is enabled: 
@@ -18,6 +19,8 @@
 /// target (e.g. x86_64). We expect three occurrences of the macro
 /// definition, one for host and one for each of the two devices.
 // RUN:   %clang -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
+// RUN:   %clang -fsycl --offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
 // CHECK-SYCL-TARGETS-COUNT-3: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 
@@ -37,6 +40,9 @@
 /// NOTE: Both intel_gpu_pvc and amd_gpu_gfx906 have non-empty aspects lists and
 /// set maySupportOtherAspects to false, hence why they are used for this test.
 // RUN: %clangxx -fsycl --no-offload-new-driver -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS %s
+// RUN: %clangxx -fsycl --offload-new-driver -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS %s
 // CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS-NOT: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
