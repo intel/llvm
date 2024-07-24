@@ -16,10 +16,10 @@ using syclext = sycl::ext::oneapi::experimental;
 struct set_fp64;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
   void foo() {}
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<set_fp64>)
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_fp64>)
   void bar() {
     // this virtual function uses double
     double d = 3.14;
@@ -50,13 +50,13 @@ int main() {
 
   // The same binary produced by a sycl compiler should correctly work on both
   // devices with and without support for 'fp64' aspect.
-  Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
+  Q.single_task<Use>(syclext::properties{syclext::assume_inddirect_calls}, [=]() {
     Obj->foo();
   });
 
   if (Q.get_device().has(sycl::aspect::fp64)) {
-    Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<set_fp64>},
-        [=] {
+    Q.single_task<Use>(syclext::properties{syclext::assum_indirect_calls_to<set_fp64>},
+        [=]() {
       Obj->bar();
     });
   }
@@ -71,7 +71,7 @@ which are not in order to avoid speculative compilation and fulfill optional
 kernel features requirements from the SYCL 2020 specification.
 
 To solve this, the following approach is used: all virtual functions marked with
-`indirectly_callable` property are grouped by set they belong to and outlined
+`indirectly_callable_in` property are grouped by set they belong to and outlined
 into separate device images (i.e. device images with kernels using them are left
 with declarations only of those virtual functions).
 
@@ -80,10 +80,10 @@ create a "dummy" version of it where bodies of all virtual functions are
 emptied.
 
 Dependencies between device images are recorded in properties based on
-`calls_indirectly` and `indirectly_callable` properties. They are used later by
-runtime to link them together. Device images which depend on optional kernel
-features are linked only if those features are supported by a target device and
-dummy versions of those device images are used otherwise.
+`assume_indirect_calls_to` and `indirectly_callable_in` properties. They are
+used later by runtime to link them together. Device images which depend on
+optional kernel features are linked only if those features are supported by a
+target device and dummy versions of those device images are used otherwise.
 
 This way we can emit single unified version of LLVM IR where vtables reference
 all device virtual functions, but their definitions are outlined and linked
@@ -96,24 +96,25 @@ cleanup of virtual functions which are incompatible with a target device.
 
 ### Changes to the SYCL header files
 
-New compile-time properties `indirectly_callable` and `calls_indirectly` should
-be implemented in accordance with the corresponding [design document][2]:
+New compile-time properties `indirectly_callable_in` and
+`assume_indirect_calls_to` should be implemented in accordance with the
+corresponding [design document][2]:
 
-- `indirectly_callable` property should lead to emission of
+- `indirectly_callable_in` property should lead to emission of
   `"indirectly-callable"="set"` function attribute, where "set" is a string
   representation of the property template parameter.
-- `calls_indirectly` property should lead to emission of
+- `assume_indirect_calls_to` property should lead to emission of
   `"calls-indirectly"="set1,set2"`, where "set1" and "set2" are string
   representations of the property template parameters.
 
 In order to convert a type to a string, [\__builtin_sycl_unique_stable_name][3]
 could be used.
 
-The `calls_indirectly` compile-time property accepts a list of types which
-identify virtual functions set. It can be handled using metaprogramming magic to
-compile-time concatenate strings to produce a single value out of a set of
-parameters. Similar approach is used to handle `reqd_work_group_size` and other
-compile-time properties that accept integers:
+The `assume_indirect_calls_to` compile-time property accepts a list of types
+which identify virtual functions set. It can be handled using metaprogramming
+magic to compile-time concatenate strings to produce a single value out of a set
+of parameters. Similar approach is used to handle `reqd_work_group_size` and
+other compile-time properties that accept integers:
 
 ```c++
 // Helper to hide variadic list of arguments under a single type
@@ -189,17 +190,17 @@ However, we do need to filter out those virtual functions which are not
 considered to be device  as defined by the [extension specification][1], such
 as:
 
-- virtual member functions annotated with `indirectly_callable` compile-time
+- virtual member functions annotated with `indirectly_callable_in` compile-time
   property should be emitted into device code;
-- virtual member function *not* annotated with `indirectly_callable`
+- virtual member function *not* annotated with `indirectly_callable_in`
   compile-time property should *not* be emitted into device code;
 
 To achieve that, the front-end should implicitly add `sycl_device` attribute to
-each function which is marked with the `indirectly_callable` attribute. This
+each function which is marked with the `indirectly_callable_in` attribute. This
 can be done during handling of `[[__sycl_detail__::add_ir_attributes_function]]`
-attribute by checking if one of string literals passed in there as a property
-name is equal to "indirectly_callable". Later the `sycl_device` attribute can be
-used to decide if a virtual function should be emitted into device code.
+attribute by checking if one of string literals passed in there is an attribute
+name argument name to "indirectly_callable". Later the `sycl_device` attribute
+can be used to decide if a virtual function should be emitted into device code.
 
 When emitting virtual calls, front-end should emit an extra `virtual-call` LLVM
 IR attribute at every call site. This attribute will be used by a middle-end
@@ -215,9 +216,9 @@ used directly, but also aspects that are used indirectly, through virtual
 functions.
 
 For that the pass should compile a list of aspects used by each set of
-indirectly callable functions (as defined by `indirectly_callable` property set
-by user) and then append those aspects to every kernel which use those sets (as
-defined by `calls_indirectly` property set by user).
+indirectly callable functions (as defined by `indirectly_callable_in` property
+set by user) and then append those aspects to every kernel which use those sets
+(as defined by `assume_indirect_calls_to` property set by user).
 
 **TODO**: should we consider outlining "indirectly used" aspects into a separate
 metadata and device image property? This should allow for more precise and
@@ -240,10 +241,10 @@ using syclext = sycl::ext::oneapi::experimental;
 struct set_fp64;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable
   void foo() {}
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<set_fp64>)
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_fp64>)
   void bar() {
     // this virtual function uses double
     double d = 3.14;
@@ -261,22 +262,22 @@ int main() {
   Base *Obj = sycl::malloc_device<Base>(1, Q);
   int *Result = sycl::malloc_shared<int>(2, Q);
 
-  Q.single_task<Constructor>([=] {
+  Q.single_task<Constructor>([=]() {
     // Even though at LLVM IR level this kernel does reference 'Base::foo'
     // and 'Base::bar' through global variable containing `vtable` for `Base`,
     // we do not consider the kernel to be using `fp64` optional feature.
     new (Obj) Base;
   });
 
-  Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
+  Q.single_task<Use>(syclext::properties{syclext::assume_indirect_calls}, [=]() {
     // This kernel is not considered to be using any optional features, because
     // virtual functions in default set do not use any.
     Obj->foo();
   });
 
   if (Q.get_device().has(sycl::aspect::fp64)) {
-    Q.single_task<UseFP64>(syclext::properties{syclext::calls_indirectly<set_fp64>},
-        [=] {
+    Q.single_task<UseFP64>(syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
+        [=]() {
       // This kernel is considered to be using 'fp64' optional feature, because
       // there is a virtual function in 'set_fp64' which uses double.
       Obj->bar();
@@ -301,9 +302,9 @@ which doesn't support all required optional features.
 #### New compiler diagnostics
 
 A new pass should be added to analyze virtual calls and emit diagnostics if a
-kernel without the `calls_indirectly` property performs a virtual call and emit
-a diagnostic about that. `virtual-call` LLVM IR attribute we attach to such
-call instructions should help us with detecting those calls.
+kernel without the `assume_indirect_calls_to` property performs a virtual call
+and emit a diagnostic about that. `virtual-call` LLVM IR attribute we attach to
+such call instructions should help us with detecting those calls.
 
 The pass should be launched somewhere at the beginning of the optimization
 pipeline so that LLVM IR is as close to the input source file as possible for
@@ -326,13 +327,13 @@ struct regular_set;
 
 struct Foo {
 virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable<fp64_set>) void foo() {
+    syclext::indirectly_callable_in<fp64_set>) void foo() {
   // uses double
   double d = 3.14;
 }
 
 virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable<regular_set>) void bar() {}
+    syclext::indirectly_callable_in<regular_set>) void bar() {}
 };
 
 sycl::queue q;
@@ -340,7 +341,7 @@ sycl::queue q;
 auto *Storage = sycl::malloc_device<Foo>(1, q);
 
 q.single_task([=] {
-  // The kernel is not submitted with 'calls_indirectly' property and therefore
+  // The kernel is not submitted with 'assume_indirect_calls_to' property and therefore
   // it is not considered to be using any of virtual member functions of 'Foo'.
   // This means that the object of 'Foo' can be successfully created by this
   // kernel, regardless of whether a target device supports 'fp64' aspect which
@@ -350,13 +351,13 @@ q.single_task([=] {
 });
 
 if (q.get_device().has(sycl::aspect::fp64)) {
-  auto props = syclext::properties{syclext::calls_indirectly<fp64_set>};
-  q.single_task(props, [=] {
+  auto props = syclext::properties{syclext::assume_indirect_calls_to<fp64_set>};
+  q.single_task(props, [=]() {
     Storage->foo();
   });
 } else {
-  auto props = syclext::properties{syclext::calls_indirectly<regular_set>};
-  q.single_task(props, [=] {
+  auto props = syclext::properties{syclext::assume_indirect_calls_to<regular_set>};
+  q.single_task(props, [=]() {
     Storage->bar();
   });
 }
@@ -368,8 +369,8 @@ aspect or not. Implementation differs for JIT and AOT flows.
 ##### JIT flow
 
 Regardless of device code split mode selected by a user, functions marked with
-`indirectly_callable` property should be outlined into separate device images
-by `sycl-post-link` tool based on the argument of the `indirectly_callable`
+`indirectly_callable_in` property should be outlined into separate device images
+by `sycl-post-link` tool based on the argument of the `indirectly_callable_in`
 property, i.e. all functions from the same set should be bundled into a
 dedicated device image.
 
@@ -424,7 +425,7 @@ the right (supported by a device) set of virtual functions in it. Therefore, we
 do not need to emit any of those properties when we are in AOT mode.
 
 For device images, which contain virtual functions (i.e. ones produced by
-outlining `indirectly_callable` functions into a separate device image), the
+outlining `indirectly_callable_in` functions into a separate device image), the
 following properties are set within the new property set:
 - "virtual-functions-set" with a string value containing name of virtual
   functions set contained within the image (value of the property argument);
@@ -438,7 +439,7 @@ For the purposes of generating "uses-virtual-functions-set" device image
 property value the fact that kernel uses a set of virtual functions is inferred
 based on two things:
 - kernel is set to explicitly use a set of virtual functions through
-  `calls_indirectly` property;
+  `assume_indirect_calls_to` property;
 - kernel constructs an object of a polymorphic class and thus references vtable
   global variable which in turn references functions that belong to some sets;
 
@@ -467,15 +468,15 @@ images are linked together with it:
 
 If for any used virtual functions set there is no device image that provides
 virtual functions from it, the runtime should throw an exception, because that
-is likely a user error (missing or misspelled `indirectly_callable` property
+is likely a user error (missing or misspelled `indirectly_callable_in` property
 on a virtual function).
 
 Produced list of device images is then linked together and used to enqueue a
 kernel.
 
 NOTE: when shared libraries are involved, they could also provide some
-`indirectly_callable` functions in the same sets as application. This means that
-there could be more than one image registered with the same value of
+`indirectly_callable_in` functions in the same sets as application. This means
+that there could be more than one image registered with the same value of
 "virtual-functions-set" property.
 
 #### In-memory cache of kernels and programs
