@@ -1,6 +1,6 @@
-// RUN: %{build} -o %t.out -lcuda
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: cuda
+// REQUIRES: cuda, cuda_dev_kit
 //
 // See github issue https://github.com/intel/llvm/issues/14598
 // XFAIL: cuda

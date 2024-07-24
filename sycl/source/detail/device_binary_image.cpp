@@ -156,31 +156,6 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
-inline ur_program_metadata_t
-mapPIMetadataToUR(const ur_device_binary_property &PIMetadata) {
-  ur_program_metadata_t URMetadata{};
-  URMetadata.pName = PIMetadata->Name;
-  URMetadata.size = PIMetadata->ValSize;
-  switch (PIMetadata->Type) {
-  case UR_PROPERTY_TYPE_UINT32:
-    URMetadata.type = UR_PROGRAM_METADATA_TYPE_UINT32;
-    URMetadata.value.data32 = PIMetadata->ValSize;
-    break;
-  case UR_PROPERTY_TYPE_BYTE_ARRAY:
-    URMetadata.type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
-    URMetadata.value.pData = PIMetadata->ValAddr;
-    break;
-  case UR_PROPERTY_TYPE_STRING:
-    URMetadata.type = UR_PROGRAM_METADATA_TYPE_STRING;
-    URMetadata.value.pString = reinterpret_cast<char *>(PIMetadata->ValAddr);
-    break;
-  default:
-    break;
-  }
-
-  return URMetadata;
-}
-
 void RTDeviceBinaryImage::init(ur_device_binary Bin) {
   // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
@@ -203,13 +178,15 @@ void RTDeviceBinaryImage::init(ur_device_binary Bin) {
   AssertUsed.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_ASSERT_USED);
   ProgramMetadata.init(Bin, __SYCL_UR_PROPERTY_SET_PROGRAM_METADATA);
   ExportedSymbols.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+  ImportedSymbols.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_UR_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
   for (const auto &ProgMD : ProgramMetadata) {
-    ProgramMetadataUR.emplace_back(mapPIMetadataToUR(ProgMD));
+    ProgramMetadataUR.emplace_back(
+        sycl::detail::ur::mapDeviceBinaryPropertyToProgramMetadata(ProgMD));
   }
 
   ImageId = ImageCounter++;

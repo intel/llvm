@@ -79,7 +79,6 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ExitCodes.h"
@@ -807,8 +806,10 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 }
 
 static bool isValidSYCLTriple(llvm::Triple T) {
-  // NVPTX is valid for SYCL.
-  if (T.isNVPTX())
+  // 'nvptx64-nvidia-cuda' is the valid SYCL triple for NVidia GPUs.
+  if (T.getArch() == llvm::Triple::nvptx64 &&
+      T.getVendor() == llvm::Triple::NVIDIA &&
+      T.getOS() == llvm::Triple::CUDA && !T.hasEnvironment())
     return true;
 
   // AMDGCN is valid for SYCL
@@ -2408,11 +2409,14 @@ void Driver::PrintHelp(bool ShowHidden) const {
 llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
   SmallVector<StringRef, 5> SYCLAlias = {
       "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
-      "spir64_gen", "spirv32", "spirv64"};
+      "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
   if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
       SYCLAlias.end()) {
     llvm::Triple TT;
     TT.setArchName(TargetArch);
+    // Return the full SYCL target triple string for NVidia GPU targets.
+    if (TT.getArch() == llvm::Triple::nvptx64)
+      return llvm::Triple("nvptx64-nvidia-cuda");
     TT.setVendor(llvm::Triple::UnknownVendor);
     TT.setOS(llvm::Triple::UnknownOS);
     return TT;
@@ -6234,101 +6238,6 @@ class OffloadingActionBuilder final {
       return FinalDeviceSections;
     }
 
-    /// Reads device config file to find information about the SYCL targets in
-    /// `Targets`, and defines device traits macros accordingly.
-    void populateSYCLDeviceTraitsMacrosArgs(
-        Compilation &C, const DerivedArgList &Args,
-        const SmallVector<DeviceTargetInfo, 4> &Targets) const {
-      if (Targets.empty())
-        return;
-
-      const auto &TargetTable = DeviceConfigFile::TargetTable;
-      std::map<StringRef, unsigned int> AllDevicesHave;
-      std::map<StringRef, bool> AnyDeviceHas;
-      bool AnyDeviceHasAnyAspect = false;
-      unsigned int ValidTargets = 0;
-      for (const auto &[TC, BoundArch] : Targets) {
-        assert(TC && "Invalid SYCL Offload Toolchain");
-        // Try and find the device arch, if it's empty, try to search for either
-        // the whole Triple or just the 'ArchName' string.
-        auto TargetIt = TargetTable.end();
-        const llvm::Triple &TargetTriple = TC->getTriple();
-        const StringRef TargetArch{BoundArch};
-        if (!TargetArch.empty()) {
-          TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
-            using namespace tools::SYCL;
-            StringRef Device{Value.first};
-            if (Device.consume_front(gen::AmdGPU))
-              return TargetArch == Device && TargetTriple.isAMDGCN();
-            if (Device.consume_front(gen::NvidiaGPU))
-              return TargetArch == Device && TargetTriple.isNVPTX();
-            if (Device.consume_front(gen::IntelGPU))
-              return TargetArch == Device && TargetTriple.isSPIRAOT();
-            return TargetArch == Device && isValidSYCLTriple(TargetTriple);
-          });
-        } else {
-          TargetIt = TargetTable.find(TargetTriple.str());
-          if (TargetIt == TargetTable.end())
-            TargetIt = TargetTable.find(TargetTriple.getArchName().str());
-        }
-
-        if (TargetIt != TargetTable.end()) {
-          const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
-          ++ValidTargets;
-          const auto &AspectList = Info.aspects;
-          const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
-          if (!AnyDeviceHasAnyAspect)
-            AnyDeviceHasAnyAspect = MaySupportOtherAspects;
-          for (const auto &Aspect : AspectList) {
-            // If target has an entry in the config file, the set of aspects
-            // supported by all devices supporting the target is 'AspectList'.
-            // If there's no entry, such set is empty.
-            const auto &AspectIt = AllDevicesHave.find(Aspect);
-            if (AspectIt != AllDevicesHave.end())
-              ++AllDevicesHave[Aspect];
-            else
-              AllDevicesHave[Aspect] = 1;
-            // If target has an entry in the config file AND
-            // 'MaySupportOtherAspects' is false, the set of aspects supported
-            // by any device supporting the target is 'AspectList'. If there's
-            // no entry OR 'MaySupportOtherAspects' is true, such set contains
-            // all the aspects.
-            AnyDeviceHas[Aspect] = true;
-          }
-        }
-      }
-
-      // If there's no entry for the target in the device config file, the set
-      // of aspects supported by any device supporting the target contains all
-      // the aspects.
-      if (ValidTargets == 0)
-        AnyDeviceHasAnyAspect = true;
-
-      const Driver &D = C.getDriver();
-      if (AnyDeviceHasAnyAspect) {
-        // There exists some target that supports any given aspect.
-        constexpr static StringRef MacroAnyDeviceAnyAspect{
-            "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"};
-        D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDeviceAnyAspect);
-      } else {
-        // Some of the aspects are not supported at all by any of the targets.
-        // Thus, we need to define individual macros for each supported aspect.
-        for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
-          assert(SupportedTarget);
-          const SmallString<64> MacroAnyDevice{
-              {"-D__SYCL_ANY_DEVICE_HAS_", TargetKey, "__=1"}};
-          D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDevice);
-        }
-      }
-      for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
-        if (SupportedTargets != ValidTargets)
-          continue;
-        const SmallString<64> MacroAllDevices{
-            {"-D__SYCL_ALL_DEVICES_HAVE_", TargetKey, "__=1"}};
-        D.addSYCLDeviceTraitsMacroArg(Args, MacroAllDevices);
-      }
-    }
-
     bool initialize() override {
       using namespace tools::SYCL;
       // Get the SYCL toolchains. If we don't get any, the action builder will
@@ -6563,7 +6472,17 @@ class OffloadingActionBuilder final {
       // Define macros associated with `any_device_has/all_devices_have`
       // according to the aspects defined in the DeviceConfigFile for the SYCL
       // targets.
-      populateSYCLDeviceTraitsMacrosArgs(C, Args, SYCLTargetInfoList);
+      // We are using the Traits population function in multiple offloading
+      // models.  These use different containers for the toolchain and arch
+      // values.  Convert the list for usage with the new model expectations.
+      SmallVector<std::pair<const ToolChain *, StringRef>> TCAndArchs;
+      for (auto &TargetInfo : SYCLTargetInfoList) {
+        const ToolChain *TC = TargetInfo.TC;
+        StringRef Arch(TargetInfo.BoundArch);
+        std::pair<const ToolChain *, StringRef> TCAndArch(TC, Arch);
+        TCAndArchs.push_back(TCAndArch);
+      }
+      tools::SYCL::populateSYCLDeviceTraitsMacrosArgs(C, Args, TCAndArchs);
 
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
@@ -8003,6 +7922,10 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
       ++TCAndArch;
     }
+    // For SYCL based offloading, populate the device traits macros that are
+    // used during compilation.
+    if (Kind == Action::OFK_SYCL)
+      tools::SYCL::populateSYCLDeviceTraitsMacrosArgs(C, Args, TCAndArchs);
   }
 
   // HIP code in non-RDC mode will bundle the output if it invoked the linker.

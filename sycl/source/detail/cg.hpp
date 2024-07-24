@@ -576,35 +576,38 @@ public:
 class CGCopyImage : public CG {
   void *MSrc;
   void *MDst;
-  ur_image_desc_t MImageDesc;
-  ur_image_format_t MImageFormat;
+  ur_image_desc_t MSrcImageDesc;
+  ur_image_desc_t MDstImageDesc;
+  ur_image_format_t MSrcImageFormat;
+  ur_image_format_t MDstImageFormat;
   ur_exp_image_copy_flags_t MImageCopyFlags;
   ur_rect_offset_t MSrcOffset;
   ur_rect_offset_t MDstOffset;
-  ur_rect_region_t MHostExtent;
   ur_rect_region_t MCopyExtent;
 
 public:
-  CGCopyImage(void *Src, void *Dst, ur_image_desc_t ImageDesc,
-              ur_image_format_t ImageFormat,
+  CGCopyImage(void *Src, void *Dst, ur_image_desc_t SrcImageDesc,
+              ur_image_desc_t DstImageDesc, ur_image_format_t SrcImageFormat,
+              ur_image_format_t DstImageFormat,
               ur_exp_image_copy_flags_t ImageCopyFlags,
               ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
-              ur_rect_region_t HostExtent, ur_rect_region_t CopyExtent,
-              CG::StorageInitHelper CGData, detail::code_location loc = {})
+              ur_rect_region_t CopyExtent, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
       : CG(CGType::CopyImage, std::move(CGData), std::move(loc)), MSrc(Src),
-        MDst(Dst), MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+        MDst(Dst), MSrcImageDesc(SrcImageDesc), MDstImageDesc(DstImageDesc),
+        MSrcImageFormat(SrcImageFormat), MDstImageFormat(DstImageFormat),
         MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
-        MDstOffset(DstOffset), MHostExtent(HostExtent),
-        MCopyExtent(CopyExtent) {}
+        MDstOffset(DstOffset), MCopyExtent(CopyExtent) {}
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
-  ur_image_desc_t getDesc() const { return MImageDesc; }
-  ur_image_format_t getFormat() const { return MImageFormat; }
+  ur_image_desc_t getSrcDesc() const { return MSrcImageDesc; }
+  ur_image_desc_t getDstDesc() const { return MDstImageDesc; }
+  ur_image_format_t getSrcFormat() const { return MSrcImageFormat; }
+  ur_image_format_t getDstFormat() const { return MDstImageFormat; }
   ur_exp_image_copy_flags_t getCopyFlags() const { return MImageCopyFlags; }
   ur_rect_offset_t getSrcOffset() const { return MSrcOffset; }
   ur_rect_offset_t getDstOffset() const { return MDstOffset; }
-  ur_rect_region_t getHostExtent() const { return MHostExtent; }
   ur_rect_region_t getCopyExtent() const { return MCopyExtent; }
 };
 

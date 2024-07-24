@@ -393,12 +393,12 @@ group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
 #else
 template <typename... Args> void group_load(Args...) {
   throw sycl::exception(
-      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      sycl::errc::feature_not_supported,
       "Group loads/stores are not supported on host.");
 }
 template <typename... Args> void group_store(Args...) {
   throw sycl::exception(
-      std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      sycl::errc::feature_not_supported,
       "Group loads/stores are not supported on host.");
 }
 #endif

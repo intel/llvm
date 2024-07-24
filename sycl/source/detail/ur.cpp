@@ -376,13 +376,29 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   return UR_DEVICE_BINARY_TYPE_NONE;
 }
 
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "ur_die: " << Message << std::endl;
-  std::terminate();
+ur_program_metadata_t mapDeviceBinaryPropertyToProgramMetadata(
+    const ur_device_binary_property &DeviceBinaryProperty) {
+  ur_program_metadata_t URMetadata{};
+  URMetadata.pName = DeviceBinaryProperty->Name;
+  URMetadata.size = DeviceBinaryProperty->ValSize;
+  switch (DeviceBinaryProperty->Type) {
+  case UR_PROPERTY_TYPE_UINT32:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_UINT32;
+    URMetadata.value.data32 = DeviceBinaryProperty->ValSize;
+    break;
+  case UR_PROPERTY_TYPE_BYTE_ARRAY:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
+    URMetadata.value.pData = DeviceBinaryProperty->ValAddr;
+    break;
+  case UR_PROPERTY_TYPE_STRING:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_STRING;
+    URMetadata.value.pString =
+        reinterpret_cast<char *>(DeviceBinaryProperty->ValAddr);
+    break;
+  default:
+    break;
+  }
+  return URMetadata;
 }
 
 } // namespace ur

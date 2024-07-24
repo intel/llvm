@@ -123,13 +123,14 @@ public:
   bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
-  ur_image_desc_t MImageDesc;
-  ur_image_format_t MImageFormat;
+  ur_image_desc_t MSrcImageDesc;
+  ur_image_desc_t MDstImageDesc;
+  ur_image_format_t MSrcImageFormat;
+  ur_image_format_t MDstImageFormat;
   ur_exp_image_copy_flags_t MImageCopyFlags;
 
   ur_rect_offset_t MSrcOffset;
   ur_rect_offset_t MDestOffset;
-  ur_rect_region_t MHostExtent;
   ur_rect_region_t MCopyExtent;
 
   // Extra information for semaphore interoperability

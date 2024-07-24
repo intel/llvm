@@ -261,10 +261,11 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void copy_image_bindless(
-      void *Src, QueueImplPtr Queue, void *Dst, const ur_image_desc_t &Desc,
-      const ur_image_format_t &Format, const ur_exp_image_copy_flags_t Flags,
-      ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
-      ur_rect_region_t CopyExtent, ur_rect_region_t HostExtent,
+      QueueImplPtr Queue, const void *Src, void *Dst,
+      const ur_image_desc_t &SrcDesc, const ur_image_desc_t &DstDesc,
+      const ur_image_format_t &SrcFormat, const ur_image_format_t &DstFormat,
+      const ur_exp_image_copy_flags_t Flags, ur_rect_offset_t SrcOffset,
+      ur_rect_offset_t DstOffset, ur_rect_region_t CopyExtent,
       const std::vector<ur_event_handle_t> &DepEvents,
       ur_event_handle_t *OutEvent);
 };

@@ -5,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
 
 #include <detail/context_impl.hpp>
@@ -1786,7 +1787,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE" << "\\n";
+  Stream << "EMPTY NODE"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3110,6 +3112,80 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
+  case CGType::EnqueueNativeCommand: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type ");
+      }
+    }
+
+    std::vector<interop_handle::ReqToMem> ReqToMem;
+    std::vector<ur_mem_handle_t> ReqMems;
+
+    if (HostTask->MHostTask->isInteropTask()) {
+      // Extract the Mem Objects for all Requirements, to ensure they are
+      // available if a user asks for them inside the interop task scope
+      const std::vector<Requirement *> &HandlerReq =
+          HostTask->getRequirements();
+      auto ReqToMemConv = [&ReqToMem, &ReqMems, HostTask](Requirement *Req) {
+        const std::vector<AllocaCommandBase *> &AllocaCmds =
+            Req->MSYCLMemObj->MRecord->MAllocaCommands;
+
+        for (AllocaCommandBase *AllocaCmd : AllocaCmds)
+          if (HostTask->MQueue->getContextImplPtr() ==
+              AllocaCmd->getQueue()->getContextImplPtr()) {
+            auto MemArg = reinterpret_cast<ur_mem_handle_t>(
+                AllocaCmd->getMemAllocation());
+            ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+            ReqMems.emplace_back(MemArg);
+
+            return;
+          }
+
+        assert(false &&
+               "Can't get memory object due to no allocation available");
+
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Can't get memory object due to no allocation available ");
+      };
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::sort(std::begin(ReqToMem), std::end(ReqToMem));
+    }
+
+    EnqueueNativeCommandData CustomOpData{
+        interop_handle{ReqToMem, HostTask->MQueue,
+                       HostTask->MQueue->getDeviceImplPtr(),
+                       HostTask->MQueue->getContextImplPtr()},
+        HostTask->MHostTask->MInteropTask};
+
+    ur_bool_t NativeCommandSupport = false;
+    MQueue->getPlugin()->call(
+        urDeviceGetInfo,
+        detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
+        sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
+    assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "
+                                   "supported on this device");
+    MQueue->getPlugin()->call(urEnqueueNativeCommandExp, MQueue->getHandleRef(),
+                              InteropFreeFunc, &CustomOpData, ReqMems.size(),
+                              ReqMems.data(), nullptr, RawEvents.size(),
+                              RawEvents.data(), Event);
+
+    return UR_RESULT_SUCCESS;
+  }
   case CGType::Barrier: {
     assert(MQueue && "Barrier submission should have an associated queue");
     const PluginPtr &Plugin = MQueue->getPlugin();
@@ -3203,12 +3279,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
 
-    ur_image_desc_t Desc = Copy->getDesc();
     MemoryManager::copy_image_bindless(
-        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+        MQueue, Copy->getSrc(), Copy->getDst(), Copy->getSrcDesc(),
+        Copy->getDstDesc(), Copy->getSrcFormat(), Copy->getDstFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
-        Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
-        Event);
+        Copy->getCopyExtent(), std::move(RawEvents), Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreWait: {
@@ -3435,7 +3510,8 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update" << "\\n";
+  Stream << "CommandBuffer Command Update"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 

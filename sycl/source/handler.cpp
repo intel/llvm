@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ur_api.h"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -389,6 +390,7 @@ event handler::finalize() {
         MPattern[0], MDstPtr, impl->MDstPitch, impl->MWidth, impl->MHeight,
         std::move(impl->CGData), MCodeLoc));
     break;
+  case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
     auto context = impl->MGraph
                        ? detail::getSyclObjImpl(impl->MGraph->getContext())
@@ -468,10 +470,10 @@ event handler::finalize() {
   } break;
   case detail::CGType::CopyImage:
     CommandGroup.reset(new detail::CGCopyImage(
-        MSrcPtr, MDstPtr, impl->MImageDesc, impl->MImageFormat,
-        impl->MImageCopyFlags, impl->MSrcOffset, impl->MDestOffset,
-        impl->MHostExtent, impl->MCopyExtent, std::move(impl->CGData),
-        MCodeLoc));
+        MSrcPtr, MDstPtr, impl->MSrcImageDesc, impl->MDstImageDesc,
+        impl->MSrcImageFormat, impl->MDstImageFormat, impl->MImageCopyFlags,
+        impl->MSrcOffset, impl->MDestOffset, impl->MCopyExtent,
+        std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
@@ -1044,9 +1046,10 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
   impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MImageDesc = UrDesc;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
@@ -1098,9 +1101,13 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
-  impl->MImageDesc = UrDesc;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MSrcImageDesc.width = SrcExtent[0];
+  impl->MSrcImageDesc.height = SrcExtent[1];
+  impl->MSrcImageDesc.depth = SrcExtent[2];
+  impl->MDstImageDesc = UrDesc;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
@@ -1149,9 +1156,10 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
   impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MImageDesc = UrDesc;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
@@ -1201,9 +1209,10 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
   impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  impl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  impl->MImageDesc = UrDesc;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
@@ -1256,9 +1265,13 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
-  impl->MImageDesc = UrDesc;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+  impl->MDstImageDesc.width = DestExtent[0];
+  impl->MDstImageDesc.height = DestExtent[1];
+  impl->MDstImageDesc.depth = DestExtent[2];
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
@@ -1307,10 +1320,12 @@ void handler::ext_oneapi_copy(
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
   impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  impl->MImageDesc = UrDesc;
-  impl->MImageDesc.rowPitch = Pitch;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
+  impl->MSrcImageDesc.rowPitch = Pitch;
+  impl->MDstImageDesc.rowPitch = Pitch;
   impl->MImageCopyFlags = detail::getUrImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
@@ -1364,14 +1379,33 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
   impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MImageDesc = UrDesc;
-  impl->MImageDesc.rowPitch = DeviceRowPitch;
-  impl->MImageFormat = UrFormat;
+  impl->MSrcImageFormat = UrFormat;
+  impl->MDstImageFormat = UrFormat;
   impl->MImageCopyFlags = detail::getUrImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
+  impl->MSrcImageDesc = UrDesc;
+  impl->MDstImageDesc = UrDesc;
+
+  // Fill the descriptor row pitch and host extent based on the type of copy.
+  if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
+    impl->MSrcImageDesc.rowPitch = 0;
+    impl->MSrcImageDesc.width = HostExtent[0];
+    impl->MSrcImageDesc.height = HostExtent[1];
+    impl->MSrcImageDesc.depth = HostExtent[2];
+  } else if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
+    impl->MDstImageDesc.rowPitch = 0;
+    impl->MDstImageDesc.width = HostExtent[0];
+    impl->MDstImageDesc.height = HostExtent[1];
+    impl->MDstImageDesc.depth = HostExtent[2];
+  } else {
+    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
+    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
+  }
+
   setType(detail::CGType::CopyImage);
 }
 
@@ -1716,8 +1750,18 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(ur_kernel_cache_config_t Config) {
-  impl->MKernelCacheConfig = Config;
+void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
+  switch (Config) {
+  case handler::StableKernelCacheConfig::Default:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    break;
+  case handler::StableKernelCacheConfig::LargeSLM:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+    break;
+  case handler::StableKernelCacheConfig::LargeData:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+    break;
+  }
 }
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {

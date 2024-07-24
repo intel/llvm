@@ -218,6 +218,7 @@ public:
     return ProgramMetadataUR;
   }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
+  const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
@@ -244,6 +245,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
+  RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;

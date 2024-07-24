@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ur_api.h"
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -1609,10 +1610,11 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
 }
 
 void MemoryManager::copy_image_bindless(
-    void *Src, QueueImplPtr Queue, void *Dst, const ur_image_desc_t &Desc,
-    const ur_image_format_t &Format, const ur_exp_image_copy_flags_t Flags,
-    ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
-    ur_rect_region_t HostExtent, ur_rect_region_t CopyExtent,
+    QueueImplPtr Queue, const void *Src, void *Dst,
+    const ur_image_desc_t &SrcDesc, const ur_image_desc_t &DstDesc,
+    const ur_image_format_t &SrcFormat, const ur_image_format_t &DstFormat,
+    const ur_exp_image_copy_flags_t Flags, ur_rect_offset_t SrcOffset,
+    ur_rect_offset_t DstOffset, ur_rect_region_t CopyExtent,
     const std::vector<ur_event_handle_t> &DepEvents,
     ur_event_handle_t *OutEvent) {
   assert(Queue &&
@@ -1627,9 +1629,16 @@ void MemoryManager::copy_image_bindless(
         "NULL pointer argument in bindless image copy operation.");
 
   const detail::PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urBindlessImagesImageCopyExp, Queue->getHandleRef(), Dst, Src,
-               &Format, &Desc, Flags, SrcOffset, DstOffset, CopyExtent,
-               HostExtent, DepEvents.size(), DepEvents.data(), OutEvent);
+
+  ur_exp_image_copy_region_t CopyRegion{};
+  CopyRegion.stype = UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION;
+  CopyRegion.copyExtent = CopyExtent;
+  CopyRegion.srcOffset = SrcOffset;
+  CopyRegion.dstOffset = DstOffset;
+
+  Plugin->call(urBindlessImagesImageCopyExp, Queue->getHandleRef(), Src, Dst,
+               &SrcDesc, &DstDesc, &SrcFormat, &DstFormat, &CopyRegion, Flags,
+               DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 } // namespace detail

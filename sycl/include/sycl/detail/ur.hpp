@@ -131,6 +131,8 @@ static const uint8_t UR_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_UR_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_UR_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_IMPORTED_SYMBOLS defined in PropertySetIO.h
+#define __SYCL_UR_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS "SYCL/imported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_UR_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
@@ -279,9 +281,6 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
 // Return true if we want to trace UR related activities.
 bool trace();
 
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
-
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);
 
@@ -308,6 +307,9 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
   }
   return ResultVec;
 }
+
+ur_program_metadata_t mapDeviceBinaryPropertyToProgramMetadata(
+    const ur_device_binary_property &DeviceBinaryProperty);
 
 } // namespace ur
 } // namespace detail

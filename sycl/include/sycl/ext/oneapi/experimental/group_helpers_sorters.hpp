@@ -120,8 +120,8 @@ public:
     sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
 #else
     throw sycl::exception(
-        std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter constructor is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 
@@ -155,8 +155,8 @@ public:
     val = scratch_begin[local_id];
 #else
     throw sycl::exception(
-        std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter operator() is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
     return val;
   }
@@ -358,8 +358,8 @@ public:
         first_bit, last_bit);
 #else
     throw sycl::exception(
-        std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 
@@ -413,8 +413,8 @@ public:
     return result[0];
 #else
     throw sycl::exception(
-        std::error_code(UR_RESULT_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 

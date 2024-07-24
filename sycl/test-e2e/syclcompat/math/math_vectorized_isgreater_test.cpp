@@ -30,7 +30,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // See github issue https://github.com/intel/llvm/issues/14598
 // UNSUPPORTED: windows, linux
