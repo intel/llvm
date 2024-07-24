@@ -22,9 +22,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
     ur_event_handle_t *phEvent) {
   auto Queue = this;
 
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
-
   bool UseCopyEngine = false;
 
   // Please note that the following code should be run before the
