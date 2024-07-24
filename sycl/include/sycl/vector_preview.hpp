@@ -93,18 +93,30 @@ class SwizzleOp;
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t) const {
-    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
-      return DataT{0.0f};
-    else
-      return (DataT)0;
-  }
-  DataT operator()(DataT, DataT) {
-    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
-      return DataT{0.0f};
-    else
-      return (DataT)0;
-  }
+  DataT getValue(size_t) const { return (DataT)0; }
+  DataT operator()(DataT, DataT) { return (DataT)0; }
+};
+
+// Templated vs. non-templated conversion operator behaves differently when two
+// conversions are needed as in the case below:
+//
+//   sycl::vec<int, 1> v;
+//   std::ignore = static_cast<bool>(v);
+//
+// Make sure the snippet above compiles. That is important because
+//
+//   sycl::vec<int, 2> v;
+//   if (v.x() == 42)
+//     ...
+//
+// must go throw `v.x()` returning a swizzle, then its `operator==` returning
+// vec<int, 1> and we want that code to compile.
+template <typename Vec, typename T, int N, typename = void>
+struct ScalarConversionOperatorMixIn {};
+
+template <typename Vec, typename T, int N>
+struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
+  operator T() const { return (*static_cast<const Vec *>(this))[0]; }
 };
 
 } // namespace detail
@@ -113,13 +125,16 @@ public:
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class vec : public detail::vec_arith<DataT, NumElements> {
+class __SYCL_EBO vec
+    : public detail::vec_arith<DataT, NumElements>,
+      public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
+                                                   DataT, NumElements> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
                 "or 16 are supported");
-  static_assert(sizeof(bool) == sizeof(int8_t), "bool size is not 1 byte");
+  static_assert(sizeof(bool) == sizeof(uint8_t), "bool size is not 1 byte");
 
   // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
   // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
@@ -135,10 +150,11 @@ class vec : public detail::vec_arith<DataT, NumElements> {
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
       std::byte, /*->*/ std::uint8_t, //
 #endif
-      bool, /*->*/ std::int8_t,                             //
+      bool, /*->*/ std::uint8_t,                            //
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
       sycl::ext::oneapi::bfloat16,
       /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
+      char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
       DataT, /*->*/ DataT                                 //
       >::type;
 
@@ -382,12 +398,6 @@ public:
   operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 #endif // __SYCL_DEVICE_ONLY__
 
-  // Available only when: NumElements == 1
-  template <int N = NumElements>
-  operator typename std::enable_if_t<N == 1, DataT>() const {
-    return m_Data[0];
-  }
-
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
@@ -405,8 +415,8 @@ private:
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
                                 std::byte, /*->*/ std::uint8_t, //
 #endif
-                                bool, /*->*/ std::int8_t, //
-                                T, /*->*/ T               //
+                                bool, /*->*/ std::uint8_t, //
+                                T, /*->*/ T                //
                                 >::type;
 
   // getValue should be able to operate on different underlying
@@ -614,7 +624,7 @@ private:
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>
   friend class detail::SwizzleOp;
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
@@ -865,14 +875,21 @@ public:
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
-  SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
-    operatorHelper<OP>(vec_t(Rhs));                                            \
-    return *this;                                                              \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const DataT & Rhs) {               \
+    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
+    return Lhs;                                                                \
   }                                                                            \
   template <typename RhsOperation>                                             \
-  SwizzleOp &operator OPASSIGN(const RhsOperation & Rhs) {                     \
-    operatorHelper<OP>(Rhs);                                                   \
-    return *this;                                                              \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const RhsOperation & Rhs) {        \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }                                                                            \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const vec_t & Rhs) {               \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
   }
 
   __SYCL_OPASSIGN(+=, std::plus)
@@ -891,13 +908,13 @@ public:
 #error "Undefine __SYCL_UOP macro"
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  SwizzleOp &operator UOP() {                                                  \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
-    return *this;                                                              \
+  friend const SwizzleOp &operator UOP(const SwizzleOp & sv) {                 \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
+    return sv;                                                                 \
   }                                                                            \
-  vec_t operator UOP(int) {                                                    \
-    vec_t Ret = *this;                                                         \
-    *this OPASSIGN static_cast<DataT>(1);                                      \
+  friend vec_t operator UOP(const SwizzleOp &sv, int) {                        \
+    vec_t Ret = sv;                                                            \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
     return Ret;                                                                \
   }
 
@@ -1034,7 +1051,7 @@ public:
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
+      (*m_Vector)[Idxs[I]] = Rhs[I];
     }
     return *this;
   }
@@ -1418,7 +1435,7 @@ private:
   CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      return m_Vector->getValue(Idxs[Index]);
+      return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<CommonDataT>();
     return Op(m_LeftOperation.getValue(Index),
@@ -1429,8 +1446,7 @@ private:
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      // Cast required for int8_t -> std::byte
-      return static_cast<DataT>(m_Vector->getValue(Idxs[Index]));
+      return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<DataT>();
     return Op(m_LeftOperation.getValue(Index),
@@ -1438,11 +1454,11 @@ private:
   }
 
   template <template <typename> class Operation, typename RhsOperation>
-  void operatorHelper(const RhsOperation &Rhs) {
+  void operatorHelper(const RhsOperation &Rhs) const {
     Operation<DataT> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      DataT Res = Op(m_Vector->getValue(Idxs[I]), Rhs.getValue(I));
+      DataT Res = Op((*m_Vector)[Idxs[I]], Rhs.getValue(I));
       (*m_Vector)[Idxs[I]] = Res;
     }
   }

@@ -20,7 +20,7 @@
 // Forward declarations
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
+template <typename T, int N> class __SYCL_EBO vec;
 template <typename Type, std::size_t NumElements> class marray;
 
 namespace detail {

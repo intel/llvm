@@ -169,6 +169,11 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control sycl-post-link step">;
 
+def sycl_module_split_mode_EQ :
+  Joined<["--", "-"], "sycl-module-split-mode=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Option that turns on split library with the given split mode">;
+
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
