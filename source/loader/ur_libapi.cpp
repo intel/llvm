@@ -6824,7 +6824,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Copy image data Host to Device or Device to Host
+/// @brief Copy image data Host to Device, Device to Host, or Device to Device
 ///
 /// @remarks
 ///   _Analogues_
@@ -6841,39 +6841,37 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDst`
 ///         + `NULL == pSrc`
-///         + `NULL == pImageFormat`
-///         + `NULL == pImageDesc`
+///         + `NULL == pDst`
+///         + `NULL == pSrcImageDesc`
+///         + `NULL == pDstImageDesc`
+///         + `NULL == pSrcImageFormat`
+///         + `NULL == pDstImageFormat`
+///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`
+///         + `pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`
+///         + `pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    void *pDst,               ///< [in] location the data will be copied to
     const void *pSrc,         ///< [in] location the data will be copied from
+    void *pDst,               ///< [in] location the data will be copied to
+    const ur_image_desc_t *pSrcImageDesc, ///< [in] pointer to image description
+    const ur_image_desc_t *pDstImageDesc, ///< [in] pointer to image description
     const ur_image_format_t
-        *pImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+        *pSrcImageFormat, ///< [in] pointer to image format specification
+    const ur_image_format_t
+        *pDstImageFormat, ///< [in] pointer to image format specification
+    ur_exp_image_copy_region_t *
+        pCopyRegion, ///< [in] Pointer to structure describing the (sub-)regions of source and
+                     ///< destination images
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
-    ur_rect_offset_t
-        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
-                   ///< image
-    ur_rect_offset_t
-        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
-                   ///< or 3D image
-    ur_rect_region_t
-        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                    ///< region to copy
-    ur_rect_region_t
-        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
-                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6891,9 +6889,9 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
-                           imageCopyFlags, srcOffset, dstOffset, copyExtent,
-                           hostExtent, numEventsInWaitList, phEventWaitList,
+    return pfnImageCopyExp(hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc,
+                           pSrcImageFormat, pDstImageFormat, pCopyRegion,
+                           imageCopyFlags, numEventsInWaitList, phEventWaitList,
                            phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
