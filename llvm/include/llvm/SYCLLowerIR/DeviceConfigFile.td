@@ -54,9 +54,7 @@ def AspectExt_oneapi_bindless_images_shared_usm : Aspect<"ext_oneapi_bindless_im
 def AspectExt_oneapi_bindless_images_1d_usm : Aspect<"ext_oneapi_bindless_images_1d_usm">;
 def AspectExt_oneapi_bindless_images_2d_usm : Aspect<"ext_oneapi_bindless_images_2d_usm">;
 def AspectExt_oneapi_interop_memory_import : Aspect<"ext_oneapi_interop_memory_import">;
-def AspectExt_oneapi_interop_memory_export : Aspect<"ext_oneapi_interop_memory_export">;
 def AspectExt_oneapi_interop_semaphore_import : Aspect<"ext_oneapi_interop_semaphore_import">;
-def AspectExt_oneapi_interop_semaphore_export : Aspect<"ext_oneapi_interop_semaphore_export">;
 def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
 def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
 def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
@@ -64,10 +62,13 @@ def AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm : Aspect<"ext_oneapi_bi
 def AspectExt_oneapi_bindless_sampled_image_fetch_1d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_1d">;
 def AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm : Aspect<"ext_oneapi_bindless_sampled_image_fetch_2d_usm">;
 def AspectExt_oneapi_bindless_sampled_image_fetch_2d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_2d">;
-def AspectExt_oneapi_bindless_sampled_image_fetch_3d_usm : Aspect<"ext_oneapi_bindless_sampled_image_fetch_3d_usm">;
 def AspectExt_oneapi_bindless_sampled_image_fetch_3d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_3d">;
 def AspectExt_oneapi_cubemap : Aspect<"ext_oneapi_cubemap">;
 def AspectExt_oneapi_cubemap_seamless_filtering : Aspect<"ext_oneapi_cubemap_seamless_filtering">;
+def AspectExt_oneapi_image_array : Aspect<"ext_oneapi_image_array">;
+def AspectExt_oneapi_unique_addressing_per_dim : Aspect<"ext_oneapi_unique_addressing_per_dim">;
+def AspectExt_oneapi_bindless_images_sample_1d_usm : Aspect<"ext_oneapi_bindless_images_sample_1d_usm">;
+def AspectExt_oneapi_bindless_images_sample_2d_usm : Aspect<"ext_oneapi_bindless_images_sample_2d_usm">;
 def AspectExt_intel_esimd : Aspect<"ext_intel_esimd">;
 def AspectExt_oneapi_ballot_group : Aspect<"ext_oneapi_ballot_group">;
 def AspectExt_oneapi_fixed_size_group : Aspect<"ext_oneapi_fixed_size_group">;
@@ -128,13 +129,16 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
     AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
-    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
-    AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
-    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, 
+    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_semaphore_import,
+    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference,
+    AspectExt_oneapi_bindless_sampled_image_fetch_3d, AspectExt_oneapi_cubemap, 
     AspectExt_oneapi_cubemap_seamless_filtering, 
+    AspectExt_oneapi_image_array,
+    AspectExt_oneapi_unique_addressing_per_dim,
+    AspectExt_oneapi_bindless_images_sample_1d_usm,
+    AspectExt_oneapi_bindless_images_sample_2d_usm,
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
-    AspectExt_oneapi_bindless_sampled_image_fetch_3d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_3d,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component, 
@@ -150,7 +154,7 @@ def : TargetInfo<"__TestDeprecatedAspectList",
 
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
-def : TargetInfo<"spir64_x86_64", [], [], "", "", 1>;
+def : TargetInfo<"spir64_x86_64", [AspectFp64, AspectAtomic64], [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", [], [], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
@@ -216,7 +220,9 @@ defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, Aspec
 defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images, AspectExt_oneapi_bindless_images_shared_usm,
     AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_interop_memory_import,
     AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy,
-    AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, AspectExt_oneapi_cubemap_seamless_filtering];
+    AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, AspectExt_oneapi_cubemap_seamless_filtering,
+    AspectExt_oneapi_image_array, AspectExt_oneapi_unique_addressing_per_dim, AspectExt_oneapi_bindless_images_sample_2d_usm,
+    AspectExt_oneapi_bindless_images_sample_2d_usm];
 
 def : CudaTargetInfo<"nvidia_gpu_sm_50", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
 def : CudaTargetInfo<"nvidia_gpu_sm_52", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;

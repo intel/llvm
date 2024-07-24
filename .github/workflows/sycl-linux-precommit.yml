@@ -76,6 +76,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
@@ -85,7 +90,7 @@ jobs:
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param gpu-intel-gen12=True
@@ -93,7 +98,7 @@ jobs:
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
@@ -102,7 +107,7 @@ jobs:
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu
             reset_gpu: true
             install_drivers: >-
               ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||

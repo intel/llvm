@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/pi.hpp>         // for PiEvent
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__

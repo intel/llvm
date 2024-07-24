@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 167ddf9320dba95c9324e373fb863baeb46e09f1
-  # Merge: 76c6bf9a 0cd10f63
+  # commit e161516663bd5d14d15532dfaba626d5cdf32ed8
+  # Merge: 47633088 febb18bb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jul 11 15:12:38 2024 +0100
-  #     Merge pull request #1747 from AllanZyne/review/yang/misalign_access
-  #     [DeviceSanitizer] Support detecting misaligned access error
-  set(UNIFIED_RUNTIME_TAG 167ddf9320dba95c9324e373fb863baeb46e09f1)
+  # Date:   Wed Jul 24 13:54:43 2024 +0100
+  #     Merge pull request #1521 from AllanZyne/review/yang/dg2
+  #     [DeviceSanitizer] Support GPU DG2 & GEN Device
+  set(UNIFIED_RUNTIME_TAG e161516663bd5d14d15532dfaba626d5cdf32ed8)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

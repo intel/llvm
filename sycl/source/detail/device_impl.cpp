@@ -504,27 +504,11 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_interop_semaphore_import: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_semaphore_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
@@ -586,15 +570,6 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice,
-            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_3d: {
     pi_bool support = PI_FALSE;
     bool call_successful =
@@ -617,6 +592,39 @@ bool device_impl::has(aspect Aspect) const {
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice,
             PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_image_array: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_unique_addressing_per_dim: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_1d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_2d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
@@ -644,7 +652,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_matrix: {
     using arch = sycl::ext::oneapi::experimental::architecture;
     const std::vector<arch> supported_archs = {
-        arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
+        arch::intel_cpu_spr,     arch::intel_cpu_gnr,
+        arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
         arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
     try {
       return std::any_of(
