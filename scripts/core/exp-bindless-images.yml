@@ -77,15 +77,9 @@ etors:
     - name: INTEROP_MEMORY_IMPORT_SUPPORT_EXP
       value: "0x200C"
       desc: "[$x_bool_t] returns true if the device supports importing external memory resources"
-    - name: INTEROP_MEMORY_EXPORT_SUPPORT_EXP
-      value: "0x200D"
-      desc: "[$x_bool_t] returns true if the device supports exporting internal memory resources"
     - name: INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
       value: "0x200E"
       desc: "[$x_bool_t] returns true if the device supports importing external semaphore resources"
-    - name: INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
-      value: "0x200F"
-      desc: "[$x_bool_t] returns true if the device supports exporting internal event resources"
     - name: CUBEMAP_SUPPORT_EXP
       value: "0x2010"
       desc: "[$x_bool_t] returns true if the device supports allocating and accessing cubemap resources"
@@ -104,12 +98,21 @@ etors:
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
       value: "0x2015"
       desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 2D sampled image data."
-    - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
-      value: "0x2016"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 3D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
       value: "0x2017"
       desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 3D sampled image data."
+    - name: IMAGE_ARRAY_SUPPORT_EXP
+      value: "0x2019"
+      desc: "[$x_bool_t] returns true if the device supports allocating and accessing image array resources."
+    - name: BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP
+      value: "0x201A"
+      desc: "[$x_bool_t] returns true if the device supports unique addressing per dimension."
+    - name: BINDLESS_SAMPLE_1D_USM_EXP
+      value: "0x201B"
+      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLE_2D_USM_EXP
+      value: "0x201C"
+      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 2D sampled image data."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -137,6 +140,9 @@ etors:
     - name: EXP_SAMPLER_CUBEMAP_PROPERTIES
       desc: $x_exp_sampler_cubemap_properties_t
       value: "0x2006"
+    - name: EXP_IMAGE_COPY_REGION
+      desc: $x_exp_image_copy_region_t
+      value: "0x2007"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -284,6 +290,21 @@ class: $xBindlessImages
 name: $x_exp_interop_semaphore_desc_t
 base: $x_base_desc_t
 members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes the (sub-)regions and the extent to be copied"
+name: $x_exp_image_copy_region_t
+base: $x_base_desc_t
+members:
+    - type: ur_rect_offset_t
+      name: srcOffset
+      desc: "[in] the offset into the source image"
+    - type: ur_rect_offset_t
+      name: dstOffset
+      desc: "[in] the offset into the destination image"
+    - type: ur_rect_region_t
+      name: copyExtent
+      desc: "[in] the extent (region) of the image to copy"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"
@@ -511,7 +532,7 @@ returns:
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Copy image data Host to Device or Device to Host"
+desc: "Copy image data Host to Device, Device to Host, or Device to Device"
 class: $xBindlessImages
 name: ImageCopyExp
 ordinal: "0"
@@ -524,33 +545,30 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
+    - type: const void*
+      name: pSrc
+      desc: "[in] location the data will be copied from"
     - type: void*
       name: pDst
       desc: "[in] location the data will be copied to"
-    - type: void*
-      name: pSrc
-      desc: "[in] location the data will be copied from"
-    - type: "const $x_image_format_t*"
-      name: pImageFormat
-      desc: "[in] pointer to image format specification"
     - type: "const $x_image_desc_t*"
-      name: pImageDesc
+      name: pSrcImageDesc
       desc: "[in] pointer to image description"
+    - type: "const $x_image_desc_t*"
+      name: pDstImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pSrcImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_format_t*"
+      name: pDstImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "$x_exp_image_copy_region_t*"
+      name: pCopyRegion
+      desc: "[in] Pointer to structure describing the (sub-)regions of source and destination images"
     - type: $x_exp_image_copy_flags_t
       name: imageCopyFlags
       desc: "[in] flags describing copy direction e.g. H2D or D2H"
-    - type: $x_rect_offset_t
-      name: srcOffset
-      desc: "[in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_offset_t
-      name: dstOffset
-      desc: "[in] defines the (x,y,z) destination offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_region_t
-      name: copyExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region to copy"
-    - type: $x_rect_region_t
-      name: hostExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region on the host"    
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -568,7 +586,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+      - "`pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -717,7 +737,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy interop memory"
+desc: "Release interop memory"
 class: $xBindlessImages
 name: ReleaseInteropExp
 ordinal: "0"
@@ -732,7 +752,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
-      desc: "[in][release] handle of interop memory to be freed"
+      desc: "[in][release] handle of interop memory to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -765,9 +785,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy the external semaphore handle"
+desc: "Release the external semaphore"
 class: $xBindlessImages
-name: DestroyExternalSemaphoreExp
+name: ReleaseExternalSemaphoreExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalSemaphore**"

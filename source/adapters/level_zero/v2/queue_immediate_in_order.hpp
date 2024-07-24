@@ -11,13 +11,31 @@
 
 #include "../common.hpp"
 #include "../queue.hpp"
+#include "context.hpp"
 
 #include "ur/ur.hpp"
 
 namespace v2 {
+
+using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
+
+struct ur_command_list_handler_t {
+  ur_command_list_handler_t(v2::ur_context_handle_t hContext,
+                            ur_device_handle_t hDevice,
+                            const ur_queue_properties_t *pProps,
+                            queue_group_type type);
+
+  raii::cache_borrowed_command_list_t commandList;
+};
+
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
-  ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
-                                ur_queue_flags_t);
+private:
+  ur_command_list_handler_t copyHandler;
+  ur_command_list_handler_t computeHandler;
+
+public:
+  ur_queue_immediate_in_order_t(v2::ur_context_handle_t, ur_device_handle_t,
+                                const ur_queue_properties_t *);
 
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,
                            void *pPropValue, size_t *pPropSizeRet) override;
@@ -162,11 +180,12 @@ struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesImageCopyExp(
-      void *pDst, void *pSrc, const ur_image_format_t *pImageFormat,
-      const ur_image_desc_t *pImageDesc,
-      ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
-      ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
-      ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
+      const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+      const ur_image_desc_t *pDstImageDesc,
+      const ur_image_format_t *pSrcImageFormat,
+      const ur_image_format_t *pDstImageFormat,
+      ur_exp_image_copy_region_t *pCopyRegion,
+      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(

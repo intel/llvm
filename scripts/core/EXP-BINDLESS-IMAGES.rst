@@ -87,17 +87,18 @@ Enums
     * ${X}_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP
     * ${X}_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
     * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
+    * ${X}_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP
 
 * ${x}_command_t
     * ${X}_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP
@@ -138,7 +139,7 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
-    * ${X}_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
 
@@ -158,6 +159,7 @@ Types
 * ${x}_exp_win32_handle_t
 * ${x}_exp_sampler_addr_modes_t
 * ${x}_exp_sampler_cubemap_properties_t
+* ${x}_exp_image_copy_region_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -181,7 +183,7 @@ Functions
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesReleaseInteropExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
-   * ${x}BindlessImagesDestroyExternalSemaphoreExp
+   * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
    * ${x}BindlessImagesSignalExternalSemaphoreExp
 
@@ -237,6 +239,14 @@ Changelog
 |          ||  - ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE       |
 |          ||  - ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE    |
 +------------------------------------------------------------------------+
+| 14.0     || Rename func BindlessImagesDestroyExternalSemaphoreExp to   |
+|          || BindlessImagesReleaseExternalSemaphoreExp                  |
++------------------------------------------------------------------------+
+| 15.0     | Added structures for supporting copying.                    |
++----------+-------------------------------------------------------------+
+| 16.0     || Update device queries to resolve inconsistencies and       |
+|          || missing queries.                                           |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

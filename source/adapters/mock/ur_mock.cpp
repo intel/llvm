@@ -29,7 +29,7 @@ ur_result_t mock_urPlatformGetInfo(void *pParams) {
     }
 
     if (*params.ppropName == UR_PLATFORM_INFO_NAME) {
-        const char mock_platform_name[] = "UR_PLATFORM_MOCK";
+        const char mock_platform_name[] = "Mock Platform";
         if (*params.ppPropSizeRet) {
             **params.ppPropSizeRet = sizeof(mock_platform_name);
         }
