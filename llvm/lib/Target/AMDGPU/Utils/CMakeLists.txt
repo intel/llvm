@@ -1,4 +1,5 @@
 add_llvm_component_library(LLVMAMDGPUUtils
+  AMDGPUAsanInstrumentation.cpp
   AMDGPUAsmUtils.cpp
   AMDGPUBaseInfo.cpp
   AMDGPUDelayedMCExpr.cpp
@@ -15,6 +16,7 @@ add_llvm_component_library(LLVMAMDGPUUtils
   MCParser
   Support
   TargetParser
+  TransformUtils
 
   ADD_TO_COMPONENT
   AMDGPU
