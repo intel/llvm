@@ -61,7 +61,7 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
         T minus_infinity = -INFINITY;
         double subnormal;
         *((uint64_t *)&subnormal) = 0xFFFFFFFFFFFFFULL;
-        res_access[i++] = sycl::scalbln(1.5, 2);
+        res_access[i++] = std::scalbln(1.5, 2);
         res_access[i++] = sycl::exp10(2.0);
         res_access[i++] = sycl::rsqrt(4.0);
         res_access[i++] = std::trunc(1.3);
