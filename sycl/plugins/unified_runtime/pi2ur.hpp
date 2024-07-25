@@ -1597,7 +1597,6 @@ inline pi_result piextContextCreateWithNativeHandle(
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
@@ -1609,7 +1608,7 @@ inline pi_result piextContextCreateWithNativeHandle(
       UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
-      NativeContext, NumDevices, UrDevices, &Properties, UrContext));
+      NativeContext, adapter, NumDevices, UrDevices, &Properties, UrContext));
 
   return PI_SUCCESS;
 }

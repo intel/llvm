@@ -156,6 +156,15 @@ public:
                     const std::string &KernelName,
                     const NDRDescT &NDRDesc = {});
 
+  sycl::detail::pi::PiKernel getCachedMaterializedKernel(
+      const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
+  sycl::detail::pi::PiKernel getOrCreateMaterializedKernel(
+      const RTDeviceBinaryImage &Img, const context &Context,
+      const device &Device, const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
                            const ContextImplPtr Context);
@@ -425,6 +434,10 @@ private:
 
   /// Protects m_HostPipes and m_Ptr2HostPipe.
   std::mutex m_HostPipesMutex;
+
+  using MaterializedEntries =
+      std::map<std::vector<unsigned char>, pi::PiKernel>;
+  std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
 };
 } // namespace detail
 } // namespace _V1
