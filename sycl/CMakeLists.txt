@@ -144,12 +144,13 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
-# Option to enable online kernel fusion via a JIT compiler
-option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
-if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
-  message(WARNING "Kernel fusion not yet supported on Windows")
-  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE 
-      BOOL "Kernel fusion not yet supported on Windows" FORCE)
+# Option to enable JIT, this in turn makes kernel fusion and spec constant
+# materialization possible.
+option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
+if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
+  message(WARNING "Extension to JIT kernels not yet supported on Windows")
+  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
+      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
 endif()
 
 # Option for enabling building the SYCL major release preview library.

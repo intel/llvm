@@ -167,7 +167,7 @@ def do_configure(args):
         "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
-        "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(jit_dir),
+        "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
@@ -182,7 +182,7 @@ def do_configure(args):
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_jit),
+        "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]

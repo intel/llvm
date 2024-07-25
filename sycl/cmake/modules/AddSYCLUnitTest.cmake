@@ -75,9 +75,9 @@ macro(add_sycl_unittest test_dirname link_variant)
       ${SYCL_LINK_LIBS}
     )
 
-  if(SYCL_ENABLE_KERNEL_FUSION)
+  if(SYCL_ENABLE_EXTENSION_JIT)
     target_link_libraries(${test_dirname} PRIVATE sycl-jit)
-  endif(SYCL_ENABLE_KERNEL_FUSION)
+  endif(SYCL_ENABLE_EXTENSION_JIT)
 
   target_include_directories(${test_dirname}
     PRIVATE SYSTEM
