@@ -1,4 +1,4 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
 // RUN: %{run} %t.out
 
 //==------------- deprecated.cpp - SYCL 2020 deprecation test --------------==//
