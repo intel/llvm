@@ -10,7 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
 

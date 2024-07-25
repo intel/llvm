@@ -8,7 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>

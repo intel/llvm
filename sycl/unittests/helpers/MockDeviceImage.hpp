@@ -1,4 +1,4 @@
-//==------------- PiImage.hpp --- PI mock image unit testing library -------==//
+//==----- MockDeviceImage.hpp --- Mock device image for unit testing -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

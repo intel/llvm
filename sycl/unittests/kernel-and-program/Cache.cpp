@@ -15,7 +15,7 @@
 #include "detail/kernel_program_cache.hpp"
 #include "sycl/detail/pi.h"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
 

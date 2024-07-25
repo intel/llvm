@@ -12,7 +12,7 @@
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>

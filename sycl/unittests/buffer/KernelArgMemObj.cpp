@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 
 class TestKernelWithMemObj;
