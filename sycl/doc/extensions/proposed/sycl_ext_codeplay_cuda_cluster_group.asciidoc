@@ -139,7 +139,7 @@ contain the cluster size as a number of work-groups.
  
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::cuda {
+namespace sycl::ext::codeplay::experimental::cuda {
 /**
 * Dim Dimensionality of the launch
 * size sycl::range specifying the number of work-groups in the cluster
@@ -152,7 +152,7 @@ struct cluster_size {
   ...
 };
 using cluster_size_key = cluster_size;
-} // namespace sycl::ext::oneapi::experimental::cuda
+} // namespace sycl::ext::codeplay::experimental::cuda
 ----
 
 The property list can the be constructed as follows - 
@@ -179,7 +179,7 @@ work-groups present inside the cluster.
 ----
 size_t max_cluster_size = 
   device.get_info<
-    ext::oneapi::experimental::cuda::info::device::max_cluster_group_size>();
+    ext::codeplay::experimental::cuda::info::device::max_cluster_group_size>();
 ----
 [%header,cols="10,5,5"]
 |===
@@ -187,7 +187,7 @@ size_t max_cluster_size =
 |Return Type
 |Description
 
-|`ext::oneapi::experimental::cuda::info::device::max_cluster_group_size`
+|`ext::codeplay::experimental::cuda::info::device::max_cluster_group_size`
 |size_t
 |Returns the maximum possible number of work-groups that can constitute a 
 cluster-group
@@ -346,7 +346,7 @@ namespace sycl {
   ...
   };
 
-  namespace ext::oneapi::experimental::cuda {
+  namespace ext::codeplay::experimental::cuda {
     inline constexpr auto memory_scope_cluster_group
       = memory_scope::ext_codeplay_cuda_cluster_group;
   } // namespace ext::codeplay::experimental::cuda
@@ -381,8 +381,8 @@ the cluster-range specified and accessing various id's within the kernel -
 ----
 sycl::event launch_kernel_with_cluster() {
   using cluster_size_prop =
-    sycl::ext::oneapi::experimental::cuda::cluster_size
-  using namespace sycl::ext::oneapi::experimental::cuda;
+    sycl::ext::codeplay::experimental::cuda::cluster_size
+  using namespace sycl::ext::codeplay::experimental::cuda;
 
   sycl::queue q;
 
