@@ -1,5 +1,6 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14721
+// UNSUPPORTED: ze_debug, windows, linux
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out

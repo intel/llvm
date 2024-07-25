@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env UR_ENABLE_LAYERS=UR_LAYER_TRACING env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.so %{run} %t.out | FileCheck %s
 
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14744
+// UNSUPPORTED: windows, linux
+
 #include "basic_event_collection.inc"
 //
 // CHECK: xptiTraceInit: Stream Name = ur

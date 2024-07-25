@@ -2,6 +2,9 @@
 // REQUIRES: hip_amd
 // RUN: %{run} %t1.out
 
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14742
+// UNSUPPORTED: windows, linux
+
 //==---- memory_coherency_hip.cpp  -----------------------------------------==//
 // USM coarse/fine grain memory coherency test for the HIP-AMD backend.
 //
