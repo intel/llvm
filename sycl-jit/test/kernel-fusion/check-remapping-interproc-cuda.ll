@@ -1,5 +1,5 @@
 ; REQUIRES: cuda
-; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext \
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext \
 ; RUN:   -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 ; This tests checks that PTX intrinsics are correctly remapped when fusing

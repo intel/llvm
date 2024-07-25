@@ -1,4 +1,4 @@
-; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
 ; RUN: -passes=sycl-kernel-fusion -S %s\
 ; RUN: | FileCheck %s
 

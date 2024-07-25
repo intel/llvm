@@ -56,7 +56,7 @@ target_link_libraries(sycl-jit
   PRIVATE
   sycl-jit-common
   LLVMSPIRVLib
-  SYCLKernelJitPasses
+  SYCLKernelJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
 

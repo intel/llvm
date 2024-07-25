@@ -1,5 +1,5 @@
 ; REQUIRES: hip_amd
-; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext \
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext \
 ; RUN: -passes=sycl-internalization -S %s | FileCheck %s
 
 ; This test is the IR version of

@@ -1,11 +1,11 @@
 ; RUN: %if hip_amd %{ env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" opt\
-; RUN: -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext --mtriple amdgcn-amd-amdhsa\
+; RUN: -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext --mtriple amdgcn-amd-amdhsa\
 ; RUN: -passes=sycl-spec-const-materializer,sccp -S %s 2> %t.stderr\
 ; RUN: | FileCheck %s %}
 ; RUN: %if hip_amd %{ FileCheck --input-file=%t.stderr --check-prefix=CHECK-DEBUG %s %}
 
 ; RUN: %if cuda %{ env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" opt\
-; RUN: -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext\
+; RUN: -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
 ; RUN: --mtriple nvptx64-nvidia-cuda -passes=sycl-spec-const-materializer,sccp -S %s 2> %t.stderr\
 ; RUN: | FileCheck %s %}
 ; RUN: %if hip_amd %{ FileCheck --input-file=%t.stderr --check-prefix=CHECK-DEBUG %s %}

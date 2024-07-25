@@ -1,5 +1,5 @@
 ; REQUIRES: hip_amd
-; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext \
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext \
 ; RUN:   -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 ; This tests checks that kernel fusion fails when a not-remappable AMDGPU

@@ -1,4 +1,4 @@
-; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJit%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
 ; RUN: -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 ; This tests checks that SPIR-V builtins are correctly remapped when fusing
