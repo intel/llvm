@@ -159,6 +159,15 @@ public:
                     const std::string &KernelName,
                     const NDRDescT &NDRDesc = {});
 
+  ur_kernel_handle_t getCachedMaterializedKernel(
+      const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
+  ur_kernel_handle_t getOrCreateMaterializedKernel(
+      const RTDeviceBinaryImage &Img, const context &Context,
+      const device &Device, const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr Context);
 
@@ -425,6 +434,10 @@ private:
 
   /// Protects m_HostPipes and m_Ptr2HostPipe.
   std::mutex m_HostPipesMutex;
+
+  using MaterializedEntries =
+      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+  std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
 };
 } // namespace detail
 } // namespace _V1

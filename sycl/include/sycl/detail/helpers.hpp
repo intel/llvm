@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/pi.hpp>         // for PiProgram
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -38,9 +39,13 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-
+class CGExecKernel;
 class buffer_impl;
 class context_impl;
+class queue_impl;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
+class RTDeviceBinaryImage;
+
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
 
 __SYCL_EXPORT void
@@ -247,6 +252,10 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
+
+std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
+retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+                     CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 
 } // namespace _V1

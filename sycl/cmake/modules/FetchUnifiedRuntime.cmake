@@ -114,13 +114,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9b209642d47a99fc445c3bdea3407a829f4623ae
-  # Merge: fa6bf973 65b44315
+  # commit e161516663bd5d14d15532dfaba626d5cdf32ed8
+  # Merge: 47633088 febb18bb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 23 19:22:06 2024 +0100
-  #     Merge pull request #1861 from aarongreig/aaron/addSetDataToMockHandle
-  #     Add getData/setData to mock dummy handle
-  set(UNIFIED_RUNTIME_TAG 9b209642d47a99fc445c3bdea3407a829f4623ae)
+  # Date:   Wed Jul 24 13:54:43 2024 +0100
+  #     Merge pull request #1521 from AllanZyne/review/yang/dg2
+  #     [DeviceSanitizer] Support GPU DG2 & GEN Device
+  set(UNIFIED_RUNTIME_TAG e161516663bd5d14d15532dfaba626d5cdf32ed8)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

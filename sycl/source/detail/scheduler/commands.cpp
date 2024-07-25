@@ -25,6 +25,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/sampler.hpp>
 
@@ -122,7 +123,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
-  if (!EliminatedArgMask) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
     for (ArgDesc &Arg : Args) {
       Func(Arg, Arg.MIndex);
     }
@@ -2357,9 +2358,18 @@ static ur_result_t SetKernelParamsAndLaunch(
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative, bool KernelUsesClusterLaunch) {
+    bool IsCooperative, bool KernelUsesClusterLaunch,
+    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const PluginPtr &Plugin = Queue->getPlugin();
+
+  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+    std::vector<unsigned char> Empty;
+    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
+        Queue, BinImage, KernelName,
+        DeviceImageImpl.get() ? DeviceImageImpl->get_spec_const_blob_ref()
+                              : Empty);
+  }
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2548,7 +2558,7 @@ void enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch) {
+    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2640,7 +2650,7 @@ void enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch);
+        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2984,11 +2994,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       }
     }
 
+    const RTDeviceBinaryImage *BinImage = nullptr;
+    if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+      std::tie(BinImage, std::ignore) =
+          retrieveKernelBinary(MQueue, KernelName.c_str());
+      assert(BinImage && "Failed to obtain a binary image.");
+    }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch);
+                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
 
     return UR_RESULT_SUCCESS;
   }

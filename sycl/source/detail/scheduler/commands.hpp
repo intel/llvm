@@ -37,6 +37,9 @@ void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
+RTDeviceBinaryImage *
+retrieveAMDGCNOrNVPTXKernelBinary(const DeviceImplPtr DeviceImpl,
+                                  const std::string &KernelName);
 
 class queue_impl;
 class event_impl;
@@ -634,7 +637,8 @@ void enqueueImpKernel(
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch);
+    const bool KernelUsesClusterLaunch,
+    const RTDeviceBinaryImage *BinImage = nullptr);
 
 class KernelFusionCommand;
 

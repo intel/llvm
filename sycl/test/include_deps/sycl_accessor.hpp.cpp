@@ -56,7 +56,6 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
-// CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/cl.h
@@ -74,7 +73,6 @@
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
-// CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
 // CHECK-NEXT: property_list.hpp
